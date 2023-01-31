@@ -6,7 +6,7 @@ Mapping is based on the cross-correlation of each cell with
 each cell cluster along the 'genes' axis.
 """
 
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional, Any
 
 import anndata
 import pathlib
@@ -416,6 +416,10 @@ def main():
     parser.add_argument('--cells_at_a_time', type=int, default=1000,
                         help=('Number of cells to load at a time; '
                               'default=1000'))
+    parser.add_argument('--tmp_dir', type=str, default=None,
+                        help=('Directory where temporary .h5 file '
+                              'of cell-by-gene data will be written'))
+    parser.add_argument('--n_processors', type=int, default=6)
 
     args = parser.parse_args()
 
@@ -424,7 +428,8 @@ def main():
         cluster_path=args.cluster_data_path,
         output_path=args.output_path,
         cells_at_a_time=args.cells_at_a_time,
-        tmp_dir='/local1/scott_daniel/scratch')
+        tmp_dir=args.tmp_dir,
+        n_processors=args.n_processors)
 
 if __name__ == "__main__":
     main()
