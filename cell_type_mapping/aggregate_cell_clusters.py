@@ -84,6 +84,9 @@ def aggregate_clusters(
 
     data_iterator = data_src.chunked_X(rows_per_chunk)
 
+    tot_cells = 0
+    if n_cells is not None:
+       ntot = n_cells // rows_per_chunk
     for chunk in data_iterator:
         cluster_rows = all_cluster_rows[chunk[1]:chunk[2]]
         data = chunk[0].toarray()
@@ -101,6 +104,10 @@ def aggregate_clusters(
         print(f"{chunk_ct} in {duration:.2e} minutes; "
               f"{remain:.2e} of {pred:.2e} left")
 
+        if n_cells is not None:
+            tot_cells += (chunk[2]-chunk[1])
+            if tot_cells >= n_cells:
+                break
     final_mean = (final_sum/final_ct).transpose()
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
@@ -182,7 +189,6 @@ def get_metadata(
      'gene_names': the list of gene names in data_src}
     """
 
-    data_src = anndata.read_h5ad(anndata_path, backed='r')
     n_genes = data_src.shape[1]
     n_cells = data_src.shape[0]
     cluster_names = set(data_src.obs.cluster_label.values)
