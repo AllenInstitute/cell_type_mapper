@@ -1,4 +1,11 @@
-from typing import Union
+"""
+This script takes an .h5ad file of cell-by-gene expression data and
+produces an .h5 file containing a cluster-by-gene array representing
+the average gene expression in each cell type cluster represented in
+the original file.
+"""
+
+from typing import Union, Optional
 import pathlib
 import anndata
 import argparse
@@ -9,21 +16,59 @@ import h5py
 
 
 def aggregate_clusters(
-        anndata_path,
-        output_path,
-        n_cells=None):
+        anndata_path: Union[str, pathlib.Path],
+        output_path: Union[str, pathlib.Path],
+        gb_per_chunk: int = 19,
+        n_cells: Optional[int] = None) -> None:
+    """
+    Average the cell-by-gene data over clusters and write out the
+    cluster-by-gene file.
 
-    metadata = get_metadata(anndata_path=anndata_path)
+    Parameters
+    ----------
+    anndata_path:
+        Path to the .h5ad file containing the cell-by-gene data
+
+    output_path:
+        Path to the .h5 file that will be written
+
+    gb_per_chunk:
+        Approximate GB to read in from anndata_path at a time.
+
+    n_cells:
+        For testing purposes. Only use the first n-cells cells.
+        If None, use all cells.
+
+    Returns
+    -------
+    None
+        Data is written to output_path
+
+    Notes
+    -----
+    output_path will contain 3 datasets. 'cluster_by_gene' is a numpy
+    array of gene expression data. 'cluster_names' is the JSON-serialized
+    list of cell cluster names. 'gene_names' is the JSON-serialized
+    list of gene names.
+    """
+    data_src = anndata.read_h5ad(anndata_path, backed='r')
+
+    metadata = get_metadata(data_src=data_src)
 
     if n_cells is not None:
         metadata['n_cells'] = n_cells
 
     rows_per_chunk = np.ceil(
-            19*1024**3/(8*metadata['n_genes'])).astype(int)
+            gb_per_chunk*1024**3/(8*metadata['n_genes'])).astype(int)
 
     print(f"{rows_per_chunk} rows per chunk")
 
+    # create the arrays where the final result will be
+    # aggregated
     final_ct = np.zeros(metadata['n_clusters'], dtype=int)
+
+    # This is the transpose of the actual final output so that we
+    # can do element-wise division at the end.
     final_sum = np.zeros((metadata['n_genes'],
                           metadata['n_clusters']),
                          dtype=float)
@@ -31,10 +76,14 @@ def aggregate_clusters(
     cluster_to_row = metadata['cluster_to_row']
     t0 = time.time()
     chunk_ct = 0
-    data_src = anndata.read_h5ad(anndata_path, backed='r')
+
     ntot = data_src.shape[0]//rows_per_chunk
-    all_cluster_rows = np.array([cluster_to_row[c] for c in data_src.obs.cluster_label.values])
+
+    all_cluster_rows = np.array([cluster_to_row[c]
+                                 for c in data_src.obs.cluster_label.values])
+
     data_iterator = data_src.chunked_X(rows_per_chunk)
+
     for chunk in data_iterator:
         cluster_rows = all_cluster_rows[chunk[1]:chunk[2]]
         data = chunk[0].toarray()
@@ -61,6 +110,7 @@ def aggregate_clusters(
                     min(1000, final_mean.shape[1])))
 
         print("wrote cluster_by_gene")
+
         cluster_to_row = metadata['cluster_to_row']
         row_to_cluster = {cluster_to_row[c]:c
                           for c in cluster_to_row}
@@ -69,6 +119,7 @@ def aggregate_clusters(
         out_file.create_dataset(
             'cluster_names',
             data=json.dumps(cluster_names).encode('utf-8'))
+
         out_file.create_dataset(
             'gene_names',
             data=json.dumps(metadata['gene_names']).encode('utf-8'))
@@ -77,8 +128,26 @@ def aggregate_clusters(
 
 
 def aggregate_chunk(
-        data,
-        clusters):
+        data: np.ndarray,
+        clusters: np.ndarray) -> dict:
+    """
+    Collect a chunk of expression data by cell cluster.
+
+    Parameters
+    ----------
+    data:
+        A cell-by-gene array of gene expression data
+
+    clusters:
+        A numpy.array of ints indicating which clusters the
+        rows of data belong to
+
+    Returns
+    -------
+    {'sum': a dict mapping cluster to the sum of the rows of data
+            in that cluster
+     'ct': a dict mapping cluster to the number of cells in that cluster}
+    """
 
     sum_buffer = dict()
     ct_buffer = dict()
@@ -94,22 +163,23 @@ def aggregate_chunk(
 
 
 def get_metadata(
-        anndata_path: Union[str, pathlib.Path]) -> dict:
+        data_src: anndata.AnnData) -> dict:
     """
-    Get the parameters needed to create the temporary HDF5 file
-    for aggregating the cluster gene expression data.
+    Get a dict of the metadata needed to run the aggreagation.
 
     Parameters
     ----------
-    anndata_path: Union[str, pathlib.Path]
-        Path to the AnnData file whose rows are being aggregated
+    data_src:
+        The AnnData object representing the cell-by-gene data.
 
     Returns
     -------
-    A dict. 'n_genes' will be the number of genes in the expression
-    matrix. 'n_clusters' will be the number of clusters in the dataset.
-    'cluster_to_row' will be a dict mapping cluster names
-    to row numbers in the temporary HDF5 file to be produced.
+    {'n_genes': the number of genes in data_src
+     'n_cells': the number of cells in data_src
+     'n_clusters': the number of cell clusters in data_src
+     'cluster_to_row': a dict mapping cluster name to row index
+                       in the final cluster-by-gene array
+     'gene_names': the list of gene names in data_src}
     """
 
     data_src = anndata.read_h5ad(anndata_path, backed='r')
@@ -142,9 +212,14 @@ def get_metadata(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--anndata_path', type=str, default=None)
-    parser.add_argument('--output_path', type=str, default=None)
-    parser.add_argument('--n_cells', type=int, default=None)
+    parser.add_argument('--anndata_path', type=str, default=None,
+                        help='path to the cell-by-gene .h5ad file')
+    parser.add_argument('--output_path', type=str, default=None,
+                        help=('path to the cluster-by-gene .h5 '
+                              'file to be written'))
+    parser.add_argument('--n_cells', type=int, default=None,
+                        help=('if not None, only aggregate this many '
+                              'cells (for testing)'))
     args = parser.parse_args()
 
     aggregate_clusters(
