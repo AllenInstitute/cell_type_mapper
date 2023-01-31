@@ -1,3 +1,13 @@
+"""
+Implementation of a very simple scheme to map cells of unknown
+type onto a gene-expression-based taxonomy.
+
+Mapping is based on the cross-correlation of each cell with
+each cell cluster along the 'genes' axis.
+"""
+
+from typing import Union, Tuple
+
 import anndata
 import pathlib
 import h5py
@@ -12,18 +22,52 @@ from scipy.spatial.distance import cdist as scipy_cdist
 
 
 def map_cells_to_clusters(
-        cell_path,
-        cluster_path,
-        output_path,
-        cells_at_a_time=1000,
-        tmp_dir=None,
-        n_processors=6):
+        cell_path: Union[str, pathlib.Path],
+        cluster_path: Union[str, pathlib.Path],
+        output_path: Union[str, pathlib.Path],
+        cells_at_a_time: int =1000,
+        tmp_dir: Optional[Union[str, pathlib.Path]] = None,
+        n_processors: int = 6) -> None:
+    """
+    Map the cells from a cell-by-gene expression array onto the clusters
+    from a cluster-by-gene expression array using cross correlation
+
+    Parameters
+    ----------
+    cell_path:
+        Path to the .h5ad file containing the cell-by-gene data
+
+    cluster_path:
+        Path to the .h5 file (as produced by aggregate_cell_clusters.py)
+        containing the cluster-by-gene data.
+
+    output_path:
+        Path to the .h5 file that will be written containing the
+        cell-by-cluster correlation data
+
+    cells_at_a_time:
+        Number of cells to load in one "chunk"
+
+    tmp_dir:
+       Directory where a temporary HDF5 file is written containing
+       the cell-by-gene data (Running this script on the MERFISH data,
+       the array is small enough that it makes sense to write it out
+       to a chunked HDF5 file for more rapid access)
+
+    n_processors:
+        The number of independent workers to spin up with
+        multiprocessing
+
+    Returns
+    -------
+    None
+        Results are written to the file specified by output_path
+    """
 
     gene_lookup = get_metadata(
                 cell_path=cell_path,
                 cluster_path=cluster_path,
                 tmp_dir=tmp_dir)
-
 
     with h5py.File(cluster_path, 'r') as in_file:
         cluster_by_gene = in_file['cluster_by_gene'][()]
@@ -76,18 +120,59 @@ def map_cells_to_clusters(
         p.start()
         process_list.append(p)
 
+    print("started all workers")
     for p in process_list:
         p.join()
-    print("started all workers")
+    print("done")
+
+    tmp_path = pathlib.Path(gene_lookup['tmp_cell_path'])
+    if tmp_path.exists():
+        print(f"cleaning {tmp_path}")
+        tmp_path.unlink()
 
 
 def _worker(
-        cell_data_path,
-        cluster_by_gene,
-        cell_row_specification,
-        output_lock,
-        output_path,
-        rows_at_a_time=5000):
+        cell_data_path: Union[str, pathlib.Path],
+        cluster_by_gene: np.ndarray,
+        cell_row_specification: Tuple[int, int],
+        output_lock: Any,
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 5000) -> None:
+    """
+    worker function to calculate the correlation coefficients
+    for one chunk of the final cell-by-gene array and write
+    them to the output file.
+
+    Parameters
+    ----------
+    cell_data_path:
+        Path to the h5 file (*not* the h5ad file) containing the
+        cell-by-gene data
+
+    cluster_by_gene:
+        The array of cluster-by-gene expression data (already
+        read in as a numpy array)
+
+    cell_row_specification:
+        (row_min, row_max) of the chunk being processed
+
+    output_lock:
+        A multiprocessing.Manager.Lock to prevent more than
+        one thread from writing to the output file at once
+
+    output_path:
+        Path to the h5 file being written
+
+    rows_at_a_time:
+        The number of rows to process at once (this worker will
+        load subsets of cell_row_specification at a time to avoid
+        overwhelming memory)
+
+    Returns
+    -------
+    None
+        Results are written to output_path
+    """
     t0 = time.time()
     row_min = cell_row_specification[0]
     row_max = cell_row_specification[1]
@@ -111,7 +196,44 @@ def _worker(
             print_timing(t0=t0, i_chunk=ct, n_chunks=nchunks)
 
 
-def get_metadata(cell_path, cluster_path, tmp_dir):
+def get_metadata(
+        cell_path: Union[str, pathlib.Path],
+        cluster_path: Union[str, pathlib.Path],
+        tmp_dir: Union[str, pathlib.Path]):
+    """
+    Perform metadata calculations needed to proceed with
+    cell-to-cluster mapping.
+
+    Parameters
+    ----------
+    cell_path:
+        Path to the h5ad file containing the cell-by-gene data
+
+    cluster_path:
+        Path to the h5 file containing the cluster-by-gene data
+
+    tmp_dir:
+        Directory where a temporary HDF5 file containing the chunked
+        cell-by-gene data is stored
+
+    Returns
+    -------
+    {'gene_names': name of the genes matched in cell-by-gene and
+                   cluster-by-gene data
+     'cluster_idx': np.ndarray of column indices in cluster_by_gene
+                    matching gene_names
+     'annddata_idx': np.ndarray of column indicies in cell-by-gene data
+                     matching gene_names
+     'n_cells': number of cells in cell-by-gene data
+     'cell_names': names of cells in cell-by-gene data (a list)
+     'tmp_cell_path': temporary HDF5 file containing the
+                      cell-by-gene data}
+
+    Notes
+    -----
+    This function creates and populates tmp_cell_path
+    """
+
     cell_src = anndata.read_h5ad(cell_path, backed='r')
     gene_lookup = match_genes(
                     anndata_src=cell_src,
@@ -136,10 +258,36 @@ def get_metadata(cell_path, cluster_path, tmp_dir):
 
 
 def write_anndata_to_tmp(
-        data_src,
-        tmp_path,
-        col_idx,
-        chunk_size=5000):
+        data_src: anndata.AnnData,
+        tmp_path: Union[str, pathlib.Path],
+        col_idx: np.ndarray,
+        chunk_size: int = 5000) -> None:
+    """
+    Write the cell-by-gene data as a dense array in a chunked
+    HDF5 file (this is more efficient in the case of mapping our
+    MERFISH data to the cell clusters in our 10X data)
+
+    Parameters
+    ----------
+    data_src:
+        The AnnData object containing the cell-by-gene data
+
+    tmp_path:
+        Path to the HDF5 file being written
+
+    col_idx:
+        np.ndarray of column indices corresponding to
+        the genes being kept
+
+    chunk_size:
+        Number of rows read in from data_src at a time
+
+    Returns
+    -------
+    None
+        Results are written out to the file specified
+        by tmp_path
+    """
 
     print(f"transcrbing data to\n{tmp_path}")
     n_chunks = data_src.shape[0]//chunk_size
@@ -152,7 +300,6 @@ def write_anndata_to_tmp(
             chunks=(min(1000, data_src.shape[0]),
                     min(1000, len(col_idx))))
 
-        print("transcribing anndata")
         t0 = time.time()
         for i_chunk, chunk in enumerate(data_src.chunked_X(chunk_size)):
             this = chunk[0].toarray()[:, col_idx]
@@ -166,12 +313,25 @@ def write_anndata_to_tmp(
 
 
 def correlate_cells(
-        cell_by_gene,
-        cluster_by_gene):
+        cell_by_gene: np.ndarray,
+        cluster_by_gene: np.ndarray):
     """
     Compute the Pearson's correlation coefficient
     of every cell in cell_by_gene versus every cluster
     in cluster_by_gene
+
+    Parameters
+    ----------
+    cell_by_gene:
+        (n_cells, n_genes)
+
+    cluster_by_gene:
+        (n_clusters, n_genes)
+
+    Returns
+    -------
+    cell_by_cluster:
+        (n_cells, n_clusters)
     """
 
     return 1.0-scipy_cdist(cell_by_gene,
@@ -179,13 +339,29 @@ def correlate_cells(
                            metric='correlation')
 
 def match_genes(
-        anndata_src,
-        cluster_path):
+        anndata_src: anndata.AnnData,
+        cluster_path: Union[str, pathlib.Path]) -> dict:
     """
     Returns a dict containing the names of genes that matched
     across the datasets as well as two lists containing the
     column index of those genes in the anndata dataset and
     the cluster-by-gene dataset
+
+    Parameters
+    ----------
+    anndata_src:
+        AnnData object containing cell-by-gene data
+
+    cluster_path:
+        Path to the h5 file containing the cluster-by-gene data
+
+    Returns
+    -------
+    {'gene_names': list of names of genes that occur in both datasets
+     'cluster_idx': np.ndarray of column indices needed to get those
+                    genes from cluster-by-gene data
+     'anndata_idx': np.ndarray of column indices needed to get those
+                    genes from cell-by-gene data}
     """
 
     with h5py.File(cluster_path, 'r') as in_file:
@@ -216,6 +392,9 @@ def print_timing(
         t0,
         i_chunk,
         n_chunks):
+    """
+    Utility function to print out a timing message to stdout
+    """
     duration = (time.time()-t0)/60.0
     per = duration/i_chunk
     pred = n_chunks*per
