@@ -226,12 +226,16 @@ def main():
     parser.add_argument('--n_cells', type=int, default=None,
                         help=('if not None, only aggregate this many '
                               'cells (for testing)'))
+    parser.add_argument('--gb_per_chunk', type=int, default=19,
+                        help=('approximate GB to load from anndata '
+                              'at a time'))
     args = parser.parse_args()
 
     aggregate_clusters(
         anndata_path=args.anndata_path,
         output_path=args.output_path,
-        n_cells=args.n_cells)
+        n_cells=args.n_cells,
+        gb_per_chunk=args.gb_per_chunk)
 
 
 if __name__ == "__main__":
