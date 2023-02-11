@@ -1,0 +1,5 @@
+pytest
+numpy
+scipy
+zarr
+anndata
