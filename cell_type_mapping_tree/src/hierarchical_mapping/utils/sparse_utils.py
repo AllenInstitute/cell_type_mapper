@@ -164,8 +164,7 @@ def _cull_columns(
     print(f"ready for new indptr in {time.time()-t0:.2e}")
     new_indptr = np.zeros(len(indptr), dtype=int)
     new_indptr[0]
-    for new_idx, (this_datum, this_col, this_idx) in enumerate(
-            zip(new_data, indices, valid_idx)):
+    for new_idx, this_idx in enumerate(valid_idx):
 
         while this_idx >= indptr[this_row+1]:
             this_row += 1
