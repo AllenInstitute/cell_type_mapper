@@ -130,9 +130,10 @@ def _csr_to_dense(
 
     data_idx = 0
     for iptr in range(len(indptr)-1):
-        for icol in indices[indptr[iptr]:indptr[iptr+1]]:
-            result[iptr, icol] = data[data_idx]
-            data_idx += 1
+        these_cols = indices[indptr[iptr]:indptr[iptr+1]]
+        n_cols = len(these_cols)
+        result[iptr, these_cols] = data[data_idx:data_idx+n_cols]
+        data_idx += n_cols
 
     return result
 
