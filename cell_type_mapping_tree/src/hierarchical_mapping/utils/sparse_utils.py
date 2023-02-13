@@ -155,19 +155,18 @@ def _cull_columns(
             indices < col_spec[1])
 
     valid_idx = np.arange(len(indices), dtype=int)[valid_columns]
-    data = data[valid_columns]
+    new_data = data[valid_columns]
     indices = indices[valid_columns]
 
     this_row = 0
     new_indptr.append(0)
     for new_idx, (this_datum, this_col, this_idx) in enumerate(
-            zip(data, indices, valid_idx)):
+            zip(new_data, indices, valid_idx)):
 
         while this_idx >= indptr[this_row+1]:
             this_row += 1
-            new_indptr.append(len(new_data))
+            new_indptr.append(new_idx)
 
-        new_data.append(this_datum)
         new_indices.append(this_col-col_spec[0])
 
     new_indptr.append(len(new_data))
