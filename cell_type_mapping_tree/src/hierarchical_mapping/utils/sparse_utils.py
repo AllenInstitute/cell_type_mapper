@@ -147,25 +147,22 @@ def _cull_columns(
     """
     import time
     t0 = time.time()
-    new_data = []
-    new_indices = []
-    new_indptr = []
 
-    indices = np.array(indices)
-    valid_columns = np.logical_and(
-            indices >= col_spec[0],
-            indices < col_spec[1])
+    valid_idx = np.where(
+            np.logical_and(
+                indices >= col_spec[0],
+                indices < col_spec[1]))[0]
 
-    valid_idx = np.arange(len(indices), dtype=int)[valid_columns]
-    new_data = data[valid_columns]
-    new_indices = indices[valid_columns]-col_spec[0]
+    print(f"np.where in {time.time()-t0:.2e}")
+
+    new_data = data[valid_idx]
+    new_indices = indices[valid_idx]-col_spec[0]
 
     this_row = 0
     print(f"ready for new indptr in {time.time()-t0:.2e}")
     new_indptr = np.zeros(len(indptr), dtype=int)
     new_indptr[0]
     for new_idx, this_idx in enumerate(valid_idx):
-
         while this_idx >= indptr[this_row+1]:
             this_row += 1
             new_indptr[this_row] = new_idx
