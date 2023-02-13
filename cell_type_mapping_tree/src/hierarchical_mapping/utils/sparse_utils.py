@@ -19,16 +19,12 @@ def load_csr(
                     indices=indices,
                     indptr=indptr)
 
-    result = np.zeros((row_spec[1]-row_spec[0], n_cols),
-                      dtype=data.dtype)
-
-    data_idx = 0
-    for iptr in range(len(indptr)-1):
-        for icol in indices[indptr[iptr]:indptr[iptr+1]]:
-            result[iptr, icol] = data[data_idx]
-            data_idx += 1
-
-    return result
+    return _csr_to_dense(
+                data=data,
+                indices=indices,
+                indptr=indptr,
+                n_rows=row_spec[1]-row_spec[0],
+                n_cols=n_cols)
 
 
 def _load_csr(
@@ -47,16 +43,16 @@ def _load_csr(
 
     data:
         The data matrix (as in scipy.sparse.csr_matrix().data)
-    
+
     indices:
         The indices matrix (as in scipy.sparse.csr_matrix().indices)
-    
+
     indptr:
         The indptr matrix (as in scipy.sparse.csr_matrix().indptr)
 
     Returns
     -------
-    The appropriate slices of data, indices, indptr 
+    The appropriate slices of data, indices, indptr
     """
 
     index0 = indptr[row_spec[0]]
@@ -67,4 +63,42 @@ def _load_csr(
     these_indices = indices[index0:index1]
     this_data = data[index0:index1]
     return this_data, these_indices, these_ptrs-these_ptrs.min()
-    
+
+
+def _csr_to_dense(
+        data,
+        indices,
+        indptr,
+        n_rows,
+        n_cols):
+    """
+    Return a dense matrix from a csr sparse matrix specification
+
+    Parameters
+    ----------
+    data:
+        The data matrix (as in scipy.sparse.csr_matrix().data)
+
+    indices:
+        The indices matrix (as in scipy.sparse.csr_matrix().indices)
+
+    indptr:
+        The indptr matrix (as in scipy.sparse.csr_matrix().indptr)
+
+    n_rows:
+        Number of rows in the dense matrix
+
+    n_cols:
+        Number of columns in the dense matrix
+    """
+
+    result = np.zeros((n_rows, n_cols),
+                      dtype=data.dtype)
+
+    data_idx = 0
+    for iptr in range(len(indptr)-1):
+        for icol in indices[indptr[iptr]:indptr[iptr+1]]:
+            result[iptr, icol] = data[data_idx]
+            data_idx += 1
+
+    return result
