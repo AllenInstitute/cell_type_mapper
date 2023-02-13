@@ -27,6 +27,39 @@ def load_csr(
                 n_cols=n_cols)
 
 
+def load_csr_chunk(
+        row_spec,
+        col_spec,
+        data,
+        indices,
+        indptr):
+    """
+    Return a dense matrix from a subset of csr rows
+    """
+    (data,
+     indices,
+     indptr) = _load_csr(
+                    row_spec=row_spec,
+                    data=data,
+                    indices=indices,
+                    indptr=indptr)
+
+    (data,
+     indices,
+     indptr) = _cull_columns(
+                     col_spec=col_spec,
+                     data=data,
+                     indices=indices,
+                     indptr=indptr)
+
+    return _csr_to_dense(
+                data=data,
+                indices=indices,
+                indptr=indptr,
+                n_rows=row_spec[1]-row_spec[0],
+                n_cols=col_spec[1]-col_spec[0])
+
+
 def _load_csr(
         row_spec,
         data,
@@ -102,3 +135,43 @@ def _csr_to_dense(
             data_idx += 1
 
     return result
+
+
+def _cull_columns(
+        col_spec,
+        data,
+        indices,
+        indptr):
+    """
+    Return only the desired columns from a csr matrix
+    """
+    new_data = []
+    new_indices = []
+    new_indptr = []
+
+    indices = np.array(indices)
+    valid_columns = np.logical_and(
+            indices >= col_spec[0],
+            indices < col_spec[1])
+
+    valid_idx = np.arange(len(indices), dtype=int)[valid_columns]
+    data = data[valid_columns]
+    indices = indices[valid_columns]
+
+    this_row = 0
+    new_indptr.append(0)
+    for new_idx, (this_datum, this_col, this_idx) in enumerate(
+            zip(data, indices, valid_idx)):
+
+        while this_idx >= indptr[this_row+1]:
+            this_row += 1
+            new_indptr.append(len(new_data))
+
+        new_data.append(this_datum)
+        new_indices.append(this_col-col_spec[0])
+
+    new_indptr.append(len(new_data))
+
+    return (np.array(new_data),
+            np.array(new_indices),
+            np.array(new_indptr))
