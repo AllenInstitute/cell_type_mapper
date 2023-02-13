@@ -145,6 +145,8 @@ def _cull_columns(
     """
     Return only the desired columns from a csr matrix
     """
+    import time
+    t0 = time.time()
     new_data = []
     new_indices = []
     new_indptr = []
@@ -159,6 +161,7 @@ def _cull_columns(
     new_indices = indices[valid_columns]-col_spec[0]
 
     this_row = 0
+    print(f"ready for new indptr in {time.time()-t0:.2e}")
     new_indptr.append(0)
     for new_idx, (this_datum, this_col, this_idx) in enumerate(
             zip(new_data, indices, valid_idx)):
@@ -168,6 +171,7 @@ def _cull_columns(
             new_indptr.append(new_idx)
 
     new_indptr.append(len(new_data))
+    print(f"total took {time.time()-t0:.2e}")
 
     return (np.array(new_data),
             np.array(new_indices),
