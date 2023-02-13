@@ -162,17 +162,18 @@ def _cull_columns(
 
     this_row = 0
     print(f"ready for new indptr in {time.time()-t0:.2e}")
-    new_indptr.append(0)
+    new_indptr = np.zeros(len(indptr), dtype=int)
+    new_indptr[0]
     for new_idx, (this_datum, this_col, this_idx) in enumerate(
             zip(new_data, indices, valid_idx)):
 
         while this_idx >= indptr[this_row+1]:
             this_row += 1
-            new_indptr.append(new_idx)
+            new_indptr[this_row] = new_idx
 
-    new_indptr.append(len(new_data))
+    new_indptr[this_row+1:] = len(new_data)
     print(f"total took {time.time()-t0:.2e}")
 
-    return (np.array(new_data),
-            np.array(new_indices),
-            np.array(new_indptr))
+    return (new_data,
+            new_indices,
+            new_indptr)
