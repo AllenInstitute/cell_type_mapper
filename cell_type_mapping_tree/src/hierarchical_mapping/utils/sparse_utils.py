@@ -172,3 +172,63 @@ def _cull_columns(
     return (new_data,
             new_indices,
             new_indptr)
+
+
+def merge_csr(
+        data_list,
+        indices_list,
+        indptr_list):
+    """
+    Merge multiple CSR matrices into one
+
+    Parameters
+    ----------
+    data_list:
+        List of the distinct 'data' arrays from
+        the CSR matrices
+
+    indices_list:
+        List of the distinct 'indices' arrays from
+        the CSR matrices
+
+    indptr_list:
+        List of the distinct 'indptr' arrays from
+        the CSR matrices
+
+    Returns
+    -------
+    data:
+        merged 'data' array for the final CSR matrix
+
+    indices:
+        merged 'indices' array for the final CSR matrix
+
+    indptr:
+        merged 'indptr' array for the final CSR matrix
+    """
+    n_data = 0
+    for d in data_list:
+        n_data += len(d)
+    n_indptr = 0
+    for i in indptr_list:
+        n_indptr += len(i)-1
+    n_indptr += 1
+
+    data = np.zeros(n_data, dtype=data_list[0].dtype)
+    indices = np.zeros(n_data, dtype=int)
+    indptr = np.zeros(n_indptr, dtype=int)
+
+    i0 = 0
+    ptr0 = 0
+    for this_data, this_indices, this_indptr in zip(data_list,
+                                                    indices_list,
+                                                    indptr_list):
+        i1 = i0 + len(this_data)
+        data[i0:i1] = this_data
+        indices[i0: i1] = this_indices
+        ptr1 = ptr0 + len(this_indptr)-1
+        indptr[ptr0:ptr1] = this_indptr[:-1] + i0
+        i0 = i1
+        ptr0 = ptr1
+    indptr[-1] = len(data)
+    return data, indices, indptr

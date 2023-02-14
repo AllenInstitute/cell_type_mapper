@@ -8,7 +8,8 @@ import zarr
 
 from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
-    load_csr_chunk)
+    load_csr_chunk,
+    merge_csr)
 
 
 def _clean_up(target_path):
@@ -154,3 +155,44 @@ def test_load_csr_chunk_very_sparse():
             assert actual.sum() == expected_sum
 
             np.testing.assert_array_equal(expected, actual)
+
+
+
+def test_merge_csr():
+
+    nrows = 100
+    ncols = 234
+
+    rng = np.random.default_rng(6123512)
+    data = np.zeros((nrows*ncols), dtype=float)
+    chosen_dex = rng.choice(np.arange(len(data)),
+                            len(data)//3,
+                            replace=False)
+    data[chosen_dex] = rng.random(len(chosen_dex))
+    data = data.reshape((nrows, ncols))
+
+    final_csr = scipy_sparse.csr_matrix(data)
+
+    sub0 = scipy_sparse.csr_matrix(data[:32, :])
+    sub1 = scipy_sparse.csr_matrix(data[32:71, :])
+    sub2 = scipy_sparse.csr_matrix(data[71:, :])
+
+    (merged_data,
+     merged_indices,
+     merged_indptr) = merge_csr(
+         data_list=[sub0.data, sub1.data, sub2.data],
+         indices_list=[sub0.indices, sub1.indices, sub2.indices],
+         indptr_list=[sub0.indptr, sub1.indptr, sub2.indptr])
+
+
+    np.testing.assert_allclose(merged_data, final_csr.data)
+    np.testing.assert_array_equal(merged_indices, final_csr.indices)
+    np.testing.assert_array_equal(merged_indptr, final_csr.indptr)
+
+
+    merged_csr = scipy_sparse.csr_matrix(
+        (merged_data, merged_indices, merged_indptr),
+        shape=(nrows, ncols))
+
+    result = merged_csr.todense()
+    np.testing.assert_allclose(result, data)
