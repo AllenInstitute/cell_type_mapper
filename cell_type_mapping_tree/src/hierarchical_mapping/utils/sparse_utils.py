@@ -87,9 +87,6 @@ def _load_csr(
     -------
     The appropriate slices of data, indices, indptr
     """
-
-    index0 = indptr[row_spec[0]]
-    index1 = indptr[row_spec[1]]
     these_ptrs = indptr[row_spec[0]:row_spec[1]+1]
     index0= these_ptrs[0]
     index1 = these_ptrs[-1]
