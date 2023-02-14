@@ -260,12 +260,41 @@ def merge_csr(
     for this_data, this_indices, this_indptr in zip(data_list,
                                                     indices_list,
                                                     indptr_list):
-        i1 = i0 + len(this_data)
-        data[i0:i1] = this_data
-        indices[i0: i1] = this_indices
-        ptr1 = ptr0 + len(this_indptr)-1
-        indptr[ptr0:ptr1] = this_indptr[:-1] + i0
-        i0 = i1
+
+        (data,
+         indices,
+         indptr,
+         idx1,
+         ptr1) = _merge_csr_chunk(
+                 data_in=this_data,
+                 indices_in=this_indices,
+                 indptr_in=this_indptr,
+                 data=data,
+                 indices=indices,
+                 indptr=indptr,
+                 idx0=i0,
+                 ptr0=ptr0)
+
+        i0 = idx1
         ptr0 = ptr1
+
     indptr[-1] = len(data)
     return data, indices, indptr
+
+
+def _merge_csr_chunk(
+        data_in,
+        indices_in,
+        indptr_in,
+        data,
+        indices,
+        indptr,
+        idx0,
+        ptr0):
+    idx1 = idx0 + len(data_in)
+    data[idx0:idx1] = data_in
+    indices[idx0: idx1] = indices_in
+    ptr1 = ptr0 + len(indptr_in)-1
+    indptr[ptr0:ptr1] = indptr_in[:-1] + idx0
+
+    return data, indices, indptr, idx1, ptr1
