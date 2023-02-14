@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 
 def load_csr(
@@ -87,11 +88,16 @@ def _load_csr(
     -------
     The appropriate slices of data, indices, indptr
     """
+    t0 = time.time()
+    print("loading csr")
     these_ptrs = indptr[row_spec[0]:row_spec[1]+1]
+    print(f"got indptr {time.time()-t0:.2e}")
     index0= these_ptrs[0]
     index1 = these_ptrs[-1]
     these_indices = indices[index0:index1]
+    print(f"got indices {time.time()-t0:.2e}")
     this_data = data[index0:index1]
+    print(f"done loading csr {time.time()-t0:.2e}")
     return this_data, these_indices, these_ptrs-these_ptrs.min()
 
 
@@ -143,7 +149,7 @@ def _cull_columns(
     """
     Return only the desired columns from a csr matrix
     """
-
+    print("culling columns")
     valid_idx = np.where(
             np.logical_and(
                 indices >= col_spec[0],
@@ -162,6 +168,7 @@ def _cull_columns(
 
     new_indptr[this_row+1:] = len(new_data)
 
+    print("done culling columns")
     return (new_data,
             new_indices,
             new_indptr)
