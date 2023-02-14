@@ -1,3 +1,4 @@
+import pytest
 import numpy as np
 import scipy.sparse as scipy_sparse
 import anndata
@@ -171,6 +172,54 @@ def test_merge_csr():
                             replace=False)
     data[chosen_dex] = rng.random(len(chosen_dex))
     data = data.reshape((nrows, ncols))
+
+    final_csr = scipy_sparse.csr_matrix(data)
+
+    sub0 = scipy_sparse.csr_matrix(data[:32, :])
+    sub1 = scipy_sparse.csr_matrix(data[32:71, :])
+    sub2 = scipy_sparse.csr_matrix(data[71:, :])
+
+    (merged_data,
+     merged_indices,
+     merged_indptr) = merge_csr(
+         data_list=[sub0.data, sub1.data, sub2.data],
+         indices_list=[sub0.indices, sub1.indices, sub2.indices],
+         indptr_list=[sub0.indptr, sub1.indptr, sub2.indptr])
+
+
+    np.testing.assert_allclose(merged_data, final_csr.data)
+    np.testing.assert_array_equal(merged_indices, final_csr.indices)
+    np.testing.assert_array_equal(merged_indptr, final_csr.indptr)
+
+
+    merged_csr = scipy_sparse.csr_matrix(
+        (merged_data, merged_indices, merged_indptr),
+        shape=(nrows, ncols))
+
+    result = merged_csr.todense()
+    np.testing.assert_allclose(result, data)
+
+
+@pytest.mark.parametrize("zero_block", (0, 1, 2))
+def test_merge_csr_block_zeros(zero_block):
+
+    nrows = 100
+    ncols = 234
+
+    rng = np.random.default_rng(6123512)
+    data = np.zeros((nrows*ncols), dtype=int)
+    chosen_dex = rng.choice(np.arange(len(data)),
+                            len(data)//3,
+                            replace=False)
+    data[chosen_dex] = rng.integers(3, 6000000, len(chosen_dex))
+    data = data.reshape((nrows, ncols))
+
+    if zero_block == 0:
+        data[:32, :] = 0
+    elif zero_block == 1:
+        data[32:71, :] = 0
+    elif zero_block == 2:
+        data[71:, :] = 0
 
     final_csr = scipy_sparse.csr_matrix(data)
 
