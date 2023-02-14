@@ -9,7 +9,8 @@ import zarr
 from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
     load_csr_chunk,
-    merge_csr)
+    merge_csr,
+    _load_disjoint_csr)
 
 
 def _clean_up(target_path):
@@ -196,3 +197,47 @@ def test_merge_csr():
 
     result = merged_csr.todense()
     np.testing.assert_allclose(result, data)
+
+
+
+def test_load_disjoint_csr():
+    nrows = 200
+    ncols = 300
+
+    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+
+    rng = np.random.default_rng(776623)
+
+    data = np.zeros(nrows*ncols, dtype=int)
+    chosen_dex = rng.choice(np.arange(len(data)),
+                            len(data)//4,
+                            replace=False)
+
+    data[chosen_dex] = rng.integers(2, 1000, len(chosen_dex))
+    data = data.reshape((nrows, ncols))
+
+    csr = scipy_sparse.csr_matrix(data)
+    ann = anndata.AnnData(csr)
+    ann.write_zarr(tmp_path)
+
+    index_list = np.unique(rng.integers(0, nrows, 45))
+    expected = np.zeros((len(index_list), ncols), dtype=int)
+    for ct, ii in enumerate(index_list):
+        expected[ct, :] = data[ii, :]
+
+    with zarr.open(tmp_path, 'r') as written_zarr:
+        (chunk_data,
+         chunk_indices,
+         chunk_indptr) = _load_disjoint_csr(
+                             row_index_list=index_list,
+                             data=written_zarr.X.data,
+                             indices=written_zarr.X.indices,
+                             indptr=written_zarr.X.indptr)
+
+    actual = scipy_sparse.csr_matrix(
+                (chunk_data, chunk_indices, chunk_indptr),
+                shape=(len(index_list), ncols)).todense()
+
+    np.testing.assert_array_equal(actual, expected)
+
+    _clean_up(tmp_path)

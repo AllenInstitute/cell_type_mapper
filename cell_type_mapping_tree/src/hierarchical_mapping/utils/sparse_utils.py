@@ -1,6 +1,8 @@
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.utils import merge_index_list
+
 
 def load_csr(
         row_spec,
@@ -60,6 +62,41 @@ def load_csr_chunk(
                 n_rows=row_spec[1]-row_spec[0],
                 n_cols=col_spec[1]-col_spec[0])
 
+
+def _load_disjoint_csr(
+        row_index_list,
+        data,
+        indices,
+        indptr):
+    """
+    Load a csr matrix from a not necessarily contiguous
+    set of row indexes.
+    """
+    row_chunk_list = merge_index_list(row_index_list)
+    data_list = []
+    indices_list = []
+    indptr_list = []
+    for row_chunk in row_chunk_list:
+        (this_data,
+         this_indices,
+         this_indptr) = _load_csr(
+                             row_spec=row_chunk,
+                             data=data,
+                             indices=indices,
+                             indptr=indptr)
+
+        data_list.append(this_data)
+        indices_list.append(this_indices)
+        indptr_list.append(this_indptr)
+
+    (merged_data,
+     merged_indices,
+     merged_indptr) = merge_csr(
+                         data_list=data_list,
+                         indices_list=indices_list,
+                         indptr_list=indptr_list)
+
+    return merged_data, merged_indices, merged_indptr
 
 def _load_csr(
         row_spec,
