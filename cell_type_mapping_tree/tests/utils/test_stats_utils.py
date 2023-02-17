@@ -15,10 +15,10 @@ def test_summary_stats_for_chunk():
                             replace=False)
     data[chosen_dex] = rng.integers(1, 2000, len(chosen_dex))
     data = data.reshape(nrows, ncols)
-    csc = scipy_sparse.csc_array(data)
+    csr = scipy_sparse.csr_array(data)
 
     actual = summary_stats_for_chunk(
-                cell_x_gene=csc)
+                cell_x_gene=csr)
 
     assert actual['n_cells'] == nrows
     assert actual['sum'].shape == (ncols,)

@@ -3,7 +3,7 @@ import scipy.stats as scipy_stats
 
 
 def summary_stats_for_chunk(
-        cell_x_gene: scipy_sparse.csc_array) -> dict:
+        cell_x_gene: scipy_sparse.csr_array) -> dict:
     """
     Take a cell (rows) by gene (columns) expression
     matrix and return summary statistics needed to aggregate
@@ -11,7 +11,7 @@ def summary_stats_for_chunk(
 
     Parameters
     ----------
-    cell_x_gene: scipy_sparse.csc_array
+    cell_x_gene: scipy_sparse.csr_array
         rows are cells; columns are genes
 
     Returns
