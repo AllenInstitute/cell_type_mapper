@@ -38,7 +38,7 @@ def test_load_csr():
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr)
+    ann = anndata.AnnData(csr, dtype=int)
     ann.write_zarr(tmp_path)
 
     with zarr.open(tmp_path, 'r') as written_zarr:
@@ -86,7 +86,7 @@ def test_load_csr_chunk():
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr)
+    ann = anndata.AnnData(csr, dtype=int)
     ann.write_zarr(tmp_path)
 
     with zarr.open(tmp_path, 'r') as written_zarr:
@@ -136,7 +136,7 @@ def test_load_csr_chunk_very_sparse():
     data[7, 11] = 1
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr)
+    ann = anndata.AnnData(csr, dtype=int)
     ann.write_zarr(tmp_path)
 
     with zarr.open(tmp_path, 'r') as written_zarr:
@@ -266,7 +266,7 @@ def test_load_disjoint_csr():
     data = data.reshape((nrows, ncols))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr)
+    ann = anndata.AnnData(csr, dtype=int)
     ann.write_zarr(tmp_path)
 
     index_list = np.unique(rng.integers(0, nrows, 45))
