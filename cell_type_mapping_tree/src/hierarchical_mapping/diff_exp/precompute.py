@@ -181,11 +181,12 @@ def _summary_stats_worker(
             results[output_idx] = summary_stats
             timing_ct += 1
 
-            print_timing(
-               t0=t0,
-               i_chunk=timing_ct,
-               tot_chunks=n_clusters,
-               unit='min')
+            if timing_ct % 50 == 0:
+                print_timing(
+                   t0=t0,
+                   i_chunk=timing_ct,
+                   tot_chunks=n_clusters,
+                   unit='min')
 
         if i_cluster >= len(cluster_list):
             keep_going = False
