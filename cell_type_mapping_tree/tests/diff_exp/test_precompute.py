@@ -1,6 +1,7 @@
 import pathlib
 import h5py
 import json
+import pytest
 import numpy as np
 import scipy.sparse as scipy_sparse
 import zarr
@@ -19,8 +20,10 @@ def _clean_up(target_path):
         target_path.rmdir()
 
 
+@pytest.mark.parametrize("rows_at_a_time", [77, 7])
 def test_precompute_smoketest(
-        tmp_path_factory):
+        tmp_path_factory,
+        rows_at_a_time):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('precompute_smoke'))
     input_dir = tmp_dir / 'input'
     input_dir.mkdir()
@@ -62,7 +65,7 @@ def test_precompute_smoketest(
         n_genes=ncols,
         output_path=output_path,
         n_processors=3,
-        rows_at_a_time=60)
+        rows_at_a_time=rows_at_a_time)
 
     with h5py.File(output_path, 'r') as in_file:
         cluster_to_output = json.loads(
