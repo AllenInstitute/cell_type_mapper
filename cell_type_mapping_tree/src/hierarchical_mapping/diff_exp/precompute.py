@@ -23,7 +23,8 @@ def precompute_summary_stats(
         cluster_to_input_row: Dict[str, List[int]],
         n_genes: int,
         output_path: Union[str, pathlib.Path],
-        n_processors:int = 6):
+        n_processors:int = 6,
+        rows_at_a_time: int = 5000):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -88,7 +89,8 @@ def precompute_summary_stats(
                     'cluster_to_output_row': cluster_to_output_row,
                     'n_genes': n_genes,
                     'output_path': output_path,
-                    'output_lock': output_lock})
+                    'output_lock': output_lock,
+                    'rows_at_a_time': rows_at_a_time})
         p.start()
         process_list.append(p)
 
@@ -102,7 +104,8 @@ def _summary_stats_worker(
         cluster_to_output_row: Dict[str, int],
         n_genes: int,
         output_path: Union[str, pathlib.Path],
-        output_lock: Any):
+        output_lock: Any,
+        rows_at_a_time: int = 5000):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -137,39 +140,63 @@ def _summary_stats_worker(
 
     results = dict()
     t0 = time.time()
-    with zarr.open(data_path, 'r') as data_src:
-        for i_cluster, cluster in enumerate(cluster_to_input_row.keys()):
-            row_list = cluster_to_input_row[cluster]
+
+    keep_going = True
+    cluster_list = list(cluster_to_input_row.keys())
+    i_cluster = 0
+    timing_ct = 0
+    while keep_going:
+
+        # get a chunk of rows_at_a_time rows to load
+        these_rows = []
+        sub_row_mapping = dict()
+        while len(these_rows) < rows_at_a_time and i_cluster < len(cluster_list):
+            cluster = cluster_list[i_cluster]
+            i0 = len(these_rows)
+            these_rows += cluster_to_input_row[cluster]
+            i1 = len(these_rows)
+            sub_row_mapping[cluster] = (i0, i1)
+            i_cluster += 1
+
+        with zarr.open(data_path, 'r') as data_src:
             (data,
              indices,
              indptr) = _load_disjoint_csr(
-                            row_index_list=row_list,
-                            data=data_src['data'],
-                            indices=data_src['indices'],
-                            indptr=data_src['indptr'])
+                         row_index_list=these_rows,
+                         data=data_src['data'],
+                         indices=data_src['indices'],
+                         indptr=data_src['indptr'])
 
-            csr = scipy_sparse.csr_array(
-                        (data, indices, indptr),
-                        shape=(len(row_list), n_genes))
+            parent_csr = scipy_sparse.csr_array(
+                           (data, indices, indptr),
+                           shape=(len(these_rows), n_genes))
 
+        # do actual stats on individual clusters
+        for cluster in sub_row_mapping:
+            rows = sub_row_mapping[cluster]
+            csr = parent_csr[rows[0]:rows[1], :]
             summary_stats = summary_stats_for_chunk(
                                 cell_x_gene=csr)
-
             output_idx = cluster_to_output_row[cluster]
             results[output_idx] = summary_stats
+            timing_ct += 1
 
             print_timing(
                t0=t0,
-               i_chunk=i_cluster+1,
+               i_chunk=timing_ct,
                tot_chunks=n_clusters,
                unit='min')
 
-        with output_lock:
-            with h5py.File(output_path, 'a') as out_file:
-                for output_idx in results:
-                    summary_stats = results[output_idx]
-                    out_file['n_cells'][output_idx] = summary_stats['n_cells']
-                    for k in ('sum', 'sumsq', 'gt0', 'gt1'):
-                        out_file[k][output_idx, :] = summary_stats[k]
+        if i_cluster >= len(cluster_list):
+            keep_going = False
+
+
+    with output_lock:
+        with h5py.File(output_path, 'a') as out_file:
+            for output_idx in results:
+                summary_stats = results[output_idx]
+                out_file['n_cells'][output_idx] = summary_stats['n_cells']
+                for k in ('sum', 'sumsq', 'gt0', 'gt1'):
+                    out_file[k][output_idx, :] = summary_stats[k]
 
 

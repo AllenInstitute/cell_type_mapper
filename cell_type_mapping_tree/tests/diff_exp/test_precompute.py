@@ -61,7 +61,8 @@ def test_precompute_smoketest(
         cluster_to_input_row=cluster_to_rows,
         n_genes=ncols,
         output_path=output_path,
-        n_processors=3)
+        n_processors=3,
+        rows_at_a_time=7)
 
     with h5py.File(output_path, 'r') as in_file:
         cluster_to_output = json.loads(
