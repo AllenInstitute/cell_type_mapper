@@ -20,6 +20,7 @@ def test_summary_stats_for_chunk():
     actual = summary_stats_for_chunk(
                 cell_x_gene=csc)
 
+    assert actual['n_cells'] == nrows
     assert actual['sum'].shape == (ncols,)
     np.testing.assert_array_equal(actual['sum'], data.sum(axis=0))
     assert actual['sumsq'].shape == (ncols,)
