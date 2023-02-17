@@ -72,6 +72,12 @@ def _load_disjoint_csr(
     Load a csr matrix from a not necessarily contiguous
     set of row indexes.
     """
+    row_index_list = np.array(row_index_list)
+    sorted_dex = np.argsort(row_index_list)
+    inverse_argsort = {sorted_dex[ii]:ii for ii in range(len(sorted_dex))}
+
+    row_index_list = row_index_list[sorted_dex]
+
     row_chunk_list = merge_index_list(row_index_list)
     data_list = []
     indices_list = []
@@ -96,7 +102,25 @@ def _load_disjoint_csr(
                          indices_list=indices_list,
                          indptr_list=indptr_list)
 
-    return merged_data, merged_indices, merged_indptr
+    # undo sorting
+    final_data = np.zeros(merged_data.shape, dtype=merged_data.dtype)
+    final_indices = np.zeros(merged_indices.shape, dtype=merged_indices.dtype)
+    final_indptr = np.zeros(merged_indptr.shape, dtype=merged_indptr.dtype)
+
+    data_ct = 0
+    for ii in range(len(row_index_list)):
+        new_position = inverse_argsort[ii]
+        indptr0 = merged_indptr[new_position]
+        indptr1 = merged_indptr[new_position+1]
+        n = indptr1-indptr0
+        final_data[data_ct:data_ct+n] = merged_data[indptr0:indptr1]
+        final_indices[data_ct:data_ct+n] = merged_indices[indptr0:indptr1]
+        final_indptr[ii] = data_ct
+        data_ct += n
+    final_indptr[-1] = len(final_data)
+
+    return final_data, final_indices, final_indptr
+
 
 def _load_csr(
         row_spec,

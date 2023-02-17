@@ -270,7 +270,10 @@ def test_load_disjoint_csr():
     ann.write_zarr(tmp_path)
 
     index_list = np.unique(rng.integers(0, nrows, 45))
+
+    rng.shuffle(index_list)
     expected = np.zeros((len(index_list), ncols), dtype=int)
+
     for ct, ii in enumerate(index_list):
         expected[ct, :] = data[ii, :]
 
@@ -287,6 +290,8 @@ def test_load_disjoint_csr():
                 (chunk_data, chunk_indices, chunk_indptr),
                 shape=(len(index_list), ncols)).todense()
 
-    np.testing.assert_array_equal(actual, expected)
+    assert actual.shape == expected.shape
+    assert actual.dtype == expected.dtype
+    np.testing.assert_allclose(actual, expected)
 
     _clean_up(tmp_path)
