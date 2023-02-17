@@ -32,11 +32,11 @@ def precompute_summary_stats(
     data_path:
         Path to the cell x gene data (stored in zarr as a
         csr sparse array)
-    
+
     cluster_to_input_row:
         Dict mapping the name of cell clusters to lists
         of the row indexes of cells in those clusters
-    
+
     n_genes:
         Number of genes in the dataset (not obvious from
         sparse array data)
@@ -62,7 +62,7 @@ def precompute_summary_stats(
             out_file.create_dataset(k,
                                     shape=(n_clusters, n_genes),
                                     chunks=((max(1, n_clusters//10), n_genes)),
-                                    dtype=dt) 
+                                    dtype=dt)
 
     # sub-divide clusters for divsion among worker processes
     worker_division = []
@@ -111,7 +111,7 @@ def _summary_stats_worker(
     data_path:
         Path to the cell x gene data (stored in zarr as a
         csr sparse array)
-    
+
     cluster_to_input_row:
         Dict mapping the name of cell clusters to lists
         of the row indexes of cells in those clusters
@@ -135,6 +135,7 @@ def _summary_stats_worker(
     """
     n_clusters = len(cluster_to_input_row)
 
+    results = dict()
     t0 = time.time()
     with zarr.open(data_path, 'r') as data_src:
         for i_cluster, cluster in enumerate(cluster_to_input_row.keys()):
@@ -155,14 +156,20 @@ def _summary_stats_worker(
                                 cell_x_gene=csr)
 
             output_idx = cluster_to_output_row[cluster]
-            with output_lock:
-                with h5py.File(output_path, 'a') as out_file:
-                    out_file['n_cells'][output_idx] = summary_stats['n_cells']
-                    for k in ('sum', 'sumsq', 'gt0', 'gt1'):
-                        out_file[k][output_idx, :] = summary_stats[k]
+            results[output_idx] = summary_stats
 
             print_timing(
                t0=t0,
                i_chunk=i_cluster+1,
                tot_chunks=n_clusters,
                unit='min')
+
+        with output_lock:
+            with h5py.File(output_path, 'a') as out_file:
+                for output_idx in results:
+                    summary_stats = results[output_idx]
+                    out_file['n_cells'][output_idx] = summary_stats['n_cells']
+                    for k in ('sum', 'sumsq', 'gt0', 'gt1'):
+                        out_file[k][output_idx, :] = summary_stats[k]
+
+
