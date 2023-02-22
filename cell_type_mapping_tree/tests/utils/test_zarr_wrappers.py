@@ -17,6 +17,10 @@ def test_separate_into_chunks_qc():
     with pytest.raises(RuntimeError, match="not contiguous"):
         separate_into_chunks(index_list, 100)
 
+    index_list = [6,7,8,9,8]
+    with pytest.raises(RuntimeError, match="not ascending"):
+        separate_into_chunks(index_list, 100)
+
 
 def test_separate_into_chunks():
 

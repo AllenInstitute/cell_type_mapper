@@ -97,8 +97,11 @@ def separate_into_chunks(
     """
     index_list = np.array(index_list)
     if len(index_list) > 1:
-        if np.diff(index_list).max() > 1:
+        d = np.diff(index_list)
+        if d.max() > 1:
             raise RuntimeError("Index list is not contiguous")
+        if d.min() < 0:
+            raise RuntimeError("Index list is not ascending")
 
     assigned = np.zeros(len(index_list), dtype=bool)
 
