@@ -15,16 +15,19 @@ def rearrange_sparse_zarr(
         data_shape = input_zarr['data'].shape
         indptr_shape = input_zarr['indptr'].shape
         with zarr.open(output_path, 'w') as output_zarr:
-            output_zarr['data'] = zarr.create(
-                        data_shape,
+            output_zarr.create(
+                        name='data',
+                        shape=data_shape,
                         dtype=input_zarr['data'].dtype,
                         chunks=chunks)
-            output_zarr['indices'] = zarr.create(
-                        data_shape,
+            output_zarr.create(
+                        name='indices',
+                        shape=data_shape,
                         dtype=int,
                         chunks=chunks)
-            output_zarr['indptr'] = zarr.create(
-                        indptr_shape,
+            output_zarr.create(
+                        name='indptr',
+                        shape=indptr_shape,
                         dtype=int,
                         chunks=chunks)
 
