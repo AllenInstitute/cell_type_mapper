@@ -6,18 +6,11 @@ import numpy as np
 import scipy.sparse as scipy_sparse
 import zarr
 
+from hierarchical_mapping.utils.utils import (
+    _clean_up)
+
 from hierarchical_mapping.diff_exp.precompute import (
     precompute_summary_stats)
-
-
-def _clean_up(target_path):
-    target_path = pathlib.Path(target_path)
-    if target_path.is_file():
-        target_path.unlink()
-    elif target_path.is_dir():
-        for sub_path in target_path.iterdir():
-            _clean_up(sub_path)
-        target_path.rmdir()
 
 
 @pytest.mark.parametrize("rows_at_a_time", [77, 7])

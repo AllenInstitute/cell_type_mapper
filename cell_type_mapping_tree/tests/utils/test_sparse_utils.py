@@ -7,21 +7,14 @@ import tempfile
 import pathlib
 import zarr
 
+from hierarchical_mapping.utils.utils import (
+    _clean_up)
+
 from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
     load_csr_chunk,
     merge_csr,
     _load_disjoint_csr)
-
-
-def _clean_up(target_path):
-    target_path = pathlib.Path(target_path)
-    if target_path.is_file():
-        target_path.unlink()
-    elif target_path.is_dir():
-        for sub_path in target_path.iterdir():
-            _clean_up(sub_path)
-        target_path.rmdir()
 
 
 def test_load_csr():
