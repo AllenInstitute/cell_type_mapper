@@ -12,35 +12,52 @@ def rearrange_sparse_zarr(
         chunks=5000):
 
     with zarr.open(input_path, 'r') as input_zarr:
-        data_shape = input_zarr['data'].shape
-        indptr_shape = input_zarr['indptr'].shape
-        with zarr.open(output_path, 'w') as output_zarr:
-            output_zarr.create(
-                        name='data',
-                        shape=data_shape,
-                        dtype=input_zarr['data'].dtype,
-                        chunks=chunks)
-            output_zarr.create(
-                        name='indices',
-                        shape=data_shape,
-                        dtype=int,
-                        chunks=chunks)
-            output_zarr.create(
-                        name='indptr',
-                        shape=indptr_shape,
-                        dtype=int,
-                        chunks=chunks)
+        write_rearranged_zarr(
+            data_handle=input_zarr['data'],
+            indices_handle=input_zarr['indices'],
+            indptr_handle=input_zarr['indptr'],
+            output_path=output_path,
+            row_chunk_list=row_chunk_list,
+            chunks=chunks)
 
-            _rearrange_sparse_zarr(
-                data_in = input_zarr['data'],
-                indices_in = input_zarr['indices'],
-                indptr_in = input_zarr['indptr'],
-                row_chunk_list = row_chunk_list,
-                data_out = output_zarr['data'],
-                indices_out = output_zarr['indices'],
-                indptr_out = output_zarr['indptr'])
 
-            output_zarr['indptr'][-1] = data_shape[0]
+def write_rearranged_zarr(
+        data_handle,
+        indices_handle,
+        indptr_handle,
+        output_path,
+        row_chunk_list,
+        chunks=5000):
+
+    data_shape = data_handle.shape
+    indptr_shape = indptr_handle.shape
+    with zarr.open(output_path, 'w') as output_zarr:
+        output_zarr.create(
+                    name='data',
+                    shape=data_shape,
+                    dtype=data_handle.dtype,
+                    chunks=chunks)
+        output_zarr.create(
+                    name='indices',
+                    shape=data_shape,
+                    dtype=int,
+                    chunks=chunks)
+        output_zarr.create(
+                    name='indptr',
+                    shape=indptr_shape,
+                    dtype=int,
+                    chunks=chunks)
+
+        _rearrange_sparse_zarr(
+            data_in = data_handle,
+            indices_in = indices_handle,
+            indptr_in = indptr_handle,
+            row_chunk_list = row_chunk_list,
+            data_out = output_zarr['data'],
+            indices_out = output_zarr['indices'],
+            indptr_out = output_zarr['indptr'])
+
+        output_zarr['indptr'][-1] = data_shape[0]
 
 
 def _rearrange_sparse_zarr(
