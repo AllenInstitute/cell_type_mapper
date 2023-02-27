@@ -369,16 +369,22 @@ def remap_csr_matrix(
         old_to_new_row[rr] = ii
 
     t0 = time.time()
-
+    t_load = 0.0
+    t_write = 0.0
     for i_row in range(len(indptr)-1):
         i0 = indptr[i_row]
         i1 = indptr[i_row+1]
+        _t0 = time.time()
         data_chunk = data_handle[i0:i1]
         indices_chunk = indices_handle[i0:i1]
+        t_load += time.time()-_t0
+
+        _t0 = time.time()
         new_i0 = new_indptr[old_to_new_row[i_row]]
         new_i1 = new_i0+(i1-i0)
         data_output_handle[new_i0:new_i1] = data_chunk
         indices_output_handle[new_i0:new_i1] = indices_chunk
+        t_write += time.time()-_t0
 
         if i_row % 1000 == 0:
             print_timing(
@@ -386,5 +392,6 @@ def remap_csr_matrix(
                 tot_chunks=len(indptr),
                 i_chunk=i_row+1,
                 unit='hr')
+            print(f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing")
 
     indptr_output_handle[:] = new_indptr
