@@ -4,7 +4,9 @@ import time
 
 from hierarchical_mapping.utils.sparse_utils import (
     _merge_csr_chunk,
-    _load_disjoint_csr)
+    _load_disjoint_csr,
+    precompute_indptr,
+    remap_csr_matrix)
 
 
 def rearrange_sparse_zarr(
@@ -28,14 +30,37 @@ def rearrange_sparse_h5ad(
         row_chunk_list,
         chunks=5000):
 
+    row_order = []
+    for chunk in row_chunk_list:
+        row_order += chunk
+
     with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
-        write_rearranged_zarr(
-            data_handle=input_handle['X']['data'],
-            indices_handle=input_handle['X']['indices'],
-            indptr_handle=input_handle['X']['indptr'],
-            output_path=output_path,
-            row_chunk_list=row_chunk_list,
-            chunks=chunks)
+        old_indptr = input_handle['X']['indptr'][()]
+        new_indptr = precompute_indptr(
+                        indptr_in=old_indptr,
+                        row_order=row_order)
+
+        data_shape = input_handle['X']['data'].shape
+        data_dtype = input_handle['X']['data'].dtype
+
+        _create_empty_zarr(
+             data_shape=data_shape,
+             indptr_shape=old_indptr.shape,
+             output_path=output_path,
+             data_dtype=data_dtype,
+             chunks=chunks)
+
+        with zarr.open(output_path, 'a') as output_handle:
+            remap_csr_matrix(
+                data_handle=input_handle['X']['data'],
+                indices_handle=input_handle['X']['indices'],
+                indptr=old_indptr,
+                new_indptr=new_indptr,
+                new_row_order=row_order,
+                data_output_handle=output_handle['data'],
+                indices_output_handle=output_handle['indices'],
+                indptr_output_handle=output_handle['indptr'])
+
 
 def write_rearranged_zarr(
         data_handle,
