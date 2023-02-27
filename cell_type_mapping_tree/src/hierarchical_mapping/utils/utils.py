@@ -54,39 +54,3 @@ def print_timing(
     remain = pred-duration
     print(f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
           f"predict {remain:.2e} of {pred:.2e} left")
-
-
-def refactor_row_chunk_list(
-        row_chunk_list,
-        final_chunk_size):
-    """
-    Rearrange row_chunk_list so that each chunk
-    is an integer multiple of final_chunk_size.
-
-    This will allow us to parallelize the work of rearranging
-    the anndata file such that no two workers are touching
-    the same chunk.
-    """
-
-    output_chunk_list = []
-    remainder = None
-    for raw_input_chunk in row_chunk_list:
-        if remainder is not None:
-            input_chunk = remainder + raw_input_chunk
-        else:
-            input_chunk = raw_input_chunk
-
-        if len(input_chunk) % final_chunk_size == 0:
-            output_chunk_list.append(input_chunk)
-            remainder = None
-        else:
-            factor = len(input_chunk) // final_chunk_size
-            n = factor*final_chunk_size
-            if n > 0:
-                output_chunk_list.append(input_chunk[:n])
-            remainder = input_chunk[n:]
-
-    if remainder is not None:
-        output_chunk_list.append(remainder)
-
-    return output_chunk_list
