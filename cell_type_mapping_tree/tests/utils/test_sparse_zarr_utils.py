@@ -27,13 +27,9 @@ def sparse_data_fixture():
     return data
 
 
-@pytest.mark.parametrize('zero_out', (True, False))
-def test_rearrange_sparse_zarr(zero_out, sparse_data_fixture):
-    tmp_input_dir = tempfile.mkdtemp(prefix='input_', suffix='.zarr')
-    tmp_output_dir = tempfile.mkdtemp(prefix='output_', suffix='.zarr')
-
-    data = np.copy(sparse_data_fixture)
-
+@pytest.fixture(scope='session')
+def row_chunk_list_fixture(sparse_data_fixture):
+    data = sparse_data_fixture
     rng = np.random.default_rng(881231)
 
     row_indexes = np.arange(data.shape[0])
@@ -48,6 +44,19 @@ def test_rearrange_sparse_zarr(zero_out, sparse_data_fixture):
 
     for ii in range(len(row_chunk_list)):
         assert len(row_chunk_list[ii]) > 0
+
+    return row_chunk_list
+
+@pytest.mark.parametrize('zero_out', (True, False))
+def test_rearrange_sparse_zarr(
+        zero_out,
+        sparse_data_fixture,
+        row_chunk_list_fixture):
+    tmp_input_dir = tempfile.mkdtemp(prefix='input_', suffix='.zarr')
+    tmp_output_dir = tempfile.mkdtemp(prefix='output_', suffix='.zarr')
+
+    data = np.copy(sparse_data_fixture)
+    row_chunk_list = row_chunk_list_fixture
 
     if zero_out:
         for i_row in row_chunk_list[2]:
