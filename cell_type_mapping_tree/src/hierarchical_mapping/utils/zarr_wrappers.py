@@ -70,7 +70,7 @@ class ZarrCacheWrapper(object):
         results = np.zeros(len(index_list), dtype=self.dtype)
 
         for chunk in chunk_mapping:
-            if self._loaded_chunk_bounds != chunk:
+            if self._loaded_chunk_bounds != chunk['chunk_spec']:
                 self._load_chunk(chunk['chunk_spec'])
             output_loc = chunk['output_loc']
             chunk_loc = chunk['chunk_loc']
