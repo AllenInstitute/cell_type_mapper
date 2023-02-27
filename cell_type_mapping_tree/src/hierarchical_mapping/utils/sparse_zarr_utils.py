@@ -63,7 +63,7 @@ def write_rearranged_zarr(
                     dtype=int,
                     chunks=chunks)
 
-        _rearrange_sparse_zarr(
+        _rearrange_sparse_data(
             data_in = data_handle,
             indices_in = indices_handle,
             indptr_in = indptr_handle,
@@ -75,7 +75,7 @@ def write_rearranged_zarr(
         output_zarr['indptr'][-1] = data_shape[0]
 
 
-def _rearrange_sparse_zarr(
+def _rearrange_sparse_data(
         data_in,
         indices_in,
         indptr_in,
