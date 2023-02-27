@@ -409,16 +409,16 @@ def remap_csr_matrix(
                 unit='hr')
             print(f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing")
 
-        _update_buffers(
-              data_buffer=data_buffer,
-              indices_buffer=indices_buffer,
-              data_output_handle=data_output_handle,
-              indices_output_handle=indices_output_handle,
-              data_chunk=None,
-              indices_chunk=None,
-              output_0=output_0,
-              buffer_1=buffer_1,
-              force_flush=True)
+    _update_buffers(
+          data_buffer=data_buffer,
+          indices_buffer=indices_buffer,
+          data_output_handle=data_output_handle,
+          indices_output_handle=indices_output_handle,
+          data_chunk=None,
+          indices_chunk=None,
+          output_0=output_0,
+          buffer_1=buffer_1,
+          force_flush=True)
 
     indptr_output_handle[:] = new_indptr
 
