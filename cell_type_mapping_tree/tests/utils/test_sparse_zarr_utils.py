@@ -2,6 +2,7 @@ import pytest
 import pathlib
 import zarr
 import os
+import json
 import numpy as np
 import tempfile
 import scipy.sparse as scipy_sparse
@@ -50,9 +51,12 @@ def row_chunk_list_fixture(sparse_data_fixture):
 
     return row_chunk_list
 
-@pytest.mark.parametrize('zero_out', (True, False))
+@pytest.mark.parametrize(
+        'zero_out, output_chunks',
+        [(True, 17), (True, 23), (False, 33), (False, 14)])
 def test_rearrange_sparse_zarr(
         zero_out,
+        output_chunks,
         sparse_data_fixture,
         row_chunk_list_fixture):
     tmp_input_dir = tempfile.mkdtemp(prefix='input_', suffix='.zarr')
@@ -86,7 +90,13 @@ def test_rearrange_sparse_zarr(
          input_path=tmp_input_dir,
          output_path=tmp_output_dir,
          row_chunk_list=row_chunk_list,
-         chunks=50)
+         chunks=output_chunks)
+
+    # verify that chunks were properly set
+    for pth in ('data', 'indices', 'indptr'):
+        full_pth = pathlib.Path(tmp_output_dir) / pth
+        config = json.load(open(full_pth/'.zarray', 'rb'))
+        assert config['chunks'] == [output_chunks]
 
     with zarr.open(tmp_output_dir, 'r') as output_zarr:
         data_r = np.array(output_zarr['data'])
@@ -105,11 +115,15 @@ def test_rearrange_sparse_zarr(
 
 
 
-@pytest.mark.parametrize('zero_out', (True, False))
+@pytest.mark.parametrize(
+        'zero_out, output_chunks',
+        [(True, 17), (True, 23), (False, 33), (False, 14)])
 def test_rearrange_sparse_h5ad(
         zero_out,
+        output_chunks,
         sparse_data_fixture,
         row_chunk_list_fixture):
+
     tmp_input_path = tempfile.mkstemp(prefix='input_', suffix='.h5ad')
     os.close(tmp_input_path[0])
     tmp_input_path = pathlib.Path(tmp_input_path[1])
@@ -138,7 +152,13 @@ def test_rearrange_sparse_h5ad(
          h5ad_path=tmp_input_path,
          output_path=tmp_output_dir,
          row_chunk_list=row_chunk_list,
-         chunks=50)
+         chunks=output_chunks)
+
+    # verify that chunks were properly set
+    for pth in ('data', 'indices', 'indptr'):
+        full_pth = pathlib.Path(tmp_output_dir) / pth
+        config = json.load(open(full_pth/'.zarray', 'rb'))
+        assert config['chunks'] == [output_chunks]
 
     with zarr.open(tmp_output_dir, 'r') as output_zarr:
         data_r = np.array(output_zarr['data'])
