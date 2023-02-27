@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as scipy_sparse
 import anndata
 import os
+import h5py
 import tempfile
 import pathlib
 import zarr
@@ -15,7 +16,8 @@ from hierarchical_mapping.utils.sparse_utils import(
     load_csr_chunk,
     merge_csr,
     _load_disjoint_csr,
-    precompute_indptr)
+    precompute_indptr,
+    remap_csr_matrix)
 
 
 def test_load_csr():
@@ -317,3 +319,62 @@ def test_precompute_indptr():
                 row_order=row_reorder)
 
     np.testing.assert_array_equal(actual, new_csr.indptr)
+
+
+def test_remap_csr_matrix(
+        tmp_path_factory):
+
+    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('remap_csr'))
+
+    rng = np.random.default_rng(77662233)
+    nrows = 112
+    ncols = 235
+    data = np.zeros((nrows*ncols), dtype=float)
+    chosen_dex = rng.choice(np.arange(nrows*ncols),
+                            nrows*ncols//7,
+                            replace=False)
+    data[chosen_dex] = rng.random(len(chosen_dex))
+    data = data.reshape(nrows, ncols)
+    baseline_csr = scipy_sparse.csr_array(data)
+
+    baseline_h5_path = tmp_dir / 'baseline.h5'
+    with h5py.File(baseline_h5_path, 'w') as out_file:
+        out_file.create_dataset('data', data=baseline_csr.data)
+        out_file.create_dataset('indices', data=baseline_csr.indices)
+
+    row_reorder = np.arange(nrows, dtype=int)
+    rng.shuffle(row_reorder)
+
+    new_dense_data = np.zeros(data.shape, dtype=float)
+    for ii, rr in enumerate(row_reorder):
+        new_dense_data[ii, :] = data[rr, :]
+    assert not np.allclose(new_dense_data, data)
+    new_csr = scipy_sparse.csr_array(new_dense_data)
+
+    new_data = np.zeros(baseline_csr.data.shape,
+                        dtype=baseline_csr.data.dtype)
+    new_indices = np.zeros(baseline_csr.indices.shape,
+                           dtype=int)
+    new_indptr = np.zeros(baseline_csr.indptr.shape,
+                          dtype=int)
+
+    reordered_indptr = precompute_indptr(
+                            indptr_in=baseline_csr.indptr,
+                            row_order=row_reorder)
+
+    with h5py.File(baseline_h5_path, 'r') as in_file:
+        remap_csr_matrix(
+            data_handle=in_file['data'],
+            indices_handle=in_file['indices'],
+            indptr=baseline_csr.indptr,
+            new_indptr=reordered_indptr,
+            new_row_order=row_reorder,
+            data_output_handle=new_data,
+            indices_output_handle=new_indices,
+            indptr_output_handle=new_indptr)
+
+    np.testing.assert_allclose(new_data, new_csr.data)
+    np.testing.assert_array_equal(new_indices, new_csr.indices)
+    np.testing.assert_array_equal(new_indptr, new_csr.indptr)
+
+    _clean_up(tmp_dir)

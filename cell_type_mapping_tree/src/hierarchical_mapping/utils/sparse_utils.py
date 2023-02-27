@@ -345,3 +345,35 @@ def precompute_indptr(
         ct += span
     new_indptr[-1] = indptr_in[-1]
     return new_indptr
+
+
+
+
+def remap_csr_matrix(
+        data_handle,
+        indices_handle,
+        indptr,
+        new_indptr,
+        new_row_order,
+        data_output_handle,
+        indices_output_handle,
+        indptr_output_handle):
+    """
+    Given a CSR array and a re-arranged
+    indptr array, write out the re-arrangeced
+    CSR array.
+    """
+    old_to_new_row = dict()
+    for ii, rr in enumerate(new_row_order):
+        old_to_new_row[rr] = ii
+
+    for i_row in range(len(indptr)-1):
+        i0 = indptr[i_row]
+        i1 = indptr[i_row+1]
+        data_chunk = data_handle[i0:i1]
+        indices_chunk = indices_handle[i0:i1]
+        new_i0 = new_indptr[old_to_new_row[i_row]]
+        new_i1 = new_i0+(i1-i0)
+        data_output_handle[new_i0:new_i1] = data_chunk
+        indices_output_handle[new_i0:new_i1] = indices_chunk
+    indptr_output_handle[:] = new_indptr
