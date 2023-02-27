@@ -1,6 +1,7 @@
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.utils import print_timing
 from hierarchical_mapping.utils.utils import merge_index_list
 
 
@@ -367,6 +368,8 @@ def remap_csr_matrix(
     for ii, rr in enumerate(new_row_order):
         old_to_new_row[rr] = ii
 
+    t0 = time.time()
+
     for i_row in range(len(indptr)-1):
         i0 = indptr[i_row]
         i1 = indptr[i_row+1]
@@ -376,4 +379,12 @@ def remap_csr_matrix(
         new_i1 = new_i0+(i1-i0)
         data_output_handle[new_i0:new_i1] = data_chunk
         indices_output_handle[new_i0:new_i1] = indices_chunk
+
+        if i_row % 1000 == 0:
+            print_timing(
+                t0=t0,
+                tot_chunks=len(indptr),
+                i_chunk=i_row+1,
+                unit='hr')
+
     indptr_output_handle[:] = new_indptr
