@@ -364,33 +364,34 @@ def remap_csr_matrix(
     indptr array, write out the re-arrangeced
     CSR array.
     """
-    old_to_new_row = dict()
+    new_to_old_row = dict()
     for ii, rr in enumerate(new_row_order):
-        old_to_new_row[rr] = ii
+        new_to_old_row[ii] = rr
 
     t0 = time.time()
     t_load = 0.0
     t_write = 0.0
-    for i_row in range(len(indptr)-1):
-        i0 = indptr[i_row]
-        i1 = indptr[i_row+1]
+    for new_row in range(len(indptr)-1):
+        old_row = new_to_old_row[new_row]
+        i0 = indptr[old_row]
+        i1 = indptr[old_row+1]
         _t0 = time.time()
         data_chunk = data_handle[i0:i1]
         indices_chunk = indices_handle[i0:i1]
         t_load += time.time()-_t0
 
         _t0 = time.time()
-        new_i0 = new_indptr[old_to_new_row[i_row]]
+        new_i0 = new_indptr[new_row]
         new_i1 = new_i0+(i1-i0)
         data_output_handle[new_i0:new_i1] = data_chunk
         indices_output_handle[new_i0:new_i1] = indices_chunk
         t_write += time.time()-_t0
 
-        if i_row % 1000 == 0:
+        if new_row % 1000 == 0:
             print_timing(
                 t0=t0,
                 tot_chunks=len(indptr),
-                i_chunk=i_row+1,
+                i_chunk=new_row+1,
                 unit='hr')
             print(f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing")
 
