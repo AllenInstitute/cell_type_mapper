@@ -358,12 +358,18 @@ def remap_csr_matrix(
         new_row_order,
         data_output_handle,
         indices_output_handle,
-        indptr_output_handle):
+        indptr_output_handle,
+        flush_every=1000000):
     """
     Given a CSR array and a re-arranged
     indptr array, write out the re-arrangeced
     CSR array.
     """
+    data_buffer = np.zeros(flush_every, data_handle.dtype)
+    indices_buffer = np.zeros(flush_every, int)
+    output_0 = 0
+    buffer_1 = 0
+
     new_to_old_row = dict()
     for ii, rr in enumerate(new_row_order):
         new_to_old_row[ii] = rr
@@ -375,16 +381,24 @@ def remap_csr_matrix(
         old_row = new_to_old_row[new_row]
         i0 = indptr[old_row]
         i1 = indptr[old_row+1]
+        delta = i1-i0
         _t0 = time.time()
         data_chunk = data_handle[i0:i1]
         indices_chunk = indices_handle[i0:i1]
         t_load += time.time()-_t0
 
         _t0 = time.time()
-        new_i0 = new_indptr[new_row]
-        new_i1 = new_i0+(i1-i0)
-        data_output_handle[new_i0:new_i1] = data_chunk
-        indices_output_handle[new_i0:new_i1] = indices_chunk
+        (output_0,
+         buffer_1) = _update_buffers(
+                          data_buffer=data_buffer,
+                          indices_buffer=indices_buffer,
+                          data_output_handle=data_output_handle,
+                          indices_output_handle=indices_output_handle,
+                          data_chunk=data_chunk,
+                          indices_chunk=indices_chunk,
+                          output_0=output_0,
+                          buffer_1=buffer_1,
+                          force_flush=False)
         t_write += time.time()-_t0
 
         if new_row % 1000 == 0:
@@ -395,4 +409,69 @@ def remap_csr_matrix(
                 unit='hr')
             print(f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing")
 
+        _update_buffers(
+              data_buffer=data_buffer,
+              indices_buffer=indices_buffer,
+              data_output_handle=data_output_handle,
+              indices_output_handle=indices_output_handle,
+              data_chunk=None,
+              indices_chunk=None,
+              output_0=output_0,
+              buffer_1=buffer_1,
+              force_flush=True)
+
     indptr_output_handle[:] = new_indptr
+
+
+
+def _update_buffers(
+        data_output_handle,
+        indices_output_handle,
+        data_buffer,
+        indices_buffer,
+        data_chunk,
+        indices_chunk,
+        output_0,
+        buffer_1,
+        force_flush=False):
+    """
+    output_0 is the point in the output_handle where
+    these buffers need to be stored
+
+    data_buffer[:buffer_1] is valid at the beginning of this
+    call.
+
+    return updated values for output_0 and buffer_1
+    """
+    if force_flush:
+        if buffer_1 > 0:
+            output_1 = output_0+buffer_1
+            data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
+            indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
+        if data_chunk is not None:
+            data_output_handle[output_1:output_1+data_chunk.shape[0]] = data_chunk
+            indices_output_handle[output_1:output_1+data_chunk.shape[0]] = indices_chunk
+        return None
+
+    if buffer_1 + data_chunk.shape[0] < len(data_buffer):
+        data_buffer[buffer_1:buffer_1+data_chunk.shape[0]] = data_chunk
+        indices_buffer[buffer_1:buffer_1+data_chunk.shape[0]] = indices_chunk
+        buffer_1 += data_chunk.shape[0]
+        return (output_0,
+                buffer_1)
+
+    if buffer_1 > 0:
+        output_1 = output_0+buffer_1
+        data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
+        indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
+        output_0 = output_1
+        buffer_1 = 0
+
+    if data_chunk is not None:
+        output_1 = output_0 + data_chunk.shape[0]
+        data_output_handle[output_0:output_1] = data_chunk
+        indices_output_handle[output_0:output_1] = indices_chunk
+        output_0 = output_1
+
+    return (output_0,
+            buffer_1)

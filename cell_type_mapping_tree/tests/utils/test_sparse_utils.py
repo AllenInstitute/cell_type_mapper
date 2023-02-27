@@ -321,8 +321,11 @@ def test_precompute_indptr():
     np.testing.assert_array_equal(actual, new_csr.indptr)
 
 
+@pytest.mark.parametrize(
+    "flush_every", (200, 23, 150))
 def test_remap_csr_matrix(
-        tmp_path_factory):
+        tmp_path_factory,
+        flush_every):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('remap_csr'))
 
@@ -371,7 +374,8 @@ def test_remap_csr_matrix(
             new_row_order=row_reorder,
             data_output_handle=new_data,
             indices_output_handle=new_indices,
-            indptr_output_handle=new_indptr)
+            indptr_output_handle=new_indptr,
+            flush_every=flush_every)
 
     np.testing.assert_allclose(new_data, new_csr.data)
     np.testing.assert_array_equal(new_indices, new_csr.indices)
