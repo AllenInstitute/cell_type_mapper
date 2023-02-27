@@ -1,4 +1,5 @@
 import zarr
+import h5py
 
 from hierarchical_mapping.utils.sparse_utils import (
     _merge_csr_chunk,
@@ -20,6 +21,20 @@ def rearrange_sparse_zarr(
             row_chunk_list=row_chunk_list,
             chunks=chunks)
 
+def rearrange_sparse_h5ad(
+        h5ad_path,
+        output_path,
+        row_chunk_list,
+        chunks=5000):
+
+    with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
+        write_rearranged_zarr(
+            data_handle=input_handle['X']['data'],
+            indices_handle=input_handle['X']['indices'],
+            indptr_handle=input_handle['X']['indptr'],
+            output_path=output_path,
+            row_chunk_list=row_chunk_list,
+            chunks=chunks)
 
 def write_rearranged_zarr(
         data_handle,

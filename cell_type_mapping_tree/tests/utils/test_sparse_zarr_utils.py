@@ -1,15 +1,18 @@
 import pytest
 import pathlib
 import zarr
+import os
 import numpy as np
 import tempfile
 import scipy.sparse as scipy_sparse
+import anndata
 
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.utils.sparse_zarr_utils import (
-    rearrange_sparse_zarr)
+    rearrange_sparse_zarr,
+    rearrange_sparse_h5ad)
 
 @pytest.fixture(scope='session')
 def sparse_data_fixture():
@@ -98,4 +101,56 @@ def test_rearrange_sparse_zarr(
     np.testing.assert_allclose(new_data, new_dense)
 
     _clean_up(tmp_input_dir)
+    _clean_up(tmp_output_dir)
+
+
+
+@pytest.mark.parametrize('zero_out', (True, False))
+def test_rearrange_sparse_h5ad(
+        zero_out,
+        sparse_data_fixture,
+        row_chunk_list_fixture):
+    tmp_input_path = tempfile.mkstemp(prefix='input_', suffix='.h5ad')
+    os.close(tmp_input_path[0])
+    tmp_input_path = pathlib.Path(tmp_input_path[1])
+
+    tmp_output_dir = tempfile.mkdtemp(prefix='output_', suffix='.zarr')
+
+    data = np.copy(sparse_data_fixture)
+    row_chunk_list = row_chunk_list_fixture
+
+    if zero_out:
+        for i_row in row_chunk_list[2]:
+            data[i_row, :] = 0
+
+    base_csr = scipy_sparse.csr_matrix(data)
+    a_data = anndata.AnnData(X=base_csr)
+    a_data.write_h5ad(tmp_input_path)
+
+    new_data = np.zeros(data.shape, dtype=data.dtype)
+    n_row = 0
+    for chunk in row_chunk_list:
+        for i_row in chunk:
+            new_data[n_row, :] = data[i_row, :]
+            n_row += 1
+
+    rearrange_sparse_h5ad(
+         h5ad_path=tmp_input_path,
+         output_path=tmp_output_dir,
+         row_chunk_list=row_chunk_list,
+         chunks=50)
+
+    with zarr.open(tmp_output_dir, 'r') as output_zarr:
+        data_r = np.array(output_zarr['data'])
+        indices_r = np.array(output_zarr['indices'])
+        indptr_r = np.array(output_zarr['indptr'])
+
+    new_csr = scipy_sparse.csr_matrix(
+                    (data_r, indices_r, indptr_r),
+                    shape=data.shape)
+    new_dense = new_csr.toarray()
+
+    np.testing.assert_allclose(new_data, new_dense)
+
+    tmp_input_path.unlink()
     _clean_up(tmp_output_dir)
