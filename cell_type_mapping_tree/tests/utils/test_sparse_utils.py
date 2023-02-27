@@ -14,7 +14,8 @@ from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
     load_csr_chunk,
     merge_csr,
-    _load_disjoint_csr)
+    _load_disjoint_csr,
+    precompute_indptr)
 
 
 def test_load_csr():
@@ -288,3 +289,31 @@ def test_load_disjoint_csr():
     np.testing.assert_allclose(actual, expected)
 
     _clean_up(tmp_path)
+
+
+def test_precompute_indptr():
+    rng = np.random.default_rng(87123331)
+    nrows = 112
+    ncols = 235
+    data = np.zeros((nrows*ncols), dtype=float)
+    chosen_dex = rng.choice(np.arange(nrows*ncols),
+                            nrows*ncols//7,
+                            replace=False)
+    data[chosen_dex] = rng.random(len(chosen_dex))
+    data = data.reshape(nrows, ncols)
+    baseline_csr = scipy_sparse.csr_array(data)
+
+    row_reorder = np.arange(nrows, dtype=int)
+    rng.shuffle(row_reorder)
+
+    new_data = np.zeros(data.shape, dtype=float)
+    for ii, rr in enumerate(row_reorder):
+        new_data[ii, :] = data[rr, :]
+    assert not np.allclose(new_data, data)
+    new_csr = scipy_sparse.csr_array(new_data)
+
+    actual = precompute_indptr(
+                indptr_in=baseline_csr.indptr,
+                row_order=row_reorder)
+
+    np.testing.assert_array_equal(actual, new_csr.indptr)

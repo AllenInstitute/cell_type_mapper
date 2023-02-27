@@ -326,3 +326,22 @@ def _merge_csr_chunk(
     indptr[ptr0:ptr1] = indptr_in[:-1] + idx0
 
     return data, indices, indptr, idx1, ptr1
+
+
+def precompute_indptr(
+        indptr_in,
+        row_order):
+    """
+    Take an indptr array from a CSR array and compute
+    the new indptr array you get when you re-order the
+    rows as specified in row_order
+    """
+
+    new_indptr = np.zeros(len(indptr_in), dtype=int)
+    ct = 0
+    for new_idx, row in enumerate(row_order):
+        span = indptr_in[row+1]-indptr_in[row]
+        new_indptr[new_idx] = ct
+        ct += span
+    new_indptr[-1] = indptr_in[-1]
+    return new_indptr
