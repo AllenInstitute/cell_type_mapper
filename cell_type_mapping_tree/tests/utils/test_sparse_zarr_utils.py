@@ -11,11 +11,8 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.sparse_zarr_utils import (
     rearrange_sparse_zarr)
 
-
-@pytest.mark.parametrize('zero_out', (True, False))
-def test_rearrange_sparse_zarr(zero_out):
-    tmp_input_dir = tempfile.mkdtemp(prefix='input_', suffix='.zarr')
-    tmp_output_dir = tempfile.mkdtemp(prefix='output_', suffix='.zarr')
+@pytest.fixture(scope='session')
+def sparse_data_fixture():
 
     rng = np.random.default_rng(772334)
     nrows = 314
@@ -27,8 +24,19 @@ def test_rearrange_sparse_zarr(zero_out):
                             replace=False)
     data[chosen_dex] = rng.integers(0, 2000000, len(chosen_dex))
     data = data.reshape((nrows, ncols))
+    return data
 
-    row_indexes = np.arange(nrows)
+
+@pytest.mark.parametrize('zero_out', (True, False))
+def test_rearrange_sparse_zarr(zero_out, sparse_data_fixture):
+    tmp_input_dir = tempfile.mkdtemp(prefix='input_', suffix='.zarr')
+    tmp_output_dir = tempfile.mkdtemp(prefix='output_', suffix='.zarr')
+
+    data = np.copy(sparse_data_fixture)
+
+    rng = np.random.default_rng(881231)
+
+    row_indexes = np.arange(data.shape[0])
 
     row_chunk_list = []
     for ii in range(5):
@@ -75,7 +83,7 @@ def test_rearrange_sparse_zarr(zero_out):
 
     new_csr = scipy_sparse.csr_matrix(
                     (data_r, indices_r, indptr_r),
-                    shape=(nrows, ncols))
+                    shape=data.shape)
     new_dense = new_csr.toarray()
 
     np.testing.assert_allclose(new_data, new_dense)
