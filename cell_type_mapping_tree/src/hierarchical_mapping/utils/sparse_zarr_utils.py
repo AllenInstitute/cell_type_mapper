@@ -28,7 +28,8 @@ def rearrange_sparse_h5ad(
         h5ad_path,
         output_path,
         row_chunk_list,
-        chunks=5000):
+        chunks=5000,
+        flush_every=10000000):
 
     row_order = []
     for chunk in row_chunk_list:
@@ -59,7 +60,8 @@ def rearrange_sparse_h5ad(
                 new_row_order=row_order,
                 data_output_handle=output_handle['data'],
                 indices_output_handle=output_handle['indices'],
-                indptr_output_handle=output_handle['indptr'])
+                indptr_output_handle=output_handle['indptr'],
+                flush_every=flush_every)
 
 
 def write_rearranged_zarr(

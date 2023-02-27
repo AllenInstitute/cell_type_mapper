@@ -116,11 +116,13 @@ def test_rearrange_sparse_zarr(
 
 
 @pytest.mark.parametrize(
-        'zero_out, output_chunks',
-        [(True, 17), (True, 23), (False, 33), (False, 14)])
+        'zero_out, output_chunks, flush_every',
+        [(True, 17, 100), (True, 23, 500),
+         (False, 33, 314), (False, 14, 26)])
 def test_rearrange_sparse_h5ad(
         zero_out,
         output_chunks,
+        flush_every,
         sparse_data_fixture,
         row_chunk_list_fixture):
 
@@ -152,7 +154,8 @@ def test_rearrange_sparse_h5ad(
          h5ad_path=tmp_input_path,
          output_path=tmp_output_dir,
          row_chunk_list=row_chunk_list,
-         chunks=output_chunks)
+         chunks=output_chunks,
+         flush_every=flush_every)
 
     # verify that chunks were properly set
     for pth in ('data', 'indices', 'indptr'):
