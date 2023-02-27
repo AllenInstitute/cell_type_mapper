@@ -1,5 +1,6 @@
 import zarr
 import h5py
+import time
 
 from hierarchical_mapping.utils.sparse_utils import (
     _merge_csr_chunk,
@@ -87,8 +88,8 @@ def _rearrange_sparse_data(
     idx0 = 0
     ptr0 = 0
 
+    t0 = time.time()
     for row_chunk in row_chunk_list:
-
         (this_data,
          this_indices,
          this_indptr) = _load_disjoint_csr(
@@ -111,5 +112,6 @@ def _rearrange_sparse_data(
                     idx0=idx0,
                     ptr0=ptr0)
 
+        print(f"chunk {time.time()-t0:.2e} seconds")
         idx0 = idx1
         ptr0 = ptr1

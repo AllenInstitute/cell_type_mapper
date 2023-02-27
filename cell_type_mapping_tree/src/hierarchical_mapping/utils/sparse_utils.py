@@ -82,7 +82,9 @@ def _load_disjoint_csr(
     data_list = []
     indices_list = []
     indptr_list = []
+    t_load = 0.0
     for row_chunk in row_chunk_list:
+        t0 = time.time()
         (this_data,
          this_indices,
          this_indptr) = _load_csr(
@@ -90,6 +92,7 @@ def _load_disjoint_csr(
                              data=data,
                              indices=indices,
                              indptr=indptr)
+        t_load += time.time()-t0
 
         data_list.append(this_data)
         indices_list.append(this_indices)
@@ -119,6 +122,7 @@ def _load_disjoint_csr(
         data_ct += n
     final_indptr[-1] = len(final_data)
 
+    print(f"time spent loading disjoint {t_load:.2e} seconds")
     return final_data, final_indices, final_indptr
 
 
