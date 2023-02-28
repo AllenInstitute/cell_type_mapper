@@ -359,7 +359,8 @@ def remap_csr_matrix(
         writer_obj,
         flush_every=1000000,
         row_chunk=None,
-        output_lock=None):
+        output_lock=None,
+        process_name=None):
     """
     Given a CSR array and a re-arranged
     indptr array, write out the re-arrangeced
@@ -385,6 +386,7 @@ def remap_csr_matrix(
     else:
         row_chunk = (0, len(indptr)-1)
 
+    row_ct = 0
     for new_row in range(row_chunk[0], row_chunk[1], 1):
         old_row = new_to_old_row[new_row]
         i0 = indptr[old_row]
@@ -408,14 +410,17 @@ def remap_csr_matrix(
                           force_flush=False,
                           output_lock=output_lock)
         t_write += time.time()-_t0
+        row_ct += 1
 
-        if new_row % 1000 == 0:
+        if row_ct % 1000 == 0 or row_ct == 1:
             print_timing(
                 t0=t0,
-                tot_chunks=len(indptr),
-                i_chunk=new_row+1,
-                unit='hr')
-            print(f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing")
+                tot_chunks=row_chunk[1]-row_chunk[0],
+                i_chunk=row_ct,
+                unit='hr',
+                nametag=process_name)
+            msg = f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing"
+            print(msg)
 
     _update_buffers(
           data_buffer=data_buffer,

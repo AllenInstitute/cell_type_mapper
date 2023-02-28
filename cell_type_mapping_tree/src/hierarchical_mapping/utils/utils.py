@@ -1,4 +1,4 @@
-from typing import Union, List, Tuple
+from typing import Union, List, Tuple, Optional, Any
 import numpy as np
 import pathlib
 import time
@@ -39,7 +39,8 @@ def print_timing(
         t0: float,
         i_chunk: int,
         tot_chunks: int,
-        unit: str = 'min'):
+        unit: str = 'min',
+        nametag: Optional[Any] = None):
 
     if unit not in ('sec', 'min', 'hr'):
         raise RuntimeError(f"timing unit {unit} nonsensical")
@@ -52,5 +53,8 @@ def print_timing(
     per = duration/i_chunk
     pred = per*tot_chunks
     remain = pred-duration
-    print(f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
-          f"predict {remain:.2e} of {pred:.2e} left")
+    msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
+    msg += f"predict {remain:.2e} of {pred:.2e} left"
+    if nametag is not None:
+        msg = f"{nametag} -- {msg}"
+    print(msg)

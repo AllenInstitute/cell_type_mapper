@@ -84,7 +84,8 @@ def rearrange_sparse_h5ad(
                     'row_order': row_order,
                     'flush_every': flush_every,
                     'row_chunk': worker_chunks[ii],
-                    'output_lock': output_lock})
+                    'output_lock': output_lock,
+                    'process_name': ii})
         p.start()
         process_list.append(p)
     for p in process_list:
@@ -102,7 +103,8 @@ def _rearrange_sparse_h5ad_worker(
         row_order,
         flush_every,
         row_chunk=None,
-        output_lock=None):
+        output_lock=None,
+        process_name=None):
 
     writer_obj = SparseZarrWriter(
                     file_path=output_path)
@@ -118,7 +120,8 @@ def _rearrange_sparse_h5ad_worker(
                 writer_obj=writer_obj,
                 flush_every=flush_every,
                 row_chunk=row_chunk,
-                output_lock=output_lock)
+                output_lock=output_lock,
+                process_name=process_name)
 
 
 def write_rearranged_zarr(
