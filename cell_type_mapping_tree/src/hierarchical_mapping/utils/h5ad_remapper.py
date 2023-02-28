@@ -204,7 +204,7 @@ class RowCollector(object):
         self._buffer_size = buffer_size
         self._data = np.zeros(buffer_size, dtype=data_dtype)
         self._indices = np.zeros(buffer_size, dtype=int)
-        self._output_idx = np.zeros(buffer_size, dtype=int)
+        self._output_idx = dict()
         self._stored = 0
 
     @property
@@ -245,10 +245,9 @@ class RowCollector(object):
             self._indices[self._stored:
                           self._stored+delta] = indices_chunk[data_i0:data_i1]
 
-            self._output_idx[
-                self._stored:
-                self._stored+delta] = np.arange(self._new_row_to_idx[new_row],
-                                                self._new_row_to_idx[new_row+1]).astype(int)
+            out_idx_tuple = (self._new_row_to_idx[new_row],
+                             self._new_row_to_idx[new_row+1])
+            self._output_idx[(self._stored, self._stored+delta)] = out_idx_tuple
 
             self._stored += delta
             self._ct_rows += 1
@@ -266,9 +265,12 @@ class RowCollector(object):
         Write buffers to output
         """
         with zarr.open(self._zarr_path, 'a') as out_handle:
-            out_handle['data'][self._output_idx[:self._stored]] = self._data[:self._stored]
-            out_handle['indices'][self._output_idx[:self._stored]] = self._indices[:self._stored]
+            for in_idx in self._output_idx:
+                out_idx = self._output_idx[in_idx]
+                out_handle['data'][out_idx[0]:out_idx[1]] = self._data[in_idx[0]:in_idx[1]]
+                out_handle['indices'][out_idx[0]:out_idx[1]] = self._indices[in_idx[0]:in_idx[1]]
 
+        self._output_idx = dict()
         self._stored = 0
         print_timing(t0=self._t0,
                      i_chunk=self._ct_rows,
