@@ -304,3 +304,5 @@ class RowCollector(object):
         for new_row in range(r0, r1):
             old_row = self._new_row_to_old_row[new_row]
             self._old_row_to_buffer[old_row] = self._new_row_to_idx[new_row]-buffer0
+        n = self._current_chunk[1]-self._current_chunk[0]
+        print(f"looking to write {n} rows")
