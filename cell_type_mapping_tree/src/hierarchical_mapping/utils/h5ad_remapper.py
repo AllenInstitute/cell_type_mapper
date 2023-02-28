@@ -82,8 +82,11 @@ def rearrange_sparse_h5ad_hunter_gather(
                 if not collector.is_complete:
                     keep_going = True
 
-            print(f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                  f"{t_write/3600.0:.2e} hrs writing")
+            duration = (time.time()-t0)/3600.0
+            print(f"spent {duration:.2e} hrs total; "
+                  f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                  f"{t_write/3600.0:.2e} hrs writing -- "
+                  f"reading row {h5ad_server.r0:.2e}")
 
 
     with zarr.open(output_path, 'a') as zarr_handle:
