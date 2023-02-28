@@ -116,13 +116,18 @@ def test_rearrange_sparse_zarr(
 
 
 @pytest.mark.parametrize(
-        'zero_out, output_chunks, flush_every',
-        [(True, 17, 100), (True, 23, 500),
-         (False, 33, 314), (False, 14, 26)])
+        'zero_out, output_chunks, flush_every, n_processors',
+        [(True, 17, 100, 1),
+         (True, 23, 500, 1),
+         (False, 33, 314, 1),
+         (False, 14, 26, 1),
+         (True, 47, 113, 3),
+         (False, 47, 113, 3)])
 def test_rearrange_sparse_h5ad(
         zero_out,
         output_chunks,
         flush_every,
+        n_processors,
         sparse_data_fixture,
         row_chunk_list_fixture):
 

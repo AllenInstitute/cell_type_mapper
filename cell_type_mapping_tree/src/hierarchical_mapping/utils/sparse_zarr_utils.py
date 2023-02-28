@@ -1,6 +1,8 @@
 import zarr
 import h5py
 import time
+import numpy as np
+import multiprocessing
 
 from hierarchical_mapping.utils.writer_classes import (
     SparseZarrWriter)
@@ -32,8 +34,9 @@ def rearrange_sparse_h5ad(
         output_path,
         row_chunk_list,
         chunks=5000,
-        flush_every=10000000):
-
+        flush_every=10000000,
+        n_processors=4):
+    t0 = time.time()
     row_order = []
     for chunk in row_chunk_list:
         row_order += chunk
@@ -54,14 +57,41 @@ def rearrange_sparse_h5ad(
              data_dtype=data_dtype,
              chunks=chunks)
 
-    _rearrange_sparse_h5ad_worker(
-        h5ad_path=h5ad_path,
-        output_path=output_path,
-        old_indptr=old_indptr,
-        new_indptr=new_indptr,
-        row_order=row_order,
-        flush_every=flush_every,
-        row_chunk=None)
+    worker_chunks = []
+    n_per_worker = np.round(len(row_order)/n_processors).astype(int)
+    for ii in range(n_processors):
+        i0 = ii*n_per_worker
+        i1 = min(i0+n_per_worker, len(row_order))
+        if ii == n_processors-1:
+            i1 = len(row_order)
+        worker_chunks.append((i0, i1))
+
+    if n_processors > 1:
+        mgr = multiprocessing.Manager()
+        output_lock = mgr.Lock()
+    else:
+        output_lock = None
+
+    process_list = []
+    for ii in range(n_processors):
+        p = multiprocessing.Process(
+                target=_rearrange_sparse_h5ad_worker,
+                kwargs={
+                    'h5ad_path': h5ad_path,
+                    'output_path': output_path,
+                    'old_indptr': old_indptr,
+                    'new_indptr': new_indptr,
+                    'row_order': row_order,
+                    'flush_every': flush_every,
+                    'row_chunk': worker_chunks[ii],
+                    'output_lock': output_lock})
+        p.start()
+        process_list.append(p)
+    for p in process_list:
+        p.join()
+
+    duration = (time.time()-t0)/3600.0
+    print(f"whole rearranging took {duration:.2e} hrs")
 
 
 def _rearrange_sparse_h5ad_worker(
@@ -71,7 +101,8 @@ def _rearrange_sparse_h5ad_worker(
         new_indptr,
         row_order,
         flush_every,
-        row_chunk=None):
+        row_chunk=None,
+        output_lock=None):
 
     writer_obj = SparseZarrWriter(
                     file_path=output_path)
@@ -86,7 +117,8 @@ def _rearrange_sparse_h5ad_worker(
                 new_row_order=row_order,
                 writer_obj=writer_obj,
                 flush_every=flush_every,
-                row_chunk=row_chunk)
+                row_chunk=row_chunk,
+                output_lock=output_lock)
 
 
 def write_rearranged_zarr(
