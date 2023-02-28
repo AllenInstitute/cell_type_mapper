@@ -65,7 +65,6 @@ def rearrange_sparse_h5ad_hunter_gather(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
         keep_going = True
-        num0 = 0
         while keep_going:
             data = h5ad_server.update()
             for collector in row_collector_list:
@@ -77,27 +76,17 @@ def rearrange_sparse_h5ad_hunter_gather(
             keep_going = False
             t_write = 0.0
 
-            num = 0
-            denom = 0
             for collector in row_collector_list:
                 t_write += collector.t_write
                 if not collector.is_complete:
                     keep_going = True
-                    denom += collector._current_buffer_size
-                    num += collector._buffer_mask.sum()
 
             duration = (time.time()-t0)/3600.0
             if verbose:
-                if denom == 0:
-                    assert num == 0
-                    num = 1
-                    denom = 1
                 print(f"spent {duration:.2e} hrs total; "
                       f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
                       f"{t_write/3600.0:.2e} hrs writing -- "
-                      f"reading row {h5ad_server.r0:.2e} -- "
-                      f"pct complete {num/denom:.4e} -- delta {num-num0}")
-            num0 = num
+                      f"reading row {h5ad_server.r0:.2e}")
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
@@ -205,16 +194,16 @@ class RowCollector(object):
         self._new_row_to_old_row = new_row_order
         for ii, rr in enumerate(new_row_order):
             self._old_row_to_new_row[rr] = ii
+        self._new_row_to_idx = new_indptr
 
         self._row_chunk = row_chunk
+        self._already_written = set()
         self._buffer_size = buffer_size
         self._data = np.zeros(buffer_size, dtype=data_dtype)
         self._indices = np.zeros(buffer_size, dtype=int)
-        self._buffer_mask = np.zeros(buffer_size, dtype=bool)
+        self._output_idx = np.zeros(buffer_size, dtype=int)
+        self._stored = 0
 
-        self._new_row_to_idx = new_indptr
-        self._current_chunk = None
-        self._set_next_chunk()
 
     @property
     def is_complete(self):
@@ -234,21 +223,35 @@ class RowCollector(object):
         for r_idx in range(len(indptr_chunk)-1):
             old_row = r_idx + r0
             new_row = self._old_row_to_new_row[old_row]
-            if new_row < self._current_chunk[0] or new_row >= self._current_chunk[1]:
+            if new_row < self._row_chunk[0] or new_row >= self._row_chunk[1]:
                 continue
-            buffer_idx = self._old_row_to_buffer[old_row]
+            if new_row in self._already_written:
+                continue
+
             data_i0 = indptr_chunk[r_idx] + i0
             data_i1 = indptr_chunk[r_idx+1] + i0
             delta = data_i1-data_i0
-            self._data[buffer_idx:
-                       buffer_idx+delta] = data_chunk[data_i0:data_i1]
-            self._indices[buffer_idx:
-                          buffer_idx+delta] = indices_chunk[data_i0:data_i1]
-            self._buffer_mask[buffer_idx:buffer_idx+delta] = True
+            if self._stored + delta > self._buffer_size:
+                self._flush()
 
-        if self._buffer_mask.sum() == self._current_buffer_size:
-            self._flush()
-            self._set_next_chunk()
+            self._data[self._stored:
+                       self._stored+delta] = data_chunk[data_i0:data_i1]
+            self._indices[self._stored:
+                          self._stored+delta] = indices_chunk[data_i0:data_i1]
+
+            self._output_idx[
+                self._stored:
+                self._stored+delta] = np.arange(self._new_row_to_idx[new_row],
+                                                self._new_row_to_idx[new_row+1]).astype(int)
+
+            self._stored += delta
+            self._ct_rows += 1
+            self._already_written.add(new_row)
+
+        if len(self._already_written) == (self._row_chunk[1]-self._row_chunk[0]):
+            if self._stored > 0:
+                self._flush()
+            self._complete = True
 
         self.t_write += time.time()-t0
 
@@ -256,64 +259,12 @@ class RowCollector(object):
         """
         Write buffers to output
         """
-        z0 = self._new_row_to_idx[self._current_chunk[0]]
-        z1 = self._new_row_to_idx[self._current_chunk[1]]
         with zarr.open(self._zarr_path, 'a') as out_handle:
-            out_handle['data'][z0:z1] = self._data[:self._current_buffer_size]
-            out_handle['indices'][z0:z1] = self._indices[
-                                             :self._current_buffer_size]
+            out_handle['data'][self._output_idx[:self._stored]] = self._data[:self._stored]
+            out_handle['indices'][self._output_idx[:self._stored]] = self._indices[:self._stored]
 
-        self._ct_rows += self._current_chunk[1]-self._current_chunk[0]
+        self._stored = 0
         print_timing(t0=self._t0,
                      i_chunk=self._ct_rows,
                      tot_chunks=self._tot_rows,
                      unit='hr')
-
-    def _set_next_chunk(self):
-        """
-        set self._current_chunk to (row_min, row_max)
-        such that the buffers will accommodate the
-        required data
-        """
-        self._current_buffer_size = None
-        self._old_row_to_buffer = None
-        self._buffer_mask[:] = False
-
-        if self._current_chunk is None:
-            r0 = self._row_chunk[0]
-        else:
-            r0 = self._current_chunk[1]
-
-        if r0 == self._row_chunk[1]:
-            self._complete = True
-            self._current_chunk = (self._row_chunk[1], self._row_chunk[1])
-            return
-
-        r1 = r0
-        projected_buffer = 0
-        for candidate in range(r0+1, self._row_chunk[1]+1, 1):
-            delta = self._new_row_to_idx[candidate] - self._new_row_to_idx[r1]
-            if projected_buffer + delta > self._buffer_size:
-                break
-            r1 = candidate
-            projected_buffer += delta
-
-        if r1 == r0:
-            raise RuntimeError(
-                f"at r0={r0}, could not assign new buffer for "
-                f"global chunk {self._row_chunk}")
-
-        # how big is the buffer we need for current chunk
-        self._current_buffer_size = projected_buffer
-
-        # chunk we are focusing on ingesting now
-        self._current_chunk = (r0, r1)
-
-        # map from
-        self._old_row_to_buffer = dict()
-        buffer0 = self._new_row_to_idx[r0]
-        for new_row in range(r0, r1):
-            old_row = self._new_row_to_old_row[new_row]
-            self._old_row_to_buffer[old_row] = self._new_row_to_idx[new_row]-buffer0
-        n = self._current_chunk[1]-self._current_chunk[0]
-        print(f"looking to write {n} rows")
