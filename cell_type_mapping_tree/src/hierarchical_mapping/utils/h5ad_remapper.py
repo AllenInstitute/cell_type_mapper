@@ -65,6 +65,7 @@ def rearrange_sparse_h5ad_hunter_gather(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
         keep_going = True
+        num0 = 0
         while keep_going:
             data = h5ad_server.update()
             for collector in row_collector_list:
@@ -75,8 +76,13 @@ def rearrange_sparse_h5ad_hunter_gather(
 
             keep_going = False
             t_write = 0.0
+
+            num = 0
+            denom = 0
             for collector in row_collector_list:
                 t_write += collector.t_write
+                denom += collector._current_buffer_size
+                num += collector._buffer_mask.sum()
                 if not collector.is_complete:
                     keep_going = True
 
@@ -85,8 +91,9 @@ def rearrange_sparse_h5ad_hunter_gather(
                 print(f"spent {duration:.2e} hrs total; "
                       f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
                       f"{t_write/3600.0:.2e} hrs writing -- "
-                      f"reading row {h5ad_server.r0:.2e}")
-
+                      f"reading row {h5ad_server.r0:.2e} -- "
+                      f"pct complete {num/denom:.4e} -- delta {num-num0}")
+            num0 = num
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
