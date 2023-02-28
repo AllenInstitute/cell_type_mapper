@@ -2,6 +2,9 @@ import zarr
 import h5py
 import time
 
+from hierarchical_mapping.utils.writer_classes import (
+    SparseZarrWriter)
+
 from hierarchical_mapping.utils.sparse_utils import (
     _merge_csr_chunk,
     _load_disjoint_csr,
@@ -68,6 +71,9 @@ def _rearrange_sparse_h5ad_worker(
         row_order,
         flush_every):
 
+    writer_obj = SparseZarrWriter(
+                    file_path=output_path)
+
     with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
         with zarr.open(output_path, 'a') as output_handle:
             remap_csr_matrix(
@@ -76,9 +82,7 @@ def _rearrange_sparse_h5ad_worker(
                 indptr=old_indptr,
                 new_indptr=new_indptr,
                 new_row_order=row_order,
-                data_output_handle=output_handle['data'],
-                indices_output_handle=output_handle['indices'],
-                indptr_output_handle=output_handle['indptr'],
+                writer_obj=writer_obj,
                 flush_every=flush_every)
 
 

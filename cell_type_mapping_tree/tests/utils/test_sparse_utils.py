@@ -12,6 +12,9 @@ import zarr
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
+from hierarchical_mapping.utils.writer_classes import (
+    ArrayWriter)
+
 from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
     load_csr_chunk,
@@ -362,6 +365,11 @@ def test_remap_csr_matrix(
     new_indptr = np.zeros(baseline_csr.indptr.shape,
                           dtype=int)
 
+    writer_obj = ArrayWriter(
+                    data=new_data,
+                    indices=new_indices,
+                    indptr=new_indptr)
+
     reordered_indptr = precompute_indptr(
                             indptr_in=baseline_csr.indptr,
                             row_order=row_reorder)
@@ -373,9 +381,7 @@ def test_remap_csr_matrix(
             indptr=baseline_csr.indptr,
             new_indptr=reordered_indptr,
             new_row_order=row_reorder,
-            data_output_handle=new_data,
-            indices_output_handle=new_indices,
-            indptr_output_handle=new_indptr,
+            writer_obj=writer_obj,
             flush_every=flush_every)
 
     np.testing.assert_allclose(new_data, new_csr.data)
@@ -427,6 +433,11 @@ def test_remap_csr_matrix_chunk(
     new_indptr = np.zeros(baseline_csr.indptr.shape,
                           dtype=int)
 
+    writer_obj = ArrayWriter(
+                    data=new_data,
+                    indices=new_indices,
+                    indptr=new_indptr)
+
     reordered_indptr = precompute_indptr(
                             indptr_in=baseline_csr.indptr,
                             row_order=row_reorder)
@@ -438,9 +449,7 @@ def test_remap_csr_matrix_chunk(
             indptr=baseline_csr.indptr,
             new_indptr=reordered_indptr,
             new_row_order=row_reorder,
-            data_output_handle=new_data,
-            indices_output_handle=new_indices,
-            indptr_output_handle=new_indptr,
+            writer_obj=writer_obj,
             flush_every=flush_every,
             row_chunk=row_chunk)
 

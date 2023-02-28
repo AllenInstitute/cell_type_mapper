@@ -356,9 +356,7 @@ def remap_csr_matrix(
         indptr,
         new_indptr,
         new_row_order,
-        data_output_handle,
-        indices_output_handle,
-        indptr_output_handle,
+        writer_obj,
         flush_every=1000000,
         row_chunk=None,
         output_lock=None):
@@ -402,8 +400,7 @@ def remap_csr_matrix(
          buffer_1) = _update_buffers(
                           data_buffer=data_buffer,
                           indices_buffer=indices_buffer,
-                          data_output_handle=data_output_handle,
-                          indices_output_handle=indices_output_handle,
+                          writer_obj=writer_obj,
                           data_chunk=data_chunk,
                           indices_chunk=indices_chunk,
                           output_0=output_0,
@@ -423,8 +420,7 @@ def remap_csr_matrix(
     _update_buffers(
           data_buffer=data_buffer,
           indices_buffer=indices_buffer,
-          data_output_handle=data_output_handle,
-          indices_output_handle=indices_output_handle,
+          writer_obj=writer_obj,
           data_chunk=None,
           indices_chunk=None,
           output_0=output_0,
@@ -432,13 +428,12 @@ def remap_csr_matrix(
           force_flush=True,
           output_lock=output_lock)
 
-    indptr_output_handle[:] = new_indptr
+    writer_obj.write_indptr(new_indptr=new_indptr)
 
 
 
 def _update_buffers(
-        data_output_handle,
-        indices_output_handle,
+        writer_obj,
         data_buffer,
         indices_buffer,
         data_chunk,
@@ -459,11 +454,17 @@ def _update_buffers(
     if force_flush:
         if buffer_1 > 0:
             output_1 = output_0+buffer_1
-            data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
-            indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
+            writer_obj.write_data(
+                i0=output_0,
+                i1=output_1,
+                data_chunk=data_buffer[:buffer_1],
+                indices_chunk=indices_buffer[:buffer_1])
         if data_chunk is not None:
-            data_output_handle[output_1:output_1+data_chunk.shape[0]] = data_chunk
-            indices_output_handle[output_1:output_1+data_chunk.shape[0]] = indices_chunk
+            writer_obj.write_data(
+                i0=output_1,
+                i1=output_1+data_chunk.shape[0],
+                data_chunk=data_chunk,
+                indices_chunk=indices_chunk)
         return None
 
     if buffer_1 + data_chunk.shape[0] < len(data_buffer):
@@ -482,15 +483,25 @@ def _update_buffers(
     with output_lock:
         if buffer_1 > 0:
             output_1 = output_0+buffer_1
-            data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
-            indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
+
+            writer_obj.write_data(
+                i0=output_0,
+                i1=output_1,
+                data_chunk=data_buffer[:buffer_1],
+                indices_chunk=indices_buffer[:buffer_1])
+
             output_0 = output_1
             buffer_1 = 0
 
         if data_chunk is not None:
             output_1 = output_0 + data_chunk.shape[0]
-            data_output_handle[output_0:output_1] = data_chunk
-            indices_output_handle[output_0:output_1] = indices_chunk
+
+            writer_obj.write_data(
+                i0=output_0,
+                i1=output_1,
+                data_chunk=data_chunk,
+                indices_chunk=indices_chunk)
+
             output_0 = output_1
 
     duration = (time.time()-t0)/3600.0
