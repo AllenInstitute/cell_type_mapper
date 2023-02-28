@@ -76,10 +76,15 @@ def rearrange_sparse_h5ad_hunter_gather(
                     indptr_chunk=data['indptr'])
 
             keep_going = False
+            t_write = 0.0
             for collector in row_collector_list:
+                t_write += collector.t_write
                 if not collector.is_complete:
                     keep_going = True
-                    break
+
+            print(f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                  f"{t_write/3600.0:.2e} hrs writing")
+
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
@@ -105,8 +110,10 @@ class H5adServer(object):
         self.indices = np.zeros(buffer_size, dtype=int)
         self.r0 = 0
         self.buffer_size = buffer_size
+        self.t_load = 0.0
 
     def next(self):
+        t0 = time.time()
         if self.r0 == len(self.indptr)-1:
             self.r0 = 0
         projected_buffer = 0
@@ -129,6 +136,7 @@ class H5adServer(object):
         result['indices'] = self.h5ad_handle['X']['indices'][i0:i1]
         result['indptr'] = self.indptr[self.r0:r1+1]-self.indptr[self.r0]
         self.r0 = r1
+        self.t_load += time.time()-t0
         return result
 
 
@@ -150,6 +158,7 @@ class RowCollector(object):
         elements to be stored at a time (must be greater
         than number of columns in array)
         """
+        self.t_write = 0.0
         self._t0 = time.time()
         self._tot_rows = row_chunk[1]-row_chunk[0]
         self._ct_rows = 0
@@ -186,6 +195,7 @@ class RowCollector(object):
             indices_chunk,
             indptr_chunk):
 
+        t0 = time.time()
         i0 = indptr_chunk[0]
         for r_idx in range(len(indptr_chunk)-1):
             old_row = r_idx + r0
@@ -206,6 +216,7 @@ class RowCollector(object):
             self._flush()
             self._set_next_chunk()
 
+        self.t_write += time.time()-t0
 
     def _flush(self):
         """
