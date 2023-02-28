@@ -1,6 +1,8 @@
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    DummyLock)
 from hierarchical_mapping.utils.utils import print_timing
 from hierarchical_mapping.utils.utils import merge_index_list
 
@@ -358,7 +360,8 @@ def remap_csr_matrix(
         indices_output_handle,
         indptr_output_handle,
         flush_every=1000000,
-        row_chunk=None):
+        row_chunk=None,
+        output_lock=None):
     """
     Given a CSR array and a re-arranged
     indptr array, write out the re-arrangeced
@@ -405,7 +408,8 @@ def remap_csr_matrix(
                           indices_chunk=indices_chunk,
                           output_0=output_0,
                           buffer_1=buffer_1,
-                          force_flush=False)
+                          force_flush=False,
+                          output_lock=output_lock)
         t_write += time.time()-_t0
 
         if new_row % 1000 == 0:
@@ -425,7 +429,8 @@ def remap_csr_matrix(
           indices_chunk=None,
           output_0=output_0,
           buffer_1=buffer_1,
-          force_flush=True)
+          force_flush=True,
+          output_lock=output_lock)
 
     indptr_output_handle[:] = new_indptr
 
@@ -440,7 +445,8 @@ def _update_buffers(
         indices_chunk,
         output_0,
         buffer_1,
-        force_flush=False):
+        force_flush=False,
+        output_lock=None):
     """
     output_0 is the point in the output_handle where
     these buffers need to be stored
@@ -469,18 +475,23 @@ def _update_buffers(
 
     print("flushing")
     t0 = time.time()
-    if buffer_1 > 0:
-        output_1 = output_0+buffer_1
-        data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
-        indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
-        output_0 = output_1
-        buffer_1 = 0
 
-    if data_chunk is not None:
-        output_1 = output_0 + data_chunk.shape[0]
-        data_output_handle[output_0:output_1] = data_chunk
-        indices_output_handle[output_0:output_1] = indices_chunk
-        output_0 = output_1
+    if output_lock is None:
+        output_lock = DummyLock()
+
+    with output_lock:
+        if buffer_1 > 0:
+            output_1 = output_0+buffer_1
+            data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
+            indices_output_handle[output_0:output_1] = indices_buffer[:buffer_1]
+            output_0 = output_1
+            buffer_1 = 0
+
+        if data_chunk is not None:
+            output_1 = output_0 + data_chunk.shape[0]
+            data_output_handle[output_0:output_1] = data_chunk
+            indices_output_handle[output_0:output_1] = indices_chunk
+            output_0 = output_1
 
     duration = (time.time()-t0)/3600.0
     print(f"flushing took {duration:.2e} hrs\n")
