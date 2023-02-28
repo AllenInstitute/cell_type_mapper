@@ -20,7 +20,7 @@ from hierarchical_mapping.utils.h5ad_remapper import (
 def sparse_data_fixture():
 
     rng = np.random.default_rng(772334)
-    nrows = 314
+    nrows = 3140
     ncols = 567
 
     data = np.zeros((nrows*ncols), dtype=int)
@@ -58,10 +58,10 @@ def row_order_fixture(sparse_data_fixture):
 
 @pytest.mark.parametrize(
     "zero_out, output_chunks, n_row_collectors, buffer_size, read_in_size",
-    ((False, 17, 3, 2000, 567),
-     (True, 17, 3, 2000, 567),
-     (False, 45, 1, 1000, 1500),
-     (True, 45, 1, 1000, 1200)))
+    ((False, 17, 3, 2000, 1134),
+     (True, 17, 3, 2000, 1134),
+     (False, 45, 1, 1000, 10000),
+     (True, 45, 1, 1000, 40000)))
 def test_rearrange_sparse_h5ad(
         zero_out,
         output_chunks,
