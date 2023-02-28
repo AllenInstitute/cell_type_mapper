@@ -97,7 +97,8 @@ def test_rearrange_sparse_h5ad(
          chunks=output_chunks,
          n_row_collectors=n_row_collectors,
          buffer_size=buffer_size,
-         read_in_size=read_in_size)
+         read_in_size=read_in_size,
+         verbose=False)
 
     # verify that chunks were properly set
     for pth in ('data', 'indices', 'indptr'):

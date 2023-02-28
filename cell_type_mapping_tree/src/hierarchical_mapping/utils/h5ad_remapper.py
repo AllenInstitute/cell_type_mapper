@@ -21,7 +21,8 @@ def rearrange_sparse_h5ad_hunter_gather(
         chunks=5000,
         n_row_collectors=5,
         buffer_size=10000000,
-        read_in_size=10000000):
+        read_in_size=10000000,
+        verbose=True):
 
     t0 = time.time()
     with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
@@ -83,10 +84,11 @@ def rearrange_sparse_h5ad_hunter_gather(
                     keep_going = True
 
             duration = (time.time()-t0)/3600.0
-            print(f"spent {duration:.2e} hrs total; "
-                  f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                  f"{t_write/3600.0:.2e} hrs writing -- "
-                  f"reading row {h5ad_server.r0:.2e}")
+            if verbose:
+                print(f"spent {duration:.2e} hrs total; "
+                      f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                      f"{t_write/3600.0:.2e} hrs writing -- "
+                      f"reading row {h5ad_server.r0:.2e}")
 
 
     with zarr.open(output_path, 'a') as zarr_handle:
