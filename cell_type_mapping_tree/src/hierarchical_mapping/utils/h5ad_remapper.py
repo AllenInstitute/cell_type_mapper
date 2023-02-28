@@ -76,8 +76,10 @@ def rearrange_sparse_h5ad_hunter_gather(
             keep_going = False
             t_write = 0.0
 
+            n_stored = 0
             for collector in row_collector_list:
                 t_write += collector.t_write
+                n_stored += collector.row_ct
                 if not collector.is_complete:
                     keep_going = True
 
@@ -86,7 +88,8 @@ def rearrange_sparse_h5ad_hunter_gather(
                 print(f"spent {duration:.2e} hrs total; "
                       f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
                       f"{t_write/3600.0:.2e} hrs writing -- "
-                      f"reading row {h5ad_server.r0:.2e}")
+                      f"reading row {h5ad_server.r0:.2e} -- "
+                      f"stored {n_stored} rows")
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
@@ -204,6 +207,9 @@ class RowCollector(object):
         self._output_idx = np.zeros(buffer_size, dtype=int)
         self._stored = 0
 
+    @property
+    def row_ct(self):
+        return self._ct_rows
 
     @property
     def is_complete(self):
