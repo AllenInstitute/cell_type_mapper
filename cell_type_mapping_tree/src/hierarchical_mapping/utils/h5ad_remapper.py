@@ -81,13 +81,17 @@ def rearrange_sparse_h5ad_hunter_gather(
             denom = 0
             for collector in row_collector_list:
                 t_write += collector.t_write
-                denom += collector._current_buffer_size
-                num += collector._buffer_mask.sum()
                 if not collector.is_complete:
                     keep_going = True
+                    denom += collector._current_buffer_size
+                    num += collector._buffer_mask.sum()
 
             duration = (time.time()-t0)/3600.0
             if verbose:
+                if denom == 0:
+                    assert num == 0
+                    num = 1
+                    denom = 1
                 print(f"spent {duration:.2e} hrs total; "
                       f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
                       f"{t_write/3600.0:.2e} hrs writing -- "
