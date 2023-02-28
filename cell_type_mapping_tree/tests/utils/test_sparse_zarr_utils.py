@@ -160,7 +160,8 @@ def test_rearrange_sparse_h5ad(
          output_path=tmp_output_dir,
          row_chunk_list=row_chunk_list,
          chunks=output_chunks,
-         flush_every=flush_every)
+         flush_every=flush_every,
+         n_processors=n_processors)
 
     # verify that chunks were properly set
     for pth in ('data', 'indices', 'indptr'):

@@ -57,39 +57,47 @@ def rearrange_sparse_h5ad(
              data_dtype=data_dtype,
              chunks=chunks)
 
-    worker_chunks = []
-    n_per_worker = np.round(len(row_order)/n_processors).astype(int)
-    for ii in range(n_processors):
-        i0 = ii*n_per_worker
-        i1 = min(i0+n_per_worker, len(row_order))
-        if ii == n_processors-1:
-            i1 = len(row_order)
-        worker_chunks.append((i0, i1))
-
-    if n_processors > 1:
+    if n_processors == 1:
+        _rearrange_sparse_h5ad_worker(
+            h5ad_path=h5ad_path,
+            output_path=output_path,
+            old_indptr=old_indptr,
+            new_indptr=new_indptr,
+            row_order=row_order,
+            flush_every=flush_every,
+            row_chunk=None,
+            output_lock=None,
+            process_name=None)
+    else:
         mgr = multiprocessing.Manager()
         output_lock = mgr.Lock()
-    else:
-        output_lock = None
+        worker_chunks = []
+        n_per_worker = np.round(len(row_order)/n_processors).astype(int)
+        for ii in range(n_processors):
+            i0 = ii*n_per_worker
+            i1 = min(i0+n_per_worker, len(row_order))
+            if ii == n_processors-1:
+                i1 = len(row_order)
+            worker_chunks.append((i0, i1))
 
-    process_list = []
-    for ii in range(n_processors):
-        p = multiprocessing.Process(
-                target=_rearrange_sparse_h5ad_worker,
-                kwargs={
-                    'h5ad_path': h5ad_path,
-                    'output_path': output_path,
-                    'old_indptr': old_indptr,
-                    'new_indptr': new_indptr,
-                    'row_order': row_order,
-                    'flush_every': flush_every,
-                    'row_chunk': worker_chunks[ii],
-                    'output_lock': output_lock,
-                    'process_name': ii})
-        p.start()
-        process_list.append(p)
-    for p in process_list:
-        p.join()
+        process_list = []
+        for ii in range(n_processors):
+            p = multiprocessing.Process(
+                    target=_rearrange_sparse_h5ad_worker,
+                    kwargs={
+                        'h5ad_path': h5ad_path,
+                        'output_path': output_path,
+                        'old_indptr': old_indptr,
+                        'new_indptr': new_indptr,
+                        'row_order': row_order,
+                        'flush_every': flush_every,
+                        'row_chunk': worker_chunks[ii],
+                        'output_lock': output_lock,
+                        'process_name': ii})
+            p.start()
+            process_list.append(p)
+        for p in process_list:
+            p.join()
 
     duration = (time.time()-t0)/3600.0
     print(f"whole rearranging took {duration:.2e} hrs")
