@@ -60,7 +60,8 @@ def rearrange_sparse_h5ad(
         old_indptr=old_indptr,
         new_indptr=new_indptr,
         row_order=row_order,
-        flush_every=flush_every)
+        flush_every=flush_every,
+        row_chunk=None)
 
 
 def _rearrange_sparse_h5ad_worker(
@@ -69,7 +70,8 @@ def _rearrange_sparse_h5ad_worker(
         old_indptr,
         new_indptr,
         row_order,
-        flush_every):
+        flush_every,
+        row_chunk=None):
 
     writer_obj = SparseZarrWriter(
                     file_path=output_path)
@@ -83,7 +85,8 @@ def _rearrange_sparse_h5ad_worker(
                 new_indptr=new_indptr,
                 new_row_order=row_order,
                 writer_obj=writer_obj,
-                flush_every=flush_every)
+                flush_every=flush_every,
+                row_chunk=row_chunk)
 
 
 def write_rearranged_zarr(
