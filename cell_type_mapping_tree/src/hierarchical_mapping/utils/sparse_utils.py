@@ -348,8 +348,6 @@ def precompute_indptr(
     return new_indptr
 
 
-
-
 def remap_csr_matrix(
         data_handle,
         indices_handle,
@@ -359,11 +357,14 @@ def remap_csr_matrix(
         data_output_handle,
         indices_output_handle,
         indptr_output_handle,
-        flush_every=1000000):
+        flush_every=1000000,
+        row_chunk=None):
     """
     Given a CSR array and a re-arranged
     indptr array, write out the re-arrangeced
     CSR array.
+
+    row_chunk is of the form (row_min, row_max)
     """
     data_buffer = np.zeros(flush_every, data_handle.dtype)
     indices_buffer = np.zeros(flush_every, int)
@@ -377,7 +378,13 @@ def remap_csr_matrix(
     t0 = time.time()
     t_load = 0.0
     t_write = 0.0
-    for new_row in range(len(indptr)-1):
+
+    if row_chunk is not None:
+        output_0 = new_indptr[row_chunk[0]]
+    else:
+        row_chunk = (0, len(indptr)-1)
+
+    for new_row in range(row_chunk[0], row_chunk[1], 1):
         old_row = new_to_old_row[new_row]
         i0 = indptr[old_row]
         i1 = indptr[old_row+1]
