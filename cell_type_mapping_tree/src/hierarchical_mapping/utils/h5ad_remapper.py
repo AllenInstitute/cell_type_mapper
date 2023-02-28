@@ -66,15 +66,12 @@ def rearrange_sparse_h5ad_hunter_gather(
             buffer_size=read_in_size)
         keep_going = True
         while keep_going:
-            data = h5ad_server.next()
+            data = h5ad_server.update()
             for collector in row_collector_list:
                if collector.is_complete:
                     continue
                collector.ingest_data(
-                    r0=data['r0'],
-                    data_chunk=data['data'],
-                    indices_chunk=data['indices'],
-                    indptr_chunk=data['indptr'])
+                    h5ad_server=h5ad_server)
 
             keep_going = False
             t_write = 0.0
@@ -108,23 +105,39 @@ class H5adServer(object):
         read_in_size is the number of data elements to serve up at once
         """
         self.h5ad_handle = h5ad_handle
-        self.indptr = h5ad_handle['X']['indptr'][:]
-        self.data = np.zeros(
+        self._raw_indptr = h5ad_handle['X']['indptr'][:]
+        self._data = np.zeros(
                         buffer_size,
                         dtype=h5ad_handle['X']['data'].dtype)
-        self.indices = np.zeros(buffer_size, dtype=int)
+        self._indices = np.zeros(buffer_size, dtype=int)
         self.r0 = 0
         self.buffer_size = buffer_size
         self.t_load = 0.0
 
-    def next(self):
+    @property
+    def data(self):
+        return self._data[:self._valid_idx]
+
+    @property
+    def indices(self):
+        return self._indices[:self._valid_idx]
+
+    @property
+    def indptr(self):
+        return self._indptr_chunk
+
+    @property
+    def base_row(self):
+        return self._base_row
+
+    def update(self):
         t0 = time.time()
-        if self.r0 == len(self.indptr)-1:
+        if self.r0 == len(self._raw_indptr)-1:
             self.r0 = 0
         projected_buffer = 0
         r1 = self.r0
-        for candidate in range(self.r0+1, len(self.indptr), 1):
-            delta = self.indptr[candidate] - self.indptr[r1]
+        for candidate in range(self.r0+1, len(self._raw_indptr), 1):
+            delta = self._raw_indptr[candidate] - self._raw_indptr[r1]
             if projected_buffer + delta > self.buffer_size:
                 break
             projected_buffer += delta
@@ -134,12 +147,15 @@ class H5adServer(object):
                 "could not load h5ad data with buffer "
                 f"{self.buffer_size}")
         result = dict()
-        result['r0'] = self.r0
-        i0 = self.indptr[self.r0]
-        i1 = self.indptr[r1]
-        result['data'] = self.h5ad_handle['X']['data'][i0:i1]
-        result['indices'] = self.h5ad_handle['X']['indices'][i0:i1]
-        result['indptr'] = self.indptr[self.r0:r1+1]-self.indptr[self.r0]
+        self._base_row = self.r0
+        i0 = self._raw_indptr[self.r0]
+        i1 = self._raw_indptr[r1]
+
+        self._data[:i1-i0] = self.h5ad_handle['X']['data'][i0:i1]
+        self._indices[:i1-i0] = self.h5ad_handle['X']['indices'][i0:i1]
+        self._valid_idx = i1-i0
+
+        self._indptr_chunk = self._raw_indptr[self.r0:r1+1]-self._raw_indptr[self.r0]
         self.r0 = r1
         self.t_load += time.time()-t0
         return result
@@ -195,10 +211,12 @@ class RowCollector(object):
 
     def ingest_data(
             self,
-            r0,
-            data_chunk,
-            indices_chunk,
-            indptr_chunk):
+            h5ad_server):
+
+        data_chunk = h5ad_server.data
+        indices_chunk = h5ad_server.indices
+        indptr_chunk = h5ad_server.indptr
+        r0 = h5ad_server.base_row
 
         t0 = time.time()
         i0 = indptr_chunk[0]
