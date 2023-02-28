@@ -460,6 +460,8 @@ def _update_buffers(
         return (output_0,
                 buffer_1)
 
+    print("flushing")
+    t0 = time.time()
     if buffer_1 > 0:
         output_1 = output_0+buffer_1
         data_output_handle[output_0:output_1] = data_buffer[:buffer_1]
@@ -473,5 +475,7 @@ def _update_buffers(
         indices_output_handle[output_0:output_1] = indices_chunk
         output_0 = output_1
 
+    duration = (time.time()-t0)/3600.0
+    print(f"flushing took {duration:.2e} hrs\n")
     return (output_0,
             buffer_1)
