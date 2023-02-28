@@ -387,7 +387,8 @@ def test_remap_csr_matrix(
 
 @pytest.mark.parametrize(
     "flush_every, row_chunk",
-    product((200, 23, 150), ((10, 70), (25, 175))))
+    product((200, 23, 150),
+            ((10, 70), (25, 175), (200, 222))))
 def test_remap_csr_matrix_chunk(
         tmp_path_factory,
         flush_every,
