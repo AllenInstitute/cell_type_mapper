@@ -51,6 +51,24 @@ def rearrange_sparse_h5ad(
              data_dtype=data_dtype,
              chunks=chunks)
 
+    _rearrange_sparse_h5ad_worker(
+        h5ad_path=h5ad_path,
+        output_path=output_path,
+        old_indptr=old_indptr,
+        new_indptr=new_indptr,
+        row_order=row_order,
+        flush_every=flush_every)
+
+
+def _rearrange_sparse_h5ad_worker(
+        h5ad_path,
+        output_path,
+        old_indptr,
+        new_indptr,
+        row_order,
+        flush_every):
+
+    with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
         with zarr.open(output_path, 'a') as output_handle:
             remap_csr_matrix(
                 data_handle=input_handle['X']['data'],
