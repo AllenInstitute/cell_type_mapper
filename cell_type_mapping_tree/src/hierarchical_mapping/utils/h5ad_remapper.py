@@ -1,4 +1,5 @@
 import h5py
+import multiprocessing
 import numpy as np
 import pathlib
 import time
@@ -60,42 +61,62 @@ def rearrange_sparse_h5ad_hunter_gather(
 
         row_collector_list.append(collector)
 
+    t_write = 0.0
     with h5py.File(h5ad_path, 'r', swmr=True) as h5ad_handle:
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
-        keep_going = True
-        while keep_going:
-            data = h5ad_server.update()
-            for collector in row_collector_list:
-               if collector.is_complete:
-                    continue
-               collector.ingest_data(
-                    h5ad_server=h5ad_server)
 
-            keep_going = False
-            t_write = 0.0
+        while True:
+            h5ad_data = h5ad_server.update()
+            if h5ad_data is None:
+                break
 
-            n_stored = 0
-            for collector in row_collector_list:
-                t_write += collector.t_write
-                n_stored += collector.row_ct
-                if not collector.is_complete:
-                    keep_going = True
 
-            duration = (time.time()-t0)/3600.0
-            if verbose:
-                print(f"spent {duration:.2e} hrs total; "
-                      f"{h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                      f"{t_write/3600.0:.2e} hrs writing -- "
-                      f"reading row {h5ad_server.r0:.2e} -- "
-                      f"stored {n_stored} rows")
+            t0 = time.time()
+            process_list = []
+            for collector_obj in row_collector_list:
+                p = multiprocessing.Process(
+                        target=_hunter_gather_worker,
+                        kwargs={
+                            'data_obj': h5ad_data,
+                            'collector_obj': collector_obj})
+                p.start()
+                process_list.append(p)
+            for p in process_list:
+                p.join()
+            duration = time.time()-t0
+            t_write += duration
+            print(f"row {h5ad_server.r0} -- "
+                  f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                  f"{t_write/3600.0:.2e} hrs writing")
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
 
     duration = (time.time()-t0)/3600.0
     print(f"whole process took {duration:.2e} hrs")
+
+
+def _hunter_gather_worker(
+        data_obj,
+        collector_obj):
+    collector_obj.ingest_data(h5ad_server=data_obj)
+
+
+class DataObject(object):
+
+    def __init__(
+            self,
+            base_row,
+            data,
+            indices,
+            indptr):
+
+        self.base_row=base_row
+        self.data=data
+        self.indices=indices
+        self.indptr=indptr
 
 
 class H5adServer(object):
@@ -136,7 +157,7 @@ class H5adServer(object):
     def update(self):
         t0 = time.time()
         if self.r0 == len(self._raw_indptr)-1:
-            self.r0 = 0
+            return None
         projected_buffer = 0
         r1 = self.r0
         for candidate in range(self.r0+1, len(self._raw_indptr), 1):
@@ -149,7 +170,6 @@ class H5adServer(object):
             raise RuntimeError(
                 "could not load h5ad data with buffer "
                 f"{self.buffer_size}")
-        result = dict()
         self._base_row = self.r0
         i0 = self._raw_indptr[self.r0]
         i1 = self._raw_indptr[r1]
@@ -161,7 +181,12 @@ class H5adServer(object):
         self._indptr_chunk = self._raw_indptr[self.r0:r1+1]-self._raw_indptr[self.r0]
         self.r0 = r1
         self.t_load += time.time()-t0
-        return result
+
+        return DataObject(
+                    base_row=self.base_row,
+                    data=self.data,
+                    indices=self.indices,
+                    indptr=self.indptr)
 
 
 class RowCollector(object):
@@ -202,10 +227,7 @@ class RowCollector(object):
         self._row_chunk = row_chunk
         self._already_written = set()
         self._buffer_size = buffer_size
-        self._data = np.zeros(buffer_size, dtype=data_dtype)
-        self._indices = np.zeros(buffer_size, dtype=int)
-        self._output_idx = np.zeros(buffer_size, dtype=int)
-        self._stored = 0
+        self._data_dtype = data_dtype
 
     @property
     def row_ct(self):
@@ -218,6 +240,11 @@ class RowCollector(object):
     def ingest_data(
             self,
             h5ad_server):
+
+        self._data = np.zeros(self._buffer_size, dtype=self._data_dtype)
+        self._indices = np.zeros(self._buffer_size, dtype=int)
+        self._output_idx = np.zeros(self._buffer_size, dtype=int)
+        self._stored = 0
 
         data_chunk = h5ad_server.data
         indices_chunk = h5ad_server.indices
@@ -254,10 +281,16 @@ class RowCollector(object):
             self._ct_rows += 1
             self._already_written.add(new_row)
 
+        self._flush()
+
         if len(self._already_written) == (self._row_chunk[1]-self._row_chunk[0]):
             if self._stored > 0:
                 self._flush()
             self._complete = True
+
+        self._data = None
+        self._indices = None
+        self._ouptut_idx = None
 
         self.t_write += time.time()-t0
 
