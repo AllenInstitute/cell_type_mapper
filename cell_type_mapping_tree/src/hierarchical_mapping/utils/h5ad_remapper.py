@@ -11,7 +11,7 @@ from hierarchical_mapping.utils.utils import (
     print_timing)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    winnow_process_list)
+    winnow_process_dict)
 
 from hierarchical_mapping.utils.sparse_utils import (
     precompute_indptr)
@@ -69,54 +69,50 @@ def rearrange_sparse_h5ad_hunter_gather(
         row_collector_list.append(collector)
 
     t_write = 0.0
+    process_dict = dict()
     with h5py.File(h5ad_path, 'r', swmr=True) as h5ad_handle:
         n_rows_total = len(h5ad_handle['X']['indptr'][()])-1
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
 
-        process_list = []
         write_t0 = time.time()
+        keep_going = True
+
         while True:
             h5ad_data = h5ad_server.update()
             if h5ad_data is None:
                 break
 
-            process_list = []
-            for collector_obj in row_collector_list:
-                p = multiprocessing.Process(
-                        target=_hunter_gather_worker,
-                        kwargs={
-                            'data_obj': h5ad_data,
-                            'collector_obj': collector_obj})
-                p.start()
-                process_list.append(p)
+            collectors_for_this_chunk = set()
+            while len(collectors_for_this_chunk) < len(row_collector_list):
+                for i_coll, collector_obj in enumerate(row_collector_list):
+                    if i_coll in collectors_for_this_chunk:
+                        continue
+                    if i_coll in process_dict:
+                        continue
 
-            for p in process_list:
-                p.join()
+                    p = multiprocessing.Process(
+                            target=_hunter_gather_worker,
+                            kwargs={
+                                'data_obj': h5ad_data,
+                                'collector_obj': collector_obj})
+                    p.start()
+                    process_dict[i_coll] = p
+                    collectors_for_this_chunk.add(i_coll)
+
+                while len(process_dict) >= len(row_collector_list):
+                    process_dict = winnow_process_dict(process_dict)
+
             print_timing(
                     t0=global_t0,
                     i_chunk=h5ad_server.r0,
                     tot_chunks=n_rows_total,
                     unit='hr')
 
-                #while len(process_list) >= n_row_collectors:
-                #    process_list = winnow_process_list(process_list)
-                #    if len(process_list) < n_row_collectors:
-                #        duration = time.time()-write_t0
-                #        t_write += duration
-                #        print_timing(
-                #            t0=global_t0,
-                #            i_chunk=h5ad_server.r0,
-                #            tot_chunks=n_rows_total,
-                #            unit='hr')
-                #        print(f"row {h5ad_server.r0} -- "
-                #              f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                #              f"{t_write/3600.0:.2e} hrs writing")
+        for k in process_dict.keys():
+            process_dict[k].join()
 
-        #print("final pass on processes")
-        #for p in process_list:
-        #    p.join()
 
     print("collecting temp files together")
     with zarr.open(output_path, 'a') as zarr_handle:

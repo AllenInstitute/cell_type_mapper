@@ -30,3 +30,16 @@ def winnow_process_list(
     for ii in to_pop:
         process_list.pop(ii)
     return process_list
+
+
+def winnow_process_dict(
+        process_dict):
+    """
+    Loop over a dict of processes, popping out any that have
+    been completed. Return the winnowed dict of processes.
+    """
+    key_list = list(process_dict.keys())
+    for k in key_list:
+        if process_dict[k].exitcode is not None:
+            process_dict.pop(k)
+    return process_dict
