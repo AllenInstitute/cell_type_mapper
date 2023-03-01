@@ -278,13 +278,13 @@ class RowCollector(object):
                 shape=(n_el,),
                 chunks=(min(n_el, 100000),),
                 dtype=data_dtype,
-                compression=None)
+                compression='gzip')
             out_file.create_dataset(
                 'indices',
                 shape=(n_el,),
                 chunks=(min(n_el, 100000),),
                 dtype=int,
-                compression=None)
+                compression='gzip')
 
             out_file.create_dataset('idx_span',
                                     data=[idx_min, idx_max])
