@@ -107,7 +107,7 @@ def rearrange_sparse_h5ad_hunter_gather(
             _t0 = time.time()
             with h5py.File(collector_obj.tmp_h5_path, 'r') as in_file:
                 span = in_file['idx_span'][()]
-                d = 10000000
+                d = 100000000
                 for i0 in range(span[0], span[1], d):
                     i1 = min(span[1], i0+d)
                     zarr_handle['indices'][i0:i1] = in_file['indices'][i0-span[0]:i1-span[0]]
