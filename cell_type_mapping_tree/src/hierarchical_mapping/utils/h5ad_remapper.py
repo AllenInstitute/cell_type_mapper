@@ -340,6 +340,7 @@ class RowCollector(object):
             raw_in_bounds.append([(data_i0, data_i1)])
             raw_out_bounds.append([(out_idx0, out_idx1)])
 
+        print("merging bounds")
         _t0 = time.time()
         (in_bound_list,
          out_bound_list) = _merge_bounds(raw_in_bounds, raw_out_bounds)
