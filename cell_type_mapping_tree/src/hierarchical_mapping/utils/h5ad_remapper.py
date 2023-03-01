@@ -319,28 +319,99 @@ class RowCollector(object):
             self,
             h5ad_server,
             file_handle):
-
+        t0 = time.time()
         data_chunk = h5ad_server.data
         indices_chunk = h5ad_server.indices
         indptr_chunk = h5ad_server.indptr
-        r0 = h5ad_server.base_row
 
-        t0 = time.time()
+        r0 = h5ad_server.base_row
         i0 = indptr_chunk[0]
+        raw_in_bounds = []
+        raw_out_bounds = []
         for r_idx in range(len(indptr_chunk)-1):
             old_row = r_idx + r0
             new_row = self._old_row_to_new_row[old_row]
             if new_row < self._row_chunk[0] or new_row >= self._row_chunk[1]:
                 continue
-            if new_row in self._already_written:
-                continue
-
-            data_i0 = indptr_chunk[r_idx] + i0
-            data_i1 = indptr_chunk[r_idx+1] + i0
-
             out_idx0 = self._new_row_to_idx[new_row]-self.idx_min
             out_idx1 = self._new_row_to_idx[new_row+1]-self.idx_min
-            file_handle['data'][out_idx0:out_idx1] = data_chunk[data_i0:data_i1]
-            file_handle['indices'][out_idx0:out_idx1]  = indices_chunk[data_i0:data_i1]
+            data_i0 = indptr_chunk[r_idx] + i0
+            data_i1 = indptr_chunk[r_idx+1] + i0
+            raw_in_bounds.append([(data_i0, data_i1)])
+            raw_out_bounds.append([(out_idx0, out_idx1)])
+
+        _t0 = time.time()
+        (in_bound_list,
+         out_bound_list) = _merge_bounds(raw_in_bounds, raw_out_bounds)
+        dur = (time.time()-_t0)/3600.0
+        print(f"_merge_bounds took {dur:.2e} hrs")
+
+        data_buffer = None
+        indices_buffer = None
+
+        for in_bounds, out_bounds in zip(in_bound_list, out_bound_list):
+            min_dex_arr = np.array([o[0] for o in out_bounds])
+            sorted_dex = np.argsort(min_dex_arr)
+            sorted_in_bounds = [in_bounds[ii] for ii in sorted_dex]
+            sorted_out_bounds = [out_bounds[ii] for ii in sorted_dex]
+            n_data = sorted_out_bounds[-1][1]-sorted_out_bounds[0][0]
+            if data_buffer is None or len(data_buffer) < n_data:
+                data_buffer = np.zeros(n_data, dtype=data_chunk.dtype)
+                indices_buffer = np.zeros(n_data, dtype=int)
+            i0 = 0
+            for in_chunk in sorted_in_bounds:
+                delta = in_chunk[1]-in_chunk[0]
+                i1 = i0+delta
+                data_buffer[i0:i1] = data_chunk[in_chunk[0]: in_chunk[1]]
+                indices_buffer[i0:i1] = indices_chunk[in_chunk[0]: in_chunk[1]]
+                i0 = i1
+
+            out_idx0 = sorted_out_bounds[0][0]
+            out_idx1 = sorted_out_bounds[-1][1]
+            file_handle['data'][out_idx0:out_idx1] = data_buffer[:n_data]
+            file_handle['indices'][out_idx0:out_idx1] = indices_buffer[:n_data]
 
         self.t_write += time.time()-t0
+
+
+
+def _merge_bounds(
+        raw_in_bounds,
+        raw_out_bounds):
+
+    merger = None
+    n_raw = len(raw_in_bounds)
+    for ii in range(n_raw):
+        if merger is not None:
+            break
+        for jj in range(ii+1, n_raw, 1):
+            if merger is not None:
+                break
+            for o_ii in raw_out_bounds[ii]:
+                if merger is not None:
+                    break
+                for o_jj in raw_out_bounds[jj]:
+                    if merger is not None:
+                        break
+                    for b0 in o_ii:
+                        if merger is not None:
+                            break
+                        for b1 in o_jj:
+                            if b0==b1:
+                                merger = (ii, jj)
+                                break
+
+    if merger is None:
+        return raw_in_bounds, raw_out_bounds
+
+    new_out_bound = raw_out_bounds[merger[0]] + raw_out_bounds[merger[1]]
+    new_in_bound = raw_in_bounds[merger[0]] + raw_in_bounds[merger[1]]
+
+    in_bounds = [new_in_bound]
+    out_bounds = [new_out_bound]
+    for ii in range(n_raw):
+        if ii in merger:
+            continue
+        in_bounds.append(raw_in_bounds[ii])
+        out_bounds.append(raw_out_bounds[ii])
+    return _merge_bounds(in_bounds, out_bounds)

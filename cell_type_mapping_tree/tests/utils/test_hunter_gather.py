@@ -13,7 +13,8 @@ from hierarchical_mapping.utils.utils import (
 
 
 from hierarchical_mapping.utils.h5ad_remapper import (
-    rearrange_sparse_h5ad_hunter_gather)
+    rearrange_sparse_h5ad_hunter_gather,
+    _merge_bounds)
 
 
 @pytest.fixture(scope='session')
@@ -124,3 +125,22 @@ def test_rearrange_sparse_h5ad(
     tmp_input_path.unlink()
     _clean_up(tmp_output_dir)
 
+
+def test_merge_bounds():
+    in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)]]
+    out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)]]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert new_out == [[(0, 1), (1, 7)],[(2, 3)]]
+    assert new_in == [[(0, 1), (5, 6)], [(3, 4)]]
+
+    in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)], [(18, 21)]]
+    out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)], [(7, 13)]]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert new_out == [[(0, 1), (1, 7), (7, 13)],[(2, 3)]]
+    assert new_in == [[(0, 1), (5, 6), (18, 21)], [(3, 4)]]
+
+    in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)], [(18, 21)], [(99, 101)]]
+    out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)], [(7, 13)], [(2, 77)]]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert new_out == [[(2, 3), (2, 77)], [(0, 1), (1, 7), (7, 13)],]
+    assert new_in == [[(3, 4), (99, 101)], [(0, 1), (5, 6), (18, 21)]]
