@@ -355,7 +355,11 @@ class RowCollector(object):
         data_buffer = None
         indices_buffer = None
 
+        t_process = 0.0
+        t_write = 0.0
+
         for in_bounds, out_bounds in zip(in_bound_list, out_bound_list):
+            _t0 = time.time()
             min_dex_arr = np.array([o[0] for o in out_bounds])
             sorted_dex = np.argsort(min_dex_arr)
             sorted_in_bounds = [in_bounds[ii] for ii in sorted_dex]
@@ -374,8 +378,12 @@ class RowCollector(object):
 
             out_idx0 = sorted_out_bounds[0][0]
             out_idx1 = sorted_out_bounds[-1][1]
+            t_process += time.time()-_t0
+            _t0 = time.time()
             file_handle['data'][out_idx0:out_idx1] = data_buffer[:n_data]
             file_handle['indices'][out_idx0:out_idx1] = indices_buffer[:n_data]
+            t_write += time.time()-t0
+        print(f"t_process {t_process/3600.0:.2e} t_write{t_write/3600.0:.2e} hrs")
 
         self.t_write += time.time()-t0
 
