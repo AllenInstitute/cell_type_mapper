@@ -79,8 +79,8 @@ def rearrange_sparse_h5ad_hunter_gather(
         write_t0 = time.time()
         keep_going = True
 
+        h5ad_data = h5ad_server.update()
         while True:
-            h5ad_data = h5ad_server.update()
             if h5ad_data is None:
                 break
 
@@ -101,14 +101,18 @@ def rearrange_sparse_h5ad_hunter_gather(
                     process_dict[i_coll] = p
                     collectors_for_this_chunk.add(i_coll)
 
+                if len(collectors_for_this_chunk) == len(row_collector_list):
+                    print_timing(
+                        t0=global_t0,
+                        i_chunk=h5ad_server.r0,
+                        tot_chunks=n_rows_total,
+                        unit='hr')
+
+                    h5ad_data = h5ad_server.update()
+
                 while len(process_dict) >= len(row_collector_list):
                     process_dict = winnow_process_dict(process_dict)
 
-            print_timing(
-                    t0=global_t0,
-                    i_chunk=h5ad_server.r0,
-                    tot_chunks=n_rows_total,
-                    unit='hr')
 
         for k in process_dict.keys():
             process_dict[k].join()
