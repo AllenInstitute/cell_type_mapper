@@ -280,13 +280,13 @@ class RowCollector(object):
             out_file.create_dataset(
                 'data',
                 shape=(n_el,),
-                chunks=(min(n_el, 10000000),),
+                chunks=(min(n_el, 100000),),
                 dtype=data_dtype,
                 compression=None)
             out_file.create_dataset(
                 'indices',
                 shape=(n_el,),
-                chunks=(min(n_el, 10000000),),
+                chunks=(min(n_el, 100000),),
                 dtype=int,
                 compression=None)
 
