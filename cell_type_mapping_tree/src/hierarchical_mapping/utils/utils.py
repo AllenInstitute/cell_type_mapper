@@ -50,7 +50,7 @@ def print_timing(
              'sec': 1.0}[unit]
 
     duration = (time.time()-t0)/denom
-    per = duration/i_chunk
+    per = duration/max(1, i_chunk)
     pred = per*tot_chunks
     remain = pred-duration
     msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "

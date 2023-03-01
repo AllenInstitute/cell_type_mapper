@@ -1,9 +1,11 @@
 import h5py
 import multiprocessing
 import numpy as np
+import os
 import pathlib
 import time
 import zarr
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
@@ -23,7 +25,8 @@ def rearrange_sparse_h5ad_hunter_gather(
         n_row_collectors=5,
         buffer_size=10000000,
         read_in_size=10000000,
-        verbose=True):
+        verbose=True,
+        tmp_dir=None):
 
     t0 = time.time()
     with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
@@ -72,7 +75,6 @@ def rearrange_sparse_h5ad_hunter_gather(
             if h5ad_data is None:
                 break
 
-
             t0 = time.time()
             process_list = []
             for collector_obj in row_collector_list:
@@ -93,6 +95,13 @@ def rearrange_sparse_h5ad_hunter_gather(
 
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
+        for collector_obj in row_collector_list:
+            with h5py.File(collector_obj.tmp_h5_path, 'r') as in_file:
+                span = in_file['idx_span'][()]
+                zarr_handle['indices'][span[0]:span[1]] = in_file['indices'][()]
+                zarr_handle['data'][span[0]:span[1]] = in_file['data'][()]
+            if collector_obj.tmp_h5_path.exists():
+                collector_obj.tmp_h5_path.unlink()
 
     duration = (time.time()-t0)/3600.0
     print(f"whole process took {duration:.2e} hrs")
@@ -198,7 +207,8 @@ class RowCollector(object):
            new_indptr,
            row_chunk,
            buffer_size,
-           data_dtype=np.float32):
+           data_dtype=np.float32,
+           tmp_dir=None):
         """
         row_chunk is (row_min, row_max) that this
         collector is looking for (in new_row coordinates)
@@ -207,16 +217,20 @@ class RowCollector(object):
         elements to be stored at a time (must be greater
         than number of columns in array)
         """
+
+        self.tmp_h5_path = tempfile.mkstemp(
+                             dir=tmp_dir,
+                             suffix='.h5')
+
+        os.close(self.tmp_h5_path[0])
+        self.tmp_h5_path = pathlib.Path(self.tmp_h5_path[1])
+
         self.t_write = 0.0
         self._t0 = time.time()
         self._tot_rows = row_chunk[1]-row_chunk[0]
         self._ct_rows = 0
 
         self._complete = False
-        self._zarr_path = pathlib.Path(zarr_path)
-        if not self._zarr_path.is_dir():
-            raise RuntimeError(
-                f"{self._zarr_path} is not dir")
 
         self._old_row_to_new_row = dict()
         self._new_row_to_old_row = new_row_order
@@ -225,9 +239,36 @@ class RowCollector(object):
         self._new_row_to_idx = new_indptr
 
         self._row_chunk = row_chunk
+
+        idx_min = self._new_row_to_idx[self._row_chunk[0]]
+        idx_max = self._new_row_to_idx[self._row_chunk[1]]
+        n_el = idx_max-idx_min
+        self.idx_min = idx_min
+
+        with h5py.File(self.tmp_h5_path, 'w') as out_file:
+            out_file.create_dataset(
+                'data',
+                shape=(n_el,),
+                chunks=(min(n_el, 1000000),),
+                dtype=data_dtype,
+                compression='gzip')
+            out_file.create_dataset(
+                'indices',
+                shape=(n_el,),
+                chunks=(min(n_el, 1000000),),
+                dtype=int,
+                compression='gzip')
+
+            out_file.create_dataset('idx_span',
+                                    data=[idx_min, idx_max])
+
         self._already_written = set()
         self._buffer_size = buffer_size
         self._data_dtype = data_dtype
+
+    def __del__(self):
+        if self.tmp_h5_path.exists():
+            self.tmp_h5_path.unlink()
 
     @property
     def row_ct(self):
@@ -298,9 +339,12 @@ class RowCollector(object):
         """
         Write buffers to output
         """
-        with zarr.open(self._zarr_path, 'a') as out_handle:
-            out_handle['data'][self._output_idx[:self._stored]] = self._data[:self._stored]
-            out_handle['indices'][self._output_idx[:self._stored]] = self._indices[:self._stored]
+        this_idx = self._output_idx[:self._stored]-self.idx_min
+        sorted_dex = np.argsort(this_idx)
+        this_idx = this_idx[sorted_dex]
+        with h5py.File(self.tmp_h5_path, 'a') as out_file:
+            out_file['data'][this_idx] = self._data[:self._stored][sorted_dex]
+            out_file['indices'][this_idx] = self._indices[:self._stored][sorted_dex]
 
         self._stored = 0
         print_timing(t0=self._t0,
