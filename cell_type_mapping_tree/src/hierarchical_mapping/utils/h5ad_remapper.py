@@ -380,39 +380,44 @@ def _merge_bounds(
         raw_in_bounds,
         raw_out_bounds):
 
-    merger = None
+    already_merged = set()
+    mergers = set()
     n_raw = len(raw_in_bounds)
     for ii in range(n_raw):
-        if merger is not None:
-            break
+        if ii in already_merged:
+            continue
         for jj in range(ii+1, n_raw, 1):
-            if merger is not None:
-                break
+            if jj in already_merged:
+                continue
+
+            should_merge = False
             for o_ii in raw_out_bounds[ii]:
-                if merger is not None:
-                    break
                 for o_jj in raw_out_bounds[jj]:
-                    if merger is not None:
-                        break
                     for b0 in o_ii:
-                        if merger is not None:
-                            break
                         for b1 in o_jj:
                             if b0==b1:
-                                merger = (ii, jj)
-                                break
+                                should_merge = True
+            if should_merge:
+                mergers.add((ii, jj))
+                already_merged.add(ii)
+                already_merged.add(jj)
+                break
 
-    if merger is None:
+    if len(mergers) == 0:
         return raw_in_bounds, raw_out_bounds
 
-    new_out_bound = raw_out_bounds[merger[0]] + raw_out_bounds[merger[1]]
-    new_in_bound = raw_in_bounds[merger[0]] + raw_in_bounds[merger[1]]
+    in_bounds = []
+    out_bounds = []
+    for m in mergers:
+        new_out_bound = raw_out_bounds[m[0]] + raw_out_bounds[m[1]]
+        new_in_bound = raw_in_bounds[m[0]] + raw_in_bounds[m[1]]
+        in_bounds.append(new_in_bound)
+        out_bounds.append(new_out_bound)
 
-    in_bounds = [new_in_bound]
-    out_bounds = [new_out_bound]
     for ii in range(n_raw):
-        if ii in merger:
+        if ii in already_merged:
             continue
         in_bounds.append(raw_in_bounds[ii])
         out_bounds.append(raw_out_bounds[ii])
+
     return _merge_bounds(in_bounds, out_bounds)

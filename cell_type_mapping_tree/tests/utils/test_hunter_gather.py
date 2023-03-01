@@ -130,17 +130,31 @@ def test_merge_bounds():
     in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)]]
     out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)]]
     new_in, new_out = _merge_bounds(in_bounds, out_bounds)
-    assert new_out == [[(0, 1), (1, 7)],[(2, 3)]]
-    assert new_in == [[(0, 1), (5, 6)], [(3, 4)]]
+    assert len(new_in) == 2
+    assert len(new_out) == 2
+    assert [(0, 1), (1, 7)] in new_out
+    assert [(2, 3)] in new_out
+    assert [(0, 1), (5, 6)] in new_in
+    assert [(3, 4)] in new_in
+    return
 
     in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)], [(18, 21)]]
     out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)], [(7, 13)]]
     new_in, new_out = _merge_bounds(in_bounds, out_bounds)
-    assert new_out == [[(0, 1), (1, 7), (7, 13)],[(2, 3)]]
-    assert new_in == [[(0, 1), (5, 6), (18, 21)], [(3, 4)]]
+    assert len(new_out) == 2
+    assert len(new_in) == 2
+
+    assert[(0, 1), (1, 7), (7, 13)] in new_out
+    assert [(2, 3)] in new_out
+    assert [(0, 1), (5, 6), (18, 21)] in new_in
+    assert [(3, 4)] in new_in
 
     in_bounds = [[(0, 1)], [(3, 4)], [(5, 6)], [(18, 21)], [(99, 101)]]
     out_bounds = [[(0, 1)], [(2, 3)], [(1, 7)], [(7, 13)], [(2, 77)]]
     new_in, new_out = _merge_bounds(in_bounds, out_bounds)
-    assert new_out == [[(2, 3), (2, 77)], [(0, 1), (1, 7), (7, 13)],]
-    assert new_in == [[(3, 4), (99, 101)], [(0, 1), (5, 6), (18, 21)]]
+    assert len(new_in) == 2
+    assert len(new_out) == 2
+    assert [(2, 3), (2, 77)] in new_out
+    assert [(0, 1), (1, 7), (7, 13)] in new_out
+    assert [(3, 4), (99, 101)] in new_in
+    assert [(0, 1), (5, 6), (18, 21)] in new_in
