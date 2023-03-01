@@ -337,15 +337,20 @@ class RowCollector(object):
             out_idx1 = self._new_row_to_idx[new_row+1]-self.idx_min
             data_i0 = indptr_chunk[r_idx] + i0
             data_i1 = indptr_chunk[r_idx+1] + i0
-            raw_in_bounds.append([(data_i0, data_i1)])
-            raw_out_bounds.append([(out_idx0, out_idx1)])
+            if out_idx1 != out_idx0:
+                raw_in_bounds.append((data_i0, data_i1))
+                raw_out_bounds.append((out_idx0, out_idx1))
+            else:
+                assert data_i0 == data_i1
 
+        n_raw_bounds = len(raw_in_bounds)
         print("merging bounds")
         _t0 = time.time()
         (in_bound_list,
          out_bound_list) = _merge_bounds(raw_in_bounds, raw_out_bounds)
         dur = (time.time()-_t0)/3600.0
-        print(f"_merge_bounds took {dur:.2e} hrs -- {len(out_bound_list)} discrete chunks")
+        print(f"_merge_bounds took {dur:.2e} hrs -- {len(out_bound_list)} discrete chunks "
+              f"from {n_raw_bounds}")
 
         data_buffer = None
         indices_buffer = None
@@ -375,49 +380,61 @@ class RowCollector(object):
         self.t_write += time.time()-t0
 
 
-
 def _merge_bounds(
         raw_in_bounds,
         raw_out_bounds):
 
-    already_merged = set()
-    mergers = set()
-    n_raw = len(raw_in_bounds)
-    for ii in range(n_raw):
-        if ii in already_merged:
-            continue
-        for jj in range(ii+1, n_raw, 1):
-            if jj in already_merged:
-                continue
+    start_to_idx = dict()
+    end_to_idx = dict()
+    for ii, b in enumerate(raw_out_bounds):
+        s = b[0]
+        if s in start_to_idx:
+            raise RuntimeError(
+                f"Cannot merge bounds; duplicate start {s}\n"
+                f"{raw_out_bounds}")
+        start_to_idx[s] = ii
+        e = b[1]
+        if e in end_to_idx:
+            raise RuntimeError(
+                f"Cannot merge bounds; duplicate end {e}\n"
+                f"{raw_out_bounds}")
+        end_to_idx[e] = ii
 
-            should_merge = False
-            for o_ii in raw_out_bounds[ii]:
-                for o_jj in raw_out_bounds[jj]:
-                    for b0 in o_ii:
-                        for b1 in o_jj:
-                            if b0==b1:
-                                should_merge = True
-            if should_merge:
-                mergers.add((ii, jj))
-                already_merged.add(ii)
-                already_merged.add(jj)
-                break
+    parent_to_child = dict()
+    parents = set()
+    children = set()
+    for ii, b in enumerate(raw_out_bounds):
+        if b[1] in start_to_idx:
+            this_child = start_to_idx[b[1]]
+            parent_to_child[ii] = this_child
+            children.add(this_child)
+            parents.add(ii)
 
-    if len(mergers) == 0:
-        return raw_in_bounds, raw_out_bounds
+    all_idx = set(range(len(raw_out_bounds)))
+    root_set = all_idx-children
+    leaf_set = all_idx-parents
+    singleton_set = all_idx-parents-children
+    logged_set = set()
 
     in_bounds = []
     out_bounds = []
-    for m in mergers:
-        new_out_bound = raw_out_bounds[m[0]] + raw_out_bounds[m[1]]
-        new_in_bound = raw_in_bounds[m[0]] + raw_in_bounds[m[1]]
-        in_bounds.append(new_in_bound)
-        out_bounds.append(new_out_bound)
+    for root in root_set:
+        this_in = []
+        this_out = []
+        this_in.append(raw_in_bounds[root])
+        this_out.append(raw_out_bounds[root])
+        logged_set.add(root)
+        while root in parent_to_child:
+            root = parent_to_child[root]
+            this_in.append(raw_in_bounds[root])
+            this_out.append(raw_out_bounds[root])
+            logged_set.add(root)
+        in_bounds.append(this_in)
+        out_bounds.append(this_out)
 
-    for ii in range(n_raw):
-        if ii in already_merged:
+    for idx in range(len(raw_in_bounds)):
+        if idx in logged_set:
             continue
-        in_bounds.append(raw_in_bounds[ii])
-        out_bounds.append(raw_out_bounds[ii])
-
-    return _merge_bounds(in_bounds, out_bounds)
+        in_bounds.append([raw_in_bounds[idx]])
+        out_bounds.append([raw_out_bounds[idx]])
+    return in_bounds, out_bounds
