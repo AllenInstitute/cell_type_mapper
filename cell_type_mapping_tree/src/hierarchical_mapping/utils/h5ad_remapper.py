@@ -345,7 +345,7 @@ class RowCollector(object):
         (in_bound_list,
          out_bound_list) = _merge_bounds(raw_in_bounds, raw_out_bounds)
         dur = (time.time()-_t0)/3600.0
-        print(f"_merge_bounds took {dur:.2e} hrs")
+        print(f"_merge_bounds took {dur:.2e} hrs -- {len(out_bound_list)} discrete chunks")
 
         data_buffer = None
         indices_buffer = None
