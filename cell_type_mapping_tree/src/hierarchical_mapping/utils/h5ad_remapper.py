@@ -28,7 +28,7 @@ def rearrange_sparse_h5ad_hunter_gather(
         verbose=True,
         tmp_dir=None):
 
-    t0 = time.time()
+    global_t0 = time.time()
     with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
         old_indptr = input_handle['X']['indptr'][()]
         new_indptr = precompute_indptr(
@@ -60,12 +60,14 @@ def rearrange_sparse_h5ad_hunter_gather(
                         new_row_order=row_order,
                         new_indptr=new_indptr,
                         row_chunk=(r0, r1),
-                        buffer_size=buffer_size)
+                        buffer_size=buffer_size,
+                        tmp_dir=tmp_dir)
 
         row_collector_list.append(collector)
 
     t_write = 0.0
     with h5py.File(h5ad_path, 'r', swmr=True) as h5ad_handle:
+        n_rows_total = len(h5ad_handle['X']['indptr'][()])-1
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
@@ -89,6 +91,11 @@ def rearrange_sparse_h5ad_hunter_gather(
                 p.join()
             duration = time.time()-t0
             t_write += duration
+            print_timing(
+                t0=global_t0,
+                i_chunk=h5ad_server.r0,
+                tot_chunks=n_rows_total,
+                unit='hr')
             print(f"row {h5ad_server.r0} -- "
                   f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
                   f"{t_write/3600.0:.2e} hrs writing")
@@ -103,7 +110,7 @@ def rearrange_sparse_h5ad_hunter_gather(
             if collector_obj.tmp_h5_path.exists():
                 collector_obj.tmp_h5_path.unlink()
 
-    duration = (time.time()-t0)/3600.0
+    duration = (time.time()-global_t0)/3600.0
     print(f"whole process took {duration:.2e} hrs")
 
 
@@ -221,10 +228,9 @@ class RowCollector(object):
         self.tmp_h5_path = tempfile.mkstemp(
                              dir=tmp_dir,
                              suffix='.h5')
-
         os.close(self.tmp_h5_path[0])
         self.tmp_h5_path = pathlib.Path(self.tmp_h5_path[1])
-
+        print(f"writing to {self.tmp_h5_path.resolve().absolute()} -- {tmp_dir}")
         self.t_write = 0.0
         self._t0 = time.time()
         self._tot_rows = row_chunk[1]-row_chunk[0]
@@ -249,15 +255,15 @@ class RowCollector(object):
             out_file.create_dataset(
                 'data',
                 shape=(n_el,),
-                chunks=(min(n_el, 1000000),),
+                chunks=(min(n_el, 10000000),),
                 dtype=data_dtype,
-                compression='gzip')
+                compression=None)
             out_file.create_dataset(
                 'indices',
                 shape=(n_el,),
-                chunks=(min(n_el, 1000000),),
+                chunks=(min(n_el, 10000000),),
                 dtype=int,
-                compression='gzip')
+                compression=None)
 
             out_file.create_dataset('idx_span',
                                     data=[idx_min, idx_max])
