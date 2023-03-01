@@ -312,11 +312,13 @@ class RowCollector(object):
     def ingest_data(
             self,
             h5ad_server):
+        with h5py.File(self.tmp_h5_path, 'a') as out_file:
+            self._ingest_data(h5ad_server=h5ad_server, file_handle=out_file)
 
-        self._data = np.zeros(self._buffer_size, dtype=self._data_dtype)
-        self._indices = np.zeros(self._buffer_size, dtype=int)
-        self._output_idx = np.zeros(self._buffer_size, dtype=int)
-        self._stored = 0
+    def _ingest_data(
+            self,
+            h5ad_server,
+            file_handle):
 
         data_chunk = h5ad_server.data
         indices_chunk = h5ad_server.indices
@@ -335,50 +337,10 @@ class RowCollector(object):
 
             data_i0 = indptr_chunk[r_idx] + i0
             data_i1 = indptr_chunk[r_idx+1] + i0
-            delta = data_i1-data_i0
-            if self._stored + delta > self._buffer_size:
-                self._flush()
 
-            self._data[self._stored:
-                       self._stored+delta] = data_chunk[data_i0:data_i1]
-            self._indices[self._stored:
-                          self._stored+delta] = indices_chunk[data_i0:data_i1]
-
-            self._output_idx[
-                self._stored:
-                self._stored+delta] = np.arange(self._new_row_to_idx[new_row],
-                                                self._new_row_to_idx[new_row+1]).astype(int)
-
-            self._stored += delta
-            self._ct_rows += 1
-            self._already_written.add(new_row)
-
-        self._flush()
-
-        if len(self._already_written) == (self._row_chunk[1]-self._row_chunk[0]):
-            if self._stored > 0:
-                self._flush()
-            self._complete = True
-
-        self._data = None
-        self._indices = None
-        self._ouptut_idx = None
+            out_idx0 = self._new_row_to_idx[new_row]
+            out_idx1 = self._new_row_to_idx[new_row+1]
+            file_handle['data'][out_idx0:out_idx1] = data_chunk[data_i0:data_i1]
+            file_handle['indices'][out_idx0:out_idx1]  = indices_chunk[data_i0:data_i1]
 
         self.t_write += time.time()-t0
-
-    def _flush(self):
-        """
-        Write buffers to output
-        """
-        this_idx = self._output_idx[:self._stored]-self.idx_min
-        sorted_dex = np.argsort(this_idx)
-        this_idx = this_idx[sorted_dex]
-        with h5py.File(self.tmp_h5_path, 'a') as out_file:
-            out_file['data'][this_idx] = self._data[:self._stored][sorted_dex]
-            out_file['indices'][this_idx] = self._indices[:self._stored][sorted_dex]
-
-        self._stored = 0
-        #print_timing(t0=self._t0,
-        #             i_chunk=self._ct_rows,
-        #             tot_chunks=self._tot_rows,
-        #             unit='hr')
