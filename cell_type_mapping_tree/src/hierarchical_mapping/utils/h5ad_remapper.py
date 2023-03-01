@@ -384,7 +384,7 @@ class RowCollector(object):
             file_handle['indices'][out_idx0:out_idx1] = indices_buffer[:n_data]
             t_write += time.time()-_t0
         print(f"t_process {t_process/3600.0:.2e} t_write {t_write/3600.0:.2e} hrs "
-              f"-- {len(in_bounds)} chunks")
+              f"-- {len(in_bound_list)} chunks")
 
         self.t_write += time.time()-t0
 
