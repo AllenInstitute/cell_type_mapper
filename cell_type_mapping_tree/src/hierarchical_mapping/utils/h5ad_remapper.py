@@ -100,15 +100,22 @@ def rearrange_sparse_h5ad_hunter_gather(
                   f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
                   f"{t_write/3600.0:.2e} hrs writing")
 
+    print("collecting temp files together")
     with zarr.open(output_path, 'a') as zarr_handle:
         zarr_handle['indptr'][:] = new_indptr
         for collector_obj in row_collector_list:
+            _t0 = time.time()
             with h5py.File(collector_obj.tmp_h5_path, 'r') as in_file:
                 span = in_file['idx_span'][()]
-                zarr_handle['indices'][span[0]:span[1]] = in_file['indices'][()]
-                zarr_handle['data'][span[0]:span[1]] = in_file['data'][()]
+                d = 10000000
+                for i0 in range(span[0], span[1], d):
+                    i1 = min(span[1], i0+d)
+                    zarr_handle['indices'][i0:i1] = in_file['indices'][i0-span[0]:i1-span[0]]
+                    zarr_handle['data'][i0:i1] = in_file['data'][i0-span[0]:i1-span[0]]
             if collector_obj.tmp_h5_path.exists():
                 collector_obj.tmp_h5_path.unlink()
+            duration = (time.time()-_t0)/3600.0
+            print(f"this collector took {duration:.2e} hrs -- total {len(row_collector_list)}")
 
     duration = (time.time()-global_t0)/3600.0
     print(f"whole process took {duration:.2e} hrs")
