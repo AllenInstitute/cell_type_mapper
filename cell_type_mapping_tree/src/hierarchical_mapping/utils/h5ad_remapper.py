@@ -10,6 +10,9 @@ import tempfile
 from hierarchical_mapping.utils.utils import (
     print_timing)
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    winnow_process_list)
+
 from hierarchical_mapping.utils.sparse_utils import (
     precompute_indptr)
 
@@ -72,13 +75,13 @@ def rearrange_sparse_h5ad_hunter_gather(
             h5ad_handle=h5ad_handle,
             buffer_size=read_in_size)
 
+        process_list = []
+        write_t0 = time.time()
         while True:
             h5ad_data = h5ad_server.update()
             if h5ad_data is None:
                 break
 
-            t0 = time.time()
-            process_list = []
             for collector_obj in row_collector_list:
                 p = multiprocessing.Process(
                         target=_hunter_gather_worker,
@@ -87,18 +90,25 @@ def rearrange_sparse_h5ad_hunter_gather(
                             'collector_obj': collector_obj})
                 p.start()
                 process_list.append(p)
-            for p in process_list:
-                p.join()
-            duration = time.time()-t0
-            t_write += duration
-            print_timing(
-                t0=global_t0,
-                i_chunk=h5ad_server.r0,
-                tot_chunks=n_rows_total,
-                unit='hr')
-            print(f"row {h5ad_server.r0} -- "
-                  f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                  f"{t_write/3600.0:.2e} hrs writing")
+                while len(process_list) >= n_row_collectors:
+                    process_list = winnow_process_list(process_list)
+                    if len(process_list) < n_row_collectors:
+                        duration = time.time()-write_t0
+                        t_write += duration
+                        print_timing(
+                            t0=global_t0,
+                            i_chunk=h5ad_server.r0,
+                            tot_chunks=n_rows_total,
+                            unit='hr')
+
+
+                        print(f"row {h5ad_server.r0} -- "
+                              f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                              f"{t_write/3600.0:.2e} hrs writing")
+
+        print("final pass on processes")
+        for p in process_list:
+            p.join()
 
     print("collecting temp files together")
     with zarr.open(output_path, 'a') as zarr_handle:
@@ -360,7 +370,7 @@ class RowCollector(object):
             out_file['indices'][this_idx] = self._indices[:self._stored][sorted_dex]
 
         self._stored = 0
-        print_timing(t0=self._t0,
-                     i_chunk=self._ct_rows,
-                     tot_chunks=self._tot_rows,
-                     unit='hr')
+        #print_timing(t0=self._t0,
+        #             i_chunk=self._ct_rows,
+        #             tot_chunks=self._tot_rows,
+        #             unit='hr')
