@@ -338,8 +338,8 @@ class RowCollector(object):
             data_i0 = indptr_chunk[r_idx] + i0
             data_i1 = indptr_chunk[r_idx+1] + i0
 
-            out_idx0 = self._new_row_to_idx[new_row]
-            out_idx1 = self._new_row_to_idx[new_row+1]
+            out_idx0 = self._new_row_to_idx[new_row]-self.idx_min
+            out_idx1 = self._new_row_to_idx[new_row+1]-self.idx_min
             file_handle['data'][out_idx0:out_idx1] = data_chunk[data_i0:data_i1]
             file_handle['indices'][out_idx0:out_idx1]  = indices_chunk[data_i0:data_i1]
 
