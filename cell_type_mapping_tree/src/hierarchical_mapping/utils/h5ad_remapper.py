@@ -82,6 +82,7 @@ def rearrange_sparse_h5ad_hunter_gather(
             if h5ad_data is None:
                 break
 
+            process_list = []
             for collector_obj in row_collector_list:
                 p = multiprocessing.Process(
                         target=_hunter_gather_worker,
@@ -90,25 +91,32 @@ def rearrange_sparse_h5ad_hunter_gather(
                             'collector_obj': collector_obj})
                 p.start()
                 process_list.append(p)
-                while len(process_list) >= n_row_collectors:
-                    process_list = winnow_process_list(process_list)
-                    if len(process_list) < n_row_collectors:
-                        duration = time.time()-write_t0
-                        t_write += duration
-                        print_timing(
-                            t0=global_t0,
-                            i_chunk=h5ad_server.r0,
-                            tot_chunks=n_rows_total,
-                            unit='hr')
 
+            for p in process_list:
+                p.join()
+            print_timing(
+                    t0=global_t0,
+                    i_chunk=h5ad_server.r0,
+                    tot_chunks=n_rows_total,
+                    unit='hr')
 
-                        print(f"row {h5ad_server.r0} -- "
-                              f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
-                              f"{t_write/3600.0:.2e} hrs writing")
+                #while len(process_list) >= n_row_collectors:
+                #    process_list = winnow_process_list(process_list)
+                #    if len(process_list) < n_row_collectors:
+                #        duration = time.time()-write_t0
+                #        t_write += duration
+                #        print_timing(
+                #            t0=global_t0,
+                #            i_chunk=h5ad_server.r0,
+                #            tot_chunks=n_rows_total,
+                #            unit='hr')
+                #        print(f"row {h5ad_server.r0} -- "
+                #              f"spent {h5ad_server.t_load/3600.0:.2e} hrs reading; "
+                #              f"{t_write/3600.0:.2e} hrs writing")
 
-        print("final pass on processes")
-        for p in process_list:
-            p.join()
+        #print("final pass on processes")
+        #for p in process_list:
+        #    p.join()
 
     print("collecting temp files together")
     with zarr.open(output_path, 'a') as zarr_handle:
