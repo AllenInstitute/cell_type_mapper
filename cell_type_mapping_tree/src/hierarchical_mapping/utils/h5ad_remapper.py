@@ -80,38 +80,36 @@ def rearrange_sparse_h5ad_hunter_gather(
         keep_going = True
 
         h5ad_data = h5ad_server.update()
-        while True:
-            if h5ad_data is None:
-                break
 
-            collectors_for_this_chunk = set()
-            while len(collectors_for_this_chunk) < len(row_collector_list):
-                for i_coll, collector_obj in enumerate(row_collector_list):
-                    if i_coll in collectors_for_this_chunk:
-                        continue
-                    if i_coll in process_dict:
-                        continue
+        collectors_for_this_chunk = set()
+        while h5ad_data is not None:
+            for i_coll, collector_obj in enumerate(row_collector_list):
+                if i_coll in collectors_for_this_chunk:
+                    continue
+                if i_coll in process_dict:
+                    continue
 
-                    p = multiprocessing.Process(
-                            target=_hunter_gather_worker,
-                            kwargs={
-                                'data_obj': h5ad_data,
-                                'collector_obj': collector_obj})
-                    p.start()
-                    process_dict[i_coll] = p
-                    collectors_for_this_chunk.add(i_coll)
+                p = multiprocessing.Process(
+                        target=_hunter_gather_worker,
+                        kwargs={
+                            'data_obj': h5ad_data,
+                            'collector_obj': collector_obj})
+                p.start()
+                process_dict[i_coll] = p
+                collectors_for_this_chunk.add(i_coll)
 
-                if len(collectors_for_this_chunk) == len(row_collector_list):
-                    print_timing(
-                        t0=global_t0,
-                        i_chunk=h5ad_server.r0,
-                        tot_chunks=n_rows_total,
-                        unit='hr')
+            if len(collectors_for_this_chunk) == len(row_collector_list):
+                print_timing(
+                    t0=global_t0,
+                    i_chunk=h5ad_server.r0,
+                    tot_chunks=n_rows_total,
+                    unit='hr')
 
-                    h5ad_data = h5ad_server.update()
+                h5ad_data = h5ad_server.update()
+                collectors_for_this_chunk = set()
 
-                while len(process_dict) >= len(row_collector_list):
-                    process_dict = winnow_process_dict(process_dict)
+            while len(process_dict) >= len(row_collector_list):
+                process_dict = winnow_process_dict(process_dict)
 
 
         for k in process_dict.keys():
