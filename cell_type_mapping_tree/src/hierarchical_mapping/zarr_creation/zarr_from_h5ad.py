@@ -5,7 +5,8 @@ import pathlib
 import tempfile
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    json_clean_dict)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     compute_row_order)
@@ -107,11 +108,7 @@ def contiguous_zarr_from_h5ad(
         metadata_path = zarr_path / "metadata.json"
         metadata = dict()
         metadata["mapped_row_order"] = [int(ii) for ii in row_order]
-
-        # because JSON cannot serialize sets
-        #cleaned_tree = _clean_tree(tree)
-        #metadata["taxonomy_tree"] = cleaned_tree
-
+        metadata["taxonomy_tree"] = json_clean_dict(tree)
         metadata["h5ad_path"] = str(h5ad_path.resolve().absolute())
         metadata["shape"] = adata_metadata["shape"]
         with open(metadata_path, "w") as out_file:

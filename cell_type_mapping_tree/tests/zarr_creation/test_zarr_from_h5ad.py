@@ -166,6 +166,9 @@ def test_contiguous_zarr(
     assert len(h5ad_contents) == 0
 
     metadata = json.load(open(zarr_path/"metadata.json", "rb"))
+    new_data = np.zeros(x_fixture.shape, dtype=x_fixture.dtype)
+    for ii, r in enumerate(metadata["mapped_row_order"]):
+        new_data[ii, :] = x_fixture[r, :]
 
     with zarr.open(zarr_path, 'r') as in_file:
         actual = load_csr(
@@ -174,5 +177,7 @@ def test_contiguous_zarr(
                     data=in_file['data'],
                     indices=in_file['indices'],
                     indptr=in_file['indptr'])
+
+    np.testing.assert_allclose(actual, new_data)
 
     _clean_up(zarr_path)
