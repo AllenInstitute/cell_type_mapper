@@ -1,8 +1,10 @@
 import pytest
+import copy
 import numpy as np
 
 from hierarchical_mapping.utils.taxonomy_utils import (
-    get_taxonomy_tree)
+    get_taxonomy_tree,
+    _get_rows_from_tree)
 
 
 @pytest.fixture
@@ -63,11 +65,11 @@ def class_to_cluster_fixture(l2_to_class_fixture):
     return forward, backward
 
 
-def test_get_taxonomy_tree(
-        l1_to_l2_fixture,
-        l2_to_class_fixture,
-        class_to_cluster_fixture):
-
+@pytest.fixture
+def records_fixture(
+         class_to_cluster_fixture,
+         l2_to_class_fixture,
+         l1_to_l2_fixture):
     rng = np.random.default_rng(871234)
     cluster_list = list(class_to_cluster_fixture[1].keys())
     records = []
@@ -84,6 +86,15 @@ def test_get_taxonomy_tree(
             records.append(this)
 
     rng.shuffle(records)
+    return records
+
+def test_get_taxonomy_tree(
+        l1_to_l2_fixture,
+        l2_to_class_fixture,
+        class_to_cluster_fixture,
+        records_fixture):
+
+    records = copy.deepcopy(records_fixture)
 
     column_hierarchy=["level1", "level2", "class", "cluster"]
 
@@ -104,3 +115,55 @@ def test_get_taxonomy_tree(
             row_set.add(ii)
 
     assert row_set == set(range(len(records)))
+
+
+
+def test_get_rows_from_tree(
+        records_fixture):
+
+    row_to_cluster = dict()
+    for ii, r in enumerate(records_fixture):
+        row_to_cluster[ii] = r['cluster']
+
+    column_hierarchy=["level1", "level2", "class", "cluster"]
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    for level in column_hierarchy[:-1]:
+        for this in tree[level]:
+
+            # which rows should be returned, regardless
+            # of order
+            expected = set()
+            for ii, record in enumerate(records_fixture):
+                if record[level] == this:
+                    expected.add(ii)
+
+            actual = _get_rows_from_tree(
+                        tree=tree,
+                        level=level,
+                        this_node=this)
+
+            # check that rows are returned in blocks defined
+            # by the leaf node
+            current_cluster = None
+            checked_clusters = set()
+            for ii in actual:
+                this_cluster = row_to_cluster[ii]
+                if current_cluster is None:
+                    current_cluster = this_cluster
+                    checked_clusters.add(this_cluster)
+                else:
+                    if this_cluster != current_cluster:
+                        # make sure we have not backtracked to a previous
+                        # cluster
+                        assert this_cluster not in checked_clusters
+                        checked_clusters.add(this_cluster)
+                        current_cluster = this_cluster
+
+            assert len(checked_clusters) > 0
+            assert len(checked_clusters) < len(actual)
+            assert len(actual) == len(expected)
+            assert set(actual) == expected
