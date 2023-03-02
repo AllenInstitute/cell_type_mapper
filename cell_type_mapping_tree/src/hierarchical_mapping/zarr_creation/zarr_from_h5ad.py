@@ -1,5 +1,6 @@
 import anndata
 import json
+import numpy as np
 import pathlib
 import tempfile
 
@@ -9,7 +10,7 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     compute_row_order)
 
-from hierarchical_mapping.utils.h5ad_mapper import (
+from hierarchical_mapping.utils.h5ad_remapper import (
     rearrange_sparse_h5ad_hunter_gather)
 
 
@@ -79,16 +80,16 @@ def contiguous_zarr_from_h5ad(
     h5ad_path = pathlib.Path(h5ad_path)
     zarr_path = pathlib.Path(zarr_path)
 
-    obs_records = _get_obs_records(h5ad_path)
+    adata_metadata = _get_adata_metadata(h5ad_path)
     results = compute_row_order(
-                obs_records=obs_records,
+                obs_records=adata_metadata['obs'],
                 column_hierarchy=taxonomy_hierarchy)
 
     row_order = results["row_order"]
     tree = results["tree"]
 
     zarr_tmp_dir = pathlib.Path(
-                    tempfile.mdtemp(
+                    tempfile.mkdtemp(
                         dir=tmp_dir,
                         prefix='zarr_scratch_'))
 
@@ -104,22 +105,31 @@ def contiguous_zarr_from_h5ad(
             tmp_dir=zarr_tmp_dir)
 
         metadata_path = zarr_path / "metadata.json"
-        metadat = dict()
-        metadata["mapped_row_order"] = row_order
-        metadata["taxonomy_tree"] = tree
+        metadata = dict()
+        metadata["mapped_row_order"] = [int(ii) for ii in row_order]
+
+        # because JSON cannot serialize sets
+        #cleaned_tree = _clean_tree(tree)
+        #metadata["taxonomy_tree"] = cleaned_tree
+
         metadata["h5ad_path"] = str(h5ad_path.resolve().absolute())
+        metadata["shape"] = adata_metadata["shape"]
         with open(metadata_path, "w") as out_file:
-            out_file.write(json.dumps(metadata_path))
+            out_file.write(json.dumps(metadata))
 
     finally:
         _clean_up(zarr_tmp_dir)
 
 
-def _get_obs_records(h5ad_path):
+def _get_adata_metadata(h5ad_path):
     """
     Get list of records from the obs DataFrame of
     an anndata h5ad file
+
+    Also shape of X matrix
     """
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
     obs = a_data.obs
-    return obs.to_dict(orientation='records')
+    shape = a_data.X.shape
+    return {"obs": obs.to_dict(orient='records'),
+            "shape": [int(ii) for ii in shape]}
