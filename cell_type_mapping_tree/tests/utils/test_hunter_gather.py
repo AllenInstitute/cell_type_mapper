@@ -58,8 +58,8 @@ def row_order_fixture(sparse_data_fixture):
 
 
 @pytest.mark.parametrize(
-    "zero_out, output_chunks, n_row_collectors, buffer_size, "
-    "read_in_size, verbose",
+    "zero_out, output_chunks, n_row_collectors, write_buffer_size, "
+    "read_buffer_size, verbose",
     ((False, 17, 3, 2000, 1000, False),
      (True, 17, 3, 2000, 1000, False),
      (False, 45, 1, 1000, 10000, False),
@@ -68,8 +68,8 @@ def test_rearrange_sparse_h5ad(
         zero_out,
         output_chunks,
         n_row_collectors,
-        buffer_size,
-        read_in_size,
+        write_buffer_size,
+        read_buffer_size,
         verbose,
         sparse_data_fixture,
         row_order_fixture):
@@ -97,10 +97,10 @@ def test_rearrange_sparse_h5ad(
          h5ad_path=tmp_input_path,
          output_path=tmp_output_dir,
          row_order=row_order_fixture,
-         chunks=output_chunks,
+         output_chunks=output_chunks,
          n_row_collectors=n_row_collectors,
-         buffer_size=buffer_size,
-         read_in_size=read_in_size,
+         write_buffer_size=write_buffer_size,
+         read_buffer_size=read_buffer_size,
          verbose=verbose)
 
     # verify that chunks were properly set

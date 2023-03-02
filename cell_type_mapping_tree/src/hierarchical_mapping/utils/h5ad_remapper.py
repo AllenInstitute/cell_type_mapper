@@ -24,10 +24,10 @@ def rearrange_sparse_h5ad_hunter_gather(
         h5ad_path,
         output_path,
         row_order,
-        chunks=5000,
+        output_chunks=5000,
         n_row_collectors=5,
-        buffer_size=10000000,
-        read_in_size=10000000,
+        write_buffer_size=10000000,
+        read_buffer_size=10000000,
         verbose=True,
         tmp_dir=None):
 
@@ -46,7 +46,7 @@ def rearrange_sparse_h5ad_hunter_gather(
              indptr_shape=old_indptr.shape,
              output_path=output_path,
              data_dtype=data_dtype,
-             chunks=chunks)
+             chunks=output_chunks)
 
     row_collector_list = []
     n_rows = len(row_order)
@@ -63,7 +63,7 @@ def rearrange_sparse_h5ad_hunter_gather(
                         new_row_order=row_order,
                         new_indptr=new_indptr,
                         row_chunk=(r0, r1),
-                        buffer_size=buffer_size,
+                        buffer_size=write_buffer_size,
                         tmp_dir=tmp_dir)
 
         row_collector_list.append(collector)
@@ -74,7 +74,7 @@ def rearrange_sparse_h5ad_hunter_gather(
         n_rows_total = len(h5ad_handle['X']['indptr'][()])-1
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
-            buffer_size=read_in_size)
+            buffer_size=read_buffer_size)
 
         write_t0 = time.time()
         keep_going = True
