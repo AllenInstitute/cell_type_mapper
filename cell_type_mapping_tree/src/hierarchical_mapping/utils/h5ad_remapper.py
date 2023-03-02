@@ -83,6 +83,7 @@ def rearrange_sparse_h5ad_hunter_gather(
 
         collectors_for_this_chunk = set()
         while h5ad_data is not None:
+            print(f"dict {len(process_dict)} set {len(collectors_for_this_chunk)}")
             for i_coll, collector_obj in enumerate(row_collector_list):
                 if i_coll in collectors_for_this_chunk:
                     continue
