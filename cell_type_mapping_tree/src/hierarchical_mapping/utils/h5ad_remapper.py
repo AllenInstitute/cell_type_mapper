@@ -32,7 +32,7 @@ def rearrange_sparse_h5ad_hunter_gather(
         tmp_dir=None):
 
     global_t0 = time.time()
-    with h5py.File(h5ad_path, 'r', swmr=True) as input_handle:
+    with h5py.File(h5ad_path, 'r') as input_handle:
         old_indptr = input_handle['X']['indptr'][()]
         new_indptr = precompute_indptr(
                         indptr_in=old_indptr,
@@ -70,7 +70,7 @@ def rearrange_sparse_h5ad_hunter_gather(
 
     t_write = 0.0
     process_dict = dict()
-    with h5py.File(h5ad_path, 'r', swmr=True) as h5ad_handle:
+    with h5py.File(h5ad_path, 'r') as h5ad_handle:
         n_rows_total = len(h5ad_handle['X']['indptr'][()])-1
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
