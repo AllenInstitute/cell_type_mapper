@@ -11,6 +11,9 @@ import zarr
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
+from hierarchical_mapping.utils.taxonomy_utils import (
+    compute_row_order)
+
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
     contiguous_zarr_from_h5ad)
 
@@ -142,9 +145,17 @@ def h5ad_path_fixture(
     _clean_up(tmp_dir)
 
 
+@pytest.fixture
+def baseline_tree_fixture(records_fixture):
+    return compute_row_order(
+        obs_records=records_fixture,
+        column_hierarchy=["level1", "level2", "class", "cluster"])
+
+
 def test_contiguous_zarr(
         x_fixture,
         h5ad_path_fixture,
+        baseline_tree_fixture,
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('contiguous'))
     h5ad_dir = tmp_dir / 'h5ad'
@@ -179,5 +190,18 @@ def test_contiguous_zarr(
                     indptr=in_file['indptr'])
 
     np.testing.assert_allclose(actual, new_data)
+
+    assert metadata['h5ad_path'] == str(h5ad_path_fixture.resolve().absolute())
+
+    for k in baseline_tree_fixture["tree"]:
+        if k == "hierarchy":
+            expected = baseline_tree_fixture["tree"][k]
+            actual = metadata["taxonomy_tree"][k]
+            assert expected == actual
+        else:
+            for node in baseline_tree_fixture["tree"][k]:
+                expected = set(baseline_tree_fixture["tree"][k][node])
+                actual = set(metadata["taxonomy_tree"][k][node])
+                assert expected == actual
 
     _clean_up(zarr_path)
