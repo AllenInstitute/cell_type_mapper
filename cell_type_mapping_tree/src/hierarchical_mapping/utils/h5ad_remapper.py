@@ -108,8 +108,7 @@ def rearrange_sparse_h5ad_hunter_gather(
                 h5ad_data = h5ad_server.update()
                 collectors_for_this_chunk = set()
 
-            while len(process_dict) >= len(row_collector_list):
-                process_dict = winnow_process_dict(process_dict)
+            process_dict = winnow_process_dict(process_dict)
 
 
         for k in process_dict.keys():
