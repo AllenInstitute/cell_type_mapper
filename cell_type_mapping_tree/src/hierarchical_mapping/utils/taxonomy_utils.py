@@ -136,4 +136,3 @@ def get_taxonomy_tree(
             tree[parent][this_parent].add(this_child)
 
     return tree
-            

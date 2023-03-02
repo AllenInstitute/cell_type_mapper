@@ -1,6 +1,9 @@
 import pytest
 import copy
 import numpy as np
+import json
+
+from hierarchical_mapping.utils.utils import json_clean_dict
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
@@ -228,3 +231,14 @@ def test_compute_row_order(
         remapped_rows = [result["row_order"][n]
                          for n in result["tree"][leaf_class][node]]
         assert remapped_rows == orig_rows
+
+
+def test_cleaning(
+        records_fixture):
+
+    column_hierarchy=["level1", "level2", "class", "cluster"]
+    result = compute_row_order(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+    cleaned = json_clean_dict(result)
+    json.dumps(cleaned)

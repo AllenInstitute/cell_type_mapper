@@ -58,3 +58,25 @@ def print_timing(
     if nametag is not None:
         msg = f"{nametag} -- {msg}"
     print(msg)
+
+
+def json_clean_dict(input_dict):
+    """
+    iteratively clean a dict so that it can be jsonized
+    (i.e. convert sets into lists and np.ints into ints)
+    """
+    output_dict = dict()
+    for k in input_dict:
+        val = input_dict[k]
+        if isinstance(val, dict):
+            output_dict[k] = json_clean_dict(val)
+        elif isinstance(val, set) or isinstance(val, list):
+            new_val = [
+                int(ii) if isinstance(ii, np.int64) else ii
+                for ii in val]
+            output_dict[k] = new_val
+        elif isinstance(val, np.int64):
+            output_dict[k] = int(val)
+        else:
+            output_dict[k] = val
+    return output_dict
