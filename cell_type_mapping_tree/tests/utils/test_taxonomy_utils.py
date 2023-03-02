@@ -4,7 +4,8 @@ import numpy as np
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
-    _get_rows_from_tree)
+    _get_rows_from_tree,
+    compute_row_order)
 
 
 @pytest.fixture
@@ -94,13 +95,16 @@ def test_get_taxonomy_tree(
         class_to_cluster_fixture,
         records_fixture):
 
-    records = copy.deepcopy(records_fixture)
+    input_records = copy.deepcopy(records_fixture)
 
     column_hierarchy=["level1", "level2", "class", "cluster"]
 
     tree = get_taxonomy_tree(
-                obs_records=records,
+                obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
+
+    # make sure input did not change
+    assert input_records == records_fixture
 
     assert tree['hierarchy'] == column_hierarchy
     assert tree["level1"] == l1_to_l2_fixture[0]
@@ -110,16 +114,17 @@ def test_get_taxonomy_tree(
     row_set = set()
     for clu in tree["cluster"]:
         for ii in tree["cluster"][clu]:
-            assert records[ii]["cluster"] == clu
+            assert records_fixture[ii]["cluster"] == clu
             assert ii not in row_set
             row_set.add(ii)
 
-    assert row_set == set(range(len(records)))
-
+    assert row_set == set(range(len(records_fixture)))
 
 
 def test_get_rows_from_tree(
         records_fixture):
+
+    input_records = copy.deepcopy(records_fixture)
 
     row_to_cluster = dict()
     for ii, r in enumerate(records_fixture):
@@ -130,6 +135,9 @@ def test_get_rows_from_tree(
     tree = get_taxonomy_tree(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
+
+    # make sure input did not change
+    assert input_records == records_fixture
 
     for level in column_hierarchy[:-1]:
         for this in tree[level]:
@@ -167,3 +175,56 @@ def test_get_rows_from_tree(
             assert len(checked_clusters) < len(actual)
             assert len(actual) == len(expected)
             assert set(actual) == expected
+
+
+def test_compute_row_order(
+        records_fixture):
+
+    column_hierarchy=["level1", "level2", "class", "cluster"]
+
+    input_records = copy.deepcopy(records_fixture)
+
+    result = compute_row_order(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    # make sure input didn't change in place
+    assert input_records == records_fixture
+
+    current = dict()
+    checked = dict()
+    for c in column_hierarchy:
+        checked[c] = set()
+        current[c] = None
+
+    # make sure rows are contiguous
+    for ii in result["row_order"]:
+        this_record = records_fixture[ii]
+        for c in column_hierarchy:
+            if current[c] is None:
+                current[c] = this_record[c]
+                checked[c].add(this_record[c])
+            else:
+                if this_record[c] != current[c]:
+                    # make sure we haven't backtracked
+                    assert this_record[c] not in checked[c]
+                    checked[c].add(this_record[c])
+                    current[c] = this_record[c]
+
+    assert result["tree"]["hierarchy"] == column_hierarchy
+
+    orig_tree = get_taxonomy_tree(
+                    obs_records=records_fixture,
+                    column_hierarchy=column_hierarchy)
+
+    for c in column_hierarchy[:-1]:
+        assert result["tree"][c] == orig_tree[c]
+
+    # check remapped_rows
+    leaf_class = column_hierarchy[-1]
+    assert result["tree"][leaf_class] != orig_tree[leaf_class]
+    for node in orig_tree[leaf_class]:
+        orig_rows = orig_tree[leaf_class][node]
+        remapped_rows = [result["row_order"][n]
+                         for n in result["tree"][leaf_class][node]]
+        assert remapped_rows == orig_rows
