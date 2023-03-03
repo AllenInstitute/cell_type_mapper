@@ -136,3 +136,33 @@ def get_taxonomy_tree(
             tree[parent][this_parent].add(this_child)
 
     return tree
+
+def _get_leaves_from_tree(
+        tree,
+        level,
+        this_node):
+    """
+    iteratively get a list of the leaf nodes
+    inherity from tree[level][this_node]
+    """
+    hierarchy = tree['hierarchy']
+    if level == hierarchy[-1]:
+        return [this_node]
+
+    if level == hierarchy[-2]:
+        return list(tree[level][this_node])
+
+    for idx in range(len(tree['hierarchy'])):
+        if tree['hierarchy'][idx] == level:
+            break
+
+    child_level = tree['hierarchy'][idx+1]
+    result = []
+    child_nodes = copy.deepcopy(list(tree[level][this_node]))
+    child_nodes.sort()  # for determinacy of output
+    for this_child in child_nodes:
+        result += _get_leaves_from_tree(
+                        tree=tree,
+                        level=child_level,
+                        this_node=this_child)
+    return result

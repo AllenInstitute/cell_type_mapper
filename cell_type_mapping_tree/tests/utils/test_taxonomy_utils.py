@@ -8,7 +8,13 @@ from hierarchical_mapping.utils.utils import json_clean_dict
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
-    compute_row_order)
+    compute_row_order,
+    _get_leaves_from_tree)
+
+
+@pytest.fixture
+def column_hierarchy():
+    return ["level1", "level2", "class", "cluster"]
 
 
 @pytest.fixture
@@ -96,11 +102,10 @@ def test_get_taxonomy_tree(
         l1_to_l2_fixture,
         l2_to_class_fixture,
         class_to_cluster_fixture,
-        records_fixture):
+        records_fixture,
+        column_hierarchy):
 
     input_records = copy.deepcopy(records_fixture)
-
-    column_hierarchy=["level1", "level2", "class", "cluster"]
 
     tree = get_taxonomy_tree(
                 obs_records=records_fixture,
@@ -125,15 +130,14 @@ def test_get_taxonomy_tree(
 
 
 def test_get_rows_from_tree(
-        records_fixture):
+        records_fixture,
+        column_hierarchy):
 
     input_records = copy.deepcopy(records_fixture)
 
     row_to_cluster = dict()
     for ii, r in enumerate(records_fixture):
         row_to_cluster[ii] = r['cluster']
-
-    column_hierarchy=["level1", "level2", "class", "cluster"]
 
     tree = get_taxonomy_tree(
                 obs_records=records_fixture,
@@ -181,9 +185,8 @@ def test_get_rows_from_tree(
 
 
 def test_compute_row_order(
-        records_fixture):
-
-    column_hierarchy=["level1", "level2", "class", "cluster"]
+        records_fixture,
+        column_hierarchy):
 
     input_records = copy.deepcopy(records_fixture)
 
@@ -234,11 +237,51 @@ def test_compute_row_order(
 
 
 def test_cleaning(
-        records_fixture):
+        records_fixture,
+        column_hierarchy):
 
-    column_hierarchy=["level1", "level2", "class", "cluster"]
     result = compute_row_order(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
     cleaned = json_clean_dict(result)
     json.dumps(cleaned)
+
+
+def test_leaves_from_tree(
+        records_fixture,
+        column_hierarchy):
+
+    # construct expected
+    leaf_nodes = set()
+    parent_to_leaves = dict()
+    leaf_class = column_hierarchy[-1]
+    for record in records_fixture:
+        leaf_nodes.add(record[leaf_class])
+        for h in column_hierarchy[:-1]:
+            if h not in parent_to_leaves:
+                parent_to_leaves[h] = dict()
+            this_node = record[h]
+            if this_node not in parent_to_leaves[h]:
+                parent_to_leaves[h][this_node] = set()
+            parent_to_leaves[h][this_node].add(record[leaf_class])
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    for h in column_hierarchy[:-1]:
+        for node in parent_to_leaves[h]:
+            expected = parent_to_leaves[h][node]
+            actual = _get_leaves_from_tree(
+                         tree=tree,
+                         level=h,
+                         this_node=node)
+            assert set(actual) == expected
+            assert len(set(actual)) == len(actual)
+
+    for node in leaf_nodes:
+        actual = _get_leaves_from_tree(
+                    tree=tree,
+                    level=leaf_class,
+                    this_node=node)
+        assert actual == [node]
