@@ -3,7 +3,8 @@ import pytest
 import numpy as np
 
 from hierarchical_mapping.diff_exp.diff_exp import (
-    aggregate_stats)
+    aggregate_stats,
+    score_differential_genes)
 
 
 @pytest.fixture
@@ -67,7 +68,7 @@ def precomputed_stats_fixture(
 
 @pytest.mark.parametrize(
         "gt0_threshold, gt1_threshold",
-        [(1, 0), (1, 40), (1, 1000)]) 
+        [(1, 0), (1, 40), (1, 1000)])
 def test_aggregate_stats(
         data_fixture,
         precomputed_stats_fixture,
@@ -105,3 +106,35 @@ def test_aggregate_stats(
 
     assert expected_mask.shape == (n_genes,)
     np.testing.assert_array_equal(actual['mask'], expected_mask)
+
+
+@pytest.mark.parametrize(
+        "gt0_threshold, gt1_threshold",
+        [(1, 0), (1, 40), (1, 1000)])
+def test_aggregate_stats(
+        data_fixture,
+        precomputed_stats_fixture,
+        leaf_node_fixture,
+        n_genes,
+        gt0_threshold,
+        gt1_threshold):
+    """
+    Just a smoketest to make sure we can run
+    score_differential_genes
+    """
+
+    pop1 = ['a', 'c', 'd']
+    pop2 = ['f', 'e', 'g', 'h']
+
+    (score,
+     validity) = score_differential_genes(
+                     leaf_population_1=pop1,
+                     leaf_population_2=pop2,
+                     precomputed_stats=precomputed_stats_fixture,
+                     gt1_threshold=gt1_threshold,
+                     gt0_threshold=gt0_threshold)
+
+    assert score.shape == (n_genes,)
+    assert validity.shape == (n_genes,)
+    assert validity.dtype == bool
+    assert score.dtype == float

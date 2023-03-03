@@ -5,9 +5,9 @@ from hierarchical_mapping.utils.stats_utils import (
     correct_ttest)
 
 
-def rank_differential_genes(
-        leaf_set_1,
-        leaf_set_2,
+def score_differential_genes(
+        leaf_population_1,
+        leaf_population_2,
         precomputed_stats,
         gt1_threshold=0,
         gt0_threshold=1):
@@ -17,7 +17,7 @@ def rank_differential_genes(
 
     Parameters
     ----------
-    leaf_set_1/2:
+    leaf_population_1/2:
         Lists of names of the leaf nodes (e.g. clusters) of the cell
         taxonomy making up the two populations to compare.
 
@@ -35,11 +35,47 @@ def rank_differential_genes(
 
     Returns
     -------
-    A numpy array that is n_genes long. Each element indicates
-    ranking of how differential the gene is (lower numbers are more
-    differential).
+    score:
+        np.ndarray of numerical scores indicating how good a gene
+        is a s differentiator; larger values mean it is a better
+        differentiator
+
+    validity_mask:
+        np.ndarray of booleans that is a mask for whether or not
+        the gene passed the gt1, gt0 thresholds
     """
-    pass
+
+    stats_1 = aggregate_stats(
+                leaf_population=leaf_population_1,
+                precomputed_stats=precomputed_stats,
+                gt0_threshold=gt0_threshold,
+                gt1_threshold=gt1_threshold)
+
+    stats_2 = aggregate_stats(
+                leaf_population=leaf_population_1,
+                precomputed_stats=precomputed_stats,
+                gt0_threshold=gt0_threshold,
+                gt1_threshold=gt1_threshold)
+
+    (tt_stat,
+     tt_nunu,
+     pvalues) = welch_t_test(
+                    mean1=stats_1['mean'],
+                    var1=stats_1['var'],
+                    n1=stats_1['n_cells'],
+                    mean2=stats_2['mean'],
+                    var2=stats_2['var'],
+                    n2=stats_2['n_cells'])
+
+    pvalues = correct_ttest(pvalues)
+    with np.errstate(divide='ignore'):
+        score = -1.0*np.log(pvalues)
+
+    validity_mask = np.logical_or(
+                        stats_1['mask'],
+                        stats_2['mask'])
+
+    return score, validity_mask
 
 
 def aggregate_stats(
