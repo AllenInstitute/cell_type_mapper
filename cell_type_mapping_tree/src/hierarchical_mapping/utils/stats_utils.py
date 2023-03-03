@@ -1,3 +1,4 @@
+import numpy as np
 import scipy.sparse as scipy_sparse
 import scipy.stats as scipy_stats
 
@@ -62,7 +63,7 @@ def welch_t_test(mean1, var1, n1, mean2, var2, n2):
         nu_denom = ((var1**2)/(n1**3-n1**2)+(var2**2)/(n2**3-n2**2))
         nu_denom = np.where(nu_denom>0.0, nu_denom, 1.0)
         nu = nu_num*nu_num/nu_denom
-        cdf = scipy.stats.t.cdf(tt, df=nu)
+        cdf = scipy_stats.t.cdf(tt, df=nu)
         cdf = np.where(np.isfinite(cdf), cdf, 0.5)
         pval = np.where(cdf<0.5, 2.0*cdf, 2.0*(1.0-cdf))
     return (tt, nu, pval)
