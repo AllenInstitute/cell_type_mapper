@@ -9,7 +9,8 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     compute_row_order,
-    _get_leaves_from_tree)
+    _get_leaves_from_tree,
+    convert_tree_to_leaves)
 
 
 @pytest.fixture
@@ -247,16 +248,21 @@ def test_cleaning(
     json.dumps(cleaned)
 
 
-def test_leaves_from_tree(
+@pytest.fixture
+def parent_to_leaves(
         records_fixture,
         column_hierarchy):
-
+    """
+    Brute force your way to a dict mapping
+    parent nodes to their ultimate leaves
+    """
     # construct expected
-    leaf_nodes = set()
+    leaf_nodes = dict()
     parent_to_leaves = dict()
     leaf_class = column_hierarchy[-1]
     for record in records_fixture:
-        leaf_nodes.add(record[leaf_class])
+        this_leaf = record[leaf_class]
+        leaf_nodes[this_leaf] = set([this_leaf])
         for h in column_hierarchy[:-1]:
             if h not in parent_to_leaves:
                 parent_to_leaves[h] = dict()
@@ -265,11 +271,19 @@ def test_leaves_from_tree(
                 parent_to_leaves[h][this_node] = set()
             parent_to_leaves[h][this_node].add(record[leaf_class])
 
+    parent_to_leaves[leaf_class] = leaf_nodes
+    return parent_to_leaves
+
+def test_leaves_from_tree(
+        records_fixture,
+        column_hierarchy,
+        parent_to_leaves):
+
     tree = get_taxonomy_tree(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
 
-    for h in column_hierarchy[:-1]:
+    for h in column_hierarchy:
         for node in parent_to_leaves[h]:
             expected = parent_to_leaves[h][node]
             actual = _get_leaves_from_tree(
@@ -279,9 +293,22 @@ def test_leaves_from_tree(
             assert set(actual) == expected
             assert len(set(actual)) == len(actual)
 
-    for node in leaf_nodes:
-        actual = _get_leaves_from_tree(
-                    tree=tree,
-                    level=leaf_class,
-                    this_node=node)
-        assert actual == [node]
+
+def test_convert_tree_to_leaves(
+        records_fixture,
+        column_hierarchy,
+        parent_to_leaves):
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    as_leaves = convert_tree_to_leaves(
+                    taxonomy_tree=tree)
+
+    for h in column_hierarchy:
+        for this_node in parent_to_leaves[h]:
+            expected = parent_to_leaves[h][this_node]
+            actual = as_leaves[h][this_node]
+            assert set(actual) == expected
+            assert len(set(actual)) == len(actual)

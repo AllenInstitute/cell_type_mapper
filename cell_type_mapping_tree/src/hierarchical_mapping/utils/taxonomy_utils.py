@@ -137,6 +137,30 @@ def get_taxonomy_tree(
 
     return tree
 
+
+def convert_tree_to_leaves(
+         taxonomy_tree):
+     """
+     Read in a taxonomy tree as computed by get_taxonomy_tree.
+     Return a Dict structured like
+         level ('class', 'subclass', 'cluster', etc.)
+             -> node1 (a node on that level of the tree)
+                 -> list of leaf nodes making up that node
+     """
+     hierarchy = taxonomy_tree['hierarchy']
+     result = dict()
+     for this_level in hierarchy:
+         this_result = dict()
+         for node in taxonomy_tree[this_level]:
+             leaves = _get_leaves_from_tree(
+                         tree=taxonomy_tree,
+                         level=this_level,
+                         this_node=node)
+             this_result[node] = leaves
+         result[this_level] = this_result
+     return result
+
+
 def _get_leaves_from_tree(
         tree,
         level,
