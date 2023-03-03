@@ -1,0 +1,104 @@
+import numpy as np
+
+from hierarchical_mapping.utils.stats_utils import (
+    welch_t_test,
+    correct_ttest)
+
+
+def rank_differential_genes(
+        leaf_set_1,
+        leaf_set_2,
+        precomputed_stats,
+        gt1_threshold=0,
+        gt0_threshold=1):
+    """
+    Rank genes according to their ability to differentiate between
+    two populations fo cells.
+
+    Parameters
+    ----------
+    leaf_set_1/2:
+        Lists of names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'sum'
+            'sumsq'
+            'gt0'
+            'gt1'
+
+    gt1_thresdhold/gt0_threshold:
+        Number of cells that must express above 0/1 in order to be
+        considered a valid differential gene.
+
+    Returns
+    -------
+    A numpy array that is n_genes long. Each element indicates
+    ranking of how differential the gene is (lower numbers are more
+    differential).
+    """
+    pass
+
+
+def aggregate_stats(
+       leaf_population,
+       precomputed_stats,
+       gt0_threshold=1,
+       gt1_threshold=0):
+    """
+    Parameters
+    ----------
+    leaf_population:
+        List of names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'sum'
+            'sumsq'
+            'gt0'
+            'gt1'
+
+    gt1_thresdhold/gt0_threshold:
+        Number of cells that must express above 0/1 in order to be
+        considered a valid differential gene.
+
+    Returns
+    -------
+    Dict with
+        'mean' -- mean value of all gene expression
+        'var' -- variance of all gene expression
+        'mask' -- boolean mask of genes that pass thresholds
+        'n_cells' -- number of cells in the population
+    """
+    n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
+
+    sum_arr = np.zeros(n_genes, dtype=float)
+    sumsq_arr = np.zeros(n_genes, dtype=float)
+    gt0 = np.zeros(n_genes, dtype=int)
+    gt1 = np.zeros(n_genes, dtype=int)
+    n_cells = 0
+
+    for leaf_node in leaf_population:
+        these_stats = precomputed_stats[leaf_node]
+
+        n_cells += these_stats['n_cells']
+        sum_arr += these_stats['sum']
+        sumsq_arr += these_stats['sumsq']
+        gt0 += these_stats['gt0']
+        gt1 += these_stats['gt1']
+
+    mu = sum_arr/n_cells
+    var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
+
+    mask = np.logical_and(
+                gt0 >= gt0_threshold,
+                gt1 >= gt1_threshold)
+
+    return {'mean': mu,
+            'var': var,
+            'mask': mask,
+            'n_cells': n_cells}
