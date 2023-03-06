@@ -129,15 +129,33 @@ def x_fixture(records_fixture, ncols, nrows):
 
 
 @pytest.fixture
+def var_names(request, ncols):
+    if not request.param:
+        return None
+    var_names = [f"gene_{i}" for i in range(ncols)]
+    return var_names
+
+@pytest.fixture
 def h5ad_path_fixture(
         obs_fixture,
         x_fixture,
+        var_names,
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('anndata'))
+
+    if var_names is None:
+        var = None
+    else:
+        var_data = [{'gene_name': v} for v in var_names]
+        var = pd.DataFrame(var_data)
+        var = var.set_index('gene_name')
+
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
-                             obs=obs_fixture)
+                             obs=obs_fixture,
+                             var=var)
     h5ad_path = tmp_dir / 'h5ad_file.h5ad'
-    a_data.write_h5ad(h5ad_path, force_dense=False)
+    a_data.write_h5ad(h5ad_path,
+                      force_dense=False)
     import h5py
     with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
         d = in_file['X']['data']
@@ -152,10 +170,14 @@ def baseline_tree_fixture(records_fixture):
         column_hierarchy=["level1", "level2", "class", "cluster"])
 
 
+@pytest.mark.parametrize(
+        "var_names", [True, False], indirect=["var_names"])
 def test_contiguous_zarr(
         x_fixture,
         h5ad_path_fixture,
         baseline_tree_fixture,
+        var_names,
+        ncols,
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('contiguous'))
     h5ad_dir = tmp_dir / 'h5ad'
@@ -177,6 +199,12 @@ def test_contiguous_zarr(
     assert len(h5ad_contents) == 0
 
     metadata = json.load(open(zarr_path/"metadata.json", "rb"))
+
+    if var_names is None:
+        assert metadata["col_names"] == [str(i) for i in range(ncols)]
+    else:
+        assert metadata["col_names"] == [f"gene_{i}" for i in range(ncols)]
+
     new_data = np.zeros(x_fixture.shape, dtype=x_fixture.dtype)
     for ii, r in enumerate(metadata["mapped_row_order"]):
         new_data[ii, :] = x_fixture[r, :]
