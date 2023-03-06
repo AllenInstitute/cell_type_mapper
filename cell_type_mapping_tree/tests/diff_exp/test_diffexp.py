@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from hierarchical_mapping.diff_exp.diff_exp import (
+from hierarchical_mapping.diff_exp.scores import (
     aggregate_stats,
     score_differential_genes)
 

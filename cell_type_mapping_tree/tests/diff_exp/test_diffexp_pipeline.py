@@ -15,7 +15,7 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
     _get_rows_from_tree)
 
-from hierarchical_mapping.diff_exp.diff_exp import (
+from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
     score_all_taxonomy_pairs)
 
