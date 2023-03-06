@@ -9,12 +9,15 @@ from hierarchical_mapping.corr.utils import (
 @pytest.mark.parametrize(
         "query, expected",
         [(['b', 'x', 'f', 'e', 'w'],
-          {'reference': np.ndarray([0, 5, 3]),
-           'query': np.ndarray([0, 3, 2])}),
+          {'reference': np.array([0, 5, 3]),
+           'query': np.array([0, 3, 2])}),
           (['w', 'x', 'y'],
            {'reference': [],
             'query': []}
-          )
+          ),
+          (['x', 'f', 'e', 'w', 'b'],
+          {'reference': np.array([0, 5, 3]),
+           'query': np.array([4, 2, 1])}),
         ])
 def test_match_genes(
         query,
@@ -23,6 +26,7 @@ def test_match_genes(
     actual = match_genes(
                 reference_gene_names=reference_gene_names,
                 query_gene_names=query)
+
 
     if len(expected['reference']) > 0:
         np.testing.assert_array_equal(actual['reference'],

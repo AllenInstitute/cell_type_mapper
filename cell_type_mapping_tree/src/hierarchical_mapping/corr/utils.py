@@ -30,9 +30,6 @@ def match_genes(
     reference_set = set(reference_gene_names)
     query_set = set(query_gene_names)
     shared_set = list(reference_set.intersection(query_set))
-    if len(shared_set) == 0:
-        return {'reference': [], 'query': []}
-
     shared_set.sort()
 
     result = {
@@ -55,5 +52,5 @@ def _gene_name_to_int(
     """
     unordered_lookup = {g: ii
                         for ii, g in enumerate(unordered_gene_name)}
-    return np.ndarray(
+    return np.array(
         [unordered_lookup[g] for g in ordered_gene_name])
