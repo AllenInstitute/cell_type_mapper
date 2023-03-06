@@ -1,4 +1,4 @@
-from typing import Union, Dict, List, Any
+from typing import Union, Dict, List, Any, Optional
 import time
 import h5py
 import zarr
@@ -41,6 +41,7 @@ def precompute_summary_stats_from_contiguous_zarr(
     metadata = json.load(open(metadata_path, 'rb'))
     leaf_class = metadata["taxonomy_tree"]["hierarchy"][-1]
     cluster_to_idx = metadata["taxonomy_tree"][leaf_class]
+    col_names = metadata["col_names"]
 
     precompute_summary_stats(
         data_path=zarr_path,
@@ -48,7 +49,8 @@ def precompute_summary_stats_from_contiguous_zarr(
         n_genes=metadata["shape"][1],
         output_path=output_path,
         n_processors=n_processors,
-        rows_at_a_time=rows_at_a_time)
+        rows_at_a_time=rows_at_a_time,
+        col_names=col_names)
 
 
 def precompute_summary_stats(
@@ -57,7 +59,8 @@ def precompute_summary_stats(
         n_genes: int,
         output_path: Union[str, pathlib.Path],
         n_processors:int = 6,
-        rows_at_a_time: int = 5000):
+        rows_at_a_time: int = 5000,
+        col_names: Optional[list] = None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -78,6 +81,10 @@ def precompute_summary_stats(
     output_path:
         Path to the HDF5 file that will contain the lookup
         information for the clusters
+
+    row_names/col_names:
+        Optional list of names associated with the columns
+        in the data matrix
     """
 
     cluster_list = list(cluster_to_input_row)
@@ -86,6 +93,12 @@ def precompute_summary_stats(
     n_clusters = len(cluster_list)
 
     with h5py.File(output_path, 'w') as out_file:
+
+        if col_names is not None:
+            out_file.create_dataset(
+                'col_names',
+                data=json.dumps(col_names).encode('utf-8'))
+
         out_file.create_dataset(
             'cluster_to_row',
             data=json.dumps(cluster_to_output_row).encode('utf-8'))
