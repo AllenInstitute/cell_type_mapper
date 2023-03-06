@@ -86,7 +86,6 @@ def _load_disjoint_csr(
     indices_list = []
     indptr_list = []
     t_load = 0.0
-    print(f"row chunk list {row_chunk_list}")
     for row_chunk in row_chunk_list:
         t0 = time.time()
         (this_data,
