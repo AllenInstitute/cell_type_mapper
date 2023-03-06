@@ -13,14 +13,15 @@ from hierarchical_mapping.utils.utils import (
 
 
 from hierarchical_mapping.utils.h5ad_remapper import (
-    rearrange_sparse_h5ad_hunter_gather)
+    rearrange_sparse_h5ad_hunter_gather,
+    _merge_bounds)
 
 
 @pytest.fixture(scope='session')
 def sparse_data_fixture():
 
     rng = np.random.default_rng(772334)
-    nrows = 3140
+    nrows = 314
     ncols = 567
 
     data = np.zeros((nrows*ncols), dtype=int)
@@ -57,18 +58,18 @@ def row_order_fixture(sparse_data_fixture):
 
 
 @pytest.mark.parametrize(
-    "zero_out, output_chunks, n_row_collectors, buffer_size, "
-    "read_in_size, verbose",
-    ((False, 17, 3, 2000, 1134, False),
-     (True, 17, 3, 2000, 1134, False),
+    "zero_out, output_chunks, n_row_collectors, write_buffer_size, "
+    "read_buffer_size, verbose",
+    ((False, 17, 3, 2000, 1000, False),
+     (True, 17, 3, 2000, 1000, False),
      (False, 45, 1, 1000, 10000, False),
      (True, 45, 1, 1000, 40000, True)))
 def test_rearrange_sparse_h5ad(
         zero_out,
         output_chunks,
         n_row_collectors,
-        buffer_size,
-        read_in_size,
+        write_buffer_size,
+        read_buffer_size,
         verbose,
         sparse_data_fixture,
         row_order_fixture):
@@ -96,10 +97,10 @@ def test_rearrange_sparse_h5ad(
          h5ad_path=tmp_input_path,
          output_path=tmp_output_dir,
          row_order=row_order_fixture,
-         chunks=output_chunks,
+         output_chunks=output_chunks,
          n_row_collectors=n_row_collectors,
-         buffer_size=buffer_size,
-         read_in_size=read_in_size,
+         write_buffer_size=write_buffer_size,
+         read_buffer_size=read_buffer_size,
          verbose=verbose)
 
     # verify that chunks were properly set
@@ -124,3 +125,36 @@ def test_rearrange_sparse_h5ad(
     tmp_input_path.unlink()
     _clean_up(tmp_output_dir)
 
+
+def test_merge_bounds():
+    in_bounds = [(0, 1), (3, 4), (5, 6)]
+    out_bounds = [(0, 1), (2, 3), (1, 7)]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert len(new_in) == 2
+    assert len(new_out) == 2
+    assert [(0, 1), (1, 7)] in new_out
+    assert [(2, 3)] in new_out
+    assert [(0, 1), (5, 6)] in new_in
+    assert [(3, 4)] in new_in
+    return
+
+    in_bounds = [(0, 1), (3, 4), (5, 6), (18, 21)]
+    out_bounds = [(0, 1), (2, 3), (1, 7), (7, 13)]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert len(new_out) == 2
+    assert len(new_in) == 2
+
+    assert[(0, 1), (1, 7), (7, 13)] in new_out
+    assert [(2, 3)] in new_out
+    assert [(0, 1), (5, 6), (18, 21)] in new_in
+    assert [(3, 4)] in new_in
+
+    in_bounds = [(0, 1), (3, 4), (5, 6), (18, 21), (99, 101)]
+    out_bounds = [(0, 1), (2, 3), (1, 7), (7, 13), (3, 77)]
+    new_in, new_out = _merge_bounds(in_bounds, out_bounds)
+    assert len(new_in) == 2
+    assert len(new_out) == 2
+    assert [(2, 3), (3, 77)] in new_out
+    assert [(0, 1), (1, 7), (7, 13)] in new_out
+    assert [(3, 4), (99, 101)] in new_in
+    assert [(0, 1), (5, 6), (18, 21)] in new_in

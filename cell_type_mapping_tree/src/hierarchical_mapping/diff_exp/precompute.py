@@ -18,6 +18,39 @@ from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
 
 
+def precompute_summary_stats_from_contiguous_zarr(
+        zarr_path,
+        output_path,
+        rows_at_a_time=5000,
+        n_processors=6):
+    """
+    Compute summary stats for the cells in zarr_path, a contiguous
+    zarr file as produced by our zarr_creation util (contiguous
+    in the sense that cells of the same cluster occupy contiguous blocks
+    of rows). This assumes that there is a metadata.json file that contains
+    the mapping between cell cluster and row index.
+    """
+    zarr_path = pathlib.Path(zarr_path)
+    output_path = pathlib.Path(output_path)
+
+    metadata_path = zarr_path / 'metadata.json'
+    if not metadata_path.is_file():
+        raise RuntimeError(
+            f"{metadata_path} is not a file")
+
+    metadata = json.load(open(metadata_path, 'rb'))
+    leaf_class = metadata["taxonomy_tree"]["hierarchy"][-1]
+    cluster_to_idx = metadata["taxonomy_tree"][leaf_class]
+
+    precompute_summary_stats(
+        data_path=zarr_path,
+        cluster_to_input_row=cluster_to_idx,
+        n_genes=metadata["shape"][1],
+        output_path=output_path,
+        n_processors=n_processors,
+        rows_at_a_time=rows_at_a_time)
+
+
 def precompute_summary_stats(
         data_path: Union[str, pathlib.Path],
         cluster_to_input_row: Dict[str, List[int]],
@@ -72,10 +105,25 @@ def precompute_summary_stats(
 
     n_per = np.ceil(len(cluster_to_input_row)/n_processors).astype(int)
 
-    for ii, cluster in enumerate(cluster_to_input_row.keys()):
-        this = cluster_to_input_row[cluster]
-        jj = ii // n_per
-        worker_division[jj][cluster] = this
+    # need to make sure clusters are grouped contiguously
+    first_dex = []
+    cluster_name = []
+    for cluster in cluster_to_input_row.keys():
+        cluster_name.append(cluster)
+        first_dex.append(min(cluster_to_input_row[cluster]))
+    first_dex = np.array(first_dex)
+    cluster_name = np.array(cluster_name)
+    sorted_dex = np.argsort(first_dex)
+    cluster_name = cluster_name[sorted_dex]
+
+    n_per = np.round(len(cluster_name)/n_processors).astype(int)
+    for i_worker in range(n_processors):
+        i0 = i_worker*n_per
+        i1 = i0+n_per
+        if i_worker == n_processors-1:
+            i1 = len(cluster_name)
+        for c in cluster_name[i0:i1]:
+            worker_division[i_worker][c] = cluster_to_input_row[c]
 
     mgr = multiprocessing.Manager()
     output_lock = mgr.Lock()
