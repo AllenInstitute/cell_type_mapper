@@ -105,10 +105,25 @@ def precompute_summary_stats(
 
     n_per = np.ceil(len(cluster_to_input_row)/n_processors).astype(int)
 
-    for ii, cluster in enumerate(cluster_to_input_row.keys()):
-        this = cluster_to_input_row[cluster]
-        jj = ii // n_per
-        worker_division[jj][cluster] = this
+    # need to make sure clusters are grouped contiguously
+    first_dex = []
+    cluster_name = []
+    for cluster in cluster_to_input_row.keys():
+        cluster_name.append(cluster)
+        first_dex.append(min(cluster_to_input_row[cluster]))
+    first_dex = np.array(first_dex)
+    cluster_name = np.array(cluster_name)
+    sorted_dex = np.argsort(first_dex)
+    cluster_name = cluster_name[sorted_dex]
+
+    n_per = np.round(len(cluster_name)/n_processors).astype(int)
+    for i_worker in range(n_processors):
+        i0 = i_worker*n_per
+        i1 = i0+n_per
+        if i_worker == n_processors-1:
+            i1 = len(cluster_name)
+        for c in cluster_name[i0:i1]:
+            worker_division[i_worker][c] = cluster_to_input_row[c]
 
     mgr = multiprocessing.Manager()
     output_lock = mgr.Lock()
