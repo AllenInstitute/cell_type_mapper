@@ -30,6 +30,9 @@ def match_genes(
     reference_set = set(reference_gene_names)
     query_set = set(query_gene_names)
     shared_set = list(reference_set.intersection(query_set))
+    if len(shared_set) == 0:
+        return {'reference': [], 'query': []}
+
     shared_set.sort()
 
     result = {
