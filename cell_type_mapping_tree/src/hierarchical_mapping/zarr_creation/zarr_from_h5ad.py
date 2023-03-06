@@ -111,7 +111,8 @@ def contiguous_zarr_from_h5ad(
         metadata["taxonomy_tree"] = json_clean_dict(tree)
         metadata["h5ad_path"] = str(h5ad_path.resolve().absolute())
         metadata["shape"] = adata_metadata["shape"]
-        metadata["row_names"] = adata_metadata["row_names"]
+        metadata["row_names"] = [adata_metadata["row_names"][ii]
+                                 for ii in row_order]
         metadata["col_names"] = adata_metadata["col_names"]
         with open(metadata_path, "w") as out_file:
             out_file.write(json.dumps(metadata))

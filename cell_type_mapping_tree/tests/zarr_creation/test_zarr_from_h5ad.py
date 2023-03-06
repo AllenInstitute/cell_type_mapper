@@ -91,24 +91,29 @@ def records_fixture(
     rng = np.random.default_rng(871234)
     cluster_list = list(class_to_cluster_fixture[1].keys())
     records = []
+    cell_name = 0
     for ii in range(7):
         for clu in cluster_list:
             cl = class_to_cluster_fixture[1][clu]
             l2 = l2_to_class_fixture[1][cl]
             l1 = l1_to_l2_fixture[1][l2]
-            this = {"cluster": clu,
+            this = {"cell": f"cell_{cell_name}",
+                    "cluster": clu,
                     "class": cl,
                     "level2": l2,
                     "level1": l1,
                     "garbage": rng.integers(8, 1000)}
             records.append(this)
+            cell_name += 1
 
     rng.shuffle(records)
     return records
 
 @pytest.fixture
 def obs_fixture(records_fixture):
-    return pd.DataFrame(records_fixture)
+    obs = pd.DataFrame(records_fixture)
+    obs = obs.set_index("cell")
+    return obs
 
 
 @pytest.fixture
@@ -178,6 +183,7 @@ def test_contiguous_zarr(
         baseline_tree_fixture,
         var_names,
         ncols,
+        records_fixture,
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('contiguous'))
     h5ad_dir = tmp_dir / 'h5ad'
@@ -205,9 +211,12 @@ def test_contiguous_zarr(
     else:
         assert metadata["col_names"] == [f"gene_{i}" for i in range(ncols)]
 
+    row_names = metadata["row_names"]
+
     new_data = np.zeros(x_fixture.shape, dtype=x_fixture.dtype)
     for ii, r in enumerate(metadata["mapped_row_order"]):
         new_data[ii, :] = x_fixture[r, :]
+        assert row_names[ii] == records_fixture[r]['cell']
 
     with zarr.open(zarr_path, 'r') as in_file:
         actual = load_csr(
