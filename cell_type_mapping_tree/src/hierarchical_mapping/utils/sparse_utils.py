@@ -125,7 +125,6 @@ def _load_disjoint_csr(
         data_ct += n
     final_indptr[-1] = len(final_data)
 
-    print(f"time spent loading disjoint {t_load:.2e} seconds")
     return final_data, final_indices, final_indptr
 
 
