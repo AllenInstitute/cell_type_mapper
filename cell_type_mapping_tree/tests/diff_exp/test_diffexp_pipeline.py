@@ -344,7 +344,20 @@ def test_pipeline(
             gt1_threshold=0,
             gt0_threshold=1)
 
-    #spock
-    #need to compare to brute force outputs
+    assert len(actual_de) == len(brute_force_de_scores)
+    for level in brute_force_de_scores:
+        actual_level = actual_de[level]
+        expected_level = brute_force_de_scores[level]
+        assert len(actual_level) == len(expected_level)
+        for node1 in expected_level:
+            actual_node1 = actual_level[node1]
+            expected_node1 = expected_level[node1]
+            assert len(actual_node1) == len(expected_node1)
+            for node2 in expected_node1:
+                np.testing.assert_allclose(
+                    actual_node1[node2]['score'],
+                    expected_node1[node2],
+                    atol=1.0e-5,
+                    rtol=1.0e-4)
 
     _clean_up(tmp_dir)

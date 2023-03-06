@@ -160,13 +160,13 @@ def score_differential_genes(
                 gt1_threshold=gt1_threshold)
 
     stats_2 = aggregate_stats(
-                leaf_population=leaf_population_1,
+                leaf_population=leaf_population_2,
                 precomputed_stats=precomputed_stats,
                 gt0_threshold=gt0_threshold,
                 gt1_threshold=gt1_threshold)
 
     score = diffexp_score(
-               mean1=stats_1['mean'],
+                mean1=stats_1['mean'],
                 var1=stats_1['var'],
                 n1=stats_1['n_cells'],
                 mean2=stats_2['mean'],
