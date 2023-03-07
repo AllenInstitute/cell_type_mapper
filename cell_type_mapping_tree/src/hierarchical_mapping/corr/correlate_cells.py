@@ -35,8 +35,6 @@ def correlate_cells(
         query_indptr = query_file['X/indptr'][()]
         n_query_rows = len(query_indptr)-1
         n_query_cols = len(query_genes)
-        rows_at_a_time = np.round(gb_at_a_time*1024**3/(8*n_query_cols)).astype(int)
-        print(f"rows at a time {rows_at_a_time:.2e}")
 
         with h5py.File(precomputed_path, 'r') as reference_file:
             reference_genes = json.loads(
@@ -53,6 +51,13 @@ def correlate_cells(
             reference_profiles = reference_profiles[:, gene_idx['reference']]
             reference_profiles = reference_profiles.transpose()/reference_file['n_cells'][()]
             reference_profiles = reference_profiles.transpose()
+
+            n_clusters = reference_profiles.shape[0]
+
+            rows_at_a_time = np.round(gb_at_a_time*1024**3/(8*n_clusters)).astype(int)
+            rows_at_a_time = max(1, rows_at_a_time)
+            print(f"rows at a time {rows_at_a_time:.2e}")
+
 
             print("starting correlation")
             t0 = time.time()
