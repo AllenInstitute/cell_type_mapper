@@ -96,7 +96,7 @@ def correlate_cells(
                     indptr=query_indptr)
 
         p = multiprocessing.Process(
-                target=_correlate_chunk
+                target=_correlate_chunk,
                 kwargs={
                     "reference_profiles": reference_profiles,
                     "query_chunk": query_chunk,
