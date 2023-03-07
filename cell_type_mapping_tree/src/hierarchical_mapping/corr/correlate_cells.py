@@ -35,8 +35,8 @@ def correlate_cells(
         query_indptr = query_file['X/indptr'][()]
         n_query_rows = len(query_indptr)-1
         n_query_cols = len(query_genes)
-        rows_at_a_time = (gb_at_a_time*8.0*1024**3)/n_query_cols
-        rows_at_a_time = max(1, rows_at_a_time)
+        rows_at_a_time = np.round(gb_at_a_time*1024**3/(8*n_query_cols)).astype(int)
+        print(f"rows at a time {rows_at_a_time:.2e}")
 
         with h5py.File(precomputed_path, 'r') as reference_file:
             reference_genes = json.loads(
@@ -49,8 +49,9 @@ def correlate_cells(
                 raise RuntimeError(
                      "Cannot map celltypes; no gene overlaps")
 
-            reference_profiles = in_file['sum'][:, gene_idx['reference']]
-            reference_profiles = reference_profiles.transpose()/in_file['n_cells'][()]
+            reference_profiles = reference_file['sum'][()]
+            reference_profiles = reference_profiles[:, gene_idx['reference']]
+            reference_profiles = reference_profiles.transpose()/reference_file['n_cells'][()]
             reference_profiles = reference_profiles.transpose()
 
             print("starting correlation")
@@ -58,13 +59,16 @@ def correlate_cells(
             row_ct = 0
             with h5py.File(output_path, 'w') as out_file:
                 for r0 in range(0, n_query_rows, rows_at_a_time):
-                    r1 = min(n_query_rows, rows_at_a_time)
+                    r1 = min(n_query_rows, r0+rows_at_a_time)
+                    print(r0, r1, rows_at_a_time)
                     query_chunk = load_csr(
                             row_spec=(r0, r1),
                             n_cols=n_query_cols,
-                            data=query_file['data'],
-                            indices=query_file['indices'],
+                            data=query_file['X/data'],
+                            indices=query_file['X/indices'],
                             indptr=query_indptr)
+
+                    print("query_chunk",query_chunk.shape)
 
                     query_chunk = query_chunk[:, gene_idx['query']]
 
