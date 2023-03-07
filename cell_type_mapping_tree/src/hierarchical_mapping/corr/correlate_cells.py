@@ -95,6 +95,8 @@ def correlate_cells(
                     indices=query_file['X/indices'],
                     indptr=query_indptr)
 
+        query_chunk = query_chunk[:, gene_idx['query']]
+
         p = multiprocessing.Process(
                 target=_correlate_chunk,
                 kwargs={
