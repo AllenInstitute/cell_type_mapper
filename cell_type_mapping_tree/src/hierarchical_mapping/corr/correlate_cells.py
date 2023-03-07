@@ -120,7 +120,7 @@ def correlate_cells(
         p.join()
 
     duration = (time.time()-global_t0)/3600.0
-    print("all done -- that took {duration:.2e} hrs")
+    print(f"all done -- correlation took {duration:.2e} hrs")
 
 
 def _correlate_chunk(
