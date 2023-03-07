@@ -90,7 +90,12 @@ def n_genes(
     ct += len(l2_to_l1)
     ct += len(l1_to_l2_fixture[0])
     return ct
-        
+
+
+@pytest.fixture
+def gene_names(n_genes):
+    return [f"gene_{ii}" for ii in range(n_genes)]
+
     
 @pytest.fixture
 def cluster_list(class_to_cluster_fixture):
@@ -218,6 +223,7 @@ def cell_x_gene_fixture(
 def h5ad_path_fixture(
         cell_x_gene_fixture,
         records_fixture,
+        gene_names,
         tmp_path_factory):
 
     tmp_dir = pathlib.Path(
@@ -227,9 +233,14 @@ def h5ad_path_fixture(
 
     obs = pd.DataFrame(records_fixture)
 
+    var_data = [{'gene_name': g}
+                for g in gene_names]
+
+    var = pd.DataFrame(var_data).set_index('gene_name')
+
     csr = scipy_sparse.csr_matrix(cell_x_gene_fixture)
 
-    a_data = anndata.AnnData(X=csr, obs=obs)
+    a_data = anndata.AnnData(X=csr, obs=obs, var=var)
     a_data.write_h5ad(a_data_path)
 
     yield a_data_path
