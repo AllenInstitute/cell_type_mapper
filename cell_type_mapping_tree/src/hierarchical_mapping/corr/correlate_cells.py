@@ -118,6 +118,10 @@ def correlate_cells(
                     i_chunk=row_ct,
                     tot_chunks=n_query_rows,
                     unit='hr')
+
+    for p in process_list:
+        p.join()
+
     print("all done")
 
 
