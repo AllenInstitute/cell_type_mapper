@@ -150,7 +150,8 @@ def h5ad_path_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('anndata'))
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
-                             obs=obs_fixture)
+                             obs=obs_fixture,
+                             dtype=x_fixture.dtype)
     h5ad_path = tmp_dir / 'h5ad_file.h5ad'
     a_data.write_h5ad(h5ad_path, force_dense=False)
     import h5py

@@ -86,7 +86,7 @@ def test_rearrange_sparse_h5ad(
         data[156,:] = 0.0
 
     base_csr = scipy_sparse.csr_matrix(data)
-    a_data = anndata.AnnData(X=base_csr)
+    a_data = anndata.AnnData(X=base_csr, dtype=base_csr.dtype)
     a_data.write_h5ad(tmp_input_path)
 
     new_data = np.zeros(data.shape, dtype=data.dtype)

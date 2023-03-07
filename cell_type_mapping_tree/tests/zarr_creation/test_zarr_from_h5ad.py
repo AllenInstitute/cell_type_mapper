@@ -157,13 +157,10 @@ def h5ad_path_fixture(
 
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
                              obs=obs_fixture,
-                             var=var)
+                             var=var,
+                             dtype=x_fixture.dtype)
     h5ad_path = tmp_dir / 'h5ad_file.h5ad'
-    a_data.write_h5ad(h5ad_path,
-                      force_dense=False)
-    import h5py
-    with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
-        d = in_file['X']['data']
+    a_data.write_h5ad(h5ad_path)
     yield h5ad_path
     _clean_up(tmp_dir)
 
