@@ -5,9 +5,11 @@ import pytest
 
 import anndata
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     _clean_up)
@@ -244,5 +246,58 @@ def h5ad_path_fixture(
     a_data.write_h5ad(a_data_path)
 
     yield a_data_path
+
+    _clean_up(tmp_dir)
+
+
+@pytest.fixture
+def query_h5ad_path_fixture(
+        gene_names,
+        tmp_path_factory,
+        l1_to_l2_fixture):
+    """
+    Returns a path to an H5ad file that can be queried
+    against the clusters in h5ad_fixture_path
+    """
+    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('query_data'))
+    h5ad_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5ad')
+    os.close(h5ad_path[0])
+    h5ad_path = pathlib.Path(h5ad_path[1])
+
+    rng = np.random.default_rng(99887766)
+    tot_genes = len(gene_names)
+    query_genes = []
+    for ii in range(tot_genes, tot_genes-len(l1_to_l2_fixture[0]), -1):
+        query_genes.append(f"gene_{ii}")
+    others = np.arange(0, tot_genes-len(l1_to_l2_fixture[0]))
+    chosen = rng.choice(others, len(others)//4, replace=False)
+    for ii in chosen:
+        query_genes.append(f"gene_{ii}")
+    for ii in range(14):
+        query_genes.append(f"nonsense_{ii}")
+    query_genes = list(set(query_genes))
+    query_genes.sort()
+    rng.shuffle(query_genes)
+
+    n_query_genes = len(query_genes)
+    n_query_cells = 5555
+
+    x_data = np.zeros(n_query_genes*n_query_cells, dtype=float)
+    chosen_dex = rng.choice(np.arange(n_query_cells*n_query_genes),
+                            2*n_query_cells*n_query_genes//3,
+                            replace=False)
+    x_data[chosen_dex] = rng.random(len(chosen_dex))
+    x_data = x_data.reshape((n_query_cells, n_query_genes))
+    x_data = scipy_sparse.csr_matrix(x_data)
+
+    var_data = [{'gene_name': g}
+                for g in query_genes]
+    var = pd.DataFrame(var_data).set_index('gene_name')
+
+    a_data = anndata.AnnData(X=x_data, var=var)
+    a_data.write_h5ad(h5ad_path)
+    del a_data
+
+    yield h5ad_path
 
     _clean_up(tmp_dir)
