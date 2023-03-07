@@ -305,7 +305,7 @@ def brute_force_de_scores(
     return result
 
 
-def test_pipeline(
+def test_scoring_pipeline(
         h5ad_path_fixture,
         brute_force_de_scores,
         column_hierarchy,
