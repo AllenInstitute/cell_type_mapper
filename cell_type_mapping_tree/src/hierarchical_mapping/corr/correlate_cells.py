@@ -1,3 +1,4 @@
+import anndata
 import h5py
 import json
 import multiprocessing
@@ -22,7 +23,7 @@ def correlate_cells(
         query_path,
         precomputed_path,
         output_path,
-        gb_at_a_time=16,
+        rows_at_a_time=100000,
         n_processors=4):
     """
     query_path is the path to the h5ad file containing the query cells
@@ -32,12 +33,12 @@ def correlate_cells(
     output_path is the path to the HDF5 file that will be written
     correlating cells with clusters
     """
-
+    global_t0 = time.time()
     output_key = 'correlation'
 
+    query_genes = _get_query_genes(query_path)
+
     with h5py.File(query_path, 'r') as query_file:
-        query_genes = [s.decode('utf-8')
-                       for s in query_file['var/_index'][()]]
 
         query_indptr = query_file['X/indptr'][()]
         n_query_rows = len(query_indptr)-1
@@ -60,10 +61,6 @@ def correlate_cells(
         reference_profiles = reference_profiles.transpose()
 
         n_clusters = reference_profiles.shape[0]
-
-        rows_at_a_time = np.round(gb_at_a_time*1024**3/(8*n_clusters)).astype(int)
-        rows_at_a_time = max(1, rows_at_a_time)
-        print(f"rows at a time {rows_at_a_time:.2e}")
 
         with h5py.File(output_path, 'w') as out_file:
             out_file.create_dataset(
@@ -122,7 +119,7 @@ def correlate_cells(
     for p in process_list:
         p.join()
 
-    duration = (time.time()-t0)/3600.0
+    duration = (time.time()-global_t0)/3600.0
     print("all done -- that took {duration:.2e} hrs")
 
 
@@ -171,3 +168,9 @@ def _correlate_chunk(
     with output_lock:
         with h5py.File(output_path, 'a') as out_file:
             out_file[output_key][row_spec[0]: row_spec[1], :] = corr
+
+
+def _get_query_genes(query_path):
+    a_data = anndata.read_h5ad(query_path, backed='r')
+    n = list(a_data.var_names)
+    return n
