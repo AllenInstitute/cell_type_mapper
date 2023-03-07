@@ -74,8 +74,8 @@ def correlate_cells(
                 output_key,
                 shape=(n_query_rows, n_clusters),
                 dtype=float,
-                chunks=(max(1000, n_query_rows),
-                        max(1000, n_clusters)))
+                chunks=(min(1000, n_query_rows),
+                        min(1000, n_clusters)))
 
     print("starting correlation")
     t0 = time.time()
