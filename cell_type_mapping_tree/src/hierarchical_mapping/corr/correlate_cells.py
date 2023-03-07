@@ -122,7 +122,8 @@ def correlate_cells(
     for p in process_list:
         p.join()
 
-    print("all done")
+    duration = (time.time()-t0)/3600.0
+    print("all done -- that took {duration:.2e} hrs")
 
 
 def _correlate_chunk(
