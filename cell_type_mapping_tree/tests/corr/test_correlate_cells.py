@@ -132,7 +132,7 @@ def h5ad_fixture(
 
     csr = scipy_sparse.csr_matrix(x_data_fixture)
 
-    a_data = anndata.AnnData(X=csr, var=var)
+    a_data = anndata.AnnData(X=csr, var=var, dtype=csr.dtype)
     a_data.write_h5ad(h5ad_path)
 
     yield h5ad_path

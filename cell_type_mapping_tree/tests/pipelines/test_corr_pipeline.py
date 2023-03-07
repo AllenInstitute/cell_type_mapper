@@ -62,12 +62,12 @@ def test_correlation_pipeline_smoketest(
         rows_at_a_time=1000,
         n_processors=3)
 
+    assert corr_path.is_file()
+
     # make sure correlation matrix is not empty
     with h5py.File(corr_path, 'r') as in_file:
         corr = in_file['correlation'][()]
     zeros = np.zeros(corr.shape, dtype=corr.dtype)
     assert not np.allclose(zeros, corr)
-
-    assert corr_path.is_file()
 
     _clean_up(tmp_dir)
