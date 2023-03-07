@@ -5,7 +5,8 @@ import numpy as np
 from hierarchical_mapping.diff_exp.scores import (
     aggregate_stats,
     score_differential_genes,
-    diffexp_score)
+    diffexp_score,
+    rank_genes)
 
 
 @pytest.fixture
@@ -169,3 +170,23 @@ def test_diffexp_score():
         n2=35)
 
     assert scores[0] > scores[1]
+
+
+@pytest.mark.parametrize(
+    "scores, validity, expected",
+    [(np.array([0.0, 2.0, 1.0, 2.0, 3.0]),
+      np.array([True, False, True, True, False]),
+      np.array([3, 2, 0, 4, 1])),
+     (np.array([11.0, 0.0, 22.0, 17.0, 8.0]),
+      np.array([False, True, True, True, False]),
+      np.array([2, 3, 1, 0, 4]))
+    ])
+def test_rank_genes(
+        scores,
+        validity,
+        expected):
+
+    actual = rank_genes(
+                scores=scores,
+                validity=validity)
+    np.testing.assert_array_equal(expected, actual)

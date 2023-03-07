@@ -280,3 +280,32 @@ def aggregate_stats(
             'var': var,
             'mask': mask,
             'n_cells': n_cells}
+
+
+def rank_genes(
+        scores,
+        validity):
+    """
+    Parameters
+    ----------
+    scores:
+        An np.ndarray of floats; the diffexp scores
+        of each gene
+    validity:
+        An np.ndarray of booleans; a flag indicating
+        if the gene passed all of the validity tests
+
+    Returns
+    -------
+    ranked_list:
+        An np.ndarray of ints. ranked_list[0] is the index
+        of the best discriminator. ranked_list[-1] is the
+        index of the worst discriminator.
+
+        Valid genes are all ranked before invalid genes.
+    """
+    max_score = scores.max()
+    joint_stats = np.copy(scores)
+    joint_stats[validity] += max_score+1.0
+    sorted_dex = np.argsort(-1.0*joint_stats)
+    return sorted_dex
