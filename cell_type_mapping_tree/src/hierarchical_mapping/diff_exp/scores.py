@@ -6,6 +6,9 @@ import time
 from hierarchical_mapping.utils.utils import (
     print_timing)
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    DummyLock)
+
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
     get_siblings)
@@ -138,51 +141,81 @@ def score_all_taxonomy_pairs(
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
 
+    _score_pairs_worker(
+        precomputed_stats=precomputed_stats,
+        tree_as_leaves=tree_as_leaves,
+        idx_to_pair=idx_to_pair,
+        idx_values=idx_values,
+        n_genes=n_genes,
+        gt0_threshold=gt0_threshold,
+        gt1_threshold=gt1_threshold,
+        flush_every=flush_every,
+        output_path=output_path,
+        output_lock=None)
+
+
+def _score_pairs_worker(
+        precomputed_stats,
+        tree_as_leaves,
+        idx_to_pair,
+        idx_values,
+        n_genes,
+        gt0_threshold,
+        gt1_threshold,
+        flush_every,
+        output_path,
+        output_lock=None):
+
+    t0 = time.time()
+    if output_lock is None:
+        output_lock = DummyLock()
+
     ranked_list_buffer = np.zeros((flush_every, n_genes), dtype=int)
     validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
     score_buffer = np.zeros((flush_every, n_genes), dtype=float)
 
-    with h5py.File(output_path, 'a') as out_file:
-        buffer_idx = 0
-        ct = 0
-        for idx in idx_values:
-            sibling_pair = idx_to_pair[idx]
-            level = sibling_pair[0]
-            node1 = sibling_pair[1]
-            node2 = sibling_pair[2]
+    buffer_idx = 0
+    ct = 0
+    for idx in idx_values:
+        sibling_pair = idx_to_pair[idx]
+        level = sibling_pair[0]
+        node1 = sibling_pair[1]
+        node2 = sibling_pair[2]
 
-            pop1 = tree_as_leaves[level][node1]
-            pop2 = tree_as_leaves[level][node2]
-            (scores,
-             validity) = score_differential_genes(
-                             leaf_population_1=pop1,
-                             leaf_population_2=pop2,
-                             precomputed_stats=precomputed_stats,
-                             gt1_threshold=gt1_threshold,
-                             gt0_threshold=gt0_threshold)
+        pop1 = tree_as_leaves[level][node1]
+        pop2 = tree_as_leaves[level][node2]
+        (scores,
+         validity) = score_differential_genes(
+                         leaf_population_1=pop1,
+                         leaf_population_2=pop2,
+                         precomputed_stats=precomputed_stats,
+                         gt1_threshold=gt1_threshold,
+                         gt0_threshold=gt0_threshold)
 
-            ranked_list = rank_genes(
-                             scores=scores,
-                             validity=validity)
+        ranked_list = rank_genes(
+                         scores=scores,
+                         validity=validity)
 
-            ranked_list_buffer[buffer_idx, :] = ranked_list
-            score_buffer[buffer_idx, :] = scores
-            validity_buffer[buffer_idx, :] = validity
-            buffer_idx += 1
-            ct += 1
-            if buffer_idx == flush_every or idx==idx_values[-1]:
-                out_idx1 = idx+1
-                out_idx0 = out_idx1-buffer_idx
-                out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
-                out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
-                out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
-                buffer_idx = 0
+        ranked_list_buffer[buffer_idx, :] = ranked_list
+        score_buffer[buffer_idx, :] = scores
+        validity_buffer[buffer_idx, :] = validity
+        buffer_idx += 1
+        ct += 1
+        if buffer_idx == flush_every or idx==idx_values[-1]:
+            with output_lock:
+                 with h5py.File(output_path, 'a') as out_file:
+                    out_idx1 = idx+1
+                    out_idx0 = out_idx1-buffer_idx
+                    out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
+                    out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
+                    out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
+                    buffer_idx = 0
 
-                print_timing(
-                    t0=t0,
-                    i_chunk=ct+1,
-                    tot_chunks=n_sibling_pairs,
-                    unit='hr')
+            print_timing(
+                t0=t0,
+                i_chunk=ct+1,
+                tot_chunks=len(idx_values),
+                unit='hr')
 
 
 def read_precomputed_stats(
