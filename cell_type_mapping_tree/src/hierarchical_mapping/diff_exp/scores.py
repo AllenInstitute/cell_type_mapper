@@ -1,6 +1,10 @@
 import json
 import h5py
 import numpy as np
+import time
+
+from hierarchical_mapping.utils.utils import (
+    print_timing)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
@@ -14,6 +18,7 @@ from hierarchical_mapping.utils.stats_utils import (
 def score_all_taxonomy_pairs(
         precomputed_stats_path,
         taxonomy_tree,
+        output_path,
         gt1_threshold=0,
         gt0_threshold=1):
     """
@@ -33,23 +38,37 @@ def score_all_taxonomy_pairs(
         Dict encoding the taxonomy tree (created when we create the
         contiguous zarr file and stored in that file's metadata.json)
 
+    output_path:
+        Path to the HDF5 file where results will be stored
+
     gt1_thresdhold/gt0_threshold:
         Number of cells that must express above 0/1 in order to be
         considered a valid differential gene.
 
     Returns
     --------
-    A dict structured like
-        level ->
-            node1 ->
-                node2 ->
-                    score: score of genes comparing node1 to node2
-                    validity: mask of genes that pass the gt thresholds
-                    ranked_list: order of gene indexes from best to worst
-                                 discriminator
+    None
+        Data is written to HDF5 file
 
-    * keys are sorted so node1 always precedes node2 alphabetically.
+    Notes
+    -----
+    HDF5 file will contain the following datasets
+        'pair_to_idx' -> JSONized dict mapping [level][node1][node2] to row
+        index in other data arrays
+
+        'scores' -> (n_sibling_pairs, n_genes) array of differential expression
+        scores
+
+        'validity' -> (n_sibling_pairs, n_genes) array of booleans indicating
+        whether or not the gene passed the validity thresholds
+
+        'ranked_list' -> (n_sibling_pairs, n_genes) array of ints. Each row gives
+        the ranked indexes of the discriminator genes, i.e. if
+        ranked_list[2, :] = [9, 1,...., 101] then, for sibling pair at
+        idx=2 (see pair_to_idx), gene_9 is the best discriminator, gene_1 is
+        the second best discrminator, and gene_101 is the worst discriminator
     """
+
     hierarchy = taxonomy_tree['hierarchy']
 
     siblings = get_siblings(taxonomy_tree)
@@ -59,31 +78,89 @@ def score_all_taxonomy_pairs(
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
 
-    results = dict()
-    for sibling_set in siblings:
-        level = sibling_set[0]
-        node1 = sibling_set[1]
-        node2 = sibling_set[2]
-        if level not in results:
-            results[level] = dict()
-        if node1 not in results[level]:
-            results[level][node1] = dict()
+    n_sibling_pairs = len(siblings)
+    n_genes = len(precomputed_stats[list(precomputed_stats.keys())[0]]['sum'])
 
-        pop1 = tree_as_leaves[level][node1]
-        pop2 = tree_as_leaves[level][node2]
-        (scores,
-         validity) = score_differential_genes(
-                         leaf_population_1=pop1,
-                         leaf_population_2=pop2,
-                         precomputed_stats=precomputed_stats,
-                         gt1_threshold=gt1_threshold,
-                         gt0_threshold=gt0_threshold)
-        results[level][node1][node2] = {'score': scores,
-                                        'validity': validity,
-                                        'ranked_list': rank_genes(
-                                                           scores=scores,
-                                                           validity=validity)}
-    return results
+    pair_to_idx = dict()
+    pair_to_idx_out = dict()
+    for idx, sibling_pair in enumerate(siblings):
+        level = sibling_pair[0]
+        node1 = sibling_pair[1]
+        node2 = sibling_pair[2]
+        pair_to_idx[sibling_pair] = idx
+
+        if level not in pair_to_idx_out:
+            pair_to_idx_out[level] = dict()
+        if node1 not in pair_to_idx_out[level]:
+            pair_to_idx_out[level][node1] = dict()
+        if node2 not in pair_to_idx_out[level]:
+            pair_to_idx_out[level][node2] = dict()
+        
+        pair_to_idx_out[level][node1][node2] = idx
+        pair_to_idx_out[level][node2][node1] = idx
+
+
+    chunk_size = (max(1, min(1000000//n_genes, n_sibling_pairs)),
+                  n_genes)
+
+    with h5py.File(output_path, 'w') as out_file:
+        out_file.create_dataset(
+            'pair_to_idx',
+            data=json.dumps(pair_to_idx_out).encode('utf-8'))
+
+        out_file.create_dataset(
+            'validity',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=bool,
+            chunks=chunk_size,
+            compression='gzip')
+
+        out_file.create_dataset(
+            'ranked_list',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=int,
+            chunks=chunk_size,
+            compression='gzip')
+
+        out_file.create_dataset(
+            'scores',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=float,
+            chunks=chunk_size)
+
+    print("starting to score")
+    t0 = time.time()
+    with h5py.File(output_path, 'a') as out_file:
+        for ct, sibling_pair in enumerate(siblings):
+            level = sibling_pair[0]
+            node1 = sibling_pair[1]
+            node2 = sibling_pair[2]
+
+            sibling_idx = pair_to_idx[sibling_pair]
+
+            pop1 = tree_as_leaves[level][node1]
+            pop2 = tree_as_leaves[level][node2]
+            (scores,
+             validity) = score_differential_genes(
+                             leaf_population_1=pop1,
+                             leaf_population_2=pop2,
+                             precomputed_stats=precomputed_stats,
+                             gt1_threshold=gt1_threshold,
+                             gt0_threshold=gt0_threshold)
+
+            ranked_list = rank_genes(
+                             scores=scores,
+                             validity=validity)
+
+            out_file['ranked_list'][sibling_idx, :] = ranked_list
+            out_file['scores'][sibling_idx, :] = scores
+            out_file['validity'][sibling_idx, :] = validity
+            if ct >0 and ct % 100 == 0:
+                print_timing(
+                    t0=t0,
+                    i_chunk=ct+1,
+                    tot_chunks=n_sibling_pairs,
+                    unit='hr')
 
 
 def read_precomputed_stats(

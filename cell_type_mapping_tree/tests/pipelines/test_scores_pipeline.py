@@ -96,6 +96,7 @@ def test_scoring_pipeline(
     zarr_path = tmp_dir / 'zarr.zarr'
     hdf5_tmp = tmp_dir / 'hdf5'
     hdf5_tmp.mkdir()
+    score_path = tmp_dir / 'score_results.h5'
 
     contiguous_zarr_from_h5ad(
         h5ad_path=h5ad_path_fixture,
@@ -119,26 +120,31 @@ def test_scoring_pipeline(
             open(zarr_path / 'metadata.json', 'rb'))
     taxonomy_tree = metadata["taxonomy_tree"]
 
+    assert not score_path.is_file()
+
     actual_de = score_all_taxonomy_pairs(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
+            output_path=score_path,
             gt1_threshold=0,
             gt0_threshold=1)
 
-    assert len(actual_de) == len(brute_force_de_scores)
-    for level in brute_force_de_scores:
-        actual_level = actual_de[level]
-        expected_level = brute_force_de_scores[level]
-        assert len(actual_level) == len(expected_level)
-        for node1 in expected_level:
-            actual_node1 = actual_level[node1]
-            expected_node1 = expected_level[node1]
-            assert len(actual_node1) == len(expected_node1)
-            for node2 in expected_node1:
-                np.testing.assert_allclose(
-                    actual_node1[node2]['score'],
-                    expected_node1[node2],
-                    atol=1.0e-5,
-                    rtol=1.0e-4)
+    assert score_path.is_file()
+
+    with h5py.File(score_path, 'r') as in_file:
+        pair_to_idx = json.loads(in_file['pair_to_idx'][()].decode('utf-8'))
+
+        for level in brute_force_de_scores:
+            expected_level = brute_force_de_scores[level]
+            for node1 in expected_level:
+                expected_node1 = expected_level[node1]
+                for node2 in expected_node1:
+                    idx = pair_to_idx[level][node1][node2]
+                    actual_scores = in_file['scores'][idx, :]
+                    np.testing.assert_allclose(
+                        actual_scores,
+                        expected_node1[node2],
+                        atol=1.0e-5,
+                        rtol=1.0e-4)
 
     _clean_up(tmp_dir)
