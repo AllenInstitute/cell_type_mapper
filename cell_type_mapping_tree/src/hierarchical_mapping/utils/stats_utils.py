@@ -70,9 +70,7 @@ def welch_t_test(mean1, var1, n1, mean2, var2, n2):
         f_info = np.finfo(cdf.dtype)
         eps = f_info.smallest_normal
         ceil = 1.0-f_info.epsneg
-
-        cdf = np.where(cdf<ceil, cdf, ceil)
-        cdf = np.where(cdf > eps, cdf, eps)
+        cdf = np.clip(cdf, eps, ceil)
 
         pval = np.where(cdf<0.5, 2.0*cdf, 2.0*(1.0-cdf))
     return (tt, nu, pval)
