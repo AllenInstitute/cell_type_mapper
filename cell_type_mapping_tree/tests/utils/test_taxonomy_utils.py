@@ -2,6 +2,7 @@ import pytest
 import copy
 import numpy as np
 import json
+import itertools
 
 from hierarchical_mapping.utils.utils import json_clean_dict
 
@@ -10,7 +11,8 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     _get_rows_from_tree,
     compute_row_order,
     _get_leaves_from_tree,
-    convert_tree_to_leaves)
+    convert_tree_to_leaves,
+    get_siblings)
 
 
 @pytest.fixture
@@ -28,11 +30,20 @@ def l1_to_l2_fixture():
                "l1b": set(["l2b", "l2f"]),
                "l1c": set(["l2c"])}
 
+    siblings = [
+        ('level1', 'l1a', 'l1b'),
+        ('level1', 'l1a', 'l1c'),
+        ('level1', 'l1b', 'l1c'),
+        ('level2', 'l2a', 'l2d'),
+        ('level2', 'l2a', 'l2e'),
+        ('level2', 'l2d', 'l2e'),
+        ('level2', 'l2b', 'l2f')]
+
     backward = dict()
     for k in forward:
         for i in forward[k]:
             backward[i] = k
-    return forward, backward
+    return forward, backward, siblings
 
 
 @pytest.fixture
@@ -48,11 +59,19 @@ def l2_to_class_fixture():
                "l2e": set(["c9"]),
                "l2f": set(["c10", "c11"])}
 
+    siblings = [
+        ('class', 'c4', 'c5'),
+        ('class', 'c1', 'c6'),
+        ('class', 'c2', 'c7'),
+        ('class', 'c2', 'c8'),
+        ('class', 'c7', 'c8'),
+        ('class', 'c10', 'c11')]
+
     backward = dict()
     for k in forward:
         for i in forward[k]:
             backward[i] = k
-    return forward, backward
+    return forward, backward, siblings
 
 @pytest.fixture
 def class_to_cluster_fixture(l2_to_class_fixture):
@@ -60,20 +79,27 @@ def class_to_cluster_fixture(l2_to_class_fixture):
     Fixture modeling which cluster objects belong
     to which class objects
     """
+    rng = np.random.default_rng(98812)
     list_of_classes = list(l2_to_class_fixture[1].keys())
 
     forward = dict()
     backward = dict()
+    siblings = []
     ct = 0
     for c in list_of_classes:
         forward[c] = set()
-        for ii in range(4):
+        children_list = []
+        for ii in range(rng.integers(3, 7)):
             this = f"clu_{ct}"
+            children_list.append(this)
             ct += 1
             backward[this] = c
             forward[c].add(this)
+        children_list.sort()
+        for pair in itertools.combinations(children_list, 2):
+            siblings.append(('cluster', pair[0], pair[1]))
 
-    return forward, backward
+    return forward, backward, siblings
 
 
 @pytest.fixture
@@ -312,3 +338,26 @@ def test_convert_tree_to_leaves(
             actual = as_leaves[h][this_node]
             assert set(actual) == expected
             assert len(set(actual)) == len(actual)
+
+
+def test_get_siblings(
+        records_fixture,
+        column_hierarchy,
+        l1_to_l2_fixture,
+        l2_to_class_fixture,
+        class_to_cluster_fixture):
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    siblings = get_siblings(tree)
+
+    ct = 0
+    for expected in (l1_to_l2_fixture[2],
+                     l2_to_class_fixture[2],
+                     class_to_cluster_fixture[2]):
+        for el in expected:
+            assert el in siblings
+            ct += 1
+    assert len(siblings) == ct

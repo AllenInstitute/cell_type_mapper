@@ -1,4 +1,6 @@
 import copy
+import itertools
+
 
 def compute_row_order(
         obs_records: list,
@@ -205,16 +207,15 @@ def get_siblings(taxonomy_tree):
     results = []
     parent_list = list(taxonomy_tree[hierarchy[0]].keys())
     parent_list.sort()
-    for i0 in range(len(parent_list)):
-        for i1 in range(i0+1, len(parent_list), 1):
-            results.append((hierarchy[0], parent_list[i0], parent_list[i1]))
+    for pair in itertools.combinations(parent_list, 2):
+        results.append((hierarchy[0], pair[0], pair[1]))
 
     for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-        parent_list = tree[parent_level].keys()
+        parent_list = taxonomy_tree[parent_level].keys()
         for parent in parent_list:
-            child_list = copy.deepcopy(tree[parent_level][parent])
+            child_list = list(taxonomy_tree[parent_level][parent])
             child_list.sort()
-            for i0 in range(len(child_list)):
-                for i1 in range(i0+1, len(child_list), 1):
-                    results.append((parent, child_list[i0], child_list[i1]))
+            for pair in itertools.combinations(child_list, 2):
+                results.append((child_level, pair[0], pair[1]))
+
     return results
