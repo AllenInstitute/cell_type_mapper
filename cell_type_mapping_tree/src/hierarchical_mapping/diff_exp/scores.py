@@ -45,6 +45,8 @@ def score_all_taxonomy_pairs(
                 node2 ->
                     score: score of genes comparing node1 to node2
                     validity: mask of genes that pass the gt thresholds
+                    ranked_list: order of gene indexes from best to worst
+                                 discriminator
 
     * keys are sorted so node1 always precedes node2 alphabetically.
     """
@@ -69,15 +71,18 @@ def score_all_taxonomy_pairs(
 
         pop1 = tree_as_leaves[level][node1]
         pop2 = tree_as_leaves[level][node2]
-        (score,
+        (scores,
          validity) = score_differential_genes(
                          leaf_population_1=pop1,
                          leaf_population_2=pop2,
                          precomputed_stats=precomputed_stats,
                          gt1_threshold=gt1_threshold,
                          gt0_threshold=gt0_threshold)
-        results[level][node1][node2] = {'score': score,
-                                        'validity': validity}
+        results[level][node1][node2] = {'score': scores,
+                                        'validity': validity,
+                                        'ranked_list': rank_genes(
+                                                           scores=scores,
+                                                           validity=validity)}
     return results
 
 
