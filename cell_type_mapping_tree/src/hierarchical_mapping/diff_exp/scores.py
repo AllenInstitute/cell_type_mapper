@@ -19,7 +19,10 @@ def score_all_taxonomy_pairs(
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
-    taxonomy.
+    taxonomy*
+
+    * relevant pairs are defined as nodes in the tree that are
+    on the same level and share the same parent.
 
     Parameters
     ----------
