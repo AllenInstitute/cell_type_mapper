@@ -65,6 +65,15 @@ def welch_t_test(mean1, var1, n1, mean2, var2, n2):
         nu = nu_num*nu_num/nu_denom
         cdf = scipy_stats.t.cdf(tt, df=nu)
         cdf = np.where(np.isfinite(cdf), cdf, 0.5)
+
+        # clip CDF at min and max non extremal values
+        f_info = np.finfo(cdf.dtype)
+        eps = f_info.smallest_normal
+        ceil = 1.0-f_info.epsneg
+
+        cdf = np.where(cdf<ceil, cdf, ceil)
+        cdf = np.where(cdf > eps, cdf, eps)
+
         pval = np.where(cdf<0.5, 2.0*cdf, 2.0*(1.0-cdf))
     return (tt, nu, pval)
 
