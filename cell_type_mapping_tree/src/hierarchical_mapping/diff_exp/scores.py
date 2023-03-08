@@ -20,7 +20,8 @@ def score_all_taxonomy_pairs(
         taxonomy_tree,
         output_path,
         gt1_threshold=0,
-        gt0_threshold=1):
+        gt0_threshold=1,
+        flush_every=1000):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -44,6 +45,9 @@ def score_all_taxonomy_pairs(
     gt1_thresdhold/gt0_threshold:
         Number of cells that must express above 0/1 in order to be
         considered a valid differential gene.
+
+    flush_every:
+        Write to HDF5 every flush_every pairs
 
     Returns
     --------
@@ -81,13 +85,13 @@ def score_all_taxonomy_pairs(
     n_sibling_pairs = len(siblings)
     n_genes = len(precomputed_stats[list(precomputed_stats.keys())[0]]['sum'])
 
-    pair_to_idx = dict()
+    idx_to_pair = dict()
     pair_to_idx_out = dict()
     for idx, sibling_pair in enumerate(siblings):
         level = sibling_pair[0]
         node1 = sibling_pair[1]
         node2 = sibling_pair[2]
-        pair_to_idx[sibling_pair] = idx
+        idx_to_pair[idx] = sibling_pair
 
         if level not in pair_to_idx_out:
             pair_to_idx_out[level] = dict()
@@ -130,13 +134,22 @@ def score_all_taxonomy_pairs(
 
     print("starting to score")
     t0 = time.time()
+
+    idx_values = list(idx_to_pair.keys())
+    idx_values.sort()
+
+    ranked_list_buffer = np.zeros((flush_every, n_genes), dtype=int)
+    validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
+    score_buffer = np.zeros((flush_every, n_genes), dtype=float)
+
     with h5py.File(output_path, 'a') as out_file:
-        for ct, sibling_pair in enumerate(siblings):
+        buffer_idx = 0
+        ct = 0
+        for idx in idx_values:
+            sibling_pair = idx_to_pair[idx]
             level = sibling_pair[0]
             node1 = sibling_pair[1]
             node2 = sibling_pair[2]
-
-            sibling_idx = pair_to_idx[sibling_pair]
 
             pop1 = tree_as_leaves[level][node1]
             pop2 = tree_as_leaves[level][node2]
@@ -152,10 +165,19 @@ def score_all_taxonomy_pairs(
                              scores=scores,
                              validity=validity)
 
-            out_file['ranked_list'][sibling_idx, :] = ranked_list
-            out_file['scores'][sibling_idx, :] = scores
-            out_file['validity'][sibling_idx, :] = validity
-            if ct >0 and ct % 100 == 0:
+            ranked_list_buffer[buffer_idx, :] = ranked_list
+            score_buffer[buffer_idx, :] = scores
+            validity_buffer[buffer_idx, :] = validity
+            buffer_idx += 1
+            ct += 1
+            if buffer_idx == flush_every or idx==idx_values[-1]:
+                out_idx1 = idx+1
+                out_idx0 = out_idx1-buffer_idx
+                out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
+                out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
+                out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
+                buffer_idx = 0
+
                 print_timing(
                     t0=t0,
                     i_chunk=ct+1,
