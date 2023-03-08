@@ -13,7 +13,8 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
-    _get_rows_from_tree)
+    _get_rows_from_tree,
+    get_siblings)
 
 from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
@@ -39,11 +40,12 @@ def tree_fixture(
 def brute_force_de_scores(
         cell_x_gene_fixture,
         tree_fixture):
+
+    siblings = get_siblings(tree_fixture)
     data = cell_x_gene_fixture
     result = dict()
     hierarchy = tree_fixture['hierarchy']
     for level in hierarchy:
-        this_level = dict()
         node_list = list(tree_fixture[level].keys())
         node_list.sort()
         for i1 in range(len(node_list)):
@@ -56,9 +58,14 @@ def brute_force_de_scores(
             mu1 = np.mean(data[row1, :], axis=0)
             var1 = np.var(data[row1, :], axis=0, ddof=1)
             n1 = len(row1)
-            this_level[node1] = dict()
             for i2 in range(i1+1, len(node_list), 1):
                 node2 = node_list[i2]
+                if (level, node1, node2) not in siblings:
+                    continue
+                if level not in result:
+                    result[level] = dict()
+                if node1 not in result[level]:
+                    result[level][node1] = dict()
                 row2 = _get_rows_from_tree(
                             tree=tree_fixture,
                             level=level,
@@ -75,8 +82,7 @@ def brute_force_de_scores(
                             mean2=mu2,
                             var2=var2,
                             n2=n2)
-                this_level[node1][node2] = scores
-        result[level] = this_level
+                result[level][node1][node2] = scores
     return result
 
 

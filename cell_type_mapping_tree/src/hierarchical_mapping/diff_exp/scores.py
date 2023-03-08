@@ -3,7 +3,8 @@ import h5py
 import numpy as np
 
 from hierarchical_mapping.utils.taxonomy_utils import (
-    convert_tree_to_leaves)
+    convert_tree_to_leaves,
+    get_siblings)
 
 from hierarchical_mapping.utils.stats_utils import (
     welch_t_test,
@@ -45,33 +46,35 @@ def score_all_taxonomy_pairs(
     * keys are sorted so node1 always precedes node2 alphabetically.
     """
     hierarchy = taxonomy_tree['hierarchy']
+
+    siblings = get_siblings(taxonomy_tree)
+
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
 
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
 
     results = dict()
-    for level in hierarchy:
-        this_level = dict()
-        node_list = list(taxonomy_tree[level].keys())
-        node_list.sort()
-        for i1 in range(len(node_list)):
-            node1 = node_list[i1]
-            pop1 = tree_as_leaves[level][node1]
-            this_level[node1] = dict()
-            for i2 in range(i1+1, len(node_list), 1):
-                node2 = node_list[i2]
-                pop2 = tree_as_leaves[level][node2]
-                (score,
-                 validity) = score_differential_genes(
-                                 leaf_population_1=pop1,
-                                 leaf_population_2=pop2,
-                                 precomputed_stats=precomputed_stats,
-                                 gt1_threshold=gt1_threshold,
-                                 gt0_threshold=gt0_threshold)
-                this_level[node1][node2] = {'score': score,
-                                            'validity': validity}
-        results[level] = this_level
+    for sibling_set in siblings:
+        level = sibling_set[0]
+        node1 = sibling_set[1]
+        node2 = sibling_set[2]
+        if level not in results:
+            results[level] = dict()
+        if node1 not in results[level]:
+            results[level][node1] = dict()
+
+        pop1 = tree_as_leaves[level][node1]
+        pop2 = tree_as_leaves[level][node2]
+        (score,
+         validity) = score_differential_genes(
+                         leaf_population_1=pop1,
+                         leaf_population_2=pop2,
+                         precomputed_stats=precomputed_stats,
+                         gt1_threshold=gt1_threshold,
+                         gt0_threshold=gt0_threshold)
+        results[level][node1][node2] = {'score': score,
+                                        'validity': validity}
     return results
 
 
