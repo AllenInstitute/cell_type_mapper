@@ -1,10 +1,15 @@
 import json
 import h5py
+import multiprocessing
 import numpy as np
+import os
+import pathlib
+import tempfile
 import time
 
 from hierarchical_mapping.utils.utils import (
-    print_timing)
+    print_timing,
+    _clean_up)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     DummyLock)
@@ -24,7 +29,9 @@ def score_all_taxonomy_pairs(
         output_path,
         gt1_threshold=0,
         gt0_threshold=1,
-        flush_every=1000):
+        flush_every=1000,
+        n_processors=4,
+        tmp_dir=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -52,6 +59,9 @@ def score_all_taxonomy_pairs(
     flush_every:
         Write to HDF5 every flush_every pairs
 
+    n_processors:
+        Number of independent worker processes to spin out
+
     Returns
     --------
     None
@@ -75,6 +85,9 @@ def score_all_taxonomy_pairs(
         idx=2 (see pair_to_idx), gene_9 is the best discriminator, gene_1 is
         the second best discrminator, and gene_101 is the worst discriminator
     """
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    tmp_dir = pathlib.Path(tmp_dir)
 
     hierarchy = taxonomy_tree['hierarchy']
 
@@ -141,18 +154,53 @@ def score_all_taxonomy_pairs(
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
 
-    _score_pairs_worker(
-        precomputed_stats=precomputed_stats,
-        tree_as_leaves=tree_as_leaves,
-        idx_to_pair=idx_to_pair,
-        idx_values=idx_values,
-        n_genes=n_genes,
-        gt0_threshold=gt0_threshold,
-        gt1_threshold=gt1_threshold,
-        flush_every=flush_every,
-        output_path=output_path,
-        output_lock=None)
+    process_list = []
+    tmp_path_list = []
+    mgr = multiprocessing.Manager()
+    n_per = len(idx_values)//n_processors
+    for i_process in range(n_processors):
+        i0 = i_process*n_per
+        i1 = i0+n_per
+        if i_process == n_processors-1:
+            i1 = len(idx_values)
 
+        tmp_path = tempfile.mkstemp(
+                        dir=tmp_dir,
+                        suffix='.h5')
+        os.close(tmp_path[0])
+        tmp_path = pathlib.Path(tmp_path[1])
+
+        p = multiprocessing.Process(
+                target=_score_pairs_worker,
+                kwargs={
+                    'precomputed_stats': precomputed_stats,
+                    'tree_as_leaves': tree_as_leaves,
+                    'idx_to_pair': idx_to_pair,
+                    'idx_values': idx_values[i0:i1],
+                    'n_genes': n_genes,
+                    'gt0_threshold': gt0_threshold,
+                    'gt1_threshold': gt1_threshold,
+                    'flush_every': flush_every,
+                    'output_path': tmp_path,
+                    'output_lock': None})
+        p.start()
+        process_list.append(p)
+        tmp_path_list.append(tmp_path)
+
+    for p in process_list:
+        p.join()
+
+    with h5py.File(output_path, 'a') as out_file:
+        for tmp_path in tmp_path_list:
+            with h5py.File(tmp_path, 'r') as in_file:
+                bounds = in_file['bounds'][()]
+                for k in ('validity', 'scores', 'ranked_list'):
+                    out_file[k][bounds[0]:bounds[1], :] = in_file[k][()]
+            tmp_path.unlink()
+
+    _clean_up(tmp_dir)
+    duration = time.time()-t0
+    print(f"that took {duration/3600.0:.2e} hrs")
 
 def _score_pairs_worker(
         precomputed_stats,
@@ -165,6 +213,36 @@ def _score_pairs_worker(
         flush_every,
         output_path,
         output_lock=None):
+
+    n_sibling_pairs = len(idx_values)
+
+    chunk_size = (max(1, min(1000000//n_genes, n_sibling_pairs)),
+                  n_genes)
+
+    with h5py.File(output_path, 'w') as out_file:
+        out_file.create_dataset(
+            'bounds',
+            data=[idx_values[0], idx_values[-1]+1])
+
+        out_file.create_dataset(
+            'validity',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=bool,
+            chunks=chunk_size,
+            compression='gzip')
+
+        out_file.create_dataset(
+            'ranked_list',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=int,
+            chunks=chunk_size,
+            compression='gzip')
+
+        out_file.create_dataset(
+            'scores',
+            shape=(n_sibling_pairs, n_genes),
+            dtype=float,
+            chunks=chunk_size)
 
     t0 = time.time()
     if output_lock is None:
@@ -204,7 +282,7 @@ def _score_pairs_worker(
         if buffer_idx == flush_every or idx==idx_values[-1]:
             with output_lock:
                  with h5py.File(output_path, 'a') as out_file:
-                    out_idx1 = idx+1
+                    out_idx1 = idx+1-min(idx_values)
                     out_idx0 = out_idx1-buffer_idx
                     out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
                     out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
