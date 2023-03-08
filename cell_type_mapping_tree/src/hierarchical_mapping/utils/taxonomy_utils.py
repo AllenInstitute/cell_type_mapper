@@ -142,6 +142,7 @@ def convert_tree_to_leaves(
          taxonomy_tree):
      """
      Read in a taxonomy tree as computed by get_taxonomy_tree.
+
      Return a Dict structured like
          level ('class', 'subclass', 'cluster', etc.)
              -> node1 (a node on that level of the tree)
@@ -190,3 +191,30 @@ def _get_leaves_from_tree(
                         level=child_level,
                         this_node=this_child)
     return result
+
+
+def get_siblings(taxonomy_tree):
+    """
+    Read in a taxonomy tree as computed by get_taxonomy_tree.
+
+    Return a list of tuples (level, node1, node2) indicating
+    all of the siblings (nodes on the same level with the same
+    immediate ancestor) in that tree.
+    """
+    hierarchy = taxonomy_tree["hierarchy"]
+    results = []
+    parent_list = list(taxonomy_tree[hierarchy[0]].keys())
+    parent_list.sort()
+    for i0 in range(len(parent_list)):
+        for i1 in range(i0+1, len(parent_list), 1):
+            results.append((hierarchy[0], parent_list[i0], parent_list[i1]))
+
+    for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+        parent_list = tree[parent_level].keys()
+        for parent in parent_list:
+            child_list = copy.deepcopy(tree[parent_level][parent])
+            child_list.sort()
+            for i0 in range(len(child_list)):
+                for i1 in range(i0+1, len(child_list), 1):
+                    results.append((parent, child_list[i0], child_list[i1]))
+    return results
