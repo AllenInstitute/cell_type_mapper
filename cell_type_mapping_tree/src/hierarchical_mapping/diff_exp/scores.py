@@ -97,9 +97,10 @@ def score_all_taxonomy_pairs(
 
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
+    cluster_stats = precomputed_stats['cluster_stats']
 
     n_sibling_pairs = len(siblings)
-    n_genes = len(precomputed_stats[list(precomputed_stats.keys())[0]]['sum'])
+    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['sum'])
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()
@@ -124,6 +125,10 @@ def score_all_taxonomy_pairs(
                   n_genes)
 
     with h5py.File(output_path, 'w') as out_file:
+        out_file.create_dataset(
+            'gene_names',
+            data=json.dumps(precomputed_stats['gene_names']).encode('utf-8'))
+
         out_file.create_dataset(
             'pair_to_idx',
             data=json.dumps(pair_to_idx_out).encode('utf-8'))
@@ -174,7 +179,7 @@ def score_all_taxonomy_pairs(
         p = multiprocessing.Process(
                 target=_score_pairs_worker,
                 kwargs={
-                    'precomputed_stats': precomputed_stats,
+                    'cluster_stats': cluster_stats,
                     'tree_as_leaves': tree_as_leaves,
                     'idx_to_pair': idx_to_pair,
                     'idx_values': idx_values[i0:i1],
@@ -197,7 +202,7 @@ def score_all_taxonomy_pairs(
     print(f"that took {duration/3600.0:.2e} hrs")
 
 def _score_pairs_worker(
-        precomputed_stats,
+        cluster_stats,
         tree_as_leaves,
         idx_to_pair,
         idx_values,
@@ -216,8 +221,8 @@ def _score_pairs_worker(
 
     Parameters
     ----------
-    precomputed_stats:
-        Result of read_precomputed_stats
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
     tree_as_leaves:
         Result of convert_tree_to_leaves
     idx_to_pair:
@@ -295,7 +300,7 @@ def _score_pairs_worker(
          validity) = score_differential_genes(
                          leaf_population_1=pop1,
                          leaf_population_2=pop2,
-                         precomputed_stats=precomputed_stats,
+                         precomputed_stats=cluster_stats,
                          gt1_threshold=gt1_threshold,
                          gt0_threshold=gt0_threshold)
 
@@ -345,14 +350,22 @@ def read_precomputed_stats(
     precomputed_stats path and return a dict
 
     precomputed_stats:
-        Dict mapping leaf node name to
+        'gene_names': list of gene names
+        'cluster_stats': Dict mapping leaf node name to
             'n_cells'
             'sum'
             'sumsq'
             'gt0'
             'gt1'
     """
+
+    precomputed_stats = dict()
+
     with h5py.File(precomputed_stats_path, 'r') as in_file:
+
+        precomputed_stats['gene_names'] = json.loads(
+            in_file['col_names'][()].decode('utf-8'))
+
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
@@ -362,7 +375,7 @@ def read_precomputed_stats(
         gt0_arr = in_file['gt0'][()]
         gt1_arr = in_file['gt1'][()]
 
-    precomputed_stats = dict()
+    cluster_stats = dict()
     for leaf_name in row_lookup:
         idx = row_lookup[leaf_name]
         this = dict()
@@ -371,8 +384,9 @@ def read_precomputed_stats(
         this['sumsq'] = sumsq_arr[idx, :]
         this['gt0'] = gt0_arr[idx, :]
         this['gt1'] = gt1_arr[idx, :]
-        precomputed_stats[leaf_name] = this
+        cluster_stats[leaf_name] = this
 
+    precomputed_stats['cluster_stats'] = cluster_stats
     return precomputed_stats
 
 

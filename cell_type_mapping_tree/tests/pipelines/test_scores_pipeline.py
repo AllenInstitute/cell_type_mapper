@@ -91,6 +91,7 @@ def test_scoring_pipeline(
         brute_force_de_scores,
         column_hierarchy,
         tmp_path_factory,
+        gene_names,
         tree_fixture):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
@@ -143,6 +144,11 @@ def test_scoring_pipeline(
     assert score_path.is_file()
 
     with h5py.File(score_path, 'r') as in_file:
+
+        actual_gene_names = json.loads(
+            in_file['gene_names'][()].decode('utf-8'))
+        assert actual_gene_names == gene_names
+
         pair_to_idx = json.loads(in_file['pair_to_idx'][()].decode('utf-8'))
 
         for level in brute_force_de_scores:
