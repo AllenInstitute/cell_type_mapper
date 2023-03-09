@@ -157,6 +157,7 @@ def score_all_taxonomy_pairs(
     process_list = []
     tmp_path_list = []
     mgr = multiprocessing.Manager()
+    output_lock = mgr.Lock()
     n_per = len(idx_values)//n_processors
     for i_process in range(n_processors):
         i0 = i_process*n_per
@@ -181,22 +182,15 @@ def score_all_taxonomy_pairs(
                     'gt0_threshold': gt0_threshold,
                     'gt1_threshold': gt1_threshold,
                     'flush_every': flush_every,
-                    'output_path': tmp_path,
-                    'output_lock': None})
+                    'tmp_path': tmp_path,
+                    'output_path': output_path,
+                    'output_lock': output_lock})
         p.start()
         process_list.append(p)
         tmp_path_list.append(tmp_path)
 
     for p in process_list:
         p.join()
-
-    with h5py.File(output_path, 'a') as out_file:
-        for tmp_path in tmp_path_list:
-            with h5py.File(tmp_path, 'r') as in_file:
-                bounds = in_file['bounds'][()]
-                for k in ('validity', 'scores', 'ranked_list'):
-                    out_file[k][bounds[0]:bounds[1], :] = in_file[k][()]
-            tmp_path.unlink()
 
     _clean_up(tmp_dir)
     duration = time.time()-t0
@@ -211,18 +205,53 @@ def _score_pairs_worker(
         gt0_threshold,
         gt1_threshold,
         flush_every,
+        tmp_path,
         output_path,
         output_lock=None):
+    """
+    Score and rank differentiallly expressed genes for
+    a subset of taxonomic siblings. Write the results to
+    a temporary HDF5 file, then write the contents of that
+    file to the final output file.
 
+    Parameters
+    ----------
+    precomputed_stats:
+        Result of read_precomputed_stats
+    tree_as_leaves:
+        Result of convert_tree_to_leaves
+    idx_to_pair:
+        Dict mapping row in output file to
+        (level, node1, node2) sibling pair
+    idx_values:
+        Row indexes to be processed by this worker
+    n_genes:
+        Number of genes in dataset
+    gt0_threshold:
+        How many cells must express a gene above 0 for
+        it to be valid
+    gt1_threshold:
+        How many cells must express a gene above 1 for
+        it to be valid
+    flush_every:
+        Write to temporary output file every flush_every rows
+    tmp_path:
+        Path to temporary HDF5 file where results for this worker
+        will be stored (this process creates and destroys that file)
+    output_path:
+        Final output file
+    output_lock:
+        Multiprocessing lock to prevent multiple workers from writing
+        to file at output_path simultaneously
+    """
     n_sibling_pairs = len(idx_values)
 
     chunk_size = (max(1, min(1000000//n_genes, n_sibling_pairs)),
                   n_genes)
 
-    with h5py.File(output_path, 'w') as out_file:
-        out_file.create_dataset(
-            'bounds',
-            data=[idx_values[0], idx_values[-1]+1])
+    this_bounds = (idx_values[0], idx_values[-1]+1)
+
+    with h5py.File(tmp_path, 'w') as out_file:
 
         out_file.create_dataset(
             'validity',
@@ -281,7 +310,7 @@ def _score_pairs_worker(
         ct += 1
         if buffer_idx == flush_every or idx==idx_values[-1]:
             with output_lock:
-                 with h5py.File(output_path, 'a') as out_file:
+                 with h5py.File(tmp_path, 'a') as out_file:
                     out_idx1 = idx+1-min(idx_values)
                     out_idx0 = out_idx1-buffer_idx
                     out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
@@ -294,6 +323,19 @@ def _score_pairs_worker(
                 i_chunk=ct+1,
                 tot_chunks=len(idx_values),
                 unit='hr')
+
+    # write this output from the temporary file to
+    # the final output file
+    with output_lock:
+        d_write = max(1, 10000000//n_genes)
+        with h5py.File(tmp_path, 'r') as in_file:
+            with h5py.File(output_path, 'a') as out_file:
+                for i0 in range(this_bounds[0], this_bounds[1], d_write):
+                    i1 = min(this_bounds[1], i0+d_write)
+                    for k in ('ranked_list', 'scores', 'validity'):
+                        out_file[k][i0:i1] = in_file[k][i0-this_bounds[0]:
+                                                        i1-this_bounds[0]]
+    tmp_path.unlink()
 
 
 def read_precomputed_stats(
