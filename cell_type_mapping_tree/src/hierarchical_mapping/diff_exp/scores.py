@@ -16,7 +16,7 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
-    get_siblings)
+    get_all_pairs)
 
 from hierarchical_mapping.utils.stats_utils import (
     welch_t_test,
@@ -91,7 +91,7 @@ def score_all_taxonomy_pairs(
 
     hierarchy = taxonomy_tree['hierarchy']
 
-    siblings = get_siblings(taxonomy_tree)
+    siblings = get_all_pairs(taxonomy_tree)
 
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
 

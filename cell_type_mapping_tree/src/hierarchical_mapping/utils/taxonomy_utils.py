@@ -219,3 +219,17 @@ def get_siblings(taxonomy_tree):
                 results.append((child_level, pair[0], pair[1]))
 
     return results
+
+
+def get_all_pairs(taxonomy_tree):
+    """
+    Return all pairs of nodes that are on the same level
+    """
+    hierarchy = taxonomy_tree["hierarchy"]
+    results = []
+    for level in hierarchy:
+        element_list = list(taxonomy_tree[level].keys())
+        element_list.sort()
+        for pair in itertools.combinations(element_list, 2):
+            results.append((level, pair[0], pair[1]))
+    return results

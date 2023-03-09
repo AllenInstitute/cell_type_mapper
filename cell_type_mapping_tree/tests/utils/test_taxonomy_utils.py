@@ -12,7 +12,8 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     compute_row_order,
     _get_leaves_from_tree,
     convert_tree_to_leaves,
-    get_siblings)
+    get_siblings,
+    get_all_pairs)
 
 
 @pytest.fixture
@@ -359,5 +360,41 @@ def test_get_siblings(
                      class_to_cluster_fixture[2]):
         for el in expected:
             assert el in siblings
+            ct += 1
+    assert len(siblings) == ct
+
+
+def test_get_all_pairs(
+        records_fixture,
+        column_hierarchy,
+        l1_to_l2_fixture,
+        l2_to_class_fixture,
+        class_to_cluster_fixture):
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    siblings = get_all_pairs(tree)
+    ct = 0
+    for level, lookup in zip(('level1', 'level2', 'class'),
+                             (l1_to_l2_fixture[0],
+                              l2_to_class_fixture[0],
+                               class_to_cluster_fixture[0])):
+        elements = list(lookup.keys())
+        elements.sort()
+        for i0 in range(len(elements)):
+            for i1 in range(i0+1, len(elements), 1):
+                test = (level, elements[i0], elements[i1])
+                assert test in siblings
+                ct += 1
+    cluster_list = []
+    for k in class_to_cluster_fixture[0]:
+        cluster_list += list(class_to_cluster_fixture[0][k])
+    cluster_list.sort()
+    for i0 in range(len(cluster_list)):
+        for i1 in range(i0+1, len(cluster_list), 1):
+            test = ('cluster', cluster_list[i0], cluster_list[i1])
+            assert test in siblings
             ct += 1
     assert len(siblings) == ct

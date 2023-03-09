@@ -14,7 +14,7 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
-    get_siblings)
+    get_all_pairs)
 
 from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
@@ -41,7 +41,6 @@ def brute_force_de_scores(
         cell_x_gene_fixture,
         tree_fixture):
 
-    siblings = get_siblings(tree_fixture)
     data = cell_x_gene_fixture
     result = dict()
     hierarchy = tree_fixture['hierarchy']
@@ -60,8 +59,6 @@ def brute_force_de_scores(
             n1 = len(row1)
             for i2 in range(i1+1, len(node_list), 1):
                 node2 = node_list[i2]
-                if (level, node1, node2) not in siblings:
-                    continue
                 if level not in result:
                     result[level] = dict()
                 if node1 not in result[level]:
@@ -128,7 +125,7 @@ def test_scoring_pipeline(
     # divisor of the number of sibling pairs
     flush_every = 11
     n_processors = 3
-    siblings = get_siblings(tree_fixture)
+    siblings = get_all_pairs(tree_fixture)
     assert len(siblings) > (n_processors*flush_every)
     assert len(siblings) % (n_processors*flush_every) != 0
 
