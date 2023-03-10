@@ -28,6 +28,10 @@ from hierarchical_mapping.diff_exp.precompute import (
 
 
 @pytest.fixture
+def gt0_threshold():
+    return 1
+
+@pytest.fixture
 def tree_fixture(
         records_fixture,
         column_hierarchy):
@@ -39,7 +43,8 @@ def tree_fixture(
 @pytest.fixture
 def brute_force_de_scores(
         cell_x_gene_fixture,
-        tree_fixture):
+        tree_fixture,
+        gt0_threshold):
 
     data = cell_x_gene_fixture
     result = dict()
@@ -54,9 +59,11 @@ def brute_force_de_scores(
                         level=level,
                         this_node=node1)
             row1 = np.sort(np.array(row1))
-            mu1 = np.mean(data[row1, :], axis=0)
-            var1 = np.var(data[row1, :], axis=0, ddof=1)
+            data1 = data[row1, :]
+            mu1 = np.mean(data1, axis=0)
+            var1 = np.var(data1, axis=0, ddof=1)
             n1 = len(row1)
+            valid1 = ((data1 > 0).sum(axis=0) >= gt0_threshold)
             for i2 in range(i1+1, len(node_list), 1):
                 node2 = node_list[i2]
                 if level not in result:
@@ -69,9 +76,11 @@ def brute_force_de_scores(
                             this_node=node2)
 
                 row2 = np.sort(np.array(row2))
-                mu2 = np.mean(data[row2, :], axis=0)
-                var2 = np.var(data[row2,:], axis=0, ddof=1)
+                data2 = data[row2, :]
+                mu2 = np.mean(data2, axis=0)
+                var2 = np.var(data2, axis=0, ddof=1)
                 n2 = len(row2)
+                valid2 = ((data2 > 0).sum(axis=0) >= gt0_threshold)
                 scores = diffexp_score(
                             mean1=mu1,
                             var1=var1,
@@ -79,7 +88,9 @@ def brute_force_de_scores(
                             mean2=mu2,
                             var2=var2,
                             n2=n2)
-                result[level][node1][node2] = scores
+                result[level][node1][node2] = {'scores': scores,
+                                               'validity': np.logical_or(
+                                                             valid1, valid2)}
     return result
 
 
@@ -89,6 +100,7 @@ def test_scoring_pipeline(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
+        gt0_threshold,
         tree_fixture):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
@@ -134,7 +146,7 @@ def test_scoring_pipeline(
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
             gt1_threshold=0,
-            gt0_threshold=1,
+            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors)
 
@@ -157,8 +169,11 @@ def test_scoring_pipeline(
                     actual_scores = in_file['scores'][idx, :]
                     np.testing.assert_allclose(
                         actual_scores,
-                        expected_node1[node2],
+                        expected_node1[node2]['scores'],
                         atol=1.0e-5,
                         rtol=1.0e-4)
+                    np.testing.assert_array_equal(
+                        in_file['validity'][idx, :],
+                        expected_node1[node2]['validity'])
 
     _clean_up(tmp_dir)
