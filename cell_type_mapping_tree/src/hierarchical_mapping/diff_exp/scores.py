@@ -120,6 +120,7 @@ def score_all_taxonomy_pairs(
     cluster_stats = precomputed_stats['cluster_stats']
 
     n_sibling_pairs = len(siblings)
+    print(f"{n_sibling_pairs:.2e} sibling pairs")
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['sum'])
 
     idx_to_pair = dict()
