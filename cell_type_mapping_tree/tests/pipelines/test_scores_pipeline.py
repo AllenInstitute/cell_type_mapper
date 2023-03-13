@@ -18,7 +18,8 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 
 from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
-    score_all_taxonomy_pairs)
+    score_all_taxonomy_pairs,
+    rank_genes)
 
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
     contiguous_zarr_from_h5ad)
@@ -88,9 +89,11 @@ def brute_force_de_scores(
                             mean2=mu2,
                             var2=var2,
                             n2=n2)
+                validity = np.logical_or(valid1, valid2)
+                ranks = rank_genes(scores=scores, validity=validity)
                 result[level][node1][node2] = {'scores': scores,
-                                               'validity': np.logical_or(
-                                                             valid1, valid2)}
+                                               'validity': validity,
+                                               'ranked_list': ranks}
     return result
 
 
@@ -175,5 +178,8 @@ def test_scoring_pipeline(
                     np.testing.assert_array_equal(
                         in_file['validity'][idx, :],
                         expected_node1[node2]['validity'])
+                    np.testing.assert_array_equal(
+                        in_file['ranked_list'][idx, :],
+                        expected_node1[node2]['ranked_list'])
 
     _clean_up(tmp_dir)
