@@ -153,7 +153,7 @@ def h5ad_path_fixture(
                              obs=obs_fixture,
                              dtype=x_fixture.dtype)
     h5ad_path = tmp_dir / 'h5ad_file.h5ad'
-    a_data.write_h5ad(h5ad_path, force_dense=False)
+    a_data.write_h5ad(h5ad_path)
     import h5py
     with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
         d = in_file['X']['data']
