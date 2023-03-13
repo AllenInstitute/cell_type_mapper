@@ -31,7 +31,8 @@ def score_all_taxonomy_pairs(
         gt0_threshold=1,
         flush_every=1000,
         n_processors=4,
-        tmp_dir=None):
+        tmp_dir=None,
+        keep_all_stats=True):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -61,6 +62,11 @@ def score_all_taxonomy_pairs(
 
     n_processors:
         Number of independent worker processes to spin out
+
+    keep_all_stats:
+        If True, keep scores and validity as well as ranked_list
+        for each cell type pair. If False,  only keep ranked_list.
+        (True results in a much larger file than False)
 
     Returns
     --------
@@ -134,24 +140,25 @@ def score_all_taxonomy_pairs(
             data=json.dumps(pair_to_idx_out).encode('utf-8'))
 
         out_file.create_dataset(
-            'validity',
-            shape=(n_sibling_pairs, n_genes),
-            dtype=bool,
-            chunks=chunk_size,
-            compression='gzip')
-
-        out_file.create_dataset(
             'ranked_list',
             shape=(n_sibling_pairs, n_genes),
             dtype=int,
             chunks=chunk_size,
             compression='gzip')
 
-        out_file.create_dataset(
-            'scores',
-            shape=(n_sibling_pairs, n_genes),
-            dtype=float,
-            chunks=chunk_size)
+        if keep_all_stats:
+            out_file.create_dataset(
+                'validity',
+                shape=(n_sibling_pairs, n_genes),
+                dtype=bool,
+                chunks=chunk_size,
+                compression='gzip')
+
+            out_file.create_dataset(
+                'scores',
+                shape=(n_sibling_pairs, n_genes),
+                dtype=float,
+                chunks=chunk_size)
 
     print("starting to score")
     t0 = time.time()
@@ -188,6 +195,7 @@ def score_all_taxonomy_pairs(
                     'gt1_threshold': gt1_threshold,
                     'flush_every': flush_every,
                     'tmp_path': tmp_path,
+                    'keep_all_stats': keep_all_stats,
                     'output_path': output_path,
                     'output_lock': output_lock})
         p.start()
@@ -211,6 +219,7 @@ def _score_pairs_worker(
         gt1_threshold,
         flush_every,
         tmp_path,
+        keep_all_stats,
         output_path,
         output_lock=None):
     """
@@ -243,6 +252,10 @@ def _score_pairs_worker(
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates and destroys that file)
+    keep_all_stats:
+        If True, keep scores and validity as well as ranked_list
+        for each cell type pair. If False,  only keep ranked_list.
+        (True results in a much larger file than False)
     output_path:
         Final output file
     output_lock:
@@ -259,32 +272,35 @@ def _score_pairs_worker(
     with h5py.File(tmp_path, 'w') as out_file:
 
         out_file.create_dataset(
-            'validity',
-            shape=(n_sibling_pairs, n_genes),
-            dtype=bool,
-            chunks=chunk_size,
-            compression='gzip')
-
-        out_file.create_dataset(
             'ranked_list',
             shape=(n_sibling_pairs, n_genes),
             dtype=int,
             chunks=chunk_size,
             compression='gzip')
 
-        out_file.create_dataset(
-            'scores',
-            shape=(n_sibling_pairs, n_genes),
-            dtype=float,
-            chunks=chunk_size)
+        if keep_all_stats:
+            out_file.create_dataset(
+                'validity',
+                shape=(n_sibling_pairs, n_genes),
+                dtype=bool,
+                chunks=chunk_size,
+                compression='gzip')
+
+            out_file.create_dataset(
+                'scores',
+                shape=(n_sibling_pairs, n_genes),
+                dtype=float,
+                chunks=chunk_size)
 
     t0 = time.time()
     if output_lock is None:
         output_lock = DummyLock()
 
     ranked_list_buffer = np.zeros((flush_every, n_genes), dtype=int)
-    validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
-    score_buffer = np.zeros((flush_every, n_genes), dtype=float)
+
+    if keep_all_stats:
+        validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
+        score_buffer = np.zeros((flush_every, n_genes), dtype=float)
 
     buffer_idx = 0
     ct = 0
@@ -309,8 +325,11 @@ def _score_pairs_worker(
                          validity=validity)
 
         ranked_list_buffer[buffer_idx, :] = ranked_list
-        score_buffer[buffer_idx, :] = scores
-        validity_buffer[buffer_idx, :] = validity
+
+        if keep_all_stats:
+            score_buffer[buffer_idx, :] = scores
+            validity_buffer[buffer_idx, :] = validity
+
         buffer_idx += 1
         ct += 1
         if buffer_idx == flush_every or idx==idx_values[-1]:
@@ -319,8 +338,9 @@ def _score_pairs_worker(
                     out_idx1 = idx+1-min(idx_values)
                     out_idx0 = out_idx1-buffer_idx
                     out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
-                    out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
-                    out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
+                    if keep_all_stats:
+                        out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
+                        out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
                     buffer_idx = 0
 
             print_timing(
@@ -331,13 +351,18 @@ def _score_pairs_worker(
 
     # write this output from the temporary file to
     # the final output file
+    if keep_all_stats:
+        key_list = ('ranked_list', 'scores', 'validity')
+    else:
+        key_list = ('ranked_list', )
+
     with output_lock:
         d_write = max(1, 10000000//n_genes)
         with h5py.File(tmp_path, 'r') as in_file:
             with h5py.File(output_path, 'a') as out_file:
                 for i0 in range(this_bounds[0], this_bounds[1], d_write):
                     i1 = min(this_bounds[1], i0+d_write)
-                    for k in ('ranked_list', 'scores', 'validity'):
+                    for k in key_list:
                         out_file[k][i0:i1] = in_file[k][i0-this_bounds[0]:
                                                         i1-this_bounds[0]]
     tmp_path.unlink()

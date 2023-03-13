@@ -97,6 +97,8 @@ def brute_force_de_scores(
     return result
 
 
+@pytest.mark.parametrize(
+    "keep_all_stats", (True, False))
 def test_scoring_pipeline(
         h5ad_path_fixture,
         brute_force_de_scores,
@@ -104,7 +106,8 @@ def test_scoring_pipeline(
         tmp_path_factory,
         gene_names,
         gt0_threshold,
-        tree_fixture):
+        tree_fixture,
+        keep_all_stats):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
     zarr_path = tmp_dir / 'zarr.zarr'
@@ -151,11 +154,18 @@ def test_scoring_pipeline(
             gt1_threshold=0,
             gt0_threshold=gt0_threshold,
             flush_every=flush_every,
-            n_processors=n_processors)
+            n_processors=n_processors,
+            keep_all_stats=keep_all_stats)
 
     assert score_path.is_file()
 
     with h5py.File(score_path, 'r') as in_file:
+        if keep_all_stats:
+            assert 'scores' in in_file
+            assert 'validity' in in_file
+        else:
+            assert 'scores' not in in_file
+            assert 'validity' not in in_file
 
         actual_gene_names = json.loads(
             in_file['gene_names'][()].decode('utf-8'))
@@ -169,17 +179,21 @@ def test_scoring_pipeline(
                 expected_node1 = expected_level[node1]
                 for node2 in expected_node1:
                     idx = pair_to_idx[level][node1][node2]
-                    actual_scores = in_file['scores'][idx, :]
-                    np.testing.assert_allclose(
-                        actual_scores,
-                        expected_node1[node2]['scores'],
-                        atol=1.0e-5,
-                        rtol=1.0e-4)
-                    np.testing.assert_array_equal(
-                        in_file['validity'][idx, :],
-                        expected_node1[node2]['validity'])
                     np.testing.assert_array_equal(
                         in_file['ranked_list'][idx, :],
                         expected_node1[node2]['ranked_list'])
+
+                    if keep_all_stats:
+                        actual_scores = in_file['scores'][idx, :]
+
+                        np.testing.assert_allclose(
+                            actual_scores,
+                            expected_node1[node2]['scores'],
+                            atol=1.0e-5,
+                            rtol=1.0e-4)
+                        np.testing.assert_array_equal(
+                            in_file['validity'][idx, :],
+                            expected_node1[node2]['validity'])
+
 
     _clean_up(tmp_dir)
