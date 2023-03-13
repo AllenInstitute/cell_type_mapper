@@ -32,7 +32,8 @@ def score_all_taxonomy_pairs(
         flush_every=1000,
         n_processors=4,
         tmp_dir=None,
-        keep_all_stats=True):
+        keep_all_stats=True,
+        genes_to_keep=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -68,6 +69,13 @@ def score_all_taxonomy_pairs(
         for each cell type pair. If False,  only keep ranked_list.
         (True results in a much larger file than False)
 
+    genes_to_keep:
+        If None, store data for all genes. If an integer, keep only the
+        top-ranked genes_to_keep genes.
+
+        Since validity, scores and ranked_list are not in the same order,
+        can only call non-none genes_to_keep if keep_all_stats is False.
+
     Returns
     --------
     None
@@ -91,6 +99,12 @@ def score_all_taxonomy_pairs(
         idx=2 (see pair_to_idx), gene_9 is the best discriminator, gene_1 is
         the second best discrminator, and gene_101 is the worst discriminator
     """
+
+    if genes_to_keep is not None and keep_all_stats:
+        raise RuntimeError(
+            "Cannot have non-None genes_to_keep if "
+            "keep_all_stats is True; "
+            f"you have genes_to_keep={genes_to_keep}")
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_dir = pathlib.Path(tmp_dir)
@@ -127,8 +141,12 @@ def score_all_taxonomy_pairs(
         pair_to_idx_out[level][node2][node1] = idx
 
 
-    chunk_size = (max(1, min(1000000//n_genes, n_sibling_pairs)),
-                  n_genes)
+    n_genes_to_keep = n_genes
+    if genes_to_keep is not None:
+        n_genes_to_keep = genes_to_keep
+
+    chunk_size = (max(1, min(1000000//n_genes_to_keep, n_sibling_pairs)),
+                  n_genes_to_keep)
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
@@ -141,7 +159,7 @@ def score_all_taxonomy_pairs(
 
         out_file.create_dataset(
             'ranked_list',
-            shape=(n_sibling_pairs, n_genes),
+            shape=(n_sibling_pairs, n_genes_to_keep),
             dtype=int,
             chunks=chunk_size,
             compression='gzip')
@@ -196,6 +214,7 @@ def score_all_taxonomy_pairs(
                     'flush_every': flush_every,
                     'tmp_path': tmp_path,
                     'keep_all_stats': keep_all_stats,
+                    'genes_to_keep': genes_to_keep,
                     'output_path': output_path,
                     'output_lock': output_lock})
         p.start()
@@ -220,6 +239,7 @@ def _score_pairs_worker(
         flush_every,
         tmp_path,
         keep_all_stats,
+        genes_to_keep,
         output_path,
         output_lock=None):
     """
@@ -256,16 +276,32 @@ def _score_pairs_worker(
         If True, keep scores and validity as well as ranked_list
         for each cell type pair. If False,  only keep ranked_list.
         (True results in a much larger file than False)
+    genes_to_keep:
+        If None, store data for all genes. If an integer, keep only the
+        top-ranked genes_to_keep genes.
+
+        Since validity, scores and ranked_list are not in the same order,
+        can only call non-none genes_to_keep if keep_all_stats is False.
     output_path:
         Final output file
     output_lock:
         Multiprocessing lock to prevent multiple workers from writing
         to file at output_path simultaneously
     """
+    if genes_to_keep is not None and keep_all_stats:
+        raise RuntimeError(
+            "Cannot have non-None genes_to_keep if "
+            "keep_all_stats is True; "
+            f"you have genes_to_keep={genes_to_keep}")
+
+    n_genes_to_keep = n_genes
+    if genes_to_keep is not None:
+        n_genes_to_keep = genes_to_keep
+
     n_sibling_pairs = len(idx_values)
 
-    chunk_size = (max(1, min(1000000//n_genes, n_sibling_pairs)),
-                  n_genes)
+    chunk_size = (max(1, min(1000000//n_genes_to_keep, n_sibling_pairs)),
+                  n_genes_to_keep)
 
     this_bounds = (idx_values[0], idx_values[-1]+1)
 
@@ -273,7 +309,7 @@ def _score_pairs_worker(
 
         out_file.create_dataset(
             'ranked_list',
-            shape=(n_sibling_pairs, n_genes),
+            shape=(n_sibling_pairs, n_genes_to_keep),
             dtype=int,
             chunks=chunk_size,
             compression='gzip')
@@ -296,7 +332,7 @@ def _score_pairs_worker(
     if output_lock is None:
         output_lock = DummyLock()
 
-    ranked_list_buffer = np.zeros((flush_every, n_genes), dtype=int)
+    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep), dtype=int)
 
     if keep_all_stats:
         validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
@@ -323,6 +359,9 @@ def _score_pairs_worker(
         ranked_list = rank_genes(
                          scores=scores,
                          validity=validity)
+
+        if genes_to_keep is not None:
+            ranked_list = ranked_list[:n_genes_to_keep]
 
         ranked_list_buffer[buffer_idx, :] = ranked_list
 
@@ -357,7 +396,7 @@ def _score_pairs_worker(
         key_list = ('ranked_list', )
 
     with output_lock:
-        d_write = max(1, 10000000//n_genes)
+        d_write = max(1, 10000000//n_genes_to_keep)
         with h5py.File(tmp_path, 'r') as in_file:
             with h5py.File(output_path, 'a') as out_file:
                 for i0 in range(this_bounds[0], this_bounds[1], d_write):

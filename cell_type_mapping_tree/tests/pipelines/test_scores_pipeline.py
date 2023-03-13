@@ -98,7 +98,11 @@ def brute_force_de_scores(
 
 
 @pytest.mark.parametrize(
-    "keep_all_stats", (True, False))
+    "keep_all_stats, to_keep_frac",
+    [(True, None),
+     (False, None),
+     (False, 3)
+    ])
 def test_scoring_pipeline(
         h5ad_path_fixture,
         brute_force_de_scores,
@@ -107,7 +111,16 @@ def test_scoring_pipeline(
         gene_names,
         gt0_threshold,
         tree_fixture,
-        keep_all_stats):
+        keep_all_stats,
+        to_keep_frac):
+
+    n_genes = len(gene_names)
+    if to_keep_frac is not None:
+        genes_to_keep = n_genes // to_keep_frac
+        assert genes_to_keep > 0
+        assert genes_to_keep < n_genes
+    else:
+        genes_to_keep = None
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
     zarr_path = tmp_dir / 'zarr.zarr'
@@ -155,7 +168,8 @@ def test_scoring_pipeline(
             gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
-            keep_all_stats=keep_all_stats)
+            keep_all_stats=keep_all_stats,
+            genes_to_keep=genes_to_keep)
 
     assert score_path.is_file()
 
@@ -179,9 +193,12 @@ def test_scoring_pipeline(
                 expected_node1 = expected_level[node1]
                 for node2 in expected_node1:
                     idx = pair_to_idx[level][node1][node2]
+                    expected_rank = expected_node1[node2]['ranked_list']
+                    if genes_to_keep is not None:
+                        expected_rank = expected_rank[:genes_to_keep]
                     np.testing.assert_array_equal(
                         in_file['ranked_list'][idx, :],
-                        expected_node1[node2]['ranked_list'])
+                        expected_rank)
 
                     if keep_all_stats:
                         actual_scores = in_file['scores'][idx, :]
