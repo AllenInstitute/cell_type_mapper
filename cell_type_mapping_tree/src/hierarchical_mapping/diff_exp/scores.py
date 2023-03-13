@@ -161,11 +161,17 @@ def score_all_taxonomy_pairs(
             ii: idx_to_pair.pop(ii)
             for ii in this_idx_values}
 
+        (this_cluster_stats,
+         this_tree_as_leaves) = _get_this_cluster_stats(
+            cluster_stats=cluster_stats,
+            idx_to_pair=this_idx_to_pair,
+            tree_as_leaves=tree_as_leaves)
+
         p = multiprocessing.Process(
                 target=_score_pairs_worker,
                 kwargs={
-                    'cluster_stats': cluster_stats,
-                    'tree_as_leaves': tree_as_leaves,
+                    'cluster_stats': this_cluster_stats,
+                    'tree_as_leaves': this_tree_as_leaves,
                     'idx_to_pair': this_idx_to_pair,
                     'idx_values': this_idx_values,
                     'n_genes': n_genes,
@@ -183,6 +189,10 @@ def score_all_taxonomy_pairs(
 
     del cluster_stats
     del tree_as_leaves
+    del this_cluster_stats
+    del this_idx_values
+    del this_idx_to_pair
+    del this_tree_as_leaves
 
     for p in process_list:
         p.join()
@@ -190,6 +200,46 @@ def score_all_taxonomy_pairs(
     _clean_up(tmp_dir)
     duration = time.time()-t0
     print(f"that took {duration/3600.0:.2e} hrs")
+
+
+
+def _get_this_cluster_stats(
+        cluster_stats,
+        idx_to_pair,
+        tree_as_leaves):
+    """
+    Take global cluster_stats and an idx_to_pair dict.
+    Return cluster_stats containing only those clusters that
+    participate in idx_to_pair
+
+    Also returns a sub-sampled tree_as_leaves
+
+    Returns
+    -------
+    this_cluster_stats
+    this_tree_as_leaves
+    """
+    t0 = time.time()
+    leaf_set = set()
+    this_cluster_stats = dict()
+    this_tree_as_leaves = dict()
+    for idx in idx_to_pair:
+        sibling_pair = idx_to_pair[idx]
+        level = sibling_pair[0]
+        if level not in this_tree_as_leaves:
+            this_tree_as_leaves[level] = dict()
+        for node in (sibling_pair[1], sibling_pair[2]):
+            if node not in this_tree_as_leaves[level]:
+                this_tree_as_leaves[level][node] = tree_as_leaves[level][node]
+                for leaf in tree_as_leaves[level][node]:
+                    leaf_set.add(leaf)
+
+    for node in leaf_set:
+        this_cluster_stats[node] = cluster_stats[node]
+
+    dur = time.time()-t0
+    print(f"getting this_cluster_stats took {dur:.2e} seconds -- {len(leaf_set)} nodes")
+    return this_cluster_stats, this_tree_as_leaves
 
 
 def _prep_output_file(
