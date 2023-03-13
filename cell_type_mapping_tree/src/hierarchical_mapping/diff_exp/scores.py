@@ -111,15 +111,15 @@ def score_all_taxonomy_pairs(
 
     hierarchy = taxonomy_tree['hierarchy']
 
-    siblings = get_all_pairs(taxonomy_tree)
-
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
 
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
     cluster_stats = precomputed_stats['cluster_stats']
+    gene_names = precomputed_stats['gene_names']
+    del precomputed_stats
 
-    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['sum'])
+    n_genes = len(gene_names)
 
     n_genes_to_keep = n_genes
     if genes_to_keep is not None:
@@ -127,11 +127,11 @@ def score_all_taxonomy_pairs(
 
     idx_to_pair = _prep_output_file(
             output_path=output_path,
-            siblings=siblings,
+            taxonomy_tree=taxonomy_tree,
             n_genes=n_genes,
             n_genes_to_keep=n_genes_to_keep,
             keep_all_stats=keep_all_stats,
-            gene_names=precomputed_stats['gene_names'])
+            gene_names=gene_names)
 
     print("starting to score")
     t0 = time.time()
@@ -181,6 +181,9 @@ def score_all_taxonomy_pairs(
         process_list.append(p)
         tmp_path_list.append(tmp_path)
 
+    del cluster_stats
+    del tree_as_leaves
+
     for p in process_list:
         p.join()
 
@@ -191,7 +194,7 @@ def score_all_taxonomy_pairs(
 
 def _prep_output_file(
        output_path,
-       siblings,
+       taxonomy_tree,
        n_genes,
        n_genes_to_keep,
        keep_all_stats,
@@ -204,9 +207,9 @@ def _prep_output_file(
     ----------
     output_path:
         Path to the HDF5 file
-    siblings:
-        List of (level, node1, node2) siblings that need
-        to be compared
+    taxonomy_tree:
+        Dict encoding the taxonomy tree (created when we create the
+        contiguous zarr file and stored in that file's metadata.json)
     n_genes:
         Total number of genes in the data set
     n_genes_to_keep:
@@ -231,7 +234,7 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-
+    siblings = get_all_pairs(taxonomy_tree)
     n_sibling_pairs = len(siblings)
     print(f"{n_sibling_pairs:.2e} sibling pairs")
 
