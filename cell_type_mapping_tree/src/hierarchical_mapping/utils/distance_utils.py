@@ -1,6 +1,35 @@
 import numpy as np
 
 
+def correlation_nearest_neighbors(
+        baseline_array,
+        query_array):
+    """
+    Find the index of the nearest neighbors (by correlation
+    distance) of the cells in
+
+    Parameters
+    ----------
+    baseline_array:
+        A (n_cells_0, n_genes) np.ndarray. The cell x gene data
+        from which nearest neighbors will be drawn
+    query_array:
+        A (n_cells_1, n_genes) np.ndarray. The cell x gene data
+        whose nearest neighbors are desired
+
+    Returns
+    -------
+    A (n_cells_1, ) np.ndarray of integers representing
+    the index of the nearest cell from baseline_arry to each
+    cell in query_array (i.e. the returned value at 11 is the
+    nearest neighbor of query_array[11, :])
+    """
+    distances = correlation_distance(
+                    arr0=baseline_array,
+                    arr1=query_array)
+    return np.argmin(distances, axis=0)
+
+
 def correlation_distance(
         arr0,
         arr1):
