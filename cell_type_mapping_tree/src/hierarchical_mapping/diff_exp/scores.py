@@ -119,9 +119,121 @@ def score_all_taxonomy_pairs(
            precomputed_stats_path)
     cluster_stats = precomputed_stats['cluster_stats']
 
+    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['sum'])
+
+    n_genes_to_keep = n_genes
+    if genes_to_keep is not None:
+        n_genes_to_keep = genes_to_keep
+
+    idx_to_pair = _prep_output_file(
+            output_path=output_path,
+            siblings=siblings,
+            n_genes=n_genes,
+            n_genes_to_keep=n_genes_to_keep,
+            keep_all_stats=keep_all_stats,
+            gene_names=precomputed_stats['gene_names'])
+
+    print("starting to score")
+    t0 = time.time()
+
+    idx_values = list(idx_to_pair.keys())
+    idx_values.sort()
+
+    process_list = []
+    tmp_path_list = []
+    mgr = multiprocessing.Manager()
+    output_lock = mgr.Lock()
+    n_per = len(idx_values)//n_processors
+    for i_process in range(n_processors):
+        i0 = i_process*n_per
+        i1 = i0+n_per
+        if i_process == n_processors-1:
+            i1 = len(idx_values)
+
+        tmp_path = tempfile.mkstemp(
+                        dir=tmp_dir,
+                        suffix='.h5')
+        os.close(tmp_path[0])
+        tmp_path = pathlib.Path(tmp_path[1])
+
+        this_idx_values = idx_values[i0:i1]
+        this_idx_to_pair = {
+            ii: idx_to_pair.pop(ii)
+            for ii in this_idx_values}
+
+        p = multiprocessing.Process(
+                target=_score_pairs_worker,
+                kwargs={
+                    'cluster_stats': cluster_stats,
+                    'tree_as_leaves': tree_as_leaves,
+                    'idx_to_pair': this_idx_to_pair,
+                    'idx_values': this_idx_values,
+                    'n_genes': n_genes,
+                    'gt0_threshold': gt0_threshold,
+                    'gt1_threshold': gt1_threshold,
+                    'flush_every': flush_every,
+                    'tmp_path': tmp_path,
+                    'keep_all_stats': keep_all_stats,
+                    'genes_to_keep': genes_to_keep,
+                    'output_path': output_path,
+                    'output_lock': output_lock})
+        p.start()
+        process_list.append(p)
+        tmp_path_list.append(tmp_path)
+
+    for p in process_list:
+        p.join()
+
+    _clean_up(tmp_dir)
+    duration = time.time()-t0
+    print(f"that took {duration/3600.0:.2e} hrs")
+
+
+def _prep_output_file(
+       output_path,
+       siblings,
+       n_genes,
+       n_genes_to_keep,
+       keep_all_stats,
+       gene_names):
+    """
+    Create the HDF5 file where the differential gene scoring stats
+    will be stored.
+
+    Parameters
+    ----------
+    output_path:
+        Path to the HDF5 file
+    siblings:
+        List of (level, node1, node2) siblings that need
+        to be compared
+    n_genes:
+        Total number of genes in the data set
+    n_genes_to_keep:
+        Number of genes we are actually keeping
+        (should only differ from n_genes if keep_all_stats
+        is False)
+    keep_all_stats:
+        True if we are storing scores and validity;
+        False otherwise
+    gene_names:
+        Ordered list of gene names for entire dataset
+
+    Returns
+    -------
+    idx_to_pair:
+        Dict mapping the row index of a sibling pair
+        in the final output file to that sibling pair's
+        (level, node1, node2) specification.
+
+    Notes
+    -----
+    This method also creates the file at output_path with
+    empty datasets for the stats that need to be saved.
+    """
+
     n_sibling_pairs = len(siblings)
     print(f"{n_sibling_pairs:.2e} sibling pairs")
-    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['sum'])
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()
@@ -137,14 +249,9 @@ def score_all_taxonomy_pairs(
             pair_to_idx_out[level][node1] = dict()
         if node2 not in pair_to_idx_out[level]:
             pair_to_idx_out[level][node2] = dict()
-        
+
         pair_to_idx_out[level][node1][node2] = idx
         pair_to_idx_out[level][node2][node1] = idx
-
-
-    n_genes_to_keep = n_genes
-    if genes_to_keep is not None:
-        n_genes_to_keep = genes_to_keep
 
     chunk_size = (max(1, min(1000000//n_genes_to_keep, n_sibling_pairs)),
                   n_genes_to_keep)
@@ -152,7 +259,7 @@ def score_all_taxonomy_pairs(
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
             'gene_names',
-            data=json.dumps(precomputed_stats['gene_names']).encode('utf-8'))
+            data=json.dumps(gene_names).encode('utf-8'))
 
         out_file.create_dataset(
             'pair_to_idx',
@@ -179,55 +286,7 @@ def score_all_taxonomy_pairs(
                 dtype=float,
                 chunks=chunk_size)
 
-    print("starting to score")
-    t0 = time.time()
-
-    idx_values = list(idx_to_pair.keys())
-    idx_values.sort()
-
-    process_list = []
-    tmp_path_list = []
-    mgr = multiprocessing.Manager()
-    output_lock = mgr.Lock()
-    n_per = len(idx_values)//n_processors
-    for i_process in range(n_processors):
-        i0 = i_process*n_per
-        i1 = i0+n_per
-        if i_process == n_processors-1:
-            i1 = len(idx_values)
-
-        tmp_path = tempfile.mkstemp(
-                        dir=tmp_dir,
-                        suffix='.h5')
-        os.close(tmp_path[0])
-        tmp_path = pathlib.Path(tmp_path[1])
-
-        p = multiprocessing.Process(
-                target=_score_pairs_worker,
-                kwargs={
-                    'cluster_stats': cluster_stats,
-                    'tree_as_leaves': tree_as_leaves,
-                    'idx_to_pair': idx_to_pair,
-                    'idx_values': idx_values[i0:i1],
-                    'n_genes': n_genes,
-                    'gt0_threshold': gt0_threshold,
-                    'gt1_threshold': gt1_threshold,
-                    'flush_every': flush_every,
-                    'tmp_path': tmp_path,
-                    'keep_all_stats': keep_all_stats,
-                    'genes_to_keep': genes_to_keep,
-                    'output_path': output_path,
-                    'output_lock': output_lock})
-        p.start()
-        process_list.append(p)
-        tmp_path_list.append(tmp_path)
-
-    for p in process_list:
-        p.join()
-
-    _clean_up(tmp_dir)
-    duration = time.time()-t0
-    print(f"that took {duration/3600.0:.2e} hrs")
+    return idx_to_pair
 
 def _score_pairs_worker(
         cluster_stats,
