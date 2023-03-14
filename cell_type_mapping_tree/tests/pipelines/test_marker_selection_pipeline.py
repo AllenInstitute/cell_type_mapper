@@ -37,10 +37,11 @@ def gt0_threshold():
 
 
 @pytest.mark.parametrize(
-    "keep_all_stats, to_keep_frac",
-    [(True, None),
-     (False, None),
-     (False, 3)
+    "keep_all_stats, to_keep_frac, from_root",
+    [(True, None, False),
+     (False, None, False),
+     (False, 3, False),
+     (False, None, True)
     ])
 def test_marker_selection_pipeline(
         h5ad_path_fixture,
@@ -49,7 +50,8 @@ def test_marker_selection_pipeline(
         gene_names,
         gt0_threshold,
         keep_all_stats,
-        to_keep_frac):
+        to_keep_frac,
+        from_root):
     """
     Just a smoke test
     """
@@ -113,10 +115,13 @@ def test_marker_selection_pipeline(
     query_genes = rng.choice(gene_names, n_genes//3, replace=False)
     query_genes = list(query_genes)
 
-    level = taxonomy_tree['hierarchy'][1]
-    k_list = list(taxonomy_tree[level].keys())
-    k_list.sort()
-    parent_node = (level, k_list[0])
+    if from_root:
+        parent_node = None
+    else:
+        level = taxonomy_tree['hierarchy'][1]
+        k_list = list(taxonomy_tree[level].keys())
+        k_list.sort()
+        parent_node = (level, k_list[0])
 
     marker_genes = select_marker_genes(
         taxonomy_tree=taxonomy_tree,

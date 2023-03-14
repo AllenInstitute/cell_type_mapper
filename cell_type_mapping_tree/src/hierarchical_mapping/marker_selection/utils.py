@@ -36,6 +36,10 @@ def select_marker_genes(
         A tuple of the type (level, node) denoting the node
         we know these query cells belong to (so, we are selecting
         the marker genes for discribinating the level below this)
+
+        If parent_node is None, then assume that we are selecting
+        marker genes for the highest level of the taxonomy
+
     score_path:
         Path to the HDF5 file containing the ranked_list of
         marker genes for all taxonomic pairs in the
@@ -63,29 +67,33 @@ def select_marker_genes(
     hierarchy = taxonomy_tree['hierarchy']
     leaf_level = hierarchy[-1]
 
-    if parent_node[0] == leaf_level:
-        raise RuntimeError(
-            "No need to select marker genes; you are already "
-            "in the leaf level of the taxonomy\n"
-            f"parent_node: {parent_node}")
+    if parent_node is not None:
+        if parent_node[0] == leaf_level:
+            raise RuntimeError(
+                "No need to select marker genes; you are already "
+                "in the leaf level of the taxonomy\n"
+               f"parent_node: {parent_node}")
 
-    # find the level in the hierarchy that is the immediate
-    # child of parent_node[0]
-    for child_level_idx, level in enumerate(hierarchy):
-        if level == parent_node[0]:
-            break
-    child_level_idx += 1
+        # find the level in the hierarchy that is the immediate
+        # child of parent_node[0]
+        for child_level_idx, level in enumerate(hierarchy):
+            if level == parent_node[0]:
+                break
+        child_level_idx += 1
 
-    if child_level_idx > len(hierarchy):
-        raise RuntimeError(
-            f"Somehow, child_level_idx={child_level_idx}\n"
-            f"while the hierarchy has {len(hierarchy)} levels;\n"
-            f"parent_node = {parent_node}")
-    child_level = hierarchy[child_level_idx]
+        if child_level_idx > len(hierarchy):
+            raise RuntimeError(
+                f"Somehow, child_level_idx={child_level_idx}\n"
+                f"while the hierarchy has {len(hierarchy)} levels;\n"
+                f"parent_node = {parent_node}")
+        child_level = hierarchy[child_level_idx]
 
-    # all of the siblings that directly inherit from
-    # parent_node[0]
-    siblings = taxonomy_tree[parent_node[0]][parent_node[1]]
+        # all of the siblings that directly inherit from
+        # parent_node[0]
+        siblings = taxonomy_tree[parent_node[0]][parent_node[1]]
+    else:
+        siblings = list(taxonomy_tree[hierarchy[0]].keys())
+        child_level = hierarchy[0]
 
     with h5py.File(score_path, 'r') as in_file:
         pair_to_idx = json.loads(
