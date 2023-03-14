@@ -121,6 +121,14 @@ def score_all_taxonomy_pairs(
     del precomputed_stats
 
     n_genes = len(gene_names)
+    if n_genes < 2**8:
+        rank_dtype = np.uint8
+    elif n_genes < 2**16:
+        rank_dtype = np.uint16
+    elif n_genes < 2**32:
+        rank_dtype = np.uint32
+    else:
+        rank_dtype = np.uint
 
     n_genes_to_keep = n_genes
     if genes_to_keep is not None:
@@ -132,7 +140,8 @@ def score_all_taxonomy_pairs(
             n_genes=n_genes,
             n_genes_to_keep=n_genes_to_keep,
             keep_all_stats=keep_all_stats,
-            gene_names=gene_names)
+            gene_names=gene_names,
+            rank_dtype=rank_dtype)
 
     print("starting to score")
     t0 = time.time()
@@ -181,6 +190,7 @@ def score_all_taxonomy_pairs(
                     'flush_every': flush_every,
                     'tmp_path': tmp_path,
                     'keep_all_stats': keep_all_stats,
+                    'rank_dtype': rank_dtype,
                     'genes_to_keep': genes_to_keep,
                     'output_path': output_path,
                     'output_lock': output_lock})
@@ -249,7 +259,8 @@ def _prep_output_file(
        n_genes,
        n_genes_to_keep,
        keep_all_stats,
-       gene_names):
+       gene_names,
+       rank_dtype):
     """
     Create the HDF5 file where the differential gene scoring stats
     will be stored.
@@ -272,6 +283,8 @@ def _prep_output_file(
         False otherwise
     gene_names:
         Ordered list of gene names for entire dataset
+    rank_dtype:
+        The dtype to use when storing ranked_lists of genes
 
     Returns
     -------
@@ -322,7 +335,7 @@ def _prep_output_file(
         out_file.create_dataset(
             'ranked_list',
             shape=(n_sibling_pairs, n_genes_to_keep),
-            dtype=int,
+            dtype=rank_dtype,
             chunks=chunk_size,
             compression='gzip')
 
@@ -353,6 +366,7 @@ def _score_pairs_worker(
         flush_every,
         tmp_path,
         keep_all_stats,
+        rank_dtype,
         genes_to_keep,
         output_path,
         output_lock=None):
@@ -390,6 +404,8 @@ def _score_pairs_worker(
         If True, keep scores and validity as well as ranked_list
         for each cell type pair. If False,  only keep ranked_list.
         (True results in a much larger file than False)
+    rank_dtype:
+        The dtype to use when storing ranked lists of genes
     genes_to_keep:
         If None, store data for all genes. If an integer, keep only the
         top-ranked genes_to_keep genes.
@@ -424,7 +440,7 @@ def _score_pairs_worker(
         out_file.create_dataset(
             'ranked_list',
             shape=(n_sibling_pairs, n_genes_to_keep),
-            dtype=int,
+            dtype=rank_dtype,
             chunks=chunk_size,
             compression='gzip')
 
