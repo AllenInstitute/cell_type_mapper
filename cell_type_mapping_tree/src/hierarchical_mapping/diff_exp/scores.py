@@ -512,7 +512,7 @@ def _score_pairs_worker(
                 buffer_idx = 0
 
             n_bytes = file_size_in_bytes(tmp_path)
-            msg = f"file size {n_bytes/(1024**3)} GB"
+            msg = f"file size {n_bytes/(1024**3):.2e} GB"
             print_timing(
                 t0=t0,
                 i_chunk=ct+1,
