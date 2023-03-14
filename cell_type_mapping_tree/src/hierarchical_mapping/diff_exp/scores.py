@@ -9,7 +9,6 @@ import time
 
 from hierarchical_mapping.utils.utils import (
     print_timing,
-    file_size_in_bytes,
     _clean_up)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
@@ -511,14 +510,11 @@ def _score_pairs_worker(
                     out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
                 buffer_idx = 0
 
-            n_bytes = file_size_in_bytes(tmp_path)
-            msg = f"file size {n_bytes/(1024**3):.2e} GB"
             print_timing(
                 t0=t0,
                 i_chunk=ct+1,
                 tot_chunks=len(idx_values),
-                unit='hr',
-                msg=msg)
+                unit='hr')
 
     # write this output from the temporary file to
     # the final output file
