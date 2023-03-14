@@ -462,7 +462,7 @@ def _score_pairs_worker(
     if output_lock is None:
         output_lock = DummyLock()
 
-    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep), dtype=int)
+    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep), dtype=rank_dtype)
 
     if keep_all_stats:
         validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
@@ -493,7 +493,7 @@ def _score_pairs_worker(
         if genes_to_keep is not None:
             ranked_list = ranked_list[:n_genes_to_keep]
 
-        ranked_list_buffer[buffer_idx, :] = ranked_list
+        ranked_list_buffer[buffer_idx, :] = ranked_list.astype(rank_dtype)
 
         if keep_all_stats:
             score_buffer[buffer_idx, :] = scores
