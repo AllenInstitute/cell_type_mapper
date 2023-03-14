@@ -486,15 +486,14 @@ def _score_pairs_worker(
         buffer_idx += 1
         ct += 1
         if buffer_idx == flush_every or idx==idx_values[-1]:
-            with output_lock:
-                 with h5py.File(tmp_path, 'a') as out_file:
-                    out_idx1 = idx+1-min(idx_values)
-                    out_idx0 = out_idx1-buffer_idx
-                    out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
-                    if keep_all_stats:
-                        out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
-                        out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
-                    buffer_idx = 0
+            with h5py.File(tmp_path, 'a') as out_file:
+                out_idx1 = idx+1-min(idx_values)
+                out_idx0 = out_idx1-buffer_idx
+                out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
+                if keep_all_stats:
+                    out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
+                    out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
+                buffer_idx = 0
 
             n_bytes = file_size_in_bytes(tmp_path)
             msg = f"file size {n_bytes/(1024**3)} GB"
