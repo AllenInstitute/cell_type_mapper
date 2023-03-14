@@ -1,5 +1,6 @@
 import h5py
 import itertools
+import json
 import numpy as np
 import multiprocessing
 
@@ -71,7 +72,7 @@ def select_marker_genes(
             break
     child_level_idx += 1
 
-    if child_level_idx > len(hierachy):
+    if child_level_idx > len(hierarchy):
         raise RuntimeError(
             f"Somehow, child_level_idx={child_level_idx}\n"
             f"while the hierarchy has {len(hierarchy)} levels;\n"
@@ -100,28 +101,37 @@ def select_marker_genes(
             idx = pair_to_idx[leaf_level][leaf_pair[0]][leaf_pair[1]]
             leaf_pair_idx_set.add(idx)
 
-    leaf_pair_idx_arr = np.sort(np.array(leaf_pair_idx_set))
+    leaf_pair_idx_arr = np.sort(np.array(list(leaf_pair_idx_set)))
 
     gene_overlap = match_genes(
             reference_gene_names=reference_gene_names,
-            query_gene_names=query_gene_names)
+            query_gene_names=query_genes)
 
     valid_reference_genes = set(gene_overlap['reference'])
     row0 = leaf_pair_idx_arr.min()
-    keep_going = True
     marker_set = set()
 
-    with h5py.File(sort_path, 'r') as in_file:
-        while keep_going:
-            row1 = row0 + rows_at_a_time
+    with h5py.File(score_path, 'r') as in_file:
+        arr_shape = in_file['ranked_list'].shape
+        while True:
+            row1 = min(row0 + rows_at_a_time, arr_shape[0])
             rank_chunk = in_file['ranked_list'][row0:row1, :]
-            marker_set += _process_rank_chunk(
-                              valid_rows=leaf_pair_idx_set,
-                              valid_genes=valid_reference_genes,
-                              rank_chunk=rank_chunk,
-                              row0=row0,
-                              row1=row1,
-                              genes_per_pair=genes_per_pair)
+            marker_set = marker_set.union(
+                            _process_rank_chunk(
+                                 valid_rows=leaf_pair_idx_set,
+                                 valid_genes=valid_reference_genes,
+                                 rank_chunk=rank_chunk,
+                                 row0=row0,
+                                 row1=row1,
+                                 genes_per_pair=genes_per_pair))
+
+            next_rows = np.where(leaf_pair_idx_arr >= row1)[0]
+            if len(next_rows) == 0:
+                break
+            row0 = leaf_pair_idx_arr[next_rows.min()]
+
+    return marker_set
+
 
 def _process_rank_chunk(
         valid_rows,

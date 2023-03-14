@@ -1,12 +1,36 @@
+import pytest
 import numpy as np
 
 from hierarchical_mapping.marker_selection.utils import (
     _process_rank_chunk)
 
 
-def test_process_rank_chunk():
-    valid_rows = set([2, 6, 7, 11])
-    valid_genes = set(np.arange(5, 27))
+
+@pytest.mark.parametrize(
+    "valid_rows, valid_genes, genes_per_pair, expected",
+    [(set([2, 6, 7, 11]),
+      set(np.arange(5, 27)),
+      3,
+      set([8, 22, 6, 9, 13])),
+     (set([2, 6, 7, 11]),
+      set(np.arange(5, 27)),
+      2,
+      set([8, 22, 6, 9])),
+     (set([2, 6, 7, 11]),
+      set([99, 98, 100]),
+      3,
+      set([])),
+     (set([400, 401, 402]),
+      set(np.arange(5, 27)),
+      3,
+      set([]))
+    ])
+def test_process_rank_chunk(
+        valid_rows,
+        valid_genes,
+        genes_per_pair,
+        expected):
+
     row0 = 4
     row1 = 15
     rank_chunk = np.ones((row1-row0, 14), dtype=int)
@@ -22,10 +46,6 @@ def test_process_rank_chunk():
 
     rank_chunk[7][11] = 8
     rank_chunk[7][12] = 22
-
-    genes_per_pair = 3
-
-    expected = set([8, 22, 6, 9, 13])
 
     actual = _process_rank_chunk(
                 valid_rows=valid_rows,
