@@ -173,7 +173,6 @@ def select_marker_genes(
                 while len(process_list) >= n_processors:
                     process_list = winnow_process_list(process_list)
                     if len(output_dict) > 0:
-                        print("output_dict",output_dict)
                         with output_lock:
                             k_list = list(output_dict.keys())
                             for k in k_list:
