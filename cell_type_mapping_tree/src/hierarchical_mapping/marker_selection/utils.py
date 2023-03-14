@@ -9,7 +9,8 @@ from hierarchical_mapping.utils.utils import (
     print_timing)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    winnow_process_list)
+    winnow_process_list,
+    DummyLock)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves)
@@ -123,21 +124,61 @@ def select_marker_genes(
     row0 = leaf_pair_idx_arr.min()
     marker_set = set()
 
+    if n_processors > 1:
+        mgr = multiprocessing.Manager()
+        output_dict = mgr.dict()
+        output_lock = mgr.Lock()
+    else:
+        mgr = None
+        output_dict = dict()
+        output_lock = DummyLock()
+
     t0 = time.time()
+    process_list = []
     with h5py.File(score_path, 'r') as in_file:
         arr_shape = in_file['ranked_list'].shape
         n_chunks = arr_shape[0]
         while True:
             row1 = min(row0 + rows_at_a_time, arr_shape[0])
             rank_chunk = in_file['ranked_list'][row0:row1, :]
-            marker_set = marker_set.union(
-                            _process_rank_chunk(
-                                 valid_rows=leaf_pair_idx_set,
-                                 valid_genes=valid_reference_genes,
-                                 rank_chunk=rank_chunk,
-                                 row0=row0,
-                                 row1=row1,
-                                 genes_per_pair=genes_per_pair))
+
+            if mgr is None:
+                _process_rank_chunk_worker(
+                    valid_rows=leaf_pair_idx_set,
+                    valid_genes=valid_reference_genes,
+                    rank_chunk=rank_chunk,
+                    row0=row0,
+                    row1=row1,
+                    genes_per_pair=genes_per_pair,
+                    output_dict=output_dict,
+                    output_lock=output_lock)
+                k_list = list(output_dict.keys())
+                for k in k_list:
+                    marker_set = marker_set.union(
+                                    output_dict.pop(k))
+            else:
+                p = multiprocessing.Process(
+                        target=_process_rank_chunk_worker,
+                        kwargs={
+                            'valid_rows': leaf_pair_idx_set,
+                            'valid_genes': valid_reference_genes,
+                            'rank_chunk': rank_chunk,
+                            'row0': row0,
+                            'row1': row1,
+                            'genes_per_pair': genes_per_pair,
+                            'output_dict': output_dict,
+                            'output_lock': output_lock})
+                p.start()
+                process_list.append(p)
+                while len(process_list) >= n_processors:
+                    process_list = winnow_process_list(process_list)
+                    if len(output_dict) > 0:
+                        print("output_dict",output_dict)
+                        with output_lock:
+                            k_list = list(output_dict.keys())
+                            for k in k_list:
+                                marker_set = marker_set.union(
+                                                output_dict.pop(k))
 
             next_rows = np.where(leaf_pair_idx_arr >= row1)[0]
             if len(next_rows) == 0:
@@ -149,7 +190,36 @@ def select_marker_genes(
                 i_chunk=row0,
                 unit='hr')
 
+    for p in process_list:
+        p.join()
+    k_list = list(output_dict.keys())
+    for k in k_list:
+        marker_set = marker_set.union(
+                        output_dict.pop(k))
+
     return marker_set
+
+
+def _process_rank_chunk_worker(
+        valid_rows,
+        valid_genes,
+        rank_chunk,
+        row0,
+        row1,
+        genes_per_pair,
+        output_dict,
+        output_lock):
+
+    marker_set = _process_rank_chunk(
+        valid_rows=valid_rows,
+        valid_genes=valid_genes,
+        rank_chunk=rank_chunk,
+        row0=row0,
+        row1=row1,
+        genes_per_pair=genes_per_pair)
+
+    with output_lock:
+        output_dict[(row0, row1)] = marker_set
 
 
 def _process_rank_chunk(

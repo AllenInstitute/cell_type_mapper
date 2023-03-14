@@ -37,11 +37,12 @@ def gt0_threshold():
 
 
 @pytest.mark.parametrize(
-    "keep_all_stats, to_keep_frac, from_root",
-    [(True, None, False),
-     (False, None, False),
-     (False, 3, False),
-     (False, None, True)
+    "keep_all_stats, to_keep_frac, from_root, n_selection_processors",
+    [(True, None, False, 3),
+     (False, None, False, 3),
+     (False, 3, False, 3),
+     (False, None, True, 3),
+     (False, None, True, 1)
     ])
 def test_marker_selection_pipeline(
         h5ad_path_fixture,
@@ -51,7 +52,8 @@ def test_marker_selection_pipeline(
         gt0_threshold,
         keep_all_stats,
         to_keep_frac,
-        from_root):
+        from_root,
+        n_selection_processors):
     """
     Just a smoke test
     """
@@ -129,7 +131,8 @@ def test_marker_selection_pipeline(
         score_path=score_path,
         query_genes=query_genes,
         genes_per_pair=5,
-        rows_at_a_time=27)
+        rows_at_a_time=27,
+        n_processors=n_selection_processors)
 
     assert len(marker_genes) > 0
 
