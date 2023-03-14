@@ -1,8 +1,19 @@
 import pytest
+
+import h5py
+import itertools
+import json
 import numpy as np
+import os
+import pathlib
+import tempfile
+
+from hierarchical_mapping.utils.utils import (
+    _clean_up)
 
 from hierarchical_mapping.marker_selection.utils import (
-    _process_rank_chunk)
+    _process_rank_chunk,
+    select_marker_genes)
 
 
 
@@ -56,3 +67,164 @@ def test_process_rank_chunk(
                 genes_per_pair=genes_per_pair)
 
     assert actual == expected
+
+
+
+@pytest.fixture
+def tree_fixture():
+    rng = np.random.default_rng(712312)
+    taxonomy_tree = dict()
+    hierarchy = ['class', 'subclass', 'division', 'cluster']
+    available = dict()
+    uuid = 0
+    for i_parent in range(len(hierarchy)-1):
+        parent_level = hierarchy[i_parent]
+        child_level = hierarchy[i_parent+1]
+        if parent_level not in available:
+            parent_list = [f'{parent_level}_0', f'{parent_level}_1']
+        else:
+            parent_list = available[parent_level]
+        available[child_level] = []
+        taxonomy_tree[parent_level] = dict()
+        for parent in parent_list:
+            n_children = rng.integers(2,5)
+            taxonomy_tree[parent_level][parent] = []
+            for ii in range(n_children):
+                name = f'{child_level}_{uuid}'
+                uuid += 1
+                taxonomy_tree[parent_level][parent].append(name)
+                available[child_level].append(name)
+
+    leaf_level = hierarchy[-1]
+    taxonomy_tree[leaf_level] = dict()
+    for ii, leaf in enumerate(available[leaf_level]):
+        taxonomy_tree[leaf_level][leaf] = [2*ii, 2*ii+1]
+
+    taxonomy_tree['hierarchy'] = hierarchy
+    return taxonomy_tree
+
+
+@pytest.fixture
+def gene_names_fixture():
+    result = []
+    for ii in range(47):
+        result.append(f'g_{ii}')
+    return result
+
+
+@pytest.fixture
+def score_path_fixture(
+        tree_fixture,
+        gene_names_fixture,
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('marker_selection'))
+
+    rng = np.random.default_rng(667123)
+
+    score_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5')
+    os.close(score_path[0])
+    score_path = pathlib.Path(score_path[1])
+
+    parent = tree_fixture['hierarchy'][-2]
+    leaves = []
+    for k in tree_fixture[parent]:
+        leaves += list(tree_fixture[parent][k])
+    pair_to_idx = dict()
+    leaf_level = tree_fixture['hierarchy'][-1]
+    pair_to_idx[leaf_level] = dict()
+    idx = 0
+    for pair in itertools.combinations(leaves, 2):
+        if pair[0] not in pair_to_idx[leaf_level]:
+            pair_to_idx[leaf_level][pair[0]] = dict()
+        if pair[1] not in pair_to_idx[leaf_level]:
+            pair_to_idx[leaf_level][pair[1]] = dict()
+        pair_to_idx[leaf_level][pair[1]][pair[0]] = idx
+        pair_to_idx[leaf_level][pair[0]][pair[1]] = idx
+        idx += 1
+
+    data = rng.integers(0,
+                        len(gene_names_fixture),
+                        size=(idx, 7)).astype(np.uint8)
+
+    with h5py.File(score_path, 'w') as out_file:
+        out_file.create_dataset(
+            'gene_names',
+            data=json.dumps(gene_names_fixture).encode('utf-8'))
+        out_file.create_dataset(
+            'pair_to_idx',
+            data=json.dumps(pair_to_idx).encode('utf-8'))
+        out_file.create_dataset(
+            'ranked_list',
+            data=data,
+            chunks=(len(gene_names_fixture)//4, 7),
+            compression='gzip')
+
+    yield score_path
+
+    _clean_up(tmp_dir)
+
+
+def test_select_marker_genes_multiprocessing(
+        tree_fixture,
+        score_path_fixture,
+        gene_names_fixture):
+    """
+    This test assumes that running select_marker_genes with
+    n_processors=1 gives the right answer. The point of this
+    test is to make sure that the result aggregation logic
+    for n_processors > 1 runs correctly.
+    """
+
+    rng = np.random.default_rng(776123)
+    query_genes = rng.choice(gene_names_fixture,
+                             len(gene_names_fixture)//3,
+                             replace=False)
+
+    baseline = select_marker_genes(
+        taxonomy_tree=tree_fixture,
+        parent_node=None,
+        score_path=score_path_fixture,
+        query_genes=query_genes,
+        genes_per_pair=2,
+        n_processors=1,
+        rows_at_a_time=1000000)
+
+    assert len(baseline) > 0
+
+    test = select_marker_genes(
+        taxonomy_tree=tree_fixture,
+        parent_node=None,
+        score_path=score_path_fixture,
+        query_genes=query_genes,
+        genes_per_pair=2,
+        n_processors=3,
+        rows_at_a_time=17)
+
+    assert test == baseline
+
+    level = tree_fixture['hierarchy'][1]
+    k_list = list(tree_fixture[level].keys())
+    parent_node = (level, k_list[1])
+
+    baseline = select_marker_genes(
+        taxonomy_tree=tree_fixture,
+        parent_node=parent_node,
+        score_path=score_path_fixture,
+        query_genes=query_genes,
+        genes_per_pair=2,
+        n_processors=1,
+        rows_at_a_time=1000000)
+
+    assert len(baseline) > 0
+
+    test = select_marker_genes(
+        taxonomy_tree=tree_fixture,
+        parent_node=parent_node,
+        score_path=score_path_fixture,
+        query_genes=query_genes,
+        genes_per_pair=2,
+        n_processors=3,
+        rows_at_a_time=17)
+
+    assert test == baseline
