@@ -3,6 +3,10 @@ import itertools
 import json
 import numpy as np
 import multiprocessing
+import time
+
+from hierarchical_mapping.utils.utils import (
+    print_timing)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -111,8 +115,10 @@ def select_marker_genes(
     row0 = leaf_pair_idx_arr.min()
     marker_set = set()
 
+    t0 = time.time()
     with h5py.File(score_path, 'r') as in_file:
         arr_shape = in_file['ranked_list'].shape
+        n_chunks = arr_shape[0]
         while True:
             row1 = min(row0 + rows_at_a_time, arr_shape[0])
             rank_chunk = in_file['ranked_list'][row0:row1, :]
@@ -129,6 +135,11 @@ def select_marker_genes(
             if len(next_rows) == 0:
                 break
             row0 = leaf_pair_idx_arr[next_rows.min()]
+            print_timing(
+                t0=t0,
+                tot_chunks=n_chunks,
+                i_chunk=row0,
+                unit='hr')
 
     return marker_set
 
