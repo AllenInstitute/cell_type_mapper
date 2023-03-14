@@ -190,7 +190,7 @@ def test_select_marker_genes_multiprocessing(
         n_processors=1,
         rows_at_a_time=1000000)
 
-    assert len(baseline) > 0
+    assert len(baseline['reference']) > 0
 
     test = select_marker_genes(
         taxonomy_tree=tree_fixture,
@@ -202,6 +202,13 @@ def test_select_marker_genes_multiprocessing(
         rows_at_a_time=17)
 
     assert test == baseline
+
+    for lookup in (test, baseline):
+        assert len(lookup['reference']) == len(lookup['query'])
+        for ii in range(len(lookup['reference'])):
+            rr = lookup['reference'][ii]
+            qq = lookup['query'][ii]
+            assert gene_names_fixture[rr] == query_genes[qq]
 
     level = tree_fixture['hierarchy'][1]
     k_list = list(tree_fixture[level].keys())
@@ -216,7 +223,7 @@ def test_select_marker_genes_multiprocessing(
         n_processors=1,
         rows_at_a_time=1000000)
 
-    assert len(baseline) > 0
+    assert len(baseline['reference']) > 0
 
     test = select_marker_genes(
         taxonomy_tree=tree_fixture,
@@ -228,3 +235,10 @@ def test_select_marker_genes_multiprocessing(
         rows_at_a_time=17)
 
     assert test == baseline
+
+    for lookup in (test, baseline):
+        assert len(lookup['reference']) == len(lookup['query'])
+        for ii in range(len(lookup['reference'])):
+            rr = lookup['reference'][ii]
+            qq = lookup['query'][ii]
+            assert gene_names_fixture[rr] == query_genes[qq]

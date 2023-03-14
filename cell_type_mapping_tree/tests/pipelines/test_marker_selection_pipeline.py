@@ -134,6 +134,15 @@ def test_marker_selection_pipeline(
         rows_at_a_time=27,
         n_processors=n_selection_processors)
 
-    assert len(marker_genes) > 0
+    assert len(marker_genes['reference']) > 0
+
+    with h5py.File(score_path, 'r') as in_file:
+        reference_gene_names = json.loads(
+            in_file['gene_names'][()].decode('utf-8'))
+    assert len(marker_genes['reference']) == len(marker_genes['query'])
+    for ii in range(len(marker_genes['reference'])):
+        rr = marker_genes['reference'][ii]
+        qq =marker_genes['query'][ii]
+        assert gene_names[rr] == query_genes[qq]
 
     _clean_up(tmp_dir)

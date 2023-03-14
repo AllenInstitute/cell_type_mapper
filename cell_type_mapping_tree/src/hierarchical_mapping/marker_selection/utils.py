@@ -196,7 +196,15 @@ def select_marker_genes(
         marker_set = marker_set.union(
                         output_dict.pop(k))
 
-    return marker_set
+    marker_set = list(marker_set)
+    marker_set.sort()
+    result = dict()
+    result['reference'] = marker_set
+    ref_to_query = {rr:qq
+                    for rr, qq in zip(gene_overlap['reference'],
+                                      gene_overlap['query'])}
+    result['query'] = [ref_to_query[rr] for rr in marker_set]
+    return result
 
 
 def _process_rank_chunk_worker(
