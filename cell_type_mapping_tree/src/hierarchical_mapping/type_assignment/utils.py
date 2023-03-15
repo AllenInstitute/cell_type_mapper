@@ -5,9 +5,11 @@ import numpy as np
 import os
 import pathlib
 import tempfile
+import time
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    print_timing)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
@@ -79,6 +81,8 @@ def create_marker_gene_cache(
     marker_genes_per_pair:
         Ideal number of marker genes to choose per leaf pair
     """
+    print(f"creating marker gene cache in {cache_path}")
+    t0 = time.time()
 
     parent_node_list = [None]
     hierarchy = taxonomy_tree['hierarchy']
@@ -91,7 +95,9 @@ def create_marker_gene_cache(
             for parent in these_parents:
                 parent_node_list.append((level, parent))
 
-    for parent_node in parent_node_list:
+    n_parents = len(parent_node_list)
+
+    for i_parent, parent_node in enumerate(parent_node_list):
 
         leaf_pair_list = get_all_leaf_pairs(
             taxonomy_tree=taxonomy_tree,
@@ -119,6 +125,12 @@ def create_marker_gene_cache(
                 'reference', data=marker_genes['reference'])
             out_group.create_dataset(
                 'query', data=marker_genes['query'])
+
+        print_timing(
+            t0=t0,
+            tot_chunks=n_parents,
+            i_chunk=i_parent+1,
+            unit='hr')
 
 
 def get_leaf_means(

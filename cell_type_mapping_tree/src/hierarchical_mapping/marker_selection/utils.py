@@ -5,9 +5,6 @@ import numpy as np
 import multiprocessing
 import time
 
-from hierarchical_mapping.utils.utils import (
-    print_timing)
-
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list,
     DummyLock)
@@ -136,11 +133,6 @@ def select_marker_genes(
             if len(next_rows) == 0:
                 break
             row0 = leaf_pair_idx_arr[next_rows.min()]
-            print_timing(
-                t0=t0,
-                tot_chunks=n_chunks,
-                i_chunk=row0,
-                unit='hr')
 
     for p in process_list:
         p.join()
