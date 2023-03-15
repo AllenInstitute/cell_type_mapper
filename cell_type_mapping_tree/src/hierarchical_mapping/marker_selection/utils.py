@@ -12,17 +12,13 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list,
     DummyLock)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    convert_tree_to_leaves)
-
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
 
 def select_marker_genes(
-        taxonomy_tree,
-        parent_node,
         score_path,
+        leaf_pair_list,
         query_genes,
         genes_per_pair=30,
         n_processors=4,
@@ -31,20 +27,13 @@ def select_marker_genes(
     """
     Parameters
     ----------
-    taxonomy_tree:
-        A dict encoding the cell type taxonomy we are using
-    parent_node:
-        A tuple of the type (level, node) denoting the node
-        we know these query cells belong to (so, we are selecting
-        the marker genes for discribinating the level below this)
-
-        If parent_node is None, then assume that we are selecting
-        marker genes for the highest level of the taxonomy
-
     score_path:
         Path to the HDF5 file containing the ranked_list of
         marker genes for all taxonomic pairs in the
         reference dataset
+    leaf_pair_list:
+        List of (level, node1, node2) tuples indicating the
+        pairs of leaf nodes that need to be compared
     query_genes:
         List of gene names available in the query set.
     genes_per_pair:
@@ -64,38 +53,6 @@ def select_marker_genes(
         "query" -> the array of indices of marker genes in the
         query dataset
     """
-
-    hierarchy = taxonomy_tree['hierarchy']
-    leaf_level = hierarchy[-1]
-
-    if parent_node is not None:
-        if parent_node[0] == leaf_level:
-            raise RuntimeError(
-                "No need to select marker genes; you are already "
-                "in the leaf level of the taxonomy\n"
-               f"parent_node: {parent_node}")
-
-        # find the level in the hierarchy that is the immediate
-        # child of parent_node[0]
-        for child_level_idx, level in enumerate(hierarchy):
-            if level == parent_node[0]:
-                break
-        child_level_idx += 1
-
-        if child_level_idx > len(hierarchy):
-            raise RuntimeError(
-                f"Somehow, child_level_idx={child_level_idx}\n"
-                f"while the hierarchy has {len(hierarchy)} levels;\n"
-                f"parent_node = {parent_node}")
-        child_level = hierarchy[child_level_idx]
-
-        # all of the siblings that directly inherit from
-        # parent_node[0]
-        siblings = taxonomy_tree[parent_node[0]][parent_node[1]]
-    else:
-        siblings = list(taxonomy_tree[hierarchy[0]].keys())
-        child_level = hierarchy[0]
-
     with h5py.File(score_path, 'r') as in_file:
         pair_to_idx = json.loads(
                 in_file['pair_to_idx'][()].decode('utf-8'))
@@ -106,13 +63,9 @@ def select_marker_genes(
     # markers from by comparing, cluster-to-cluster, all of the
     # sibling pairs whose direct parent is parent_node[0]
     leaf_pair_idx_set = set()
-    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
-    for sibling_pair in itertools.combinations(siblings, 2):
-        leaf_list_0 = tree_as_leaves[child_level][sibling_pair[0]]
-        leaf_list_1 = tree_as_leaves[child_level][sibling_pair[1]]
-        for leaf_pair in itertools.product(leaf_list_0, leaf_list_1):
-            idx = pair_to_idx[leaf_level][leaf_pair[0]][leaf_pair[1]]
-            leaf_pair_idx_set.add(idx)
+    for leaf_pair in leaf_pair_list:
+        idx = pair_to_idx[leaf_pair[0]][leaf_pair[1]][leaf_pair[2]]
+        leaf_pair_idx_set.add(idx)
 
     leaf_pair_idx_arr = np.sort(np.array(list(leaf_pair_idx_set)))
 

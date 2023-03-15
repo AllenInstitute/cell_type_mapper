@@ -14,7 +14,8 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
-    get_all_pairs)
+    get_all_pairs,
+    get_all_leaf_pairs)
 
 from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
@@ -125,10 +126,13 @@ def test_marker_selection_pipeline(
         k_list.sort()
         parent_node = (level, k_list[0])
 
+    leaf_pair_list = get_all_leaf_pairs(
+            taxonomy_tree=taxonomy_tree,
+            parent_node=parent_node)
+
     marker_genes = select_marker_genes(
-        taxonomy_tree=taxonomy_tree,
-        parent_node=parent_node,
         score_path=score_path,
+        leaf_pair_list=leaf_pair_list,
         query_genes=query_genes,
         genes_per_pair=5,
         rows_at_a_time=27,

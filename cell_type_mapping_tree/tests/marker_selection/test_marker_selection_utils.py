@@ -11,6 +11,9 @@ import tempfile
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
+from hierarchical_mapping.utils.taxonomy_utils import (
+    get_all_leaf_pairs)
+
 from hierarchical_mapping.marker_selection.utils import (
     _process_rank_chunk,
     select_marker_genes)
@@ -165,10 +168,12 @@ def score_path_fixture(
     _clean_up(tmp_dir)
 
 
+@pytest.mark.parametrize("null_parent_node", (True, False))
 def test_select_marker_genes_multiprocessing(
         tree_fixture,
         score_path_fixture,
-        gene_names_fixture):
+        gene_names_fixture,
+        null_parent_node):
     """
     This test assumes that running select_marker_genes with
     n_processors=1 gives the right answer. The point of this
@@ -181,10 +186,20 @@ def test_select_marker_genes_multiprocessing(
                              len(gene_names_fixture)//3,
                              replace=False)
 
-    baseline = select_marker_genes(
+    if null_parent_node:
+        parent_node = None
+    else:
+        level = tree_fixture['hierarchy'][1]
+        k_list = list(tree_fixture[level].keys())
+        parent_node = (level, k_list[1])
+
+    leaf_pair_list = get_all_leaf_pairs(
         taxonomy_tree=tree_fixture,
-        parent_node=None,
+        parent_node=parent_node)
+
+    baseline = select_marker_genes(
         score_path=score_path_fixture,
+        leaf_pair_list=leaf_pair_list,
         query_genes=query_genes,
         genes_per_pair=2,
         n_processors=1,
@@ -193,42 +208,8 @@ def test_select_marker_genes_multiprocessing(
     assert len(baseline['reference']) > 0
 
     test = select_marker_genes(
-        taxonomy_tree=tree_fixture,
-        parent_node=None,
         score_path=score_path_fixture,
-        query_genes=query_genes,
-        genes_per_pair=2,
-        n_processors=3,
-        rows_at_a_time=17)
-
-    assert test == baseline
-
-    for lookup in (test, baseline):
-        assert len(lookup['reference']) == len(lookup['query'])
-        for ii in range(len(lookup['reference'])):
-            rr = lookup['reference'][ii]
-            qq = lookup['query'][ii]
-            assert gene_names_fixture[rr] == query_genes[qq]
-
-    level = tree_fixture['hierarchy'][1]
-    k_list = list(tree_fixture[level].keys())
-    parent_node = (level, k_list[1])
-
-    baseline = select_marker_genes(
-        taxonomy_tree=tree_fixture,
-        parent_node=parent_node,
-        score_path=score_path_fixture,
-        query_genes=query_genes,
-        genes_per_pair=2,
-        n_processors=1,
-        rows_at_a_time=1000000)
-
-    assert len(baseline['reference']) > 0
-
-    test = select_marker_genes(
-        taxonomy_tree=tree_fixture,
-        parent_node=parent_node,
-        score_path=score_path_fixture,
+        leaf_pair_list=leaf_pair_list,
         query_genes=query_genes,
         genes_per_pair=2,
         n_processors=3,
