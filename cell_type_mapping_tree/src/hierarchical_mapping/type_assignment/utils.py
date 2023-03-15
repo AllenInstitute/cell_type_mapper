@@ -102,7 +102,9 @@ def create_marker_gene_cache(
     # shuffle node list so all the big parents
     # don't end up in the same worker
     rng = np.random.default_rng(2213124)
+    first_node = parent_node_list.pop(0)
     rng.shuffle(parent_node_list)
+    parent_node_list = [first_node] + parent_node_list
 
     n_parents = len(parent_node_list)
     n_per_process = max(1, n_parents//(3*n_processors))
