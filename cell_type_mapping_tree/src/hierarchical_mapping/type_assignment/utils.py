@@ -17,6 +17,9 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
 
+from hierarchical_mapping.utils.distance_utils import (
+    correlation_nearest_neighbors)
+
 from hierarchical_mapping.diff_exp.scores import (
     aggregate_stats,
     read_precomputed_stats)
@@ -27,38 +30,77 @@ from hierarchical_mapping.marker_selection.utils import (
 
 def assign_types_to_chunk(
         query_gene_data,
-        query_gene_names,
         taxonomy_tree,
         precompute_path,
-        score_path,
-        marker_genes_per_pair=30,
-        n_processors=6,
-        tmp_dir=None):
+        marker_cache_path):
     """
     query_gene_data is an n_cells x n_genes chunk
     query_gene_names lists the names of the genes in this chunk
+
+    marker_cache_path is the path to the file created by
+    create_marker_gene_cache
 
     A temporary HDF5 file with lists of marker genes for
     each parent node will be written out in tmp_path
     """
 
-    tmp_dir = pathlib.Path(
-        tempfile.mkdtemp(dir=tmp_dir))
-
-    # precompute marker gene lists
-    marker_gene_cache_path = tempfile.mkstemp(
-            dir=tmp_dir,
-            prefix='marker_lookup_',
-            suffix='.h5')
-    os.close(marker_gene_cache_path[0])
-    marker_gene_cache_path = pathlib.Path(
-        marker_gene_cache_path[1])
-
     mean_leaf_lookup = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precompute_path)
 
-    _clean_up(tmp_dir)
+
+
+def choose_node(
+         query_gene_data,
+         reference_gene_data,
+         reference_types,
+         bootstrap_factor,
+         bootstrap_iteration,
+         rng):
+    """
+    Parameters
+    ----------
+    query_gene_data
+        cell-by-marker-gene array of query data
+    reference_gene_data
+        cell-by-marker-gene array of reference data
+    reference_types
+        array of cell types we are chosing from (n_cells in size)
+    bootstrap_factor
+        Factor by which to subsample reference genes at each bootstrap
+    bootstrap_iteration
+        Number of bootstrapping iterations
+    rng
+        random number generator
+
+    Returns
+    -------
+    Array of cell type assignments (majority rule)
+    """
+
+    n_markers = query_gene_data.shape[1]
+    marker_idx = np.arange(n_markers)
+    n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
+    votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
+                     dtype=int)
+
+    query_idx = np.arange(query_gene_data.shape[0])
+    for i_iteration in range(bootstrap_iteration):
+        chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
+        chosen_idx = np.sort(chosen_idx)
+        bootstrap_query = query_gene_data[:, chosen_idx]
+        bootstrap_reference = reference_gene_data[:, chosen_idx]
+
+        nearest_neighbors = correlation_nearest_neighbors(
+            baseline_array=bootstrap_reference,
+            query_array=bootstrap_query)
+
+        votes[query_idx, nearest_neighbors] += 1
+
+    chosen_type = np.argmax(votes, axis=1)
+    result = [reference_types[ii] for ii in chosen_type]
+    return result
+
 
 def create_marker_gene_cache(
         cache_path,
@@ -99,6 +141,10 @@ def create_marker_gene_cache(
                 parent_node_list.append((level, parent))
                 out_file[level].create_group(parent)
 
+        out_file.create_dataset(
+            'parent_node_list',
+            data=json.dumps(parent_node_list).encode('utf-8'))
+
     # shuffle node list so all the big parents
     # don't end up in the same worker;
     # note that the largest parents ought to be at the
@@ -106,7 +152,7 @@ def create_marker_gene_cache(
     # (grossest taxonomic level first)
     n_chunks = 6*n_processors
     if n_chunks > len(parent_node_list):
-        n_chunks = len(parent_node_list) // 3
+        n_chunks = max(1, len(parent_node_list) // 3)
 
     chunk_list = []
     for ii in range(n_chunks):
