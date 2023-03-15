@@ -131,9 +131,9 @@ def create_marker_gene_cache(
             process_list = winnow_process_list(process_list)
             n1 = len(process_list)
             if n1 < n0:
-                ct += n0-n1
+                ct += n_per_process*(n0-n1)
                 print_timing(
-                   t0=t0,
+                    t0=t0,
                     tot_chunks=n_parents,
                     i_chunk=ct,
                     unit='hr')
