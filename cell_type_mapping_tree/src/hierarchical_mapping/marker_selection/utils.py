@@ -50,7 +50,7 @@ def select_marker_genes(
         "query" -> the array of indices of marker genes in the
         query dataset
     """
-    with h5py.File(score_path, 'r') as in_file:
+    with h5py.File(score_path, 'r', swmr=True) as in_file:
         pair_to_idx = json.loads(
                 in_file['pair_to_idx'][()].decode('utf-8'))
         reference_gene_names = json.loads(
@@ -85,7 +85,7 @@ def select_marker_genes(
 
     t0 = time.time()
     process_list = []
-    with h5py.File(score_path, 'r') as in_file:
+    with h5py.File(score_path, 'r', swmr=True) as in_file:
         arr_shape = in_file['ranked_list'].shape
         n_chunks = arr_shape[0]
         while True:

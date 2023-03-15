@@ -11,6 +11,9 @@ from hierarchical_mapping.utils.utils import (
     _clean_up,
     print_timing)
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    winnow_process_list)
+
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
 
@@ -94,11 +97,60 @@ def create_marker_gene_cache(
             these_parents.sort()
             for parent in these_parents:
                 parent_node_list.append((level, parent))
+                out_file[level].create_group(parent)
+
+    # shuffle node list so all the big parents
+    # don't end up in the same worker
+    rng = np.random.default_rng(2213124)
+    rng.shuffle(parent_node_list)
 
     n_parents = len(parent_node_list)
+    n_per_process = max(1, n_parents//(3*n_processors))
+    process_list = []
+    mgr = multiprocessing.Manager()
+    output_lock = mgr.Lock()
+    ct = 0
+    for i0 in range(0, n_parents, n_per_process):
+        i1 = i0 + n_per_process
+        p = multiprocessing.Process(
+                target=_marker_gene_worker,
+                kwargs={
+                    'parent_node_list': parent_node_list[i0:i1],
+                    'taxonomy_tree': taxonomy_tree,
+                    'score_path': score_path,
+                    'query_gene_names': query_gene_names,
+                    'marker_genes_per_pair': marker_genes_per_pair,
+                    'output_path': cache_path,
+                    'output_lock': output_lock})
+        p.start()
+        process_list.append(p)
+        while len(process_list) >= n_processors:
+            n0 = len(process_list)
+            process_list = winnow_process_list(process_list)
+            n1 = len(process_list)
+            if n1 < n0:
+                ct += n0-n1
+                print_timing(
+                   t0=t0,
+                    tot_chunks=n_parents,
+                    i_chunk=ct,
+                    unit='hr')
 
-    for i_parent, parent_node in enumerate(parent_node_list):
+    for p in process_list:
+        p.join()
 
+
+def _marker_gene_worker(
+        parent_node_list,
+        taxonomy_tree,
+        score_path,
+        query_gene_names,
+        marker_genes_per_pair,
+        output_path,
+        output_lock):
+
+    grp_to_results = dict()
+    for parent_node in parent_node_list:
         leaf_pair_list = get_all_leaf_pairs(
             taxonomy_tree=taxonomy_tree,
             parent_node=parent_node)
@@ -109,28 +161,26 @@ def create_marker_gene_cache(
                 leaf_pair_list=leaf_pair_list,
                 query_genes=query_gene_names,
                 genes_per_pair=marker_genes_per_pair,
-                n_processors=n_processors,
+                n_processors=1,
                 rows_at_a_time=1000000)
         else:
             marker_genes = {'reference': np.zeros(0, dtype=int),
                             'query': np.zeros(0, dtype=int)}
 
-        with h5py.File(cache_path, 'a') as out_file:
-            if parent_node is None:
-                out_group = out_file['None']
-            else:
-                out_file[parent_node[0]].create_group(parent_node[1])
-                out_group = out_file[parent_node[0]][parent_node[1]]
-            out_group.create_dataset(
-                'reference', data=marker_genes['reference'])
-            out_group.create_dataset(
-                'query', data=marker_genes['query'])
+        if parent_node is None:
+            grp = 'None'
+        else:
+            grp = f'{parent_node[0]}/{parent_node[1]}'
+        grp_to_results[grp] = marker_genes
 
-        print_timing(
-            t0=t0,
-            tot_chunks=n_parents,
-            i_chunk=i_parent+1,
-            unit='hr')
+    with output_lock:
+        with h5py.File(output_path, 'a') as out_file:
+            for grp in grp_to_results:
+                reference = grp_to_results[grp]['reference']
+                query = grp_to_results[grp]['query']
+                out_grp = out_file[grp]
+                out_grp.create_dataset('reference', data=reference)
+                out_grp.create_dataset('query', data=query)
 
 
 def get_leaf_means(
