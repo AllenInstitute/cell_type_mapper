@@ -100,14 +100,27 @@ def create_marker_gene_cache(
                 out_file[level].create_group(parent)
 
     # shuffle node list so all the big parents
-    # don't end up in the same worker
-    rng = np.random.default_rng(2213124)
-    first_node = parent_node_list.pop(0)
-    rng.shuffle(parent_node_list)
-    parent_node_list = [first_node] + parent_node_list
+    # don't end up in the same worker;
+    # note that the largest parents ought to be at the
+    # front of parent_node_list because of hw it was generated
+    # (grossest taxonomic level first)
+    n_chunks = 6*n_processors
+    if n_chunks > len(parent_node_list):
+        n_chunks = len(parent_node_list) // 3
+
+    chunk_list = []
+    for ii in range(n_chunks):
+        chunk_list.append([])
+    for ii in range(len(parent_node_list)):
+        jj = ii % n_chunks
+        chunk_list[jj].append(parent_node_list[ii])
+    parent_node_list = []
+    for chunk in chunk_list:
+        parent_node_list += chunk
+    del chunk_list
 
     n_parents = len(parent_node_list)
-    n_per_process = max(1, n_parents//(3*n_processors))
+    n_per_process = max(1, n_parents//n_chunks)
     process_list = []
     mgr = multiprocessing.Manager()
     output_lock = mgr.Lock()
