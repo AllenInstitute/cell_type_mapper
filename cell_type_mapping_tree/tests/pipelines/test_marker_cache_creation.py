@@ -119,47 +119,61 @@ def test_marker_cache_pipeline(
     query_genes = list(query_genes)
 
     assert not marker_cache_path.is_file()
+
+    genes_per_pair = 7
+
     create_marker_gene_cache(
         cache_path=marker_cache_path,
         score_path=score_path,
         query_gene_names=query_genes,
         taxonomy_tree=taxonomy_tree,
-        marker_genes_per_pair=15,
+        marker_genes_per_pair=genes_per_pair,
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
 
-    """
-    if from_root:
-        parent_node = None
-    else:
-        level = taxonomy_tree['hierarchy'][1]
+    parent_node_list = [None]
+    for level in taxonomy_tree['hierarchy'][:-1]:
         k_list = list(taxonomy_tree[level].keys())
         k_list.sort()
-        parent_node = (level, k_list[0])
+        for k in k_list:
+            parent_node_list.append((level, k))
 
-    leaf_pair_list = get_all_leaf_pairs(
-            taxonomy_tree=taxonomy_tree,
-            parent_node=parent_node)
+    ct = 0
+    with h5py.File(marker_cache_path, 'r') as actual_file:
+        for parent_node in parent_node_list:
+            leaf_pair_list = get_all_leaf_pairs(
+                taxonomy_tree=taxonomy_tree,
+                parent_node=parent_node)
 
-    marker_genes = select_marker_genes(
-        score_path=score_path,
-        leaf_pair_list=leaf_pair_list,
-        query_genes=query_genes,
-        genes_per_pair=5,
-        rows_at_a_time=27,
-        n_processors=n_selection_processors)
+            if len(leaf_pair_list) > 0:
+                expected = select_marker_genes(
+                    score_path=score_path,
+                    leaf_pair_list= leaf_pair_list,
+                    query_genes=query_genes,
+                    genes_per_pair=genes_per_pair,
+                    rows_at_a_time=1000000,
+                    n_processors=n_selection_processors)
+            else:
+                expected['reference'] = np.zeros(0, dtype=int)
+                expected['query'] = np.zeros(0, dtype=int)
 
-    assert len(marker_genes['reference']) > 0
+            ct += len(expected['reference'])
 
-    with h5py.File(score_path, 'r') as in_file:
-        reference_gene_names = json.loads(
-            in_file['gene_names'][()].decode('utf-8'))
-    assert len(marker_genes['reference']) == len(marker_genes['query'])
-    for ii in range(len(marker_genes['reference'])):
-        rr = marker_genes['reference'][ii]
-        qq =marker_genes['query'][ii]
-        assert gene_names[rr] == query_genes[qq]
-    """
+            if parent_node is None:
+                actual_ref = actual_file['None']['reference'][()]
+                actual_query = actual_file['None']['query'][()]
+            else:
+                grp = actual_file[parent_node[0]][parent_node[1]]
+                actual_ref = grp['reference'][()]
+                actual_query = grp['query'][()]
+
+            np.testing.assert_array_equal(
+                expected['reference'], actual_ref)
+            np.testing.assert_array_equal(
+                expected['query'], actual_query)
+
+    # make sure we weren't testing all empty datasets
+    assert ct > 0
 
     _clean_up(tmp_dir)
