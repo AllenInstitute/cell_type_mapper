@@ -15,7 +15,8 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
-    get_all_leaf_pairs)
+    get_all_leaf_pairs,
+    convert_tree_to_leaves)
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_nearest_neighbors)
@@ -49,6 +50,53 @@ def assign_types_to_chunk(
         precompute_path=precompute_path)
 
 
+def assemble_query_data(
+        full_query_data,
+        mean_profile_lookup,
+        taxonomy_tree,
+        marker_cache_path,
+        parent_node):
+    """
+    Returns
+    --------
+    query_data
+        (n_query_cells, n_markers)
+    reference_data
+        (n_reference_cells, n_markers)
+    reference_types
+        At the level of this query (i.e. the direct
+        children of parent_node)
+    """
+
+    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
+    hierarchy = taxonomy_tree['hierarchy']
+    level_to_idx = {level:idx for idx, level in enumerate(hierarchy)}
+
+    if parent_node is None:
+        parent_grp = 'None'
+        immediate_children = list(taxonomy_tree[hierarchy[0]].keys())
+        child_level = hierarchy[0]
+
+    else:
+        parent_grp = f"{parent_node[0]}/{parent_node[1]}"
+        immediate_children = list(taxonomy_tree[parent_node[0]].keys())
+        child_level = hierarchy[level_to_idx[parent_node[0]]+1]
+
+    immediate_children.sort()
+
+    leaf_to_type = dict()
+    for child in immediate_children:
+        for leaf in tree_as_leaves[child_level][child]:
+            leaf_to_type[leaf] = child
+
+    with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
+        reference_markers = in_file[parent_grp]['reference'][()]
+        query_markers = in_file[parent_grp]['query'][()]
+
+    query_data = full_query_data[:, query_markers]
+    # build reference data from mean_profile lookup
+    # build reference_types in parallel
+
 
 def choose_node(
          query_gene_data,
@@ -81,10 +129,14 @@ def choose_node(
     n_markers = query_gene_data.shape[1]
     marker_idx = np.arange(n_markers)
     n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
+
     votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
                      dtype=int)
 
+    # query_idx is needed to associate each vote with its row
+    # in the votes array
     query_idx = np.arange(query_gene_data.shape[0])
+
     for i_iteration in range(bootstrap_iteration):
         chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
         chosen_idx = np.sort(chosen_idx)
