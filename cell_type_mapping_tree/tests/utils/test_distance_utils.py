@@ -2,9 +2,31 @@ import numpy as np
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_distance,
-    correlation_nearest_neighbors)
+    correlation_nearest_neighbors,
+    _subtract_mean_and_normalize)
 
 
+def test_subtract_mean_and_normalize():
+    rng = np.random.default_rng(77123)
+    n_cells = 14
+    n_genes = 7
+    data = rng.random((n_cells, n_genes))
+    zeroed_out = 5
+    data[zeroed_out, :] = 0.0
+
+    actual = _subtract_mean_and_normalize(data)
+    transposed_actual = _subtract_mean_and_normalize(data, do_transpose=True)
+
+    for i_cell in range(n_cells):
+        if i_cell == zeroed_out:
+            expected = np.zeros(n_genes, dtype=float)
+        else:
+            mu = np.mean(data[i_cell, :])
+            d = data[i_cell, :] - mu
+            n = np.sqrt(np.sum(d**2))
+            expected = d /n
+        np.testing.assert_allclose(actual[i_cell, :], expected)
+        np.testing.assert_allclose(transposed_actual[:, i_cell], expected)
 
 def test_correlation_distance():
     rng = np.random.default_rng(87123412)
