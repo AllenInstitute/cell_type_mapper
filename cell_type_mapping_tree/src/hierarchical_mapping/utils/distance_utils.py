@@ -95,6 +95,14 @@ def _subtract_mean_and_normalize(data, do_transpose=False):
     mu = np.mean(data, axis=1)
     data = (data.transpose()-mu)
     norm = np.sqrt(np.sum(data**2, axis=0))
+
+    # if norm=0, it means that whole cell had the same
+    # value in all genes. Probably not interesting.
+    # Set those norms to 1 to avoid divide by zero
+    # problems
+    invalid = (norm==0.0)
+    norm[invalid] = 1.0
+
     data = data/norm
     if not do_transpose:
         return data.transpose()
