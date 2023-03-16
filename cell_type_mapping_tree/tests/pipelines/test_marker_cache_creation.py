@@ -117,6 +117,8 @@ def test_marker_cache_pipeline(
     rng = np.random.default_rng(556623)
     query_genes = rng.choice(gene_names, n_genes//3, replace=False)
     query_genes = list(query_genes)
+    query_genes += ["nonsense_1", "nonsense_2", "nonsense_3"]
+    rng.shuffle(query_genes)
 
     assert not marker_cache_path.is_file()
 
