@@ -182,9 +182,11 @@ def test_select_marker_genes_multiprocessing(
     """
 
     rng = np.random.default_rng(776123)
-    query_genes = rng.choice(gene_names_fixture,
-                             len(gene_names_fixture)//3,
-                             replace=False)
+    query_genes = list(rng.choice(gene_names_fixture,
+                                  len(gene_names_fixture)//3,
+                                  replace=False))
+    query_genes += ["nonsense_1", "nonsense_2", "nonsense_3"]
+    rng.shuffle(query_genes)
 
     if null_parent_node:
         parent_node = None
