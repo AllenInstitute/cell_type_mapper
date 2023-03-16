@@ -36,7 +36,7 @@ def assemble_query_data(
 
     else:
         parent_grp = f"{parent_node[0]}/{parent_node[1]}"
-        immediate_children = list(taxonomy_tree[parent_node[0]].keys())
+        immediate_children = list(taxonomy_tree[parent_node[0]][parent_node[1]])
         child_level = hierarchy[level_to_idx[parent_node[0]]+1]
 
     immediate_children.sort()

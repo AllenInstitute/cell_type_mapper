@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import h5py
 import numpy as np
 import pathlib
@@ -76,7 +77,12 @@ def mean_lookup_fixture(tree_fixture, n_genes):
 
 
 @pytest.mark.parametrize(
-    "parent_node", [None])
+    "parent_node, expected_n_reference, expected_types, expected_clusters",
+    [(None, 13, ['A', 'B', 'C', 'C', 'C', 'A', 'B', 'B', 'A', 'A', 'B', 'B', 'B'],
+     [str(ii) for ii in range(13)]),
+     (('subclass', 'cc'), 3, ['0', '5', '6'], ['0', '5', '6']),
+     (('class', 'B'), 6, ['aa', 'aa', 'aa', 'ee', 'dd', 'ee'], ['1', '3', '4', '8', '7', '9'])
+    ])
 def test_assemble_query_data(
         tree_fixture,
         marker_fixture,
@@ -84,14 +90,19 @@ def test_assemble_query_data(
         n_genes,
         n_markers,
         parent_node,
+        expected_n_reference,
+        expected_types,
+        expected_clusters,
         tmp_path_factory):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('for_reference'))
     marker_cache_path = tmp_dir / 'marker_cache.h5'
 
-    parent_node = None
-    n_reference = len(tree_fixture['cluster'])
-    parent_grp = 'None'
+    if parent_node is None:
+        parent_grp = 'None'
+    else:
+        parent_grp = f"{parent_node[0]}/{parent_node[1]}"
+
     with h5py.File(marker_cache_path, 'w') as out_file:
         out_file.create_dataset(f"{parent_grp}/reference",
             data=marker_fixture['reference'])
@@ -115,13 +126,10 @@ def test_assemble_query_data(
             jj_o = marker_fixture['query'][jj]
             assert actual['query_data'][ii, jj] == full_query_data[ii, jj_o]
 
-    expected_types = ['A', 'B', 'C', 'C', 'C',
-                      'A', 'B', 'B',
-                      'A', 'A', 'B', 'B', 'B']
     assert actual['reference_types'] == expected_types
-    assert actual['reference_data'].shape == (n_reference, n_markers)
+    assert actual['reference_data'].shape == (expected_n_reference, n_markers)
 
-    cluster_list = [str(ii) for ii in range(13)]
+    cluster_list = copy.deepcopy(expected_clusters)
     cluster_list.sort()
     for ii, ref in enumerate(cluster_list):
         for jj in range(n_markers):
