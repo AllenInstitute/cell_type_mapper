@@ -24,10 +24,7 @@ def correlation_nearest_neighbors(
     cell in query_array (i.e. the returned value at 11 is the
     nearest neighbor of query_array[11, :])
     """
-    distances = correlation_distance(
-                    arr0=baseline_array,
-                    arr1=query_array)
-    return np.argmin(distances, axis=0)
+    return np.argmax(correlation_dot(baseline_array, query_array), axis=0)
 
 
 def correlation_distance(
@@ -50,9 +47,29 @@ def correlation_distance(
         A (n_cells_0, n_cells_1) np.ndarray of the correlation
         distances between the rows of arr0, arr1
     """
+    return 1.0-correlation_dot(arr0, arr1)
+
+def correlation_dot(arr0, arr1):
+    """
+    Return the correlation between the rows of two
+    (n_cells, n_genes) arrays
+
+    Parameters
+    ----------
+    arr0:
+        A (n_cells_0, n_genes) np.ndarray
+    arr1:
+        A (n_cells_1, n_genes) np.ndarray
+
+    Returns
+    -------
+    corr:
+        A (n_cells_0, n_cells_1) np.ndarray of the correlation
+        between the rows of arr0, arr1
+    """
     arr0 = _subtract_mean_and_normalize(arr0, do_transpose=False)
     arr1 = _subtract_mean_and_normalize(arr1, do_transpose=True)
-    return 1.0-np.dot(arr0, arr1)
+    return np.dot(arr0, arr1)
 
 
 def _subtract_mean_and_normalize(data, do_transpose=False):
