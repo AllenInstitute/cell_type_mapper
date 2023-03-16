@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_nearest_neighbors)
@@ -44,6 +45,7 @@ def run_type_assignment(
 
     # loop over parent_level, assigning query cells to the child types
     # of that level
+    t0 = time.time()
     for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
 
         # build list of parent nodes to search from
@@ -102,6 +104,8 @@ def run_type_assignment(
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type in zip(chosen_idx, assignment):
                 result[i_cell][child_level] = assigned_type
+        duration = (time.time()-t0)/60.0
+        print(f"assigned {parent_level} after {duration:.2e} minutes")
 
     return result
 
