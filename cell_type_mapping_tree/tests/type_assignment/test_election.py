@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from hierarchical_mapping.type_assignment.utils import (
+from hierarchical_mapping.type_assignment.election import (
     choose_node)
 
 

@@ -31,7 +31,7 @@ from hierarchical_mapping.diff_exp.precompute import (
 from hierarchical_mapping.marker_selection.utils import (
     select_marker_genes)
 
-from hierarchical_mapping.type_assignment.utils import (
+from hierarchical_mapping.type_assignment.marker_cache import (
     create_marker_gene_cache)
 
 

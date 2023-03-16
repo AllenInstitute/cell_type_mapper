@@ -18,9 +18,6 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs,
     convert_tree_to_leaves)
 
-from hierarchical_mapping.utils.distance_utils import (
-    correlation_nearest_neighbors)
-
 from hierarchical_mapping.diff_exp.scores import (
     aggregate_stats,
     read_precomputed_stats)
@@ -96,62 +93,6 @@ def assemble_query_data(
     query_data = full_query_data[:, query_markers]
     # build reference data from mean_profile lookup
     # build reference_types in parallel
-
-
-def choose_node(
-         query_gene_data,
-         reference_gene_data,
-         reference_types,
-         bootstrap_factor,
-         bootstrap_iteration,
-         rng):
-    """
-    Parameters
-    ----------
-    query_gene_data
-        cell-by-marker-gene array of query data
-    reference_gene_data
-        cell-by-marker-gene array of reference data
-    reference_types
-        array of cell types we are chosing from (n_cells in size)
-    bootstrap_factor
-        Factor by which to subsample reference genes at each bootstrap
-    bootstrap_iteration
-        Number of bootstrapping iterations
-    rng
-        random number generator
-
-    Returns
-    -------
-    Array of cell type assignments (majority rule)
-    """
-
-    n_markers = query_gene_data.shape[1]
-    marker_idx = np.arange(n_markers)
-    n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
-
-    votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
-                     dtype=int)
-
-    # query_idx is needed to associate each vote with its row
-    # in the votes array
-    query_idx = np.arange(query_gene_data.shape[0])
-
-    for i_iteration in range(bootstrap_iteration):
-        chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
-        chosen_idx = np.sort(chosen_idx)
-        bootstrap_query = query_gene_data[:, chosen_idx]
-        bootstrap_reference = reference_gene_data[:, chosen_idx]
-
-        nearest_neighbors = correlation_nearest_neighbors(
-            baseline_array=bootstrap_reference,
-            query_array=bootstrap_query)
-
-        votes[query_idx, nearest_neighbors] += 1
-
-    chosen_type = np.argmax(votes, axis=1)
-    result = [reference_types[ii] for ii in chosen_type]
-    return result
 
 
 def create_marker_gene_cache(
