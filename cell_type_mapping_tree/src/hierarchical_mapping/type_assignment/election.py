@@ -4,6 +4,136 @@ from hierarchical_mapping.utils.distance_utils import (
     correlation_nearest_neighbors)
 
 
+from hierarchical_mapping.type_assignment.matching import (
+   get_leaf_means,
+   assemble_query_data)
+
+
+def run_type_assignment(
+        full_query_gene_data,
+        precomputed_stats_path,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        bootstrap_factor,
+        bootstrap_iteration,
+        rng):
+
+    # get a dict mapping leaf node name
+    # to mean gene expression profile
+    leaf_node_lookup = get_leaf_means(
+        taxonomy_tree=taxonomy_tree,
+        precompute_path=precomputed_stats_path)
+
+    # create effectively empty list of dicts to
+    # store the hierarchical classification of
+    # each cell in full_query_gene_data
+    hierarchy = taxonomy_tree['hierarchy']
+    result = []
+    for i_cell in range(full_query_gene_data.shape[0]):
+         this = dict()
+         for level in hierarchy:
+             this[level] = None
+         result.append(this)
+
+    # list of levels in the taxonomy (None means consider all clusters)
+    level_list = [None] + list(hierarchy)
+
+    # dict to keep track of which rows were assigned to which
+    # child types in a rapidly-accessible way
+    previously_assigned = dict()
+
+    # loop over parent_level, assigning query cells to the child types
+    # of that level
+    for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
+
+        # build list of parent nodes to search from
+        if parent_level is None:
+            parent_node_list = [None]
+        else:
+            k_list = list(taxonomy_tree[parent_level].keys())
+            k_list.sort()
+            parent_node_list = []
+            for k in k_list:
+                parent_node_list.append((parent_level, k))
+
+        previously_assigned[child_level] = dict()
+
+        for parent_node in parent_node_list:
+
+            # only consider the query cells that were assigned
+            # to the current parent
+            if parent_node is None:
+                chosen_idx = np.arange(full_query_gene_data.shape[0])
+                chosen_query_data = full_query_gene_data
+            else:
+                chosen_idx = previously_assigned[parent_level][parent_node[1]]
+                chosen_query_data = full_query_gene_data[chosen_idx, :]
+
+            if len(chosen_idx) == 0:
+                continue
+
+            assignment = _run_type_assignment(
+                            full_query_gene_data=chosen_query_data,
+                            leaf_node_lookup=leaf_node_lookup,
+                            marker_gene_cache_path=marker_gene_cache_path,
+                            taxonomy_tree=taxonomy_tree,
+                            parent_node=parent_node,
+                            bootstrap_factor=bootstrap_factor,
+                            bootstrap_iteration=bootstrap_iteration,
+                            rng=rng)
+
+            # popuulate the dict keeping track of the rows in
+            # full_query_gene_data that were assigned to each
+            # possible child type
+            type_to_idx = dict()
+            idx_to_type = []
+            for idx, celltype in enumerate(set(assignment)):
+                type_to_idx[celltype] = idx
+                idx_to_type.append(celltype)
+            assignment_idx = np.array([type_to_idx[celltype]
+                                       for celltype in assignment])
+
+            for idx in range(len(idx_to_type)):
+                celltype = idx_to_type[idx]
+                assigned_this = (assignment_idx==idx)
+                assigned_this= chosen_idx[assigned_this]
+                previously_assigned[child_level][celltype] = assigned_this
+
+            # assign cells to their chosen child_level nodes
+            for i_cell, assigned_type in zip(chosen_idx, assignment):
+                result[i_cell][child_level] = assigned_type
+
+    return result
+
+
+def _run_type_assignment(
+        full_query_gene_data,
+        leaf_node_lookup,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        parent_node,
+        bootstrap_factor,
+        bootstrap_iteration,
+        rng):
+
+    query_data = assemble_query_data(
+        full_query_data=full_query_gene_data,
+        mean_profile_lookup=leaf_node_lookup,
+        marker_cache_path=marker_gene_cache_path,
+        taxonomy_tree=taxonomy_tree,
+        parent_node=parent_node)
+
+    result = choose_node(
+        query_gene_data=query_data['query_data'],
+        reference_gene_data=query_data['reference_data'],
+        reference_types=query_data['reference_types'],
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng)
+
+    return result
+
+
 def choose_node(
          query_gene_data,
          reference_gene_data,
