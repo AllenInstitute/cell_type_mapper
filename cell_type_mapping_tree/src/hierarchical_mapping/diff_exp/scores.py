@@ -93,11 +93,12 @@ def score_all_taxonomy_pairs(
         'validity' -> (n_sibling_pairs, n_genes) array of booleans indicating
         whether or not the gene passed the validity thresholds
 
-        'ranked_list' -> (n_sibling_pairs, n_genes) array of ints. Each row gives
-        the ranked indexes of the discriminator genes, i.e. if
-        ranked_list[2, :] = [9, 1,...., 101] then, for sibling pair at
-        idx=2 (see pair_to_idx), gene_9 is the best discriminator, gene_1 is
-        the second best discrminator, and gene_101 is the worst discriminator
+        'ranked_list' -> (n_sibling_pairs, n_genes) array of ints.
+        Each row gives the ranked indexes of the discriminator genes,
+        i.e. if ranked_list[2, :] = [9, 1,...., 101] then, for sibling
+        pair at idx=2 (see pair_to_idx), gene_9 is the best discriminator,
+        gene_1 is the second best discrminator, and gene_101 is the worst
+        discriminator
     """
 
     if genes_to_keep is not None and keep_all_stats:
@@ -108,8 +109,6 @@ def score_all_taxonomy_pairs(
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_dir = pathlib.Path(tmp_dir)
-
-    hierarchy = taxonomy_tree['hierarchy']
 
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
 
@@ -212,7 +211,6 @@ def score_all_taxonomy_pairs(
     print(f"that took {duration/3600.0:.2e} hrs")
 
 
-
 def _get_this_cluster_stats(
         cluster_stats,
         idx_to_pair,
@@ -248,7 +246,8 @@ def _get_this_cluster_stats(
         this_cluster_stats[node] = cluster_stats[node]
 
     dur = time.time()-t0
-    print(f"getting this_cluster_stats took {dur:.2e} seconds -- {len(leaf_set)} nodes")
+    print(f"getting this_cluster_stats took {dur:.2e} seconds "
+          f"-- {len(leaf_set)} nodes")
     return this_cluster_stats, this_tree_as_leaves
 
 
@@ -353,6 +352,7 @@ def _prep_output_file(
                 chunks=chunk_size)
 
     return idx_to_pair
+
 
 def _score_pairs_worker(
         cluster_stats,
@@ -461,7 +461,8 @@ def _score_pairs_worker(
     if output_lock is None:
         output_lock = DummyLock()
 
-    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep), dtype=rank_dtype)
+    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep),
+                                  dtype=rank_dtype)
 
     if keep_all_stats:
         validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
@@ -500,14 +501,20 @@ def _score_pairs_worker(
 
         buffer_idx += 1
         ct += 1
-        if buffer_idx == flush_every or idx==idx_values[-1]:
+        if buffer_idx == flush_every or idx == idx_values[-1]:
             with h5py.File(tmp_path, 'a') as out_file:
                 out_idx1 = idx+1-min(idx_values)
                 out_idx0 = out_idx1-buffer_idx
-                out_file['ranked_list'][out_idx0:out_idx1, :] = ranked_list_buffer[:buffer_idx, :]
+                out_file['ranked_list'][out_idx0:out_idx1,
+                                        :] = ranked_list_buffer[:buffer_idx, :]
+
                 if keep_all_stats:
-                    out_file['scores'][out_idx0:out_idx1, :] = score_buffer[:buffer_idx, :]
-                    out_file['validity'][out_idx0:out_idx1, :] = validity_buffer[:buffer_idx, :]
+                    out_file['scores'][out_idx0:out_idx1,
+                                       :] = score_buffer[:buffer_idx, :]
+
+                    out_file['validity'][out_idx0:out_idx1,
+                                         :] = validity_buffer[:buffer_idx, :]
+
                 buffer_idx = 0
 
             print_timing(
