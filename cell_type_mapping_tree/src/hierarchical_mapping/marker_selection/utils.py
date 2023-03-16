@@ -1,9 +1,7 @@
 import h5py
-import itertools
 import json
 import numpy as np
 import multiprocessing
-import time
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list,
@@ -83,11 +81,9 @@ def select_marker_genes(
         output_dict = dict()
         output_lock = DummyLock()
 
-    t0 = time.time()
     process_list = []
     with h5py.File(score_path, 'r', swmr=True) as in_file:
         arr_shape = in_file['ranked_list'].shape
-        n_chunks = arr_shape[0]
         while True:
             row1 = min(row0 + rows_at_a_time, arr_shape[0])
             rank_chunk = in_file['ranked_list'][row0:row1, :]
@@ -145,7 +141,7 @@ def select_marker_genes(
     marker_set.sort()
     result = dict()
     result['reference'] = marker_set
-    ref_to_query = {rr:qq
+    ref_to_query = {rr: qq
                     for rr, qq in zip(gene_overlap['reference'],
                                       gene_overlap['query'])}
     result['query'] = [ref_to_query[rr] for rr in marker_set]
