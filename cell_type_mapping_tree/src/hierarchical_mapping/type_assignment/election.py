@@ -68,8 +68,11 @@ def run_type_assignment(
                 chosen_idx = np.arange(full_query_gene_data.shape[0])
                 chosen_query_data = full_query_gene_data
             else:
-                chosen_idx = previously_assigned[parent_level][parent_node[1]]
-                chosen_query_data = full_query_gene_data[chosen_idx, :]
+                if parent_node[1] in previously_assigned[parent_level]:
+                    chosen_idx = previously_assigned[parent_level][parent_node[1]]
+                    chosen_query_data = full_query_gene_data[chosen_idx, :]
+                else:
+                    chosen_idx = []
 
             if len(chosen_idx) == 0:
                 continue
