@@ -72,10 +72,10 @@ def run_type_assignment(
     hierarchy = taxonomy_tree['hierarchy']
     result = []
     for i_cell in range(full_query_gene_data.shape[0]):
-         this = dict()
-         for level in hierarchy:
-             this[level] = None
-         result.append(this)
+        this = dict()
+        for level in hierarchy:
+            this[level] = None
+        result.append(this)
 
     # list of levels in the taxonomy (None means consider all clusters)
     level_list = [None] + list(hierarchy)
@@ -110,8 +110,11 @@ def run_type_assignment(
                 chosen_query_data = full_query_gene_data
             else:
                 if parent_node[1] in previously_assigned[parent_level]:
-                    chosen_idx = previously_assigned[parent_level][parent_node[1]]
+                    chosen_idx = previously_assigned[
+                        parent_level][parent_node[1]]
+
                     chosen_query_data = full_query_gene_data[chosen_idx, :]
+
                 else:
                     chosen_idx = []
 
@@ -137,7 +140,7 @@ def run_type_assignment(
                                 bootstrap_iteration=bootstrap_iteration,
                                 rng=rng)
             elif len(possible_children) == 1:
-               assignment = [possible_children[0]]*chosen_query_data.shape[0]
+                assignment = [possible_children[0]]*chosen_query_data.shape[0]
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -157,8 +160,8 @@ def run_type_assignment(
 
             for idx in range(len(idx_to_type)):
                 celltype = idx_to_type[idx]
-                assigned_this = (assignment_idx==idx)
-                assigned_this= chosen_idx[assigned_this]
+                assigned_this = (assignment_idx == idx)
+                assigned_this = chosen_idx[assigned_this]
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes

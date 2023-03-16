@@ -2,13 +2,9 @@ import h5py
 import json
 import multiprocessing
 import numpy as np
-import os
-import pathlib
-import tempfile
 import time
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up,
     print_timing)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
@@ -19,27 +15,6 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 
 from hierarchical_mapping.marker_selection.utils import (
     select_marker_genes)
-
-
-def assign_types_to_chunk(
-        query_gene_data,
-        taxonomy_tree,
-        precompute_path,
-        marker_cache_path):
-    """
-    query_gene_data is an n_cells x n_genes chunk
-    query_gene_names lists the names of the genes in this chunk
-
-    marker_cache_path is the path to the file created by
-    create_marker_gene_cache
-
-    A temporary HDF5 file with lists of marker genes for
-    each parent node will be written out in tmp_path
-    """
-
-    mean_leaf_lookup = get_leaf_means(
-        taxonomy_tree=taxonomy_tree,
-        precompute_path=precompute_path)
 
 
 def create_marker_gene_cache(

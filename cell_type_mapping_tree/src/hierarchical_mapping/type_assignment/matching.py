@@ -6,7 +6,6 @@ from hierarchical_mapping.diff_exp.scores import (
     read_precomputed_stats)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
-    get_all_leaf_pairs,
     convert_tree_to_leaves)
 
 
@@ -30,7 +29,7 @@ def assemble_query_data(
 
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
     hierarchy = taxonomy_tree['hierarchy']
-    level_to_idx = {level:idx for idx, level in enumerate(hierarchy)}
+    level_to_idx = {level: idx for idx, level in enumerate(hierarchy)}
 
     if parent_node is None:
         parent_grp = 'None'
@@ -39,7 +38,10 @@ def assemble_query_data(
 
     else:
         parent_grp = f"{parent_node[0]}/{parent_node[1]}"
-        immediate_children = list(taxonomy_tree[parent_node[0]][parent_node[1]])
+
+        immediate_children = list(
+            taxonomy_tree[parent_node[0]][parent_node[1]])
+
         child_level = hierarchy[level_to_idx[parent_node[0]]+1]
 
     immediate_children.sort()
