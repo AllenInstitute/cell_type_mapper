@@ -2,6 +2,7 @@ import pytest
 import copy
 import numpy as np
 import json
+import itertools
 
 from hierarchical_mapping.utils.utils import json_clean_dict
 
@@ -10,7 +11,10 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     _get_rows_from_tree,
     compute_row_order,
     _get_leaves_from_tree,
-    convert_tree_to_leaves)
+    convert_tree_to_leaves,
+    get_siblings,
+    get_all_pairs,
+    get_all_leaf_pairs)
 
 
 @pytest.fixture
@@ -28,11 +32,20 @@ def l1_to_l2_fixture():
                "l1b": set(["l2b", "l2f"]),
                "l1c": set(["l2c"])}
 
+    siblings = [
+        ('level1', 'l1a', 'l1b'),
+        ('level1', 'l1a', 'l1c'),
+        ('level1', 'l1b', 'l1c'),
+        ('level2', 'l2a', 'l2d'),
+        ('level2', 'l2a', 'l2e'),
+        ('level2', 'l2d', 'l2e'),
+        ('level2', 'l2b', 'l2f')]
+
     backward = dict()
     for k in forward:
         for i in forward[k]:
             backward[i] = k
-    return forward, backward
+    return forward, backward, siblings
 
 
 @pytest.fixture
@@ -48,11 +61,19 @@ def l2_to_class_fixture():
                "l2e": set(["c9"]),
                "l2f": set(["c10", "c11"])}
 
+    siblings = [
+        ('class', 'c4', 'c5'),
+        ('class', 'c1', 'c6'),
+        ('class', 'c2', 'c7'),
+        ('class', 'c2', 'c8'),
+        ('class', 'c7', 'c8'),
+        ('class', 'c10', 'c11')]
+
     backward = dict()
     for k in forward:
         for i in forward[k]:
             backward[i] = k
-    return forward, backward
+    return forward, backward, siblings
 
 @pytest.fixture
 def class_to_cluster_fixture(l2_to_class_fixture):
@@ -60,20 +81,27 @@ def class_to_cluster_fixture(l2_to_class_fixture):
     Fixture modeling which cluster objects belong
     to which class objects
     """
+    rng = np.random.default_rng(98812)
     list_of_classes = list(l2_to_class_fixture[1].keys())
 
     forward = dict()
     backward = dict()
+    siblings = []
     ct = 0
     for c in list_of_classes:
         forward[c] = set()
-        for ii in range(4):
+        children_list = []
+        for ii in range(rng.integers(3, 7)):
             this = f"clu_{ct}"
+            children_list.append(this)
             ct += 1
             backward[this] = c
             forward[c].add(this)
+        children_list.sort()
+        for pair in itertools.combinations(children_list, 2):
+            siblings.append(('cluster', pair[0], pair[1]))
 
-    return forward, backward
+    return forward, backward, siblings
 
 
 @pytest.fixture
@@ -312,3 +340,137 @@ def test_convert_tree_to_leaves(
             actual = as_leaves[h][this_node]
             assert set(actual) == expected
             assert len(set(actual)) == len(actual)
+
+
+def test_get_siblings(
+        records_fixture,
+        column_hierarchy,
+        l1_to_l2_fixture,
+        l2_to_class_fixture,
+        class_to_cluster_fixture):
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    siblings = get_siblings(tree)
+
+    ct = 0
+    for expected in (l1_to_l2_fixture[2],
+                     l2_to_class_fixture[2],
+                     class_to_cluster_fixture[2]):
+        for el in expected:
+            assert el in siblings
+            ct += 1
+    assert len(siblings) == ct
+
+
+def test_get_all_pairs(
+        records_fixture,
+        column_hierarchy,
+        l1_to_l2_fixture,
+        l2_to_class_fixture,
+        class_to_cluster_fixture):
+
+    tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=column_hierarchy)
+
+    siblings = get_all_pairs(tree)
+    ct = 0
+    for level, lookup in zip(('level1', 'level2', 'class'),
+                             (l1_to_l2_fixture[0],
+                              l2_to_class_fixture[0],
+                               class_to_cluster_fixture[0])):
+        elements = list(lookup.keys())
+        elements.sort()
+        for i0 in range(len(elements)):
+            for i1 in range(i0+1, len(elements), 1):
+                test = (level, elements[i0], elements[i1])
+                assert test in siblings
+                ct += 1
+    cluster_list = []
+    for k in class_to_cluster_fixture[0]:
+        cluster_list += list(class_to_cluster_fixture[0][k])
+    cluster_list.sort()
+    for i0 in range(len(cluster_list)):
+        for i1 in range(i0+1, len(cluster_list), 1):
+            test = ('cluster', cluster_list[i0], cluster_list[i1])
+            assert test in siblings
+            ct += 1
+    assert len(siblings) == ct
+
+
+def test_get_all_leaf_pairs():
+
+    tree = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(k,26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    # check non-None parent Node
+    parent_node = ('level2', 'l2b')
+    actual = get_all_leaf_pairs(
+                taxonomy_tree=tree,
+                parent_node=parent_node)
+
+    candidates0 = ['0', '1', '2']
+    candidates1 = ['7', '8']
+    expected = []
+    for pair in itertools.product(candidates0, candidates1):
+        expected.append(('leaf', pair[0], pair[1]))
+
+    assert set(actual) == set(expected)
+
+    # check case with parent_node = None
+    parent_node = None
+    candidates0 = ['0', '1', '2', '7', '8', '9', '10', '11', '12',
+                   '15', '16', '17', '18', '21', '22']
+    candidates1 = ['3', '4', '5', '6', '13', '14', '19', '20']
+    candidates2 = ['23']
+
+    actual = get_all_leaf_pairs(
+                taxonomy_tree=tree,
+                parent_node=parent_node)
+
+    expected = []
+    for c0, c1 in itertools.combinations([candidates0,
+                                          candidates1,
+                                          candidates2], 2):
+        for pair in itertools.product(c0, c1):
+            if pair[0] < pair[1]:
+                expected.append(('leaf', pair[0], pair[1]))
+            else:
+                expected.append(('leaf', pair[1], pair[0]))
+    assert set(actual) == set(expected)
+
+    # check case when there are no pairs to compare
+    parent_node = ('level1', 'l1c')
+    actual = get_all_leaf_pairs(
+                taxonomy_tree=tree,
+                parent_node=parent_node)
+    assert actual == []
+
+    actual = get_all_leaf_pairs(
+                taxonomy_tree=tree,
+                parent_node=('leaf', '15'))
+    assert actual == []

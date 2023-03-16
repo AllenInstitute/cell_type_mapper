@@ -14,6 +14,14 @@ def _clean_up(target_path):
         target_path.rmdir()
 
 
+def file_size_in_bytes(file_path, chunk_size=1000000000):
+    n_bytes = 0
+    with open(file_path, 'rb') as in_file:
+        chunk = in_file.read(chunk_size)
+        n_bytes += len(chunk)
+    return n_bytes
+
+
 def merge_index_list(
         index_list: Union[list, np.ndarray]) -> List[Tuple[int, int]]:
     """
@@ -24,7 +32,7 @@ def merge_index_list(
     """
     index_list = np.unique(index_list)
     diff_list = np.diff(index_list)
-    breaks = np.where(diff_list>1)[0]
+    breaks = np.where(diff_list > 1)[0]
     result = []
     min_dex = 0
     for max_dex in breaks:
@@ -40,7 +48,8 @@ def print_timing(
         i_chunk: int,
         tot_chunks: int,
         unit: str = 'min',
-        nametag: Optional[Any] = None):
+        nametag: Optional[Any] = None,
+        msg: Optional[str] = None):
 
     if unit not in ('sec', 'min', 'hr'):
         raise RuntimeError(f"timing unit {unit} nonsensical")
@@ -53,11 +62,15 @@ def print_timing(
     per = duration/max(1, i_chunk)
     pred = per*tot_chunks
     remain = pred-duration
-    msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
-    msg += f"predict {remain:.2e} of {pred:.2e} left"
+    this_msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
+    this_msg += f"predict {remain:.2e} of {pred:.2e} left"
     if nametag is not None:
-        msg = f"{nametag} -- {msg}"
-    print(msg)
+        this_msg = f"{nametag} -- {msg}"
+
+    if msg is not None:
+        this_msg = f"{this_msg} -- {msg}"
+
+    print(this_msg)
 
 
 def json_clean_dict(input_dict):

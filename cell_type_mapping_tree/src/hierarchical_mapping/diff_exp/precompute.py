@@ -58,7 +58,7 @@ def precompute_summary_stats(
         cluster_to_input_row: Dict[str, List[int]],
         n_genes: int,
         output_path: Union[str, pathlib.Path],
-        n_processors:int = 6,
+        n_processors: int = 6,
         rows_at_a_time: int = 5000,
         col_names: Optional[list] = None):
     """
@@ -211,7 +211,8 @@ def _summary_stats_worker(
         # get a chunk of rows_at_a_time rows to load
         these_rows = []
         sub_row_mapping = dict()
-        while len(these_rows) < rows_at_a_time and i_cluster < len(cluster_list):
+        n_clusters = len(cluster_list)
+        while len(these_rows) < rows_at_a_time and i_cluster < n_clusters:
             cluster = cluster_list[i_cluster]
             i0 = len(these_rows)
             these_rows += cluster_to_input_row[cluster]
@@ -252,7 +253,6 @@ def _summary_stats_worker(
         if i_cluster >= len(cluster_list):
             keep_going = False
 
-
     with output_lock:
         with h5py.File(output_path, 'a') as out_file:
             for output_idx in results:
@@ -260,5 +260,3 @@ def _summary_stats_worker(
                 out_file['n_cells'][output_idx] = summary_stats['n_cells']
                 for k in ('sum', 'sumsq', 'gt0', 'gt1'):
                     out_file[k][output_idx, :] = summary_stats[k]
-
-

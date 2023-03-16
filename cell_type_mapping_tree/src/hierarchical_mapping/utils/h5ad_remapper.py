@@ -68,16 +68,12 @@ def rearrange_sparse_h5ad_hunter_gather(
 
         row_collector_list.append(collector)
 
-    t_write = 0.0
     process_dict = dict()
     with h5py.File(h5ad_path, 'r') as h5ad_handle:
         n_rows_total = len(h5ad_handle['X']['indptr'][()])-1
         h5ad_server = H5adServer(
             h5ad_handle=h5ad_handle,
             buffer_size=read_buffer_size)
-
-        write_t0 = time.time()
-        keep_going = True
 
         h5ad_data = h5ad_server.update()
 
@@ -110,7 +106,6 @@ def rearrange_sparse_h5ad_hunter_gather(
 
             process_dict = winnow_process_dict(process_dict)
 
-
         for k in process_dict.keys():
             process_dict[k].join()
 
@@ -124,12 +119,18 @@ def rearrange_sparse_h5ad_hunter_gather(
                 d = 100000000
                 for i0 in range(span[0], span[1], d):
                     i1 = min(span[1], i0+d)
-                    zarr_handle['indices'][i0:i1] = in_file['indices'][i0-span[0]:i1-span[0]]
-                    zarr_handle['data'][i0:i1] = in_file['data'][i0-span[0]:i1-span[0]]
+                    zarr_handle['indices'][i0:
+                                           i1] = in_file['indices'][i0-span[0]:
+                                                                    i1-span[0]]
+
+                    zarr_handle['data'][i0:i1] = in_file['data'][i0-span[0]:
+                                                                 i1-span[0]]
+
             if collector_obj.tmp_h5_path.exists():
                 collector_obj.tmp_h5_path.unlink()
             duration = (time.time()-_t0)/3600.0
-            print(f"this collector took {duration:.2e} hrs -- total {len(row_collector_list)}")
+            print(f"this collector took {duration:.2e} hrs "
+                  f"-- total {len(row_collector_list)}")
 
     duration = (time.time()-global_t0)/3600.0
     print(f"whole process took {duration:.2e} hrs")
@@ -150,10 +151,10 @@ class DataObject(object):
             indices,
             indptr):
 
-        self.base_row=base_row
-        self.data=data
-        self.indices=indices
-        self.indptr=indptr
+        self.base_row = base_row
+        self.data = data
+        self.indices = indices
+        self.indptr = indptr
 
 
 class H5adServer(object):
@@ -215,7 +216,8 @@ class H5adServer(object):
         self._indices[:i1-i0] = self.h5ad_handle['X']['indices'][i0:i1]
         self._valid_idx = i1-i0
 
-        self._indptr_chunk = self._raw_indptr[self.r0:r1+1]-self._raw_indptr[self.r0]
+        self._indptr_chunk = (self._raw_indptr[self.r0:r1+1]
+                              - self._raw_indptr[self.r0])
         self.r0 = r1
         self.t_load += time.time()-t0
 
@@ -251,7 +253,8 @@ class RowCollector(object):
                              suffix='.h5')
         os.close(self.tmp_h5_path[0])
         self.tmp_h5_path = pathlib.Path(self.tmp_h5_path[1])
-        print(f"writing to {self.tmp_h5_path.resolve().absolute()} -- {tmp_dir}")
+        print(f"writing to {self.tmp_h5_path.resolve().absolute()} "
+              f"-- {tmp_dir}")
         self.t_write = 0.0
         self._t0 = time.time()
         self._tot_rows = row_chunk[1]-row_chunk[0]
@@ -339,7 +342,6 @@ class RowCollector(object):
             else:
                 assert data_i0 == data_i1
 
-        n_raw_bounds = len(raw_in_bounds)
         (in_bound_list,
          out_bound_list) = _merge_bounds(raw_in_bounds, raw_out_bounds)
 
@@ -404,8 +406,6 @@ def _merge_bounds(
 
     all_idx = set(range(len(raw_out_bounds)))
     root_set = all_idx-children
-    leaf_set = all_idx-parents
-    singleton_set = all_idx-parents-children
     logged_set = set()
 
     in_bounds = []

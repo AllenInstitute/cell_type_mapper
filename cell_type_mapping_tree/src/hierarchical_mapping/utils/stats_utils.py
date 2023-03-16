@@ -58,14 +58,21 @@ def welch_t_test(mean1, var1, n1, mean2, var2, n2):
     with np.errstate(invalid='ignore', divide='ignore'):
         nu_num = var1/n1 + var2/n2
         denom = np.sqrt(nu_num)
-        denom = np.where(denom>0.0, denom, 1.0e-10)
+        denom = np.where(denom > 0.0, denom, 1.0e-10)
         tt = (mean1-mean2)/denom
         nu_denom = ((var1**2)/(n1**3-n1**2)+(var2**2)/(n2**3-n2**2))
-        nu_denom = np.where(nu_denom>0.0, nu_denom, 1.0)
+        nu_denom = np.where(nu_denom > 0.0, nu_denom, 1.0)
         nu = nu_num*nu_num/nu_denom
         cdf = scipy_stats.t.cdf(tt, df=nu)
         cdf = np.where(np.isfinite(cdf), cdf, 0.5)
-        pval = np.where(cdf<0.5, 2.0*cdf, 2.0*(1.0-cdf))
+
+        # clip CDF at min and max non extremal values
+        f_info = np.finfo(cdf.dtype)
+        eps = f_info.smallest_normal
+        ceil = 1.0-f_info.epsneg
+        cdf = np.clip(cdf, eps, ceil)
+
+        pval = np.where(cdf < 0.5, 2.0*cdf, 2.0*(1.0-cdf))
     return (tt, nu, pval)
 
 
@@ -88,7 +95,7 @@ def correct_ttest(ttest_metric):
 
     n_p = len(ttest_metric)
     sorted_t = np.argsort(ttest_metric)
-    t_denom = n_p+1-np.arange(1,n_p+1,dtype=int)
+    t_denom = n_p+1-np.arange(1, n_p+1, dtype=int)
 
     # here we get a list that is the running maximum of the
     # corrected p-values. This is how we handle the
@@ -99,5 +106,5 @@ def correct_ttest(ttest_metric):
 
     ordered_p = np.zeros(len(ttest_metric), dtype=float)
     ordered_p[sorted_t] = corrected_p
-    ordered_p = np.where(ordered_p<1.0,ordered_p,1.0)
+    ordered_p = np.where(ordered_p < 1.0, ordered_p, 1.0)
     return ordered_p
