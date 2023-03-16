@@ -77,17 +77,33 @@ def run_type_assignment(
             if len(chosen_idx) == 0:
                 continue
 
-            assignment = _run_type_assignment(
-                            full_query_gene_data=chosen_query_data,
-                            leaf_node_lookup=leaf_node_lookup,
-                            marker_gene_cache_path=marker_gene_cache_path,
-                            taxonomy_tree=taxonomy_tree,
-                            parent_node=parent_node,
-                            bootstrap_factor=bootstrap_factor,
-                            bootstrap_iteration=bootstrap_iteration,
-                            rng=rng)
+            # see how many children this parent node has;
+            # if == 1, assignment is trivial
+            if parent_level is not None:
+                possible_children = taxonomy_tree[parent_level][parent_node[1]]
+            else:
+                possible_children = list(taxonomy_tree[
+                        taxonomy_tree['hierarchy'][0]].keys())
 
-            # popuulate the dict keeping track of the rows in
+            if len(possible_children) > 1:
+                assignment = _run_type_assignment(
+                                full_query_gene_data=chosen_query_data,
+                                leaf_node_lookup=leaf_node_lookup,
+                                marker_gene_cache_path=marker_gene_cache_path,
+                                taxonomy_tree=taxonomy_tree,
+                                parent_node=parent_node,
+                                bootstrap_factor=bootstrap_factor,
+                                bootstrap_iteration=bootstrap_iteration,
+                                rng=rng)
+            elif len(possible_children) == 1:
+               assignment = [possible_children[0]]*chosen_query_data.shape[0]
+            else:
+                raise RuntimeError(
+                    "Not sure how to proceed;\n"
+                    f"parent {parent_node}\n"
+                    f"has children {possible_children}")
+
+            # populate the dict keeping track of the rows in
             # full_query_gene_data that were assigned to each
             # possible child type
             type_to_idx = dict()
