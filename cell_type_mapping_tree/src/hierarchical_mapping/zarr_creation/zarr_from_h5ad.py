@@ -1,6 +1,5 @@
 import anndata
 import json
-import numpy as np
 import pathlib
 import tempfile
 
