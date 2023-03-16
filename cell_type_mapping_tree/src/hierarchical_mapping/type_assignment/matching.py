@@ -53,6 +53,11 @@ def assemble_query_data(
         reference_markers = in_file[parent_grp]['reference'][()]
         query_markers = in_file[parent_grp]['query'][()]
 
+    if len(reference_markers) == 0:
+        raise RuntimeError(
+            f"could not find marker genes for "
+            f"{parent_grp}")
+
     query_data = full_query_data[:, query_markers]
 
     n_reference = len(leaf_to_type)
