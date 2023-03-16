@@ -41,7 +41,7 @@ def choose_node(
 
     chosen_type = np.argmax(votes, axis=1)
     result = [reference_types[ii] for ii in chosen_type]
-    return result
+    return np.array(result)
 
 
 def tally_votes(

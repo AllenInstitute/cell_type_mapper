@@ -1,6 +1,9 @@
 import h5py
 import numpy as np
 
+from hierarchical_mapping.diff_exp.scores import (
+    aggregate_stats,
+    read_precomputed_stats)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs,
@@ -59,7 +62,6 @@ def assemble_query_data(
     children = list(leaf_to_type.keys())
     children.sort()
     for ii, child in enumerate(children):
-        print(child)
         reference_types.append(leaf_to_type[child])
         this_mu = mean_profile_lookup[child]
         reference_data[ii, :] = this_mu[reference_markers]
@@ -67,3 +69,27 @@ def assemble_query_data(
     return {'query_data': query_data,
             'reference_data': reference_data,
             'reference_types': reference_types}
+
+
+def get_leaf_means(
+        taxonomy_tree,
+        precompute_path):
+    """
+    Returns a lookup from leaf node name to mean
+    gene expression array
+    """
+    precomputed_stats = read_precomputed_stats(precompute_path)
+    hierarchy = taxonomy_tree['hierarchy']
+    leaf_level = hierarchy[-1]
+    leaf_names = list(taxonomy_tree[leaf_level].keys())
+    result = dict()
+    for leaf in leaf_names:
+
+        # gt1/0 threshold do not actually matter here
+        stats = aggregate_stats(
+                    leaf_population=[leaf,],
+                    precomputed_stats=precomputed_stats['cluster_stats'],
+                    gt0_threshold=1,
+                    gt1_threshold=0)
+        result[leaf] = stats['mean']
+    return result

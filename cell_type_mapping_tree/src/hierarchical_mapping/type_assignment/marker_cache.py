@@ -17,10 +17,6 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
 
-from hierarchical_mapping.diff_exp.scores import (
-    aggregate_stats,
-    read_precomputed_stats)
-
 from hierarchical_mapping.marker_selection.utils import (
     select_marker_genes)
 
@@ -186,27 +182,3 @@ def _marker_gene_worker(
                 out_grp = out_file[grp]
                 out_grp.create_dataset('reference', data=reference)
                 out_grp.create_dataset('query', data=query)
-
-
-def get_leaf_means(
-        taxonomy_tree,
-        precompute_path):
-    """
-    Returns a lookup from leaf node name to mean
-    gene expression array
-    """
-    precomputed_stats = read_precomputed_stats(precomputed_path)
-    hierarchy = taxonomy_tree['hierarchy']
-    leaf_level = hierarchy[-1]
-    leaf_names = list(taxonomy_tree[leaf_level].keys())
-    result = dict()
-    for leaf in leaf_names:
-
-        # gt1/0 threshold do not actually matter here
-        stats = aggregate_stats(
-                    leaf_population=[leaf,],
-                    precomputed_stats=precomputed_stats,
-                    gt0_threshold=1,
-                    gt1_threshodl=0)
-        result[leaf] = stats['mean']
-    return result
