@@ -18,7 +18,48 @@ def run_type_assignment(
         bootstrap_factor,
         bootstrap_iteration,
         rng):
+    """
+    Assign types at all levels of the taxonomy to a set of
+    query cells.
 
+    Parameters
+    ----------
+    full_query_gene_data:
+        (n_query_cells, n_query_genes) numpy array. The cells
+        to be mapped.
+
+    precomputed_stats_path:
+        Path to the HDF5 file where precomputed stats on the
+        clusters in our taxonomy are stored.
+
+    marker_gene_cache_path:
+        Path to the HDF5 file where lists of marker genes for
+        discriminating betwen clustes in our taxonomy are stored.
+
+        Note: This file takes into account the genes available
+        in the query data. So: it is specific to this combination
+        of taxonomy/reference set and query data set.
+
+    taxonomy_tree:
+        Dict encoding the cell type taxonomy we are matching to
+
+    bootstrap_factor:
+        Fraction (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+
+    bootstrap_iteration:
+        How many booststrap iterations to run when assigning
+        cells to cell types
+
+    rng:
+        A random number generator
+
+    Returns
+    -------
+    A list of dicts. Each dict correponds to a cell in full_query_gene_data.
+    The dict maps level in the hierarchy to the type (at that level)
+    the cell has been assigned.
+    """
     # get a dict mapping leaf node name
     # to mean gene expression profile
     leaf_node_lookup = get_leaf_means(
@@ -138,6 +179,53 @@ def _run_type_assignment(
         bootstrap_factor,
         bootstrap_iteration,
         rng):
+    """
+    Assign a set of query cells to types that are children
+    of a specified parent node in our taxonomy.
+
+    Parameters
+    ----------
+    full_query_gene_data:
+        (n_query_cells, n_query_genes) numpy array. The cells
+        to be mapped.
+
+    leaf_node_lookup:
+        Dict that maps cluster names to mean gene expression
+        profile of cells in that cluster.
+
+    marker_gene_cache_path:
+        Path to the HDF5 file where lists of marker genes for
+        discriminating betwen clustes in our taxonomy are stored.
+
+        Note: This file takes into account the genes available
+        in the query data. So: it is specific to this combination
+        of taxonomy/reference set and query data set.
+
+    taxonomy_tree:
+        A dict that encodes our cell types taxonomy
+
+    parent_node:
+        Tuple of the form (level, cell_type) that encodes
+        the parent to whose children we are mapping the cells
+        in the query data
+
+    bootstrap_factor:
+        Fraction (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+
+    bootstrap_iteration:
+        How many booststrap iterations to run when assigning
+        cells to cell types
+
+    rng:
+        A random number generator
+
+    Returns
+    -------
+    A list of strings. There is one string per row in the
+    full_query_gene_data array. Each string is the child of
+    parent_node to which that cell was assigned.
+    """
 
     query_data = assemble_query_data(
         full_query_data=full_query_gene_data,
