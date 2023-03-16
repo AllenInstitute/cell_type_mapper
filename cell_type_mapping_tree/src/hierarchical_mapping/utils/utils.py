@@ -17,11 +17,8 @@ def _clean_up(target_path):
 def file_size_in_bytes(file_path, chunk_size=1000000000):
     n_bytes = 0
     with open(file_path, 'rb') as in_file:
-        keep_going = True
         chunk = in_file.read(chunk_size)
         n_bytes += len(chunk)
-        if len(chunk) == 0:
-            keep_going = False
     return n_bytes
 
 
@@ -35,7 +32,7 @@ def merge_index_list(
     """
     index_list = np.unique(index_list)
     diff_list = np.diff(index_list)
-    breaks = np.where(diff_list>1)[0]
+    breaks = np.where(diff_list > 1)[0]
     result = []
     min_dex = 0
     for max_dex in breaks:

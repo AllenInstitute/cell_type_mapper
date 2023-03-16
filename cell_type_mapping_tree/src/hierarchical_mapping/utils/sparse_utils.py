@@ -77,7 +77,7 @@ def _load_disjoint_csr(
     """
     row_index_list = np.array(row_index_list)
     sorted_dex = np.argsort(row_index_list)
-    inverse_argsort = {sorted_dex[ii]:ii for ii in range(len(sorted_dex))}
+    inverse_argsort = {sorted_dex[ii]: ii for ii in range(len(sorted_dex))}
 
     row_index_list = row_index_list[sorted_dex]
 
@@ -155,16 +155,11 @@ def _load_csr(
     -------
     The appropriate slices of data, indices, indptr
     """
-    t0 = time.time()
-    #print("loading csr")
     these_ptrs = indptr[row_spec[0]:row_spec[1]+1]
-    #print(f"got indptr {time.time()-t0:.2e}")
-    index0= these_ptrs[0]
+    index0 = these_ptrs[0]
     index1 = these_ptrs[-1]
     these_indices = indices[index0:index1]
-    #print(f"got indices {time.time()-t0:.2e}")
     this_data = data[index0:index1]
-    #print(f"done loading csr {time.time()-t0:.2e}")
     return this_data, these_indices, these_ptrs-these_ptrs.min()
 
 
@@ -216,7 +211,6 @@ def _cull_columns(
     """
     Return only the desired columns from a csr matrix
     """
-    #print("culling columns")
     valid_idx = np.where(
             np.logical_and(
                 indices >= col_spec[0],
@@ -235,7 +229,6 @@ def _cull_columns(
 
     new_indptr[this_row+1:] = len(new_data)
 
-    #print("done culling columns")
     return (new_data,
             new_indices,
             new_indptr)
@@ -390,7 +383,6 @@ def remap_csr_matrix(
         old_row = new_to_old_row[new_row]
         i0 = indptr[old_row]
         i1 = indptr[old_row+1]
-        delta = i1-i0
         _t0 = time.time()
         data_chunk = data_handle[i0:i1]
         indices_chunk = indices_handle[i0:i1]
@@ -418,7 +410,8 @@ def remap_csr_matrix(
                 i_chunk=row_ct,
                 unit='hr',
                 nametag=process_name)
-            msg = f"spent {t_load/3600.0:.2e} hrs loading {t_write/3600.0:.2e} hrs writing"
+            msg = f"spent {t_load/3600.0:.2e} hrs loading "
+            msg += f"{t_write/3600.0:.2e} hrs writing"
             print(msg)
 
     _update_buffers(
@@ -433,7 +426,6 @@ def remap_csr_matrix(
           output_lock=output_lock)
 
     writer_obj.write_indptr(new_indptr=new_indptr)
-
 
 
 def _update_buffers(

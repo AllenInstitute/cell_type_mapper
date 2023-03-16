@@ -49,6 +49,7 @@ def correlation_distance(
     """
     return 1.0-correlation_dot(arr0, arr1)
 
+
 def correlation_dot(arr0, arr1):
     """
     Return the correlation between the rows of two
@@ -100,7 +101,7 @@ def _subtract_mean_and_normalize(data, do_transpose=False):
     # value in all genes. Probably not interesting.
     # Set those norms to 1 to avoid divide by zero
     # problems
-    invalid = (norm==0.0)
+    invalid = (norm == 0.0)
     norm[invalid] = 1.0
 
     data = data/norm

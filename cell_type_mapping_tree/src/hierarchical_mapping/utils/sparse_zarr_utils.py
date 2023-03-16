@@ -1,5 +1,6 @@
 import zarr
 
+
 def _create_empty_zarr(
         data_shape,
         indptr_shape,
