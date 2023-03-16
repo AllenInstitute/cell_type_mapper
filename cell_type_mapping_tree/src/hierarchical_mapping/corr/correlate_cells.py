@@ -2,7 +2,6 @@ import anndata
 import h5py
 import json
 import multiprocessing
-import numpy as np
 import time
 from scipy.spatial.distance import cdist as scipy_cdist
 
@@ -57,7 +56,8 @@ def correlate_cells(
 
         reference_profiles = reference_file['sum'][()]
         reference_profiles = reference_profiles[:, gene_idx['reference']]
-        reference_profiles = reference_profiles.transpose()/reference_file['n_cells'][()]
+        reference_profiles = reference_profiles.transpose()
+        reference_profiles = reference_profiles/reference_file['n_cells'][()]
         reference_profiles = reference_profiles.transpose()
 
         n_clusters = reference_profiles.shape[0]
