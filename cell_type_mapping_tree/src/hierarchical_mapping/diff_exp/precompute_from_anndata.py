@@ -1,4 +1,4 @@
-from typing import Union, Dict, List
+from typing import Union, List
 import anndata
 import numpy as np
 import h5py
@@ -7,6 +7,9 @@ import time
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
+
+from hierarchical_mapping.utils.taxonomy_utils import (
+    get_taxonomy_tree)
 
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
@@ -17,7 +20,7 @@ from hierarchical_mapping.diff_exp.precompute import (
 
 def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
-        cluster_to_input_row: Dict[str, List[int]],
+        column_hierarchy: List[str],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000):
     """
@@ -28,9 +31,9 @@ def precompute_summary_stats_from_h5ad(
     data_path:
         Path to the h5ad file containing the cell x gene matrix
 
-    cluster_to_input_row:
-        Dict mapping the name of cell clusters to lists
-        of the row indexes of cells in those clusters
+    column_hierarcy:
+        The list of columns denoting taxonomic classes,
+        ordered from highest (parent) to lowest (child).
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -44,12 +47,19 @@ def precompute_summary_stats_from_h5ad(
         Number of rows to load at once from the cell x gene
         matrix
     """
+    a_data = anndata.read_h5ad(data_path, backed='r')
+
+    taxonomy_tree = get_taxonomy_tree(
+        obs_records=a_data.obs.to_dict(orient='records'),
+        column_hierarchy=column_hierarchy)
+
+    cluster_to_input_row = taxonomy_tree[column_hierarchy[-1]]
+
     cluster_list = list(cluster_to_input_row)
     cluster_to_output_row = {c: int(ii)
                              for ii, c in enumerate(cluster_list)}
     n_clusters = len(cluster_list)
 
-    a_data = anndata.read_h5ad(data_path, backed='r')
     n_cells = a_data.X.shape[0]
     n_genes = a_data.X.shape[1]
 

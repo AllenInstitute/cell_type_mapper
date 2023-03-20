@@ -9,9 +9,6 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import zarr
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_taxonomy_tree)
-
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
     contiguous_zarr_from_h5ad)
 
@@ -236,13 +233,9 @@ def test_precompute_from_data(
             rows_at_a_time=100,
             n_processors=3)
     else:
-        taxonomy_tree = get_taxonomy_tree(
-                obs_records=records_fixture,
-                column_hierarchy=hierarchy)
-
         precompute_summary_stats_from_h5ad(
             data_path=h5ad_path_fixture,
-            cluster_to_input_row=taxonomy_tree[hierarchy[-1]],
+            column_hierarchy=hierarchy,
             output_path=stats_file,
             rows_at_a_time=13)
 
