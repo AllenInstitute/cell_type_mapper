@@ -170,14 +170,21 @@ def expected_corr_fixture(
     cluster_means = np.mean(cluster_profiles, axis=1)
     cluster_std = np.std(cluster_profiles, axis=1, ddof=0)
 
+    valid = 0
     for i_cell in range(n_cells):
         this_cell = cell_profiles[i_cell, :]
         for i_cluster in range(n_clusters):
             this_cluster = cluster_profiles[i_cluster, :]
             corr = np.mean((this_cell-cell_means[i_cell])
                           *(this_cluster-cluster_means[i_cluster]))
-            corr = corr/(cluster_std[i_cluster]*cell_std[i_cell])
+            denom = (cluster_std[i_cluster]*cell_std[i_cell])
+            if denom > 0.0:
+                corr = corr/denom
+                valid += 1
+            else:
+                corr = 0.0
             expected[i_cell, i_cluster] = corr
+    assert valid > 0
     return expected
 
 
