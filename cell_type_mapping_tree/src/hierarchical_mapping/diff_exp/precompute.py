@@ -82,7 +82,14 @@ def precompute_summary_stats(
         Path to the HDF5 file that will contain the lookup
         information for the clusters
 
-    row_names/col_names:
+    n_processors:
+        Number of independent workers to spawn.
+
+    rows_at_a_time:
+        Number of rows to load at once from the cell x gene
+        matrix
+
+    col_names:
         Optional list of names associated with the columns
         in the data matrix
     """
