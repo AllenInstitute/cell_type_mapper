@@ -9,11 +9,17 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import zarr
 
+from hierarchical_mapping.utils.taxonomy_utils import (
+    get_taxonomy_tree)
+
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
     contiguous_zarr_from_h5ad)
 
 from hierarchical_mapping.diff_exp.precompute import (
     precompute_summary_stats_from_contiguous_zarr)
+
+from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
     _clean_up)
@@ -188,34 +194,58 @@ def baseline_stats_fixture(
     return results
 
 
-def test_precompute_from_contiguous_zarr(
+@pytest.mark.parametrize('via_zarr', [True, False])
+def test_precompute_from_data(
         h5ad_path_fixture,
+        records_fixture,
         baseline_stats_fixture,
-        tmp_path_factory):
+        tmp_path_factory,
+        via_zarr):
+    """
+    Test the generation of precomputed stats file either from a contiguous
+    zarr file or directly from the h5ad file (parametrized with 'via_zarr').
+
+    The test checks results against known answers.
+    """
+
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp("stats_from_contig"))
     zarr_path = tmp_dir / "contig_zarr.zarr"
     zarr_tmp = tmp_dir / "zarr_tmp"
     zarr_tmp.mkdir()
 
     hierarchy = ["level1", "level2", "class", "cluster"]
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=hierarchy,
-        zarr_chunks=1000,
-        write_buffer_size=10000,
-        read_buffer_size=10000,
-        n_processors=3,
-        tmp_dir=zarr_tmp)
 
     stats_file = tmp_dir / "summary_stats.h5"
     assert not stats_file.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
-        output_path=stats_file,
-        rows_at_a_time=100,
-        n_processors=3)
+    if via_zarr:
+        contiguous_zarr_from_h5ad(
+            h5ad_path=h5ad_path_fixture,
+            zarr_path=zarr_path,
+            taxonomy_hierarchy=hierarchy,
+            zarr_chunks=1000,
+            write_buffer_size=10000,
+            read_buffer_size=10000,
+            n_processors=3,
+            tmp_dir=zarr_tmp)
+
+
+        precompute_summary_stats_from_contiguous_zarr(
+            zarr_path=zarr_path,
+            output_path=stats_file,
+            rows_at_a_time=100,
+            n_processors=3)
+    else:
+        taxonomy_tree = get_taxonomy_tree(
+                obs_records=records_fixture,
+                column_hierarchy=hierarchy)
+
+        precompute_summary_stats_from_h5ad(
+            data_path=h5ad_path_fixture,
+            cluster_to_input_row=taxonomy_tree[hierarchy[-1]],
+            output_path=stats_file,
+            rows_at_a_time=13)
+
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:
@@ -231,6 +261,7 @@ def test_precompute_from_contiguous_zarr(
     assert len(cluster_to_row) == len(baseline_stats_fixture)
     for cluster in cluster_to_row:
         idx = cluster_to_row[cluster]
+
         np.testing.assert_allclose(
             sum_data[idx, :],
             baseline_stats_fixture[cluster]["sum"],
