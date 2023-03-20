@@ -67,6 +67,12 @@ def correlation_dot(arr0, arr1):
     corr:
         A (n_cells_0, n_cells_1) np.ndarray of the correlation
         between the rows of arr0, arr1
+
+    Note
+    ----
+    For any row where the standard deviation is zero (i.e. the row
+    has a constant expression value), the correlation will be returned
+    as zero, instead of NaN.
     """
     arr0 = _subtract_mean_and_normalize(arr0, do_transpose=False)
     arr1 = _subtract_mean_and_normalize(arr1, do_transpose=True)

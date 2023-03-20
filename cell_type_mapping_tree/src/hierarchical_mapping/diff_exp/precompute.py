@@ -82,7 +82,14 @@ def precompute_summary_stats(
         Path to the HDF5 file that will contain the lookup
         information for the clusters
 
-    row_names/col_names:
+    n_processors:
+        Number of independent workers to spawn.
+
+    rows_at_a_time:
+        Number of rows to load at once from the cell x gene
+        matrix
+
+    col_names:
         Optional list of names associated with the columns
         in the data matrix
     """
@@ -92,24 +99,12 @@ def precompute_summary_stats(
                              for ii, c in enumerate(cluster_list)}
     n_clusters = len(cluster_list)
 
-    with h5py.File(output_path, 'w') as out_file:
-
-        if col_names is not None:
-            out_file.create_dataset(
-                'col_names',
-                data=json.dumps(col_names).encode('utf-8'))
-
-        out_file.create_dataset(
-            'cluster_to_row',
-            data=json.dumps(cluster_to_output_row).encode('utf-8'))
-
-        out_file.create_dataset('n_cells', shape=(n_clusters,), dtype=int)
-        for (k, dt) in (('sum', float), ('sumsq', float),
-                        ('gt0', int), ('gt1', int)):
-            out_file.create_dataset(k,
-                                    shape=(n_clusters, n_genes),
-                                    chunks=((max(1, n_clusters//10), n_genes)),
-                                    dtype=dt)
+    _create_empty_stats_file(
+        output_path=output_path,
+        cluster_to_output_row=cluster_to_output_row,
+        n_clusters=n_clusters,
+        n_genes=n_genes,
+        col_names=col_names)
 
     # sub-divide clusters for divsion among worker processes
     worker_division = []
@@ -157,6 +152,33 @@ def precompute_summary_stats(
 
     for p in process_list:
         p.join()
+
+
+def _create_empty_stats_file(
+        output_path,
+        cluster_to_output_row,
+        n_clusters,
+        n_genes,
+        col_names=None):
+
+    with h5py.File(output_path, 'w') as out_file:
+
+        if col_names is not None:
+            out_file.create_dataset(
+                'col_names',
+                data=json.dumps(col_names).encode('utf-8'))
+
+        out_file.create_dataset(
+            'cluster_to_row',
+            data=json.dumps(cluster_to_output_row).encode('utf-8'))
+
+        out_file.create_dataset('n_cells', shape=(n_clusters,), dtype=int)
+        for (k, dt) in (('sum', float), ('sumsq', float),
+                        ('gt0', int), ('gt1', int)):
+            out_file.create_dataset(k,
+                                    shape=(n_clusters, n_genes),
+                                    chunks=((max(1, n_clusters//10), n_genes)),
+                                    dtype=dt)
 
 
 def _summary_stats_worker(

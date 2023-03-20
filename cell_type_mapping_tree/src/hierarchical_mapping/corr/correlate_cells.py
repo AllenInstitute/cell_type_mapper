@@ -3,10 +3,12 @@ import h5py
 import json
 import multiprocessing
 import time
-from scipy.spatial.distance import cdist as scipy_cdist
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
+
+from hierarchical_mapping.utils.distance_utils import (
+    correlation_dot)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -162,9 +164,8 @@ def _correlate_chunk(
     reference_profiles and query_chunk have already been
     downselected to the shared set of genes
     """
-    corr = 1.0-scipy_cdist(query_chunk,
-                           reference_profiles,
-                           metric='correlation')
+    corr = correlation_dot(query_chunk,
+                           reference_profiles)
     with output_lock:
         with h5py.File(output_path, 'a') as out_file:
             out_file[output_key][row_spec[0]: row_spec[1], :] = corr
