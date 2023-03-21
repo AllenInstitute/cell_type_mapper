@@ -84,7 +84,7 @@ def run_type_assignment_on_h5ad(
     output_list = mgr.list()
     output_lock = mgr.Lock()
 
-    tot_chunks = a_data.X.shape[0]//chunk_size
+    tot_rows = a_data.X.shape[0]
     row_ct = 0
     t0 = time.time()
 
@@ -122,7 +122,7 @@ def run_type_assignment_on_h5ad(
                 print_timing(
                     t0=t0,
                     i_chunk=row_ct,
-                    tot_chunks=tot_chunks,
+                    tot_chunks=tot_rows,
                     unit='hr')
     print("final join of worker processes")
     for p in process_list:
