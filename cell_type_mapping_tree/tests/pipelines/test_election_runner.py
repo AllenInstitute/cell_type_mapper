@@ -294,6 +294,10 @@ def test_running_full_election(
     hierarchy = taxonomy_tree['hierarchy']
     for i_cell in range(n_query_cells):
         this_cell = result[i_cell]
+        for level in hierarchy:
+            assert level in this_cell
+        for k in this_cell:
+            assert this_cell[k] is not None
         assert this_cell[hierarchy[0]] in taxonomy_tree[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
             assert this_cell[child_level] in taxonomy_tree[parent_level][this_cell[parent_level]]
@@ -412,7 +416,9 @@ def test_running_h5ad_election(
     obs = pd.DataFrame(obs_data)
     obs = obs.set_index('name')
 
-    a_data = anndata.AnnData(X=query_data, obs=obs)
+    a_data = anndata.AnnData(X=query_data,
+                             obs=obs,
+                             dtype=float)
     a_data.write_h5ad(query_h5ad_path)
 
     assert query_h5ad_path.is_file()
@@ -442,6 +448,10 @@ def test_running_h5ad_election(
     name_set = set()
     for i_cell in range(n_query_cells):
         this_cell = result[i_cell]
+        for level in hierarchy:
+            assert level in this_cell
+        for k in this_cell:
+            assert this_cell[k] is not None
         name_set.add(this_cell['cell_id'])
         assert this_cell[hierarchy[0]] in taxonomy_tree[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
