@@ -1,13 +1,163 @@
+import anndata
+import multiprocessing
 import numpy as np
 import time
+
+from hierarchical_mapping.utils.utils import (
+    print_timing)
+
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    winnow_process_list)
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_nearest_neighbors)
 
-
 from hierarchical_mapping.type_assignment.matching import (
    get_leaf_means,
    assemble_query_data)
+
+
+def run_type_assignment_on_h5ad(
+        query_h5ad_path,
+        precomputed_stats_path,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        n_processors,
+        chunk_size,
+        bootstrap_factor,
+        bootstrap_iteration,
+        rng):
+    """
+    Assign types at all levels of the taxonomy to the query cells
+    in an h5ad file.
+
+    Parameters
+    ----------
+    query_h5ad_path:
+        Path to the h5ad file containing the query gene data.
+
+    precomputed_stats_path:
+        Path to the HDF5 file where precomputed stats on the
+        clusters in our taxonomy are stored.
+
+    marker_gene_cache_path:
+        Path to the HDF5 file where lists of marker genes for
+        discriminating betwen clustes in our taxonomy are stored.
+
+        Note: This file takes into account the genes available
+        in the query data. So: it is specific to this combination
+        of taxonomy/reference set and query data set.
+
+    taxonomy_tree:
+        Dict encoding the cell type taxonomy we are matching to
+
+    n_processors:
+        Number of independent worker processes to spin up
+
+    chunk_size:
+        Number of rows (cells) to process at a time.
+
+    bootstrap_factor:
+        Fraction (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+
+    bootstrap_iteration:
+        How many booststrap iterations to run when assigning
+        cells to cell types
+
+    rng:
+        A random number generator
+
+    Returns
+    -------
+    A list of dicts. Each dict correponds to a cell in full_query_gene_data.
+    The dict maps level in the hierarchy to the type (at that level)
+    the cell has been assigned.
+    """
+
+    a_data = anndata.read_h5ad(query_h5ad_path, backed='r')
+    query_cell_names = list(a_data.obs_names)
+    chunk_iterator = a_data.chunked_X(chunk_size=chunk_size)
+
+    process_list = []
+    mgr = multiprocessing.Manager()
+    output_list = mgr.list()
+    output_lock = mgr.Lock()
+
+    tot_rows = a_data.X.shape[0]
+    row_ct = 0
+    t0 = time.time()
+
+    print("starting type assignment")
+    for chunk in chunk_iterator:
+        r0 = chunk[1]
+        r1 = chunk[2]
+        name_chunk = query_cell_names[r0:r1]
+        if isinstance(chunk[0], np.ndarray):
+            data = chunk[0]
+        else:
+            data = chunk[0].toarray()
+
+        p = multiprocessing.Process(
+                target=_run_type_assignment_on_h5ad_worker,
+                kwargs={
+                    'query_cell_chunk': data,
+                    'query_cell_names': name_chunk,
+                    'precomputed_stats_path': precomputed_stats_path,
+                    'marker_gene_cache_path': marker_gene_cache_path,
+                    'taxonomy_tree': taxonomy_tree,
+                    'bootstrap_factor': bootstrap_factor,
+                    'bootstrap_iteration': bootstrap_iteration,
+                    'rng': np.random.default_rng(rng.integers(99, 2**32)),
+                    'output_list': output_list,
+                    'output_lock': output_lock})
+        p.start()
+        process_list.append(p)
+        while len(process_list) >= n_processors:
+            n0 = len(process_list)
+            process_list = winnow_process_list(process_list)
+            n1 = len(process_list)
+            if n1 < n0:
+                row_ct += (n0-n1)*chunk_size
+                print_timing(
+                    t0=t0,
+                    i_chunk=row_ct,
+                    tot_chunks=tot_rows,
+                    unit='hr')
+    print("final join of worker processes")
+    for p in process_list:
+        p.join()
+
+    output_list = list(output_list)
+    return output_list
+
+
+def _run_type_assignment_on_h5ad_worker(
+        query_cell_chunk,
+        query_cell_names,
+        precomputed_stats_path,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        bootstrap_factor,
+        bootstrap_iteration,
+        rng,
+        output_list,
+        output_lock):
+
+    assignment = run_type_assignment(
+        full_query_gene_data=query_cell_chunk,
+        precomputed_stats_path=precomputed_stats_path,
+        marker_gene_cache_path=marker_gene_cache_path,
+        taxonomy_tree=taxonomy_tree,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng)
+
+    for idx in range(len(assignment)):
+        assignment[idx]['cell_id'] = query_cell_names[idx]
+
+    with output_lock:
+        output_list += assignment
 
 
 def run_type_assignment(
@@ -86,7 +236,6 @@ def run_type_assignment(
 
     # loop over parent_level, assigning query cells to the child types
     # of that level
-    t0 = time.time()
     for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
 
         # build list of parent nodes to search from
@@ -167,8 +316,6 @@ def run_type_assignment(
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type in zip(chosen_idx, assignment):
                 result[i_cell][child_level] = assigned_type
-        duration = (time.time()-t0)/60.0
-        print(f"assigned {parent_level} after {duration:.2e} minutes")
 
     return result
 
