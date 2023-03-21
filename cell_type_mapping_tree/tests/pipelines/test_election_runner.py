@@ -302,32 +302,22 @@ def test_running_full_election(
 
 
 
-@pytest.mark.parametrize(
-    "keep_all_stats, to_keep_frac, n_selection_processors",
-    [
-     (False, None, 4)
-    ])
+@pytest.mark.parametrize('sparse_query', [True, False])
 def test_running_h5ad_election(
         h5ad_path_fixture,
         column_hierarchy,
         tmp_path_factory,
         gene_names,
         gt0_threshold,
-        keep_all_stats,
-        to_keep_frac,
-        n_selection_processors):
+        sparse_query):
     """
     Just a smoke test
     """
     rng = np.random.default_rng(2213122)
 
     n_genes = len(gene_names)
-    if to_keep_frac is not None:
-        genes_to_keep = n_genes // to_keep_frac
-        assert genes_to_keep > 0
-        assert genes_to_keep < n_genes
-    else:
-        genes_to_keep = None
+    genes_to_keep = None
+    n_selection_processors = 4
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
     zarr_path = tmp_dir / 'zarr.zarr'
@@ -373,7 +363,7 @@ def test_running_h5ad_election(
             gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
-            keep_all_stats=keep_all_stats,
+            keep_all_stats=False,
             genes_to_keep=genes_to_keep)
 
     assert score_path.is_file()
@@ -388,7 +378,16 @@ def test_running_h5ad_election(
     n_processors = 3
     chunk_size = 21
     n_query_cells = 2*n_processors*chunk_size + 11
-    query_data = rng.random((n_query_cells, len(query_genes)))
+    if sparse_query:
+        query_data = np.zeros(n_query_cells*len(query_genes), dtype=float)
+        chosen_dex = rng.choice(np.arange(len(query_data)),
+                                n_query_cells*len(query_genes)//3,
+                                replace=False)
+        query_data[chosen_dex] = rng.random(len(chosen_dex))
+        query_data = query_data.reshape((n_query_cells, len(query_genes)))
+        query_data = scipy_sparse.csr_matrix(query_data)
+    else:
+        query_data = rng.random((n_query_cells, len(query_genes)))
 
     assert not marker_cache_path.is_file()
 
