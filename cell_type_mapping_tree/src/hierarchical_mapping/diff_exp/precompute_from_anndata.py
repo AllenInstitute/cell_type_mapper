@@ -47,12 +47,61 @@ def precompute_summary_stats_from_h5ad(
         Number of rows to load at once from the cell x gene
         matrix
     """
-    a_data = anndata.read_h5ad(data_path, backed='r')
+    taxonomy_tree = get_taxonomy_tree_from_h5ad(
+        h5ad_path=data_path,
+        column_hierarchy=column_hierarchy)
 
+    precompute_summary_stats_from_h5ad_and_tree(
+        data_path=data_path,
+        taxonomy_tree=taxonomy_tree,
+        output_path=output_path,
+        rows_at_a_time=rows_at_a_time)
+
+
+def get_taxonomy_tree_from_h5ad(
+        h5ad_path,
+        column_hierarchy):
+    """
+    Get taxonomy tree from an h5ad file
+    """
+    a_data = anndata.read_h5ad(h5ad_path, backed='r')
     taxonomy_tree = get_taxonomy_tree(
         obs_records=a_data.obs.to_dict(orient='records'),
         column_hierarchy=column_hierarchy)
+    return taxonomy_tree
 
+
+def precompute_summary_stats_from_h5ad_and_tree(
+        data_path: Union[str, pathlib.Path],
+        taxonomy_tree: dict,
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 10000):
+    """
+    Precompute the summary stats used to identify marker genes
+
+    Parameters
+    ----------
+    data_path:
+        Path to the h5ad file containing the cell x gene matrix
+
+    taxonomy_tree: dict
+        dict encoding the cell type taxonomy
+
+    output_path:
+        Path to the HDF5 file that will contain the lookup
+        information for the clusters
+
+    col_names:
+        Optional list of names associated with the columns
+        in the data matrix
+
+    rows_at_a_time:
+        Number of rows to load at once from the cell x gene
+        matrix
+    """
+    a_data = anndata.read_h5ad(data_path, backed='r')
+
+    column_hierarchy = taxonomy_tree['hierarchy']
     cluster_to_input_row = taxonomy_tree[column_hierarchy[-1]]
 
     cluster_list = list(cluster_to_input_row)
