@@ -474,3 +474,20 @@ def test_get_all_leaf_pairs():
                 taxonomy_tree=tree,
                 parent_node=('leaf', '15'))
     assert actual == []
+
+
+def test_get_taxonomy_tree_errors():
+    """
+    Test that, in case where a child appears to have multiple parents
+    in a taxonomy, get_taxonomy_tree throws an error.
+    """
+    obs_records = [
+        {'l1': 'a', 'l2': 'bb', 'l3': 'ccc'},
+        {'l1': 'a', 'l2': 'aa', 'l3': 'ddd'},
+        {'l1': 'b', 'l2': 'cc', 'l3': 'ccc'}
+    ]
+
+    with pytest.raises(RuntimeError, match='ccc has at least two parents'):
+        get_taxonomy_tree(
+            obs_records=obs_records,
+            column_hierarchy=['l1', 'l2', 'l3'])

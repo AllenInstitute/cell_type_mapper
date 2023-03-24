@@ -110,10 +110,15 @@ def get_taxonomy_tree(
     -------
     tree indicating inheritance structure of taxonomy
     """
+
+    # for validating that we have a legitimate tree
+    child_to_parent = dict()
+
     leaf_column = column_hierarchy[-1]
     tree = dict()
     for h in column_hierarchy:
         tree[h] = dict()
+        child_to_parent[h] = dict()
 
     if 'hierarchy' in tree:
         raise RuntimeError(
@@ -129,13 +134,22 @@ def get_taxonomy_tree(
             tree[leaf_column][this_leaf] = []
         tree[leaf_column][this_leaf].append(i_row)
 
-        for parent, child in zip(column_hierarchy[:-1],
-                                 column_hierarchy[1:]):
-            this_parent = row[parent]
-            this_child = row[child]
-            if this_parent not in tree[parent]:
-                tree[parent][this_parent] = set()
-            tree[parent][this_parent].add(this_child)
+        for parent_level, child_level in zip(column_hierarchy[:-1],
+                                             column_hierarchy[1:]):
+            this_parent = row[parent_level]
+            this_child = row[child_level]
+            if this_parent not in tree[parent_level]:
+                tree[parent_level][this_parent] = set()
+            tree[parent_level][this_parent].add(this_child)
+            if this_child in child_to_parent[child_level]:
+                if child_to_parent[child_level][this_child] != this_parent:
+                    msg = f"at level {child_level}, node {this_child} "
+                    msg += "has at least two parents:\n"
+                    msg += f"{this_parent}\n"
+                    msg += f"and {child_to_parent[child_level][this_child]}"
+                    raise RuntimeError(msg)
+            else:
+                child_to_parent[child_level][this_child] = this_parent
 
     return tree
 
