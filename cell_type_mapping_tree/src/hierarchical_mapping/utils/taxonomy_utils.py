@@ -111,14 +111,10 @@ def get_taxonomy_tree(
     tree indicating inheritance structure of taxonomy
     """
 
-    # for validating that we have a legitimate tree
-    child_to_parent = dict()
-
     leaf_column = column_hierarchy[-1]
     tree = dict()
     for h in column_hierarchy:
         tree[h] = dict()
-        child_to_parent[h] = dict()
 
     if 'hierarchy' in tree:
         raise RuntimeError(
@@ -141,17 +137,33 @@ def get_taxonomy_tree(
             if this_parent not in tree[parent_level]:
                 tree[parent_level][this_parent] = set()
             tree[parent_level][this_parent].add(this_child)
-            if this_child in child_to_parent[child_level]:
-                if child_to_parent[child_level][this_child] != this_parent:
-                    msg = f"at level {child_level}, node {this_child} "
-                    msg += "has at least two parents:\n"
-                    msg += f"{this_parent}\n"
-                    msg += f"and {child_to_parent[child_level][this_child]}"
-                    raise RuntimeError(msg)
-            else:
-                child_to_parent[child_level][this_child] = this_parent
 
+    validate_taxonomy_tree(tree)
     return tree
+
+
+def validate_taxonomy_tree(
+        taxonomy_tree):
+    """
+    Make sure taxonomy_tree is a strict tree
+    """
+    child_to_parent = dict()
+    hierarchy = taxonomy_tree['hierarchy']
+    for level in hierarchy:
+        child_to_parent[level] = dict()
+    for parent_level, child_level in zip(hierarchy[:-1],
+                                         hierarchy[1:]):
+        for this_parent in taxonomy_tree[parent_level].keys():
+            for this_child in taxonomy_tree[parent_level][this_parent]:
+                if this_child in child_to_parent[child_level]:
+                    if child_to_parent[child_level][this_child] != this_parent:
+                        msg = f"at level {child_level}, node {this_child} "
+                        msg += "has at least two parents:\n"
+                        msg += f"{this_parent}\nand "
+                        msg += f"{child_to_parent[child_level][this_child]}"
+                        raise RuntimeError(msg)
+                else:
+                    child_to_parent[child_level][this_child] = this_parent
 
 
 def convert_tree_to_leaves(
