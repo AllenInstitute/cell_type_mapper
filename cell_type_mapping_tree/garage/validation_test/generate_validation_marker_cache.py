@@ -13,6 +13,9 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
+from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad_and_tree)
+
 def get_gene_name_lookup(h5ad_path):
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
     gene_name_list = list(a_data.var_names)
@@ -209,6 +212,12 @@ def main():
             reference_path=reference_path)
     with open('taxonomy_tree.json', 'w') as out_file:
         out_file.write(json.dumps(tree,indent=2))
+
+    print("precomputing summary stats")
+    precompute_summary_stats_from_h5ad_and_tree(
+        data_path=reference_path,
+        taxonomy_tree=tree,
+        output_path='validation_test_precompute.h5')
 
 
 if __name__ == "__main__":
