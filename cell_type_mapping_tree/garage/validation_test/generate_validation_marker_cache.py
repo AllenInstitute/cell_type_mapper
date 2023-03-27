@@ -4,6 +4,7 @@
 import anndata
 import h5py
 import json
+import numpy as np
 import pathlib
 
 from hierarchical_mapping.utils.taxonomy_utils import (
@@ -12,10 +13,11 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
-def get_gene_list(h5ad_path):
+def get_gene_name_lookup(h5ad_path):
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
     gene_name_list = list(a_data.var_names)
-    return gene_name_list
+    gene_name_lookup = {n:ii for ii, n in enumerate(gene_name_list)}
+    return gene_name_lookup
 
 def find_marker_files(
         marker_dir,
@@ -73,6 +75,65 @@ def read_taxonomy_tree(tree_src_file):
     return tree
 
 
+def format_markers(
+        marker_path,
+        reference_gene_lookup,
+        query_gene_lookup):
+    marker_names = []
+    with open(marker_path, 'r') as in_file:
+        in_file.readline()
+        for line in in_file:
+            marker_names.append(line.strip().replace('"',''))
+
+    reference_idx = []
+    query_idx = []
+    for n in marker_names:
+        reference_idx.append(reference_gene_lookup[n])
+        query_idx.append(query_gene_lookup[n])
+    reference_idx = np.array(reference_idx)
+    query_idx = np.array(query_idx)
+    sorted_dex = np.argsort(reference_idx)
+    reference_idx = reference_idx[sorted_dex]
+    query_idx = query_idx[sorted_dex]
+    return {'reference': reference_idx, 'query': query_idx}
+
+def create_marker_cache(
+        reference_path,
+        query_path,
+        marker_path_lookup,
+        output_path):
+
+    #reference_gene_lookup = get_gene_name_lookup(reference_path)
+    #query_gene_lookup = get_gene_name_lookup(query_path)
+
+    #with open('reference_gene_lookup.json', 'w') as out_file:
+    #    out_file.write(json.dumps(reference_gene_lookup))
+    #with open('query_gene_lookup.json', 'w') as out_file:
+    #    out_file.write(json.dumps(query_gene_lookup))
+    #exit()
+
+    with open('reference_gene_lookup.json', 'rb') as in_file:
+        reference_gene_lookup = json.load(in_file)
+    with open('query_gene_lookup.json', 'rb') as in_file:
+        query_gene_lookup = json.load(in_file)
+
+    with h5py.File(output_path, 'w') as out_file:
+        for grp in marker_path_lookup:
+            if 'root' not in grp:
+                grp_key = f'{grp[0]}/{grp[1]}'
+            else:
+                print(f'making key "None" for -- {grp}')
+                grp_key = 'None'
+            out_file.create_group(grp_key)
+            this_grp = format_markers(
+                reference_gene_lookup=reference_gene_lookup,
+                query_gene_lookup=query_gene_lookup,
+                marker_path=marker_path_lookup[grp])
+            for k in ('reference', 'query'):
+                out_file[grp].create_dataset(
+                    k, data = this_grp[k])
+
+
 def main():
     reference_path = pathlib.Path(
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/U19_CR6/processed.U19_all.postQC.AIT17.0.20230226.sync.h5ad')
@@ -125,6 +186,12 @@ def main():
 
     markers.update(level_2_markers)
     print(len(markers))
+
+    create_marker_cache(
+        reference_path=reference_path,
+        query_path=query_path,
+        marker_path_lookup=markers,
+        output_path='validation_marker_cache.h5')
 
 if __name__ == "__main__":
     main()
