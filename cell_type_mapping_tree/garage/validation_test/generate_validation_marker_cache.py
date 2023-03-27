@@ -136,6 +136,17 @@ def create_marker_cache(
                 out_file[grp_key].create_dataset(
                     k, data = this_grp[k])
 
+def assign_rows_to_tree(
+        taxonomy_tree,
+        reference_path):
+    a_data = anndata.read_h5ad(reference_path, backed='r')
+    obs = a_data.obs
+    cl_values = list(obs.cl.values)
+    for i_row, cl in enumerate(cl_values):
+        cl = str(cl)
+        taxonomy_tree['cluster'][cl].append(i_row)
+    return taxonomy_tree
+
 
 def main():
     reference_path = pathlib.Path(
@@ -155,9 +166,6 @@ def main():
     assert marker_dir.is_dir()
 
     tree = read_taxonomy_tree(tree_src_file)
-
-    with open('taxonomy_tree.json', 'w') as out_file:
-        out_file.write(json.dumps(tree,indent=2))
 
     print('=======root========')
     root_markers = find_marker_files(
@@ -195,6 +203,13 @@ def main():
         query_path=query_path,
         marker_path_lookup=markers,
         output_path='validation_marker_cache.h5')
+
+    tree = assign_rows_to_tree(
+            taxonomy_tree=tree,
+            reference_path=reference_path)
+    with open('taxonomy_tree.json', 'w') as out_file:
+        out_file.write(json.dumps(tree,indent=2))
+
 
 if __name__ == "__main__":
     main()
