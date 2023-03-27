@@ -88,8 +88,11 @@ def format_markers(
     reference_idx = []
     query_idx = []
     for n in marker_names:
+        if n not in reference_gene_lookup or n not in query_gene_lookup:
+            continue
         reference_idx.append(reference_gene_lookup[n])
         query_idx.append(query_gene_lookup[n])
+    assert len(reference_idx) > 10
     reference_idx = np.array(reference_idx)
     query_idx = np.array(query_idx)
     sorted_dex = np.argsort(reference_idx)
@@ -130,7 +133,7 @@ def create_marker_cache(
                 query_gene_lookup=query_gene_lookup,
                 marker_path=marker_path_lookup[grp])
             for k in ('reference', 'query'):
-                out_file[grp].create_dataset(
+                out_file[grp_key].create_dataset(
                     k, data = this_grp[k])
 
 
