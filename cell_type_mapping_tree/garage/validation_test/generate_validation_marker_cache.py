@@ -1,30 +1,48 @@
 # script to construct the taxonomy tree from the cl.df.3levels.csv
 # file specified for the test
 
+import anndata
+import h5py
 import json
 import pathlib
+
 from hierarchical_mapping.utils.taxonomy_utils import (
     validate_taxonomy_tree)
+
+from hierarchical_mapping.corr.utils import (
+    match_genes)
+
+def get_gene_list(h5ad_path):
+    a_data = anndata.read_h5ad(h5ad_path, backed='r')
+    gene_name_list = list(a_data.var_names)
+    return gene_name_list
 
 def find_marker_files(
         marker_dir,
         taxonomy_tree,
         level,
         level_number):
+    """
+    return dict mapping (level, parent) to path to marker genes
+    """
     good = 0
     bad = 0
     to_pop = []
+
+    result = dict()
     for k in taxonomy_tree[level]:
         pth = k.replace(' ', '+').replace('/','__')
         pth = marker_dir / f"marker.{level_number}.{pth}.csv"
         if not pth.is_file():
-            print(f"could not find {pth}")
+            #print(f"could not find {pth}")
             bad += 1
-            to_pop.append(k)
         else:
             good += 1
+            this_key = (level,k)
+            assert this_key not in result
+            result[this_key] = pth
     print(f"good {good} bad {bad}")
-
+    return result
 
 def read_taxonomy_tree(tree_src_file):
     tree = dict()
@@ -56,6 +74,14 @@ def read_taxonomy_tree(tree_src_file):
 
 
 def main():
+    reference_path = pathlib.Path(
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/U19_CR6/processed.U19_all.postQC.AIT17.0.20230226.sync.h5ad')
+    assert reference_path.is_file()
+
+    query_path = pathlib.Path(
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
+    assert query_path.is_file()
+
     tree_src_file = pathlib.Path(
        "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/cl.df.3levels.csv")
     assert tree_src_file.is_file()
@@ -69,20 +95,36 @@ def main():
     with open('taxonomy_tree.json', 'w') as out_file:
         out_file.write(json.dumps(tree,indent=2))
 
+    print('=======root========')
+    root_markers = find_marker_files(
+        marker_dir=marker_dir,
+        taxonomy_tree = {None: ['root']},
+        level=None,
+        level_number=1)
+
     print('=====level_1=====')
-    find_marker_files(
+    level_1_markers = find_marker_files(
         marker_dir=marker_dir,
         taxonomy_tree=tree,
         level='level_1',
         level_number=2)
 
     print('=====level_2=====')
-    find_marker_files(
+    level_2_markers = find_marker_files(
         marker_dir=marker_dir,
         taxonomy_tree=tree,
         level='level_2',
         level_number=3)
 
+    markers = dict()
+    markers.update(root_markers)
+    print(len(markers))
+
+    markers.update(level_1_markers)
+    print(len(markers))
+
+    markers.update(level_2_markers)
+    print(len(markers))
 
 if __name__ == "__main__":
     main()
