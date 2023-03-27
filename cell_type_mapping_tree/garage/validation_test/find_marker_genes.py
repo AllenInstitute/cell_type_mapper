@@ -8,12 +8,14 @@ def find_marker_files(
         level_number):
     good = 0
     bad = 0
+    to_pop = []
     for k in taxonomy_tree[level]:
         pth = k.replace(' ', '+').replace('/','__')
         pth = marker_dir / f"marker.{level_number}.{pth}.csv"
         if not pth.is_file():
             print(f"could not find {pth}")
             bad += 1
+            to_pop.append(k)
         else:
             good += 1
     print(f"good {good} bad {bad}")
