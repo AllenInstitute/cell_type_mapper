@@ -35,7 +35,7 @@ def copy_data_over():
 
     result = {
         'query': {'new': tmp_dir/query_path.name, 'old': query_path},
-        'marker': {'new': tmp_dir/marker_path.name, 'old': marker_path}
+        'marker': {'new': tmp_dir/marker_path.name, 'old': marker_path},
         'precompute': {'new': tmp_dir/precompute_path.name,
                        'old': precompute_path}}
 
