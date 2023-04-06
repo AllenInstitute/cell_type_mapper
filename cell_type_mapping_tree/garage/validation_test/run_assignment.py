@@ -80,7 +80,7 @@ def run_test(
     full_result['marker_path'] = str(
         data_map['marker']['old'].resolve().absolute())
     full_result['precompute_path'] = str(
-        data_map['precompute'].resolve().absolute())
+        data_map['precompute']['old'].resolve().absolute())
     full_result['bootstrap_factor'] = bootstrap_factor
     full_result['bootstrap_iteration'] = int(bootstrap_iteration)
 
