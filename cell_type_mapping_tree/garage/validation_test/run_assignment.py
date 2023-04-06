@@ -15,11 +15,44 @@ from hierarchical_mapping.type_assignment.election import (
 
 import os
 
+def copy_data_over():
+
+    data_dir = pathlib.Path(
+        '/allen/aibs/technology/danielsf/knowledge_base/validation')
+    assert data_dir.is_dir()
+
+    query_path = pathlib.Path(
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
+    assert query_path.is_file()
+
+    precompute_path = data_dir / 'validation_test_precompute.h5'
+    assert precompute_path.is_file()
+
+    marker_path = data_dir / 'validation_marker_cache.h5'
+    assert marker_path.is_file()
+
+    tmp_dir = pathlib.Path(os.environ['TMPDIR'])
+
+    result = {
+        'query': {'new': tmp_dir/query_path.name, 'old': query_path},
+        'marker': {'new': tmp_dir/marker_path.name, 'old': marker_path}
+        'precompute': {'new': tmp_dir/precompute_path.name,
+                       'old': precompute_path}}
+
+    for k in result:
+        pair = result[k]
+        shutil.copy(src=pair['old'], dst=pair['new'])
+        print(f"copied {pair}")
+    return result
+
+
+
 def run_test(
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
         output_path=None,
-        flatten=False):
+        flatten=False,
+        data_map):
 
     full_result = dict()
 
@@ -42,40 +75,20 @@ def run_test(
 
     full_result['taxonomy_tree'] = tree
 
-    query_data_path = pathlib.Path(
-        '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
-    assert query_data_path.is_file()
-
-    full_result['query_path'] = str(query_data_path.resolve().absolute())
-
-    tmp_dir = os.environ['TMPDIR']
-    query_tmp_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5ad')[1]
-    print(f"copying query_data to {query_tmp_path}")
-    shutil.copy(src=query_data_path, dst=query_tmp_path)
-    query_tmp_path = pathlib.Path(query_tmp_path)
-    assert query_tmp_path.is_file()
-    print('done copying')
-
-    precomputed_path = data_dir / 'validation_test_precompute.h5'
-    assert os.path.isfile(precomputed_path)
-    full_result['precomputed_path'] = str(precomputed_path.resolve().absolute())
-
-    precomputed_tmp_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5')[1]
-    shutil.copy(src=precomputed_path, dst=precomputed_tmp_path)
-
-    marker_cache_path = data_dir / 'validation_marker_cache.h5'
-    assert marker_cache_path.is_file()
-    full_result['marker_path'] = str(marker_cache_path.resolve().absolute())
-    marker_tmp_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5')[1]
-    shutil.copy(src=marker_cache_path, dst=marker_tmp_path)
-
-    print('copied all data')
+    full_result['query_path'] = str(
+        data_map['query']['old'].resolve().absolute())
+    full_result['marker_path'] = str(
+        data_map['marker']['old'].resolve().absolute())
+    full_result['precompute_path'] = str(
+        data_map['precompute'].resolve().absolute())
+    full_result['bootstrap_factor'] = bootstrap_factor
+    full_result['bootstrap_iteration'] = int(bootstrap_iteration)
 
     t0 = time.time()
     result = run_type_assignment_on_h5ad(
-        query_h5ad_path=query_tmp_path,
-        precomputed_stats_path=precomputed_tmp_path,
-        marker_gene_cache_path=marker_tmp_path,
+        query_h5ad_path=data_map['query']['new'],
+        precomputed_stats_path=data_map['precompute']['new'],
+        marker_gene_cache_path=data_map['marker']['new'],
         taxonomy_tree=tree,
         n_processors=32,
         chunk_size=30000,
@@ -83,8 +96,6 @@ def run_test(
         bootstrap_iteration=bootstrap_iteration,
         rng=np.random.default_rng(11235))
 
-    full_result['bootstrap_factor'] = bootstrap_factor
-    full_result['bootstrap_iteration'] = int(bootstrap_iteration)
     full_result['result'] = result
 
     duration = (time.time()-t0)/3600.0
@@ -97,25 +108,32 @@ def run_test(
 
 
 def main():
+
+    data_map = copy_data_over()
+
     run_test(
         bootstrap_factor=1.0,
         bootstrap_iteration=1,
+        data_map=data_map,
         output_path='assignment_230406_one_election.json')
 
     run_test(
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
+        data_map=data_map,
         output_path='assignment_230406_full_election.json')
 
     run_test(
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
+        data_map=data_map,
         flatten=True,
         output_path='assignment_230406_full_election_flat.json')
 
     run_test(
         bootstrap_factor=1.0,
         bootstrap_iteration=1,
+        data_map=data_map,
         flatten=True,
         output_path='assignment_230406_one_election_flat.json')
 
