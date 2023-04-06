@@ -295,14 +295,14 @@ def run_type_assignment(
             if len(possible_children) > 1:
                 (assignment,
                  confidence) = _run_type_assignment(
-                                    full_query_gene_data=chosen_query_data,
-                                    leaf_node_lookup=leaf_node_lookup,
-                                    marker_gene_cache_path=marker_gene_cache_path,
-                                    taxonomy_tree=taxonomy_tree,
-                                    parent_node=parent_node,
-                                    bootstrap_factor=bootstrap_factor,
-                                    bootstrap_iteration=bootstrap_iteration,
-                                    rng=rng)
+                                full_query_gene_data=chosen_query_data,
+                                leaf_node_lookup=leaf_node_lookup,
+                                marker_gene_cache_path=marker_gene_cache_path,
+                                taxonomy_tree=taxonomy_tree,
+                                parent_node=parent_node,
+                                bootstrap_factor=bootstrap_factor,
+                                bootstrap_iteration=bootstrap_iteration,
+                                rng=rng)
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.shape[0]
                 confidence = [1.0]*chosen_query_data.shape[0]
