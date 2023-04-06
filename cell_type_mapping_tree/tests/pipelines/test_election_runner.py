@@ -300,9 +300,9 @@ def test_running_full_election(
             assert level in this_cell
         for k in this_cell:
             assert this_cell[k] is not None
-        assert this_cell[hierarchy[0]] in taxonomy_tree[hierarchy[0]].keys()
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level] in taxonomy_tree[parent_level][this_cell[parent_level]]
+            assert this_cell[child_level]['assignment'] in taxonomy_tree[parent_level][this_cell[parent_level]['assignment']]
 
     _clean_up(tmp_dir)
 
@@ -426,7 +426,7 @@ def test_running_flat_election(
     for i_cell in range(n_query_cells):
         for level in taxonomy_tree['hierarchy']:
             assert result[i_cell][level] is not None
-            assert result[i_cell][level] in valid_types
+            assert result[i_cell][level]['assignment'] in valid_types
 
     _clean_up(tmp_dir)
 
@@ -579,9 +579,9 @@ def test_running_h5ad_election(
         for k in this_cell:
             assert this_cell[k] is not None
         name_set.add(this_cell['cell_id'])
-        assert this_cell[hierarchy[0]] in taxonomy_tree[hierarchy[0]].keys()
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level] in taxonomy_tree[parent_level][this_cell[parent_level]]
+            assert this_cell[child_level]['assignment'] in taxonomy_tree[parent_level][this_cell[parent_level]['assignment']]
 
     # make sure all cell_ids were transcribed
     assert len(name_set) == len(result)
