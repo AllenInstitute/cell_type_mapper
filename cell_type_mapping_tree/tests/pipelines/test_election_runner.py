@@ -162,7 +162,8 @@ def test_running_single_election(
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
-        result = choose_node(
+        (result,
+         confidence) = choose_node(
             query_gene_data=data_for_election['query_data'],
             reference_gene_data=data_for_election['reference_data'],
             reference_types=data_for_election['reference_types'],
@@ -171,6 +172,7 @@ def test_running_single_election(
             rng=rng)
 
         assert result.shape == (n_query_cells,)
+        assert confidence.shape == result.shape
 
     _clean_up(tmp_dir)
 

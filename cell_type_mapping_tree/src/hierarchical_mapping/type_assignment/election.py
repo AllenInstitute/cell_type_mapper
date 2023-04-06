@@ -384,7 +384,8 @@ def _run_type_assignment(
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
 
-    result = choose_node(
+    (result,
+     confidence) = choose_node(
         query_gene_data=query_data['query_data'],
         reference_gene_data=query_data['reference_data'],
         reference_types=query_data['reference_types'],
@@ -421,6 +422,8 @@ def choose_node(
     Returns
     -------
     Array of cell type assignments (majority rule)
+
+    Array of vote fractions
     """
 
     votes = tally_votes(
@@ -432,7 +435,8 @@ def choose_node(
 
     chosen_type = np.argmax(votes, axis=1)
     result = [reference_types[ii] for ii in chosen_type]
-    return np.array(result)
+    confidence = np.max(votes, axis=1) / bootstrap_iteration
+    return (np.array(result), confidence)
 
 
 def tally_votes(
