@@ -52,7 +52,7 @@ def run_test(
         bootstrap_iteration=100,
         output_path=None,
         flatten=False,
-        data_map):
+        data_map=None):
 
     full_result = dict()
 
