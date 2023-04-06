@@ -11,7 +11,8 @@ from hierarchical_mapping.type_assignment.election import (
     "bootstrap_factor, bootstrap_iteration",
     [(0.7, 22),
      (0.4, 102),
-     (0.9, 50)])
+     (0.9, 50),
+     (1.0, 1)])
 def test_tally_votes(
         bootstrap_factor,
         bootstrap_iteration):
@@ -45,7 +46,8 @@ def test_tally_votes(
     "bootstrap_factor, bootstrap_iteration",
     [(0.7, 22),
      (0.4, 102),
-     (0.9, 50)])
+     (0.9, 50),
+     (1.0, 1)])
 def test_choose_node_smoke(
         bootstrap_factor,
         bootstrap_iteration):
