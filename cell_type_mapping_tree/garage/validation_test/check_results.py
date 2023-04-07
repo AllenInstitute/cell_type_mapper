@@ -28,7 +28,7 @@ def invert_tree(taxonomy_tree):
 def main():
     query_path = '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad'
 
-    result_path = '/allen/aibs/technology/danielsf/knowledge_base/validation/assignment_230327.json'
+    result_path = '/allen/aibs/technology/danielsf/knowledge_base/validation/assignment_230406_full_election.json'
 
     data_dir = pathlib.Path(
         '/allen/aibs/technology/danielsf/knowledge_base/validation')
@@ -37,20 +37,28 @@ def main():
 
     cluster_to_l2, cluster_to_l1 = invert_tree(taxonomy_tree)
 
-    results = json.load(open(result_path, 'rb'))
-    a_data = anndata.read_h5ad(query_path, backed='r')
-    obs = a_data.obs
-    cell_to_truth = dict()
-    for cell_id, cluster_value in zip(
-            a_data.obs_names.values, obs['best.cl'].values):
-        cell_to_truth[cell_id] = str(cluster_value)
+    results = json.load(open(result_path, 'rb'))['result']
+
+    # get the truth
+    truth_cache_path = pathlib.Path("truth_cache.json")
+    if not truth_cache_path.is_file():
+        a_data = anndata.read_h5ad(query_path, backed='r')
+        obs = a_data.obs
+        cell_to_truth = dict()
+        for cell_id, cluster_value in zip(
+                a_data.obs_names.values, obs['best.cl'].values):
+           cell_to_truth[cell_id] = str(cluster_value)
+        with open(truth_cache_path, "w") as out_file:
+            out_file.write(json.dumps(cell_to_truth))
+
+    cell_to_truth = json.load(open(truth_cache_path, "rb"))
 
     good = {'cluster': 0, 'level_2': 0, 'level_1':0}
     bad = {'cluster': 0, 'level_2': 0, 'level_1':0}
     bad_elements = []
     good_elements = []
     for element in results:
-        found_cluster = element['cluster']
+        found_cluster = element['cluster']['assignment']
 
         truth_cluster = cell_to_truth[element['cell_id']]
         truth_l1 = cluster_to_l1[truth_cluster]
@@ -61,7 +69,7 @@ def main():
                  'level_2': truth_l2}
 
         for k in ('cluster', 'level_1', 'level_2'):
-            if element[k] == truth[k]:
+            if element[k]['assignment'] == truth[k]:
                 good[k] += 1
             else:
                 bad[k] += 1
