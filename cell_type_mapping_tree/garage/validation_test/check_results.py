@@ -1,29 +1,95 @@
 import anndata
 import json
+import matplotlib.figure as mfig
+import numpy as np
 import pathlib
+
+from hierarchical_mapping.utils.taxonomy_utils import (
+    convert_tree_to_leaves)
 
 # read the taxonomy in from the json file you saved
 # see how well it does at level_1 and level_2
 
 def invert_tree(taxonomy_tree):
-    cluster_to_l2 = dict()
-    leaf_parent = taxonomy_tree['hierarchy'][-2]
-    print(f"first parent {leaf_parent}")
-    for parent in taxonomy_tree[leaf_parent]:
-        for child in taxonomy_tree[leaf_parent][parent]:
-            assert child not in cluster_to_l2
-            cluster_to_l2[child] = parent
+    tree_to_leaves = convert_tree_to_leaves(taxonomy_tree)
+    inverted_tree = dict()
+    for level in taxonomy_tree["hierarchy"][:-1]:
+        this = dict()
+        for node in tree_to_leaves[level]:
+            for child in tree_to_leaves[level][node]:
+                assert child not in this
+                this[child] = node
+        inverted_tree[level] = this
+    return inverted_tree
 
-    cluster_to_l1 = dict()
-    second_parent = taxonomy_tree['hierarchy'][-3]
-    print(f"second parent {second_parent}")
-    for parent in taxonomy_tree[second_parent]:
-        for child in taxonomy_tree[second_parent][parent]:
-            for leaf in taxonomy_tree[leaf_parent][child]:
-                assert leaf not in cluster_to_l1
-                cluster_to_l1[leaf] = parent
 
-    return cluster_to_l2, cluster_to_l1
+def assess_results(
+        cell_to_truth,
+        cell_to_assignment,
+        hierarchy_level,
+        taxonomy_tree,
+        inverted_tree,
+        fig_prefix):
+    fig_path = f"figs/{fig_prefix}_{hierarchy_level}.png"
+
+    hierarchy = taxonomy_tree['hierarchy']
+    nrows = len(hierarchy)
+    ncols = 1
+    fig = mfig.Figure(figsize=(ncols*10, nrows*10))
+    axis_list = [fig.add_subplot(nrows, ncols, ii+1)
+                 for ii in range(nrows*ncols)]
+
+    good_cells = []
+    bad_cells = []
+    for cell in cell_to_assignment:
+        true_assignment = cell_to_truth[cell['cell_id']]
+        if hierarchy_level != taxonomy_tree['hierarchy'][-1]:
+            true_assignment = inverted_tree[hierarchy_level][true_assignment]
+        assignment = cell[hierarchy_level]['assignment']
+        if assignment == true_assignment:
+            good_cells.append(cell)
+        else:
+            bad_cells.append(cell)
+
+    print(f"{hierarchy_level} {len(good_cells):.2e} good {len(bad_cells):.2e} bad")
+    n_good = len(good_cells)
+    n_bad = len(bad_cells)
+
+    nbins = 100
+    fontsize = 20
+    for i_level, level in enumerate(taxonomy_tree['hierarchy']):
+        axis = axis_list[i_level*ncols]
+        good_confidence = np.array([c[level]['confidence'] for c in good_cells])
+        bad_confidence = np.array([c[level]['confidence'] for c in bad_cells])
+        axis.hist(
+            good_confidence,
+            bins=nbins,
+            color='b',
+            zorder=0,
+            alpha=1.0,
+            label=f"{n_good:.2e} cells correctly assigned at level={hierarchy_level}",
+            density=True)
+
+        axis.hist(
+            bad_confidence,
+            bins=nbins,
+            color='r',
+            zorder=1,
+            alpha=0.7,
+            label=f"{n_bad:.2e} cells incorrectly assigned at level={hierarchy_level}",
+            density=True)
+
+        axis.set_yscale('log')
+
+        axis.legend(loc='upper left', fontsize=fontsize)
+        axis.set_xlabel('confidence level', fontsize=fontsize)
+        axis.set_ylabel('normalized histogram', fontsize=fontsize)
+        axis.set_title(f"confidence at level={level}", fontsize=fontsize)
+
+    fig.tight_layout()
+    print(f"writing {fig_path}")
+    fig.savefig(fig_path)
+
 
 def main():
     query_path = '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad'
@@ -35,14 +101,12 @@ def main():
     #assert data_dir.is_dir()
     #taxonomy_tree = json.load(open(data_dir / 'taxonomy_tree.json', 'rb'))
 
-
     raw_results = json.load(open(result_path, 'rb'))
     results = raw_results['result']
     taxonomy_tree = raw_results['taxonomy_tree']
     del raw_results
 
-    cluster_to_l2, cluster_to_l1 = invert_tree(taxonomy_tree)
-
+    inverted_tree = invert_tree(taxonomy_tree)
 
     # get the truth
     truth_cache_path = pathlib.Path("data/truth_cache.json")
@@ -58,48 +122,14 @@ def main():
 
     cell_to_truth = json.load(open(truth_cache_path, "rb"))
 
-    good = {'cluster': 0, 'level_2': 0, 'level_1':0}
-    bad = {'cluster': 0, 'level_2': 0, 'level_1':0}
-    bad_elements = []
-    good_elements = []
-    for element in results:
-        found_cluster = element['cluster']['assignment']
-
-        truth_cluster = cell_to_truth[element['cell_id']]
-        truth_l1 = cluster_to_l1[truth_cluster]
-        truth_l2 = cluster_to_l2[truth_cluster] 
-
-        truth = {'cluster': truth_cluster,
-                 'level_1': truth_l1,
-                 'level_2': truth_l2}
-
-        for k in ('cluster', 'level_1', 'level_2'):
-            if element[k]['assignment'] == truth[k]:
-                good[k] += 1
-            else:
-                bad[k] += 1
-
-        element['true_cluster'] = truth_cluster
-        element['true_level_1'] = truth_l1
-        element['true_level_2'] = truth_l2
-
-        assert type(truth_cluster) == type(found_cluster)
-        if truth_cluster == found_cluster:
-            good_elements.append(element)
-        else:
-            bad_elements.append(element)
-
-        if (good['cluster']+bad['cluster']) % 10000 == 0:
-            print('')
-            for k in ('cluster', 'level_2', 'level_1'):
-                print(f'{k} good {good[k]:.2e} bad {bad[k]:.2e}')
-
-    print('')
-    for k in ('cluster', 'level_2', 'level_1'):
-        print(f'{k} good {good[k]:.2e} bad {bad[k]:.2e}')
-
-    with open("good_v_bad.json", "w") as out_file:
-        out_file.write(json.dumps({"good": good_elements, "bad":bad_elements}))
+    for level in taxonomy_tree['hierarchy']:
+        assess_results(
+            cell_to_truth=cell_to_truth,
+            cell_to_assignment=results,
+            hierarchy_level=level,
+            taxonomy_tree=taxonomy_tree,
+            inverted_tree=inverted_tree,
+            fig_prefix="full_election")
 
 if __name__ == "__main__":
     main()
