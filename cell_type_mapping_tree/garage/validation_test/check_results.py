@@ -28,16 +28,21 @@ def invert_tree(taxonomy_tree):
 def main():
     query_path = '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad'
 
-    result_path = '/allen/aibs/technology/danielsf/knowledge_base/validation/assignment_230406_full_election.json'
+    result_path = 'data/assignment_230406_full_election.json'
 
-    data_dir = pathlib.Path(
-        '/allen/aibs/technology/danielsf/knowledge_base/validation')
-    assert data_dir.is_dir()
-    taxonomy_tree = json.load(open(data_dir / 'taxonomy_tree.json', 'rb'))
+    #data_dir = pathlib.Path(
+    #    '/allen/aibs/technology/danielsf/knowledge_base/validation')
+    #assert data_dir.is_dir()
+    #taxonomy_tree = json.load(open(data_dir / 'taxonomy_tree.json', 'rb'))
+
+
+    raw_results = json.load(open(result_path, 'rb'))
+    results = raw_results['result']
+    taxonomy_tree = raw_results['taxonomy_tree']
+    del raw_results
 
     cluster_to_l2, cluster_to_l1 = invert_tree(taxonomy_tree)
 
-    results = json.load(open(result_path, 'rb'))['result']
 
     # get the truth
     truth_cache_path = pathlib.Path("data/truth_cache.json")
