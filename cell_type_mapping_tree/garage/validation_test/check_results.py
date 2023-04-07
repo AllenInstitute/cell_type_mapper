@@ -1,4 +1,5 @@
 import anndata
+import argparse
 import json
 import matplotlib.figure as mfig
 import numpy as np
@@ -29,15 +30,15 @@ def assess_results(
         hierarchy_level,
         taxonomy_tree,
         inverted_tree,
-        fig_prefix):
-    fig_path = f"figs/{fig_prefix}_{hierarchy_level}.png"
+        axis_list):
+    #fig_path = f"figs/{fig_prefix}_{hierarchy_level}.png"
 
     hierarchy = taxonomy_tree['hierarchy']
-    nrows = len(hierarchy)
-    ncols = 1
-    fig = mfig.Figure(figsize=(ncols*10, nrows*10))
-    axis_list = [fig.add_subplot(nrows, ncols, ii+1)
-                 for ii in range(nrows*ncols)]
+    #nrows = len(hierarchy)
+    #ncols = 1
+    #fig = mfig.Figure(figsize=(ncols*10, nrows*10))
+    #axis_list = [fig.add_subplot(nrows, ncols, ii+1)
+    #             for ii in range(nrows*ncols)]
 
     good_cells = []
     bad_cells = []
@@ -57,8 +58,8 @@ def assess_results(
 
     nbins = 100
     fontsize = 20
-    for i_level, level in enumerate(taxonomy_tree['hierarchy']):
-        axis = axis_list[i_level*ncols]
+    for i_level, level in enumerate([hierarchy_level]):
+        axis = axis_list[i_level]
         good_confidence = np.array([c[level]['confidence'] for c in good_cells])
         bad_confidence = np.array([c[level]['confidence'] for c in bad_cells])
         axis.hist(
@@ -67,7 +68,7 @@ def assess_results(
             color='b',
             zorder=0,
             alpha=1.0,
-            label=f"{n_good:.2e} cells correctly assigned at level={hierarchy_level}",
+            label=f"{n_good:.2e} correctly assigned at '{hierarchy_level}'",
             density=True)
 
         axis.hist(
@@ -76,30 +77,63 @@ def assess_results(
             color='r',
             zorder=1,
             alpha=0.7,
-            label=f"{n_bad:.2e} cells incorrectly assigned at level={hierarchy_level}",
+            label=f"{n_bad:.2e} incorrectly assigned at '{hierarchy_level}'",
             density=True)
 
-        axis.set_yscale('log')
+        #axis.set_yscale('log')
 
         axis.legend(loc='upper left', fontsize=fontsize)
         axis.set_xlabel('confidence level', fontsize=fontsize)
         axis.set_ylabel('normalized histogram', fontsize=fontsize)
         axis.set_title(f"confidence at level={level}", fontsize=fontsize)
 
+    #fig.tight_layout()
+    #print(f"writing {fig_path}")
+    #fig.savefig(fig_path)
+
+
+def do_full_fig(
+        cell_to_truth,
+        cell_to_assignment,
+        taxonomy_tree,
+        inverted_tree,
+        fig_path):
+
+    nrows = len(taxonomy_tree['hierarchy'])
+    ncols = 1
+    fig = mfig.Figure(figsize=(ncols*10, nrows*10))
+    axis_list = [fig.add_subplot(nrows, ncols, ii+1)
+                 for ii in range(nrows*ncols)]
+
+    for i_level, level in enumerate(taxonomy_tree['hierarchy']):
+        this_axis_list = [axis_list[i_level]]
+        assess_results(
+            cell_to_truth=cell_to_truth,
+            cell_to_assignment=cell_to_assignment,
+            taxonomy_tree=taxonomy_tree,
+            inverted_tree=inverted_tree,
+            hierarchy_level=level,
+            axis_list=this_axis_list)
     fig.tight_layout()
-    print(f"writing {fig_path}")
     fig.savefig(fig_path)
 
-
 def main():
+    parser = argparse.argument_parser()
+    parser.add_argument('--result_path', type=str, default=None)
+    parser.add_argument('--fig_path', type=str, default=None)
+    args = parser.parse_args()
+
+
     query_path = '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad'
 
-    result_path = 'data/assignment_230406_full_election.json'
+    #result_path = 'data/assignment_230406_full_election.json'
 
     #data_dir = pathlib.Path(
     #    '/allen/aibs/technology/danielsf/knowledge_base/validation')
     #assert data_dir.is_dir()
     #taxonomy_tree = json.load(open(data_dir / 'taxonomy_tree.json', 'rb'))
+
+    result_path = args.result_path
 
     raw_results = json.load(open(result_path, 'rb'))
     results = raw_results['result']
@@ -122,14 +156,12 @@ def main():
 
     cell_to_truth = json.load(open(truth_cache_path, "rb"))
 
-    for level in taxonomy_tree['hierarchy']:
-        assess_results(
-            cell_to_truth=cell_to_truth,
-            cell_to_assignment=results,
-            hierarchy_level=level,
-            taxonomy_tree=taxonomy_tree,
-            inverted_tree=inverted_tree,
-            fig_prefix="full_election")
+    do_full_fig(
+        cell_to_truth=cell_to_truth,
+        cell_to_assignment=results,
+        taxonomy_tree=taxonomy_tree,
+        inverted_tree=inverted_tree,
+        fig_path=args.fig_path)
 
 if __name__ == "__main__":
     main()
