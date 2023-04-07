@@ -83,9 +83,9 @@ def assess_results(
         #axis.set_yscale('log')
 
         axis.legend(loc='upper left', fontsize=fontsize)
-        axis.set_xlabel('confidence level', fontsize=fontsize)
+        axis.set_xlabel('confidence level at level={level}', fontsize=fontsize)
         axis.set_ylabel('normalized histogram', fontsize=fontsize)
-        axis.set_title(f"confidence at level={level}", fontsize=fontsize)
+        #axis.set_title(f"confidence at level={level}", fontsize=fontsize)
 
     #fig.tight_layout()
     #print(f"writing {fig_path}")
@@ -97,10 +97,11 @@ def do_full_fig(
         cell_to_assignment,
         taxonomy_tree,
         inverted_tree,
-        fig_path):
+        fig_path,
+        fig_title):
 
-    nrows = len(taxonomy_tree['hierarchy'])
-    ncols = 1
+    ncols = len(taxonomy_tree['hierarchy'])
+    nrows = 1
     fig = mfig.Figure(figsize=(ncols*10, nrows*10))
     axis_list = [fig.add_subplot(nrows, ncols, ii+1)
                  for ii in range(nrows*ncols)]
@@ -114,13 +115,18 @@ def do_full_fig(
             inverted_tree=inverted_tree,
             hierarchy_level=level,
             axis_list=this_axis_list)
+
+    if fig_title is not None:
+        axis_list[0].set_title(fig_title, fontsize=20)
+
     fig.tight_layout()
     fig.savefig(fig_path)
 
 def main():
-    parser = argparse.argument_parser()
-    parser.add_argument('--result_path', type=str, default=None)
-    parser.add_argument('--fig_path', type=str, default=None)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--result_path', type=str, default='data/assignment_230406_full_election.json')
+    parser.add_argument('--fig_path', type=str, default='figs/full_election.png')
+    parser.add_argument('--fig_title', type=str, default=None)
     args = parser.parse_args()
 
 
@@ -161,7 +167,8 @@ def main():
         cell_to_assignment=results,
         taxonomy_tree=taxonomy_tree,
         inverted_tree=inverted_tree,
-        fig_path=args.fig_path)
+        fig_path=args.fig_path,
+        fig_title=args.fig_title)
 
 if __name__ == "__main__":
     main()
