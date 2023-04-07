@@ -83,7 +83,7 @@ def assess_results(
         #axis.set_yscale('log')
 
         axis.legend(loc='upper left', fontsize=fontsize)
-        axis.set_xlabel('confidence level at level={level}', fontsize=fontsize)
+        axis.set_xlabel(f'confidence level at level={level}', fontsize=fontsize)
         axis.set_ylabel('normalized histogram', fontsize=fontsize)
         #axis.set_title(f"confidence at level={level}", fontsize=fontsize)
 
