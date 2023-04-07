@@ -40,7 +40,7 @@ def main():
     results = json.load(open(result_path, 'rb'))['result']
 
     # get the truth
-    truth_cache_path = pathlib.Path("truth_cache.json")
+    truth_cache_path = pathlib.Path("data/truth_cache.json")
     if not truth_cache_path.is_file():
         a_data = anndata.read_h5ad(query_path, backed='r')
         obs = a_data.obs
