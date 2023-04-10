@@ -1,3 +1,4 @@
+import copy
 import time
 import json
 import numpy as np
@@ -25,7 +26,8 @@ def copy_data_over():
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
     assert query_path.is_file()
 
-    precompute_path = data_dir / 'validation_test_precompute.h5'
+    #precompute_path = data_dir / 'validation_test_precompute.h5'
+    precompute_path = data_dir / 'ck_precompute.h5'
     assert precompute_path.is_file()
 
     marker_path = data_dir / 'validation_marker_cache.h5'
@@ -73,7 +75,9 @@ def run_test(
         tree['hierarchy'] = [leaf]
         tree[leaf] = raw[leaf]
 
-    full_result['taxonomy_tree'] = tree
+    other_tree = copy.deepcopy(tree)
+    other_tree.pop('cluster')
+    full_result['taxonomy_tree'] = other_tree
 
     full_result['query_path'] = str(
         data_map['query']['old'].resolve().absolute())
@@ -115,27 +119,27 @@ def main():
         bootstrap_factor=1.0,
         bootstrap_iteration=1,
         data_map=data_map,
-        output_path='assignment_230406_one_election.json')
+        output_path='assignment_230410_one_election.json')
 
     run_test(
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
         data_map=data_map,
-        output_path='assignment_230406_full_election.json')
+        output_path='assignment_230410_full_election.json')
 
     run_test(
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
         data_map=data_map,
         flatten=True,
-        output_path='assignment_230406_full_election_flat.json')
+        output_path='assignment_230410_full_election_flat.json')
 
     run_test(
         bootstrap_factor=1.0,
         bootstrap_iteration=1,
         data_map=data_map,
         flatten=True,
-        output_path='assignment_230406_one_election_flat.json')
+        output_path='assignment_230410_one_election_flat.json')
 
 
 if __name__ == "__main__":
