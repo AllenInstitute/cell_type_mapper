@@ -75,9 +75,7 @@ def run_test(
         tree['hierarchy'] = [leaf]
         tree[leaf] = raw[leaf]
 
-    other_tree = copy.deepcopy(tree)
-    other_tree.pop('cluster')
-    full_result['taxonomy_tree'] = other_tree
+    full_result['taxonomy_tree'] = tree
 
     full_result['query_path'] = str(
         data_map['query']['old'].resolve().absolute())
