@@ -2,6 +2,7 @@ import anndata
 import argparse
 import json
 import matplotlib.figure as mfig
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import numpy as np
 import pathlib
 
@@ -10,6 +11,48 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 
 # read the taxonomy in from the json file you saved
 # see how well it does at level_1 and level_2
+
+def plot_confusion_matrix(
+        prediction,
+        truth,
+        axis,
+        figure):
+    pred_set = set(prediction)
+    truth_set = set(truth)
+    all_set = pred_set.union(truth_set)
+    n_labels = len(all_set)
+    all_set = list(all_set)
+    all_set.sort()
+    id_to_idx = dict()
+    for ii, idx in enumerate(all_set):
+        id_to_idx[idx] = ii
+    mtrx = np.zeros((n_labels, n_labels), dtype=int)
+    assert len(prediction) == len(truth)
+    for ii in range(len(prediction)):
+        if ii% 10000 == 0:
+            print(f"element {ii}")
+        mtrx[id_to_idx[truth[ii]],
+             id_to_idx[prediction[ii]]] += 1
+
+    print("built matrix")
+    row_sums = mtrx.sum(axis=1)
+    row_data = [mtrx[ii,ii]/max(1,row_sums[ii]) for ii in range(n_labels)]
+    print("got row sums")
+    col_sums = mtrx.sum(axis=0)
+    col_data = [mtrx[ii,ii]/max(1,col_sums[ii]) for ii in range(n_labels)]
+    print("got col sums")
+
+    #bars = [mtrx[ii,ii]/row_sums[ii] for ii in range(mtrx.shape[0])]
+    #print("got bar data")
+    #axis.bar(np.array(mtrx.shape[0]), bars)
+    axis.scatter(row_data, col_data, s=2)
+
+
+    #img = axis.imshow(mtrx)
+    #divider = make_axes_locatable(axis)
+    #cax = divider.append_axes("right", size="5%", pad=0.05)
+    #figure.colorbar(img, ax=axis, cax=cax)
+
 
 def invert_tree(taxonomy_tree):
     tree_to_leaves = convert_tree_to_leaves(taxonomy_tree)
@@ -162,13 +205,28 @@ def main():
 
     cell_to_truth = json.load(open(truth_cache_path, "rb"))
 
-    do_full_fig(
-        cell_to_truth=cell_to_truth,
-        cell_to_assignment=results,
-        taxonomy_tree=taxonomy_tree,
-        inverted_tree=inverted_tree,
-        fig_path=args.fig_path,
-        fig_title=args.fig_title)
+    #do_full_fig(
+    #    cell_to_truth=cell_to_truth,
+    #    cell_to_assignment=results,
+    #    taxonomy_tree=taxonomy_tree,
+    #    inverted_tree=inverted_tree,
+    #    fig_path=args.fig_path,
+    #    fig_title=args.fig_title)
+
+    truth = []
+    prediction = []
+    for cell in results:
+        prediction.append(int(cell['cluster']['assignment']))
+        truth.append(int(cell_to_truth[cell['cell_id']]))
+    fig = mfig.Figure(figsize=(10,10))
+    axis = fig.add_subplot(1,1,1)
+    plot_confusion_matrix(
+        truth=truth,
+        prediction=prediction,
+        axis=axis,
+        figure=fig)
+    fig.tight_layout()
+    fig.savefig('eg_confusion.png', dpi=1000)
 
 if __name__ == "__main__":
     main()
