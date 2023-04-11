@@ -73,6 +73,14 @@ def run_type_assignment_on_h5ad(
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
     The dict maps level in the hierarchy to the type (at that level)
     the cell has been assigned.
+
+    Dict will look like
+        {'cell_id': id_of_cell,
+         taxonomy_level1 : {'assignment': chosen_node,
+                           'confidence': fraction_of_votes},
+         taxonomy_level2 : {'assignment': chosen_node,
+                           'confidence': fraction_of_votes},
+         ...}
     """
 
     a_data = anndata.read_h5ad(query_h5ad_path, backed='r')
@@ -208,7 +216,13 @@ def run_type_assignment(
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
     The dict maps level in the hierarchy to the type (at that level)
-    the cell has been assigned.
+    the cell has been assigned. The dict will also include the confidence level
+    of the assignment (i.e. what fraction of bootstrap iterations thought the
+    cell belongs to that node)
+
+    Dict will look like
+        {taxonomy_level : {'assignment': chosen_node,
+                           'confidence': fraction_of_votes}}
     """
     # get a dict mapping leaf node name
     # to mean gene expression profile
@@ -279,7 +293,8 @@ def run_type_assignment(
                         taxonomy_tree['hierarchy'][0]].keys())
 
             if len(possible_children) > 1:
-                assignment = _run_type_assignment(
+                (assignment,
+                 confidence) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_lookup=leaf_node_lookup,
                                 marker_gene_cache_path=marker_gene_cache_path,
@@ -290,6 +305,7 @@ def run_type_assignment(
                                 rng=rng)
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.shape[0]
+                confidence = [1.0]*chosen_query_data.shape[0]
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -314,8 +330,12 @@ def run_type_assignment(
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type in zip(chosen_idx, assignment):
-                result[i_cell][child_level] = assigned_type
+            for i_cell, assigned_type, confidence_level in zip(chosen_idx,
+                                                               assignment,
+                                                               confidence):
+
+                result[i_cell][child_level] = {'assignment': assigned_type,
+                                               'confidence': confidence_level}
 
     return result
 
@@ -375,6 +395,9 @@ def _run_type_assignment(
     A list of strings. There is one string per row in the
     full_query_gene_data array. Each string is the child of
     parent_node to which that cell was assigned.
+
+    An array indicating the confidence (fraction of votes
+    the winner got) in the choice
     """
 
     query_data = assemble_query_data(
@@ -384,7 +407,8 @@ def _run_type_assignment(
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
 
-    result = choose_node(
+    (result,
+     confidence) = choose_node(
         query_gene_data=query_data['query_data'],
         reference_gene_data=query_data['reference_data'],
         reference_types=query_data['reference_types'],
@@ -392,7 +416,7 @@ def _run_type_assignment(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng)
 
-    return result
+    return result, confidence
 
 
 def choose_node(
@@ -421,6 +445,8 @@ def choose_node(
     Returns
     -------
     Array of cell type assignments (majority rule)
+
+    Array of vote fractions
     """
 
     votes = tally_votes(
@@ -432,7 +458,8 @@ def choose_node(
 
     chosen_type = np.argmax(votes, axis=1)
     result = [reference_types[ii] for ii in chosen_type]
-    return np.array(result)
+    confidence = np.max(votes, axis=1) / bootstrap_iteration
+    return (np.array(result), confidence)
 
 
 def tally_votes(
