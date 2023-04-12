@@ -1,6 +1,8 @@
 # script to construct the taxonomy tree from the cl.df.3levels.csv
 # file specified for the test
 
+import argparse
+
 import anndata
 import h5py
 import json
@@ -152,6 +154,7 @@ def assign_rows_to_tree(
 
 
 def main():
+
     reference_path = pathlib.Path(
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/U19_CR6/processed.U19_all.postQC.AIT17.0.20230226.sync.h5ad')
     assert reference_path.is_file()
@@ -164,9 +167,17 @@ def main():
        "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/cl.df.3levels.csv")
     assert tree_src_file.is_file()
 
-    marker_dir = pathlib.Path(
+    default_marker_dir = (
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/marker_list_on_nodes')
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--marker_dir', type=str, default=default_marker_dir)
+    parser.add_argument('--marker_output', type=str, default=None)
+    args = parser.parse_args()
+
+    marker_dir = pathlib.Path(args.marker_dir)
     assert marker_dir.is_dir()
+    marker_output_path = pathlib.Path(args.marker_output)
 
     tree = read_taxonomy_tree(tree_src_file)
 
@@ -205,19 +216,20 @@ def main():
         reference_path=reference_path,
         query_path=query_path,
         marker_path_lookup=markers,
-        output_path='validation_marker_cache.h5')
+        output_path=marker_output_path)
 
-    tree = assign_rows_to_tree(
-            taxonomy_tree=tree,
-            reference_path=reference_path)
-    with open('taxonomy_tree.json', 'w') as out_file:
-        out_file.write(json.dumps(tree,indent=2))
+    #tree = assign_rows_to_tree(
+    #        taxonomy_tree=tree,
+    #        reference_path=reference_path)
 
-    print("precomputing summary stats")
-    precompute_summary_stats_from_h5ad_and_tree(
-        data_path=reference_path,
-        taxonomy_tree=tree,
-        output_path='validation_test_precompute.h5')
+    #with open('taxonomy_tree.json', 'w') as out_file:
+    #    out_file.write(json.dumps(tree,indent=2))
+
+    #print("precomputing summary stats")
+    #precompute_summary_stats_from_h5ad_and_tree(
+    #    data_path=reference_path,
+    #    taxonomy_tree=tree,
+    #    output_path='validation_test_precompute.h5')
 
 
 if __name__ == "__main__":
