@@ -5,7 +5,8 @@ from hierarchical_mapping.utils.distance_utils import (
     correlation_distance,
     correlation_nearest_neighbors,
     _subtract_mean_and_normalize,
-    cosine_distance)
+    cosine_distance,
+    cosine_nearest_neighbors)
 
 
 def test_subtract_mean_and_normalize():
@@ -108,3 +109,19 @@ def test_cosine_distance():
         expected,
         atol=0.0,
         rtol=1.0e-6)
+
+
+def test_cosine_nearest_neighbors():
+    rng = np.random.default_rng(221314)
+    ref = rng.random((112, 34))
+    query = rng.random((17, 34))
+
+    actual = cosine_nearest_neighbors(
+            baseline_array=ref,
+            query_array=query)
+
+    true_dist = scipy_cdist(query, ref, metric='cosine')
+    assert true_dist.shape == (query.shape[0], ref.shape[0])
+    assert actual.shape == (query.shape[0], )
+    for i_row in range(query.shape[0]):
+        assert actual[i_row] == np.argmin(true_dist[i_row, :])

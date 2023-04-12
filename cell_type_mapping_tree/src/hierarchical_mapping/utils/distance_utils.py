@@ -27,6 +27,32 @@ def correlation_nearest_neighbors(
     return np.argmax(correlation_dot(baseline_array, query_array), axis=0)
 
 
+def cosine_nearest_neighbors(
+        baseline_array,
+        query_array):
+    """
+    Find the index of the nearest neighbors (by cosnie
+    distance) of the cells in
+
+    Parameters
+    ----------
+    baseline_array:
+        A (n_cells_0, n_genes) np.ndarray. The cell x gene data
+        from which nearest neighbors will be drawn
+    query_array:
+        A (n_cells_1, n_genes) np.ndarray. The cell x gene data
+        whose nearest neighbors are desired
+
+    Returns
+    -------
+    A (n_cells_1, ) np.ndarray of integers representing
+    the index of the nearest cell from baseline_arry to each
+    cell in query_array (i.e. the returned value at 11 is the
+    nearest neighbor of query_array[11, :])
+    """
+    return np.argmax(cosine_dot(baseline_array, query_array), axis=0)
+
+
 def correlation_distance(
         arr0,
         arr1):
@@ -116,16 +142,26 @@ def _subtract_mean_and_normalize(data, do_transpose=False):
     return data
 
 
-def cosine_distance(
+def cosine_dot(
         arr0,
         arr1):
     """
-    Return the row-to-row cosine distance between the rows of
+    Return the row-to-row cosine between the rows of
     arr0 and arr1
     """
     arr0 = _normalize_by_row(arr0, do_transpose=False)
     arr1 = _normalize_by_row(arr1, do_transpose=True)
-    return 1.0-np.dot(arr0, arr1)
+    return np.dot(arr0, arr1)
+
+
+def cosine_distance(
+    arr0,
+    arr1):
+    """
+    Return the row-to-row cosine distance between the rows of
+    arr0 and arr1
+    """
+    return 1.0-cosine_dot(arr0=arr0, arr1=arr1)
 
 
 def _normalize_by_row(data, do_transpose=False):
