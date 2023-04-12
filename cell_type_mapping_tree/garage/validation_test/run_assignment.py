@@ -30,7 +30,7 @@ def copy_data_over():
     precompute_path = data_dir / 'ck_precompute.h5'
     assert precompute_path.is_file()
 
-    marker_path = data_dir / 'validation_marker_cache.h5'
+    marker_path = data_dir / 'validation_marker_cache_noboot.h5'
     assert marker_path.is_file()
 
     tmp_dir = pathlib.Path(os.environ['TMPDIR'])
@@ -117,27 +117,27 @@ def main():
         bootstrap_factor=1.0,
         bootstrap_iteration=1,
         data_map=data_map,
-        output_path='assignment_230410_one_election.json')
+        output_path='assignment_230412_one_election.json')
 
-    run_test(
-        bootstrap_factor=0.9,
-        bootstrap_iteration=100,
-        data_map=data_map,
-        output_path='assignment_230410_full_election.json')
+    #run_test(
+    #    bootstrap_factor=0.9,
+    #    bootstrap_iteration=100,
+    #    data_map=data_map,
+    #    output_path='assignment_230410_full_election.json')
 
-    run_test(
-        bootstrap_factor=0.9,
-        bootstrap_iteration=100,
-        data_map=data_map,
-        flatten=True,
-        output_path='assignment_230410_full_election_flat.json')
+    #run_test(
+    #    bootstrap_factor=0.9,
+    #    bootstrap_iteration=100,
+    #    data_map=data_map,
+    #    flatten=True,
+    #    output_path='assignment_230410_full_election_flat.json')
 
-    run_test(
-        bootstrap_factor=1.0,
-        bootstrap_iteration=1,
-        data_map=data_map,
-        flatten=True,
-        output_path='assignment_230410_one_election_flat.json')
+    #run_test(
+    #    bootstrap_factor=1.0,
+    #    bootstrap_iteration=1,
+    #    data_map=data_map,
+    #    flatten=True,
+    #    output_path='assignment_230410_one_election_flat.json')
 
 
 if __name__ == "__main__":
