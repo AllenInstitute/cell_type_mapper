@@ -10,7 +10,8 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from hierarchical_mapping.utils.distance_utils import (
-    correlation_nearest_neighbors)
+    correlation_nearest_neighbors,
+    cosine_nearest_neighbors)
 
 from hierarchical_mapping.type_assignment.matching import (
    get_leaf_means,
@@ -26,7 +27,8 @@ def run_type_assignment_on_h5ad(
         chunk_size,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        distance_metric='corr'):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -67,6 +69,9 @@ def run_type_assignment_on_h5ad(
 
     rng:
         A random number generator
+
+    distance_metric:
+        Either 'corr' for correlation distance or 'cos' for cosine distnace
 
     Returns
     -------
@@ -118,7 +123,8 @@ def run_type_assignment_on_h5ad(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'output_list': output_list,
-                    'output_lock': output_lock})
+                    'output_lock': output_lock,
+                    'distance_metric': distance_metric})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -150,7 +156,8 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration,
         rng,
         output_list,
-        output_lock):
+        output_lock,
+        distance_metric):
 
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
@@ -159,7 +166,8 @@ def _run_type_assignment_on_h5ad_worker(
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        distance_metric=distance_metric)
 
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
@@ -175,7 +183,8 @@ def run_type_assignment(
         taxonomy_tree,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        distance_metric='corr'):
     """
     Assign types at all levels of the taxonomy to a set of
     query cells.
@@ -211,6 +220,9 @@ def run_type_assignment(
 
     rng:
         A random number generator
+
+    distance_metric:
+        Either 'corr' for correlation distance or 'cos' for cosine distnace
 
     Returns
     -------
@@ -302,7 +314,8 @@ def run_type_assignment(
                                 parent_node=parent_node,
                                 bootstrap_factor=bootstrap_factor,
                                 bootstrap_iteration=bootstrap_iteration,
-                                rng=rng)
+                                rng=rng,
+                                distance_metric=distance_metric)
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.shape[0]
                 confidence = [1.0]*chosen_query_data.shape[0]
@@ -348,7 +361,8 @@ def _run_type_assignment(
         parent_node,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        distance_metric='corr'):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -390,6 +404,9 @@ def _run_type_assignment(
     rng:
         A random number generator
 
+    distance_metric:
+        Either 'corr' for correlation distance or 'cos' for cosine distnace
+
     Returns
     -------
     A list of strings. There is one string per row in the
@@ -414,7 +431,8 @@ def _run_type_assignment(
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        distance_metric=distance_metric)
 
     return result, confidence
 
@@ -425,7 +443,8 @@ def choose_node(
          reference_types,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         distance_metric='corr'):
     """
     Parameters
     ----------
@@ -441,6 +460,8 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
+    distance_metric:
+        Either 'corr' for correlation distance or 'cos' for cosine distnace
 
     Returns
     -------
@@ -454,7 +475,8 @@ def choose_node(
         reference_gene_data=reference_gene_data,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        distance_metric=distance_metric)
 
     chosen_type = np.argmax(votes, axis=1)
     result = [reference_types[ii] for ii in chosen_type]
@@ -467,7 +489,8 @@ def tally_votes(
          reference_gene_data,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         distance_metric='corr'):
     """
     Parameters
     ----------
@@ -483,6 +506,8 @@ def tally_votes(
         Number of bootstrapping iterations
     rng
         random number generator
+    distance_metric:
+        Either 'corr' for correlation distance or 'cos' for cosine distnace
 
     Returns
     -------
@@ -490,6 +515,16 @@ def tally_votes(
     reference cell. The value is how many iterations voted for
     "this query cell is the same type as this reference cell"
     """
+    if distance_metric == 'corr':
+        nn_fn = correlation_nearest_neighbors
+    elif distance_metric == 'cos':
+        nn_fn = cosine_nearest_neighbors
+    else:
+        raise RuntimeError(
+            "distance_metric must be either 'corr' or 'cos'; "
+            f"you gave {distance_metric}")
+
+
     n_markers = query_gene_data.shape[1]
     marker_idx = np.arange(n_markers)
     n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
@@ -507,7 +542,7 @@ def tally_votes(
         bootstrap_query = query_gene_data[:, chosen_idx]
         bootstrap_reference = reference_gene_data[:, chosen_idx]
 
-        nearest_neighbors = correlation_nearest_neighbors(
+        nearest_neighbors = nn_fn(
             baseline_array=bootstrap_reference,
             query_array=bootstrap_query)
 

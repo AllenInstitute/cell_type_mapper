@@ -1,6 +1,7 @@
 import pytest
 
 import numpy as np
+from scipy.spatial.distance import cdist as scipy_cdist
 from unittest.mock import patch
 
 from hierarchical_mapping.type_assignment.election import (
@@ -108,3 +109,91 @@ def test_confidence_result():
     np.testing.assert_allclose(
         confidence,
         [0.6, 0.8, 1.0, 0.8])
+
+
+def test_cosine_v_corr_votes():
+    """
+    test, using boostrap_factor=1.0, bootstrap_iteration=1, that
+    tally_votes correctly propagates distance metrics
+    """
+
+    # assemble ground truth with scipy_cdist
+    rng = np.random.default_rng(88123)
+    query = rng.random((56, 17))
+    reference = rng.random((123, 17))
+
+    corr_dist = scipy_cdist(
+        reference,
+        query,
+        metric='correlation')
+
+    cos_dist = scipy_cdist(
+        reference,
+        query,
+        metric='cosine')
+
+    corr_nn = np.argmin(corr_dist, axis=0)
+    cos_nn = np.argmin(cos_dist, axis=0)
+    assert corr_nn.shape == cos_nn.shape
+    assert corr_nn.shape == (query.shape[0],)
+    assert not np.allclose(corr_nn, cos_nn)
+
+    cos_expected = np.zeros((query.shape[0], reference.shape[0]),
+                            dtype=int)
+    corr_expected = np.zeros((query.shape[0], reference.shape[0]),
+                             dtype=int)
+
+    for ii in range(query.shape[0]):
+        cos_expected[ii, cos_nn[ii]] = 1
+        corr_expected[ii, corr_nn[ii]] = 1
+
+    # get actual votes
+
+    cos_votes = tally_votes(
+        query_gene_data=query,
+        reference_gene_data=reference,
+        bootstrap_factor=1.0,
+        bootstrap_iteration=1,
+        rng=rng,
+        distance_metric='cos')
+
+    np.testing.assert_array_equal(cos_votes, cos_expected)
+
+    corr_votes = tally_votes(
+        query_gene_data=query,
+        reference_gene_data=reference,
+        bootstrap_factor=1.0,
+        bootstrap_iteration=1,
+        rng=rng,
+        distance_metric='corr')
+
+    np.testing.assert_array_equal(corr_votes, corr_expected)
+
+
+    # nw test choose_node
+    (cos_node,
+     _) = choose_node(
+        query_gene_data=query,
+        reference_gene_data=reference,
+        reference_types=[str(ii) for ii in range(reference.shape[0])],
+        bootstrap_factor=1.0,
+        bootstrap_iteration=1,
+        rng=rng,
+        distance_metric='cos')
+
+    expected = np.array([str(ii) for ii in cos_nn])
+    np.testing.assert_array_equal(expected, cos_node)
+
+
+    (corr_node,
+     _) = choose_node(
+        query_gene_data=query,
+        reference_gene_data=reference,
+        reference_types=[str(ii) for ii in range(reference.shape[0])],
+        bootstrap_factor=1.0,
+        bootstrap_iteration=1,
+        rng=rng,
+        distance_metric='corr')
+
+    expected = np.array([str(ii) for ii in corr_nn])
+    np.testing.assert_array_equal(expected, corr_node)
