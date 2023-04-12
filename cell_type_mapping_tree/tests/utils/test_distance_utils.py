@@ -1,9 +1,11 @@
 import numpy as np
+from scipy.spatial.distance import cdist as scipy_cdist
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_distance,
     correlation_nearest_neighbors,
-    _subtract_mean_and_normalize)
+    _subtract_mean_and_normalize,
+    cosine_distance)
 
 
 def test_subtract_mean_and_normalize():
@@ -85,3 +87,24 @@ def test_correlation_nn():
                 min_dist = dist
         expected[i_query] = min_dex
     np.testing.assert_array_equal(actual, expected)
+
+
+def test_cosine_distance():
+    rng = np.random.default_rng(221314)
+    ref = rng.random((112, 34))
+    query = rng.random((17, 34))
+
+    expected = scipy_cdist(
+            query,
+            ref,
+            metric='cosine')
+
+    actual = cosine_distance(
+            arr0=query,
+            arr1=ref)
+
+    np.testing.assert_allclose(
+        actual,
+        expected,
+        atol=0.0,
+        rtol=1.0e-6)

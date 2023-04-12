@@ -114,3 +114,50 @@ def _subtract_mean_and_normalize(data, do_transpose=False):
     if not do_transpose:
         return data.transpose()
     return data
+
+
+def cosine_distance(
+        arr0,
+        arr1):
+    """
+    Return the row-to-row cosine distance between the rows of
+    arr0 and arr1
+    """
+    arr0 = _normalize_by_row(arr0, do_transpose=False)
+    arr1 = _normalize_by_row(arr1, do_transpose=True)
+    return 1.0-np.dot(arr0, arr1)
+
+
+def _normalize_by_row(data, do_transpose=False):
+    """
+    Prep an array of cell x gene data for cosine distance
+    computation.
+
+    Parameters
+    ----------
+    data:
+        A (n_cells, n_genes) np.ndarray
+    do_transpose:
+        A boolean. If False, return a (n_cells, n_gene)
+        array. If True, return a (n_gene, n_cells) array
+
+    Return
+    ------
+    data with each row normalized to its L2 norm.
+    (The array will also be transposed relative to the
+    input if do_transpose)
+    """
+    data = data.transpose()
+    norm = np.sqrt(np.sum(data**2, axis=0))
+
+    # if norm=0, it means that whole cell had the same
+    # value in all genes. Probably not interesting.
+    # Set those norms to 1 to avoid divide by zero
+    # problems
+    invalid = (norm == 0.0)
+    norm[invalid] = 1.0
+
+    data = data/norm
+    if not do_transpose:
+        return data.transpose()
+    return data
