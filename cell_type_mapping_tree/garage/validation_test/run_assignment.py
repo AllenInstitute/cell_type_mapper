@@ -11,19 +11,25 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
     get_siblings)
 
+import tempfile
+from hierarchical_mapping.utils.utils import (
+    _clean_up)
+
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
 import os
 
-def copy_data_over():
+def copy_data_over(tmp_dir=None):
 
     data_dir = pathlib.Path(
         '/allen/aibs/technology/danielsf/knowledge_base/validation')
     assert data_dir.is_dir()
 
+    #query_path = pathlib.Path(
+    #    '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
     query_path = pathlib.Path(
-        '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/AIT17.0.logCPM.sampled100_a.h5ad')
     assert query_path.is_file()
 
     #precompute_path = data_dir / 'validation_test_precompute.h5'
@@ -33,7 +39,8 @@ def copy_data_over():
     marker_path = data_dir / 'validation_marker_cache_noboot.h5'
     assert marker_path.is_file()
 
-    tmp_dir = pathlib.Path(os.environ['TMPDIR'])
+    if tmp_dir is None:
+        tmp_dir = pathlib.Path(os.environ['TMPDIR'])
 
     result = {
         'query': {'new': tmp_dir/query_path.name, 'old': query_path},
@@ -92,8 +99,8 @@ def run_test(
         precomputed_stats_path=data_map['precompute']['new'],
         marker_gene_cache_path=data_map['marker']['new'],
         taxonomy_tree=tree,
-        n_processors=32,
-        chunk_size=30000,
+        n_processors=6,
+        chunk_size=3000,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
         rng=np.random.default_rng(11235))
@@ -111,7 +118,11 @@ def run_test(
 
 def main():
 
-    data_map = copy_data_over()
+    tmp_dir = pathlib.Path(tempfile.mkdtemp(
+        dir='/local1/scott_daniel/scratch'))
+
+    data_map = copy_data_over(
+        tmp_dir = tmp_dir)
 
     run_test(
         bootstrap_factor=1.0,
@@ -139,6 +150,8 @@ def main():
     #    flatten=True,
     #    output_path='assignment_230410_one_election_flat.json')
 
+    print(f"cleaning {tmp_dir}")
+    _clean_up(tmp_dir)
 
 if __name__ == "__main__":
     main()
