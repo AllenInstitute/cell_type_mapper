@@ -111,19 +111,10 @@ def create_marker_cache(
         marker_path_lookup,
         output_path):
 
-    #reference_gene_lookup = get_gene_name_lookup(reference_path)
-    #query_gene_lookup = get_gene_name_lookup(query_path)
-
-    #with open('reference_gene_lookup.json', 'w') as out_file:
-    #    out_file.write(json.dumps(reference_gene_lookup))
-    #with open('query_gene_lookup.json', 'w') as out_file:
-    #    out_file.write(json.dumps(query_gene_lookup))
-    #exit()
-
-    with open('reference_gene_lookup.json', 'rb') as in_file:
-        reference_gene_lookup = json.load(in_file)
-    with open('query_gene_lookup.json', 'rb') as in_file:
-        query_gene_lookup = json.load(in_file)
+    # do *NOT* cache this;
+    # we now have multiple query sets roaming around
+    reference_gene_lookup = get_gene_name_lookup(reference_path)
+    query_gene_lookup = get_gene_name_lookup(query_path)
 
     with h5py.File(output_path, 'w') as out_file:
         for grp in marker_path_lookup:
@@ -159,9 +150,8 @@ def main():
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/U19_CR6/processed.U19_all.postQC.AIT17.0.20230226.sync.h5ad')
     assert reference_path.is_file()
 
-    query_path = pathlib.Path(
+    default_query_path = (
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
-    assert query_path.is_file()
 
     tree_src_file = pathlib.Path(
        "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/cl.df.3levels.csv")
@@ -173,10 +163,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--marker_dir', type=str, default=default_marker_dir)
     parser.add_argument('--marker_output', type=str, default=None)
+    parser.add_argument('--query_path', type=str, default=default_query_path)
     args = parser.parse_args()
 
     marker_dir = pathlib.Path(args.marker_dir)
     assert marker_dir.is_dir()
+    query_path = pathlib.Path(args.query_path)
+    assert query_path.is_file()
     marker_output_path = pathlib.Path(args.marker_output)
 
     tree = read_taxonomy_tree(tree_src_file)
@@ -217,6 +210,13 @@ def main():
         query_path=query_path,
         marker_path_lookup=markers,
         output_path=marker_output_path)
+
+    metadata = {'query_path': args.query_path,
+                'marker_dir': args.marker_dir}
+    with h5py.File(marker_output_path, 'a') as out_file:
+        out_file.create_dataset(
+            'metadata',
+            data=json.dumps(metadata).encode('utf-8'))
 
     #tree = assign_rows_to_tree(
     #        taxonomy_tree=tree,
