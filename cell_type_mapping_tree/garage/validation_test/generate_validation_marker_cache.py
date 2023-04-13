@@ -142,7 +142,7 @@ def create_marker_cache(
             data=np.sort(np.array(list(query_markers))))
         out_file.create_dataset(
             'all_reference_markers',
-            data=np.sort(np.array(list(reference_markers)))
+            data=np.sort(np.array(list(reference_markers))))
 
 
 def assign_rows_to_tree(
