@@ -88,8 +88,9 @@ def create_marker_gene_cache(
 
     # keep track of the genes we actually need
     # for all queries
-    query_marker_list = mgr.list()
-    query_marker_list.append(set())
+    marker_lookup = mgr.dict()
+    marker_lookup['query'] = set()
+    marker_lookup['reference'] = set()
 
     ct = 0
     for i0 in range(0, n_parents, n_per_process):
@@ -102,7 +103,7 @@ def create_marker_gene_cache(
                     'score_path': score_path,
                     'query_gene_names': query_gene_names,
                     'marker_genes_per_pair': marker_genes_per_pair,
-                    'query_marker_list': query_marker_list,
+                    'marker_lookup': marker_lookup,
                     'output_path': cache_path,
                     'output_lock': output_lock})
         p.start()
@@ -124,12 +125,17 @@ def create_marker_gene_cache(
 
     # list the set of genes we actually need to keep
     # from the query set for all comparisons
-    query_genes = np.array(list(query_marker_list[0]))
+    query_genes = np.array(list(marker_lookup['query']))
     query_genes = np.sort(query_genes)
+    reference_genes = np.array(list(marker_lookup['reference']))
+    reference_genes = np.sort(reference_genes)
     with h5py.File(cache_path, "a") as in_file:
         in_file.create_dataset(
             "all_query_genes",
             data=query_genes)
+        in_file.create_dataset(
+            "all_reference_genes",
+            data=reference_genes)
 
 
 def _marker_gene_worker(
@@ -138,7 +144,7 @@ def _marker_gene_worker(
         score_path,
         query_gene_names,
         marker_genes_per_pair,
-        query_marker_list,
+        marker_lookup,
         output_path,
         output_lock):
 
@@ -167,7 +173,8 @@ def _marker_gene_worker(
         grp_to_results[grp] = marker_genes
 
     with output_lock:
-        query_set = query_marker_list[0]
+        query_set = marker_lookup['query']
+        reference_set = marker_lookup['reference']
 
         with h5py.File(output_path, 'a') as out_file:
             for grp in grp_to_results:
@@ -175,9 +182,11 @@ def _marker_gene_worker(
                 query = grp_to_results[grp]['query']
 
                 query_set = query_set.union(set(query))
+                reference_set = reference_set.union(set(reference))
 
                 out_grp = out_file[grp]
                 out_grp.create_dataset('reference', data=reference)
                 out_grp.create_dataset('query', data=query)
 
-        query_marker_list[0] = query_set
+        marker_lookup['query'] = query_set
+        marker_lookup['reference'] = reference_set

@@ -143,8 +143,10 @@ def test_marker_cache_pipeline(
 
     ct = 0
     expected_query = set()
+    expected_reference = set()
     with h5py.File(marker_cache_path, 'r') as actual_file:
         assert "all_query_genes" in actual_file.keys()
+        assert "all_reference_genes" in actual_file.keys()
         for parent_node in parent_node_list:
             leaf_pair_list = get_all_leaf_pairs(
                 taxonomy_tree=taxonomy_tree,
@@ -173,6 +175,7 @@ def test_marker_cache_pipeline(
                 actual_query = grp['query'][()]
 
             expected_query = expected_query.union(set(expected['query']))
+            expected_reference = expected_reference.union(set(expected['reference']))
 
             np.testing.assert_array_equal(
                 expected['reference'], actual_ref)
@@ -186,6 +189,14 @@ def test_marker_cache_pipeline(
         np.testing.assert_array_equal(
             actual_file['all_query_genes'][()],
             expected_query)
+
+        # make sure that we correctly recorded all of the
+        # marker genes needed from the reference set
+        expected_reference = np.sort(np.array(list(expected_reference)))
+        assert len(expected_reference) == len(expected_query)
+        np.testing.assert_array_equal(
+            actual_file['all_reference_genes'][()],
+            expected_reference)
 
     # make sure we weren't testing all empty datasets
     assert ct > 0
