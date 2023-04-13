@@ -131,10 +131,10 @@ def create_marker_gene_cache(
     reference_genes = np.sort(reference_genes)
     with h5py.File(cache_path, "a") as in_file:
         in_file.create_dataset(
-            "all_query_genes",
+            "all_query_markers",
             data=query_genes)
         in_file.create_dataset(
-            "all_reference_genes",
+            "all_reference_markers",
             data=reference_genes)
 
 
