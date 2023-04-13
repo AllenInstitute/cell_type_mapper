@@ -1,4 +1,5 @@
 import anndata
+import h5py
 import multiprocessing
 import numpy as np
 import time
@@ -83,6 +84,9 @@ def run_type_assignment_on_h5ad(
          ...}
     """
 
+    with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
+        all_query_markers = in_file['all_query_markers'][()]
+
     a_data = anndata.read_h5ad(query_h5ad_path, backed='r')
     query_cell_names = list(a_data.obs_names)
     chunk_iterator = a_data.chunked_X(chunk_size=chunk_size)
@@ -105,6 +109,10 @@ def run_type_assignment_on_h5ad(
             data = chunk[0]
         else:
             data = chunk[0].toarray()
+
+        # downsample to just include marker genes
+        # to limit memory footprint
+        data = data[:, all_query_markers]
 
         p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
@@ -183,8 +191,11 @@ def run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        (n_query_cells, n_query_genes) numpy array. The cells
+        (n_query_cells, n_query_markers) numpy array. The cells
         to be mapped.
+
+        **Note**: this array has been downsampled to include only
+        the genes in marker_gene_cache_path['all_query_markers']
 
     precomputed_stats_path:
         Path to the HDF5 file where precomputed stats on the
@@ -356,8 +367,11 @@ def _run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        (n_query_cells, n_query_genes) numpy array. The cells
+        (n_query_cells, n_query_markers) numpy array. The cells
         to be mapped.
+
+        **Note**: this array has been downsampled to include only
+        the genes in marker_gene_cache_path['all_query_markers']
 
     leaf_node_lookup:
         Dict that maps cluster names to mean gene expression

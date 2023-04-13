@@ -20,6 +20,10 @@ def assemble_query_data(
     --------
     query_data
         (n_query_cells, n_markers)
+
+        **Note**: this array has been downsampled to include only
+        the genes in marker_gene_cache_path['all_query_markers']
+
     reference_data
         (n_reference_cells, n_markers)
     reference_types
@@ -53,7 +57,24 @@ def assemble_query_data(
 
     with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
         reference_markers = in_file[parent_grp]['reference'][()]
-        query_markers = in_file[parent_grp]['query'][()]
+        raw_query_markers = in_file[parent_grp]['query'][()]
+        all_query_markers = in_file['all_query_markers'][()]
+
+    # translate from global marker index as is stored in
+    # the cache path to the local index of the downsampled
+    # array.
+
+    if full_query_data.shape[1] != len(all_query_markers):
+        raise RuntimeError(
+            f"There are {len(all_query_markers)} marker genes "
+            "in the query set. Your query data has shape "
+            f"{full_query_data.shape}. This should have been "
+            "downsampled to contain only the query marker genes")
+
+    global_to_local = {
+        idx: ii for ii, idx in enumerate(all_query_markers)}
+    query_markers = np.array(
+        [global_to_local[idx] for idx in raw_query_markers])
 
     query_data = full_query_data[:, query_markers]
 

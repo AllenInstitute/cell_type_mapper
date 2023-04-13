@@ -149,6 +149,9 @@ def test_running_single_election(
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_markers = in_file['all_query_markers'][()]
+    query_data = query_data[:, query_markers]
 
     leaf_lookup = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
@@ -276,6 +279,9 @@ def test_running_full_election(
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_markers = in_file['all_query_markers'][()]
+    query_data = query_data[:, query_markers]
 
     result = run_type_assignment(
         full_query_gene_data=query_data,
@@ -412,6 +418,9 @@ def test_running_flat_election(
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_markers = in_file['all_query_markers'][()]
+    query_data = query_data[:, query_markers]
 
     result = run_type_assignment(
         full_query_gene_data=query_data,

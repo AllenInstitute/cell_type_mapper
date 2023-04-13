@@ -108,13 +108,20 @@ def test_assemble_query_data(
             data=marker_fixture['reference'])
         out_file.create_dataset(f"{parent_grp}/query",
             data=marker_fixture['query'])
+        all_query_markers = np.sort(np.array(marker_fixture['query']))
+        out_file.create_dataset('all_query_markers',
+                                data=all_query_markers)
 
     rng = np.random.default_rng(44553)
     n_query = 17
     full_query_data = rng.random((n_query, n_genes))
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_markers = in_file['all_query_markers'][()]
+    assert len(query_markers) < n_genes
+    downsampled_data = full_query_data[:, query_markers]
 
     actual = assemble_query_data(
-            full_query_data=full_query_data,
+            full_query_data=downsampled_data,
             mean_profile_lookup=mean_lookup_fixture,
             taxonomy_tree=tree_fixture,
             marker_cache_path=marker_cache_path,
