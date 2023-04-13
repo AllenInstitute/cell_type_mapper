@@ -49,11 +49,11 @@ def copy_data_over(
         'precompute': {'new': tmp_dir/precompute_path.name,
                        'old': precompute_path}}
 
-    result['tmp_dir'] = tmp_dir
     for k in result:
         pair = result[k]
         shutil.copy(src=pair['old'], dst=pair['new'])
         print(f"copied {pair}")
+    result['tmp_dir'] = tmp_dir
     return result
 
 
