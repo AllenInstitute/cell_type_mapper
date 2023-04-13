@@ -64,7 +64,8 @@ def run_test(
         output_path=None,
         flatten=False,
         data_map=None,
-        n_processors=32):
+        n_processors=32,
+        chunk_size=30000):
 
     full_result = dict()
 
@@ -103,7 +104,7 @@ def run_test(
         marker_gene_cache_path=data_map['marker']['new'],
         taxonomy_tree=tree,
         n_processors=n_processors,
-        chunk_size=3000,
+        chunk_size=chunk_size,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
         rng=np.random.default_rng(11235))
@@ -145,6 +146,7 @@ def main():
     parser.add_argument('--bootstrap_iteration', type=int, default=100)
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--n_processors', type=int, default=32)
+    parser.add_argument('--chunk_size', type=int, default=30000)
     args = parser.parse_args()
 
     assert args.output_path is not None
@@ -160,7 +162,8 @@ def main():
         bootstrap_iteration=args.bootstrap_iteration,
         data_map=data_map,
         output_path=args.output_path,
-        n_processors=args.n_processors)
+        n_processors=args.n_processors,
+        chunk_size=chunk_size)
 
     tmp_dir = data_map['tmp_dir']
     print(f"cleaning {tmp_dir}")
