@@ -163,7 +163,7 @@ def main():
         data_map=data_map,
         output_path=args.output_path,
         n_processors=args.n_processors,
-        chunk_size=chunk_size)
+        chunk_size=args.chunk_size)
 
     tmp_dir = data_map['tmp_dir']
     print(f"cleaning {tmp_dir}")
