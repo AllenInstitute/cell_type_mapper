@@ -1,3 +1,4 @@
+import argparse
 import copy
 import time
 import json
@@ -20,27 +21,27 @@ from hierarchical_mapping.type_assignment.election import (
 
 import os
 
-def copy_data_over(tmp_dir=None):
+def copy_data_over(
+        query_path=None,
+        precompute_path=None,
+        marker_path=None,
+        tmp_dir=None):
 
-    data_dir = pathlib.Path(
-        '/allen/aibs/technology/danielsf/knowledge_base/validation')
-    assert data_dir.is_dir()
-
-    #query_path = pathlib.Path(
-    #    '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
-    query_path = pathlib.Path(
-        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/AIT17.0.logCPM.sampled100_a.h5ad')
+    query_path = pathlib.Path(query_path)
     assert query_path.is_file()
-
-    #precompute_path = data_dir / 'validation_test_precompute.h5'
-    precompute_path = data_dir / 'ck_precompute.h5'
+    precompute_path = pathlib.Path(precompute_path)
     assert precompute_path.is_file()
-
-    marker_path = data_dir / 'validation_marker_cache_noboot.h5'
+    marker_path = pathlib.Path(marker_path)
     assert marker_path.is_file()
 
     if tmp_dir is None:
         tmp_dir = pathlib.Path(os.environ['TMPDIR'])
+    else:
+        tmp_dir = pathlib.Path(tmp_dir)
+
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir))
+    assert tmp_dir.is_dir()
 
     result = {
         'query': {'new': tmp_dir/query_path.name, 'old': query_path},
@@ -48,6 +49,7 @@ def copy_data_over(tmp_dir=None):
         'precompute': {'new': tmp_dir/precompute_path.name,
                        'old': precompute_path}}
 
+    result['tmp_dir'] = tmp_dir
     for k in result:
         pair = result[k]
         shutil.copy(src=pair['old'], dst=pair['new'])
@@ -61,7 +63,8 @@ def run_test(
         bootstrap_iteration=100,
         output_path=None,
         flatten=False,
-        data_map=None):
+        data_map=None,
+        n_processors=32):
 
     full_result = dict()
 
@@ -99,7 +102,7 @@ def run_test(
         precomputed_stats_path=data_map['precompute']['new'],
         marker_gene_cache_path=data_map['marker']['new'],
         taxonomy_tree=tree,
-        n_processors=6,
+        n_processors=n_processors,
         chunk_size=3000,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
@@ -117,39 +120,49 @@ def run_test(
 
 
 def main():
+    data_dir = pathlib.Path(
+        '/allen/aibs/technology/danielsf/knowledge_base/validation')
 
-    tmp_dir = pathlib.Path(tempfile.mkdtemp(
-        dir='/local1/scott_daniel/scratch'))
+    #query_path = pathlib.Path(
+    #    '/allen/programs/celltypes/workgroups/rnaseqanalysis/changkyul/CIRRO/MFISH/atlas_brain_638850.remap.4334174.updated.imputed.h5ad')
+    d_query_path = (
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/AIT17.0.logCPM.sampled100_a.h5ad')
+
+    #precompute_path = data_dir / 'validation_test_precompute.h5'
+    d_precompute_path = data_dir / 'ck_precompute.h5'
+    d_precompute_path = str(d_precompute_path.resolve().absolute())
+
+    d_marker_path = data_dir / 'validation_marker_cache_noboot.h5'
+    d_marker_path = str(d_marker_path.resolve().absolute())
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--query_path', type=str, default=d_query_path)
+    parser.add_argument('--precompute_path', type=str,
+                        default=d_precompute_path)
+    parser.add_argument('--marker_path', type=str, default=d_marker_path)
+    parser.add_argument('--tmp_dir', type=str, default=None)
+    parser.add_argument('--bootstrap_factor', type=float, default=0.9)
+    parser.add_argument('--bootstrap_iteration', type=int, default=100)
+    parser.add_argument('--output_path', type=str, default=None)
+    parser.add_argument('--n_processors', type=int, default=32)
+    args = parser.parse_args()
+
+    assert args.output_path is not None
 
     data_map = copy_data_over(
-        tmp_dir = tmp_dir)
+        precompute_path=args.precompute_path,
+        query_path=args.query_path,
+        marker_path=args.marker_path,
+        tmp_dir = args.tmp_dir)
 
     run_test(
-        bootstrap_factor=1.0,
-        bootstrap_iteration=1,
+        bootstrap_factor=args.bootstrap_factor,
+        bootstrap_iteration=args.bootstrap_iteration,
         data_map=data_map,
-        output_path='assignment_230412_one_election.json')
+        output_path=args.output_path,
+        n_processors=args.n_processors)
 
-    #run_test(
-    #    bootstrap_factor=0.9,
-    #    bootstrap_iteration=100,
-    #    data_map=data_map,
-    #    output_path='assignment_230410_full_election.json')
-
-    #run_test(
-    #    bootstrap_factor=0.9,
-    #    bootstrap_iteration=100,
-    #    data_map=data_map,
-    #    flatten=True,
-    #    output_path='assignment_230410_full_election_flat.json')
-
-    #run_test(
-    #    bootstrap_factor=1.0,
-    #    bootstrap_iteration=1,
-    #    data_map=data_map,
-    #    flatten=True,
-    #    output_path='assignment_230410_one_election_flat.json')
-
+    tmp_dir = data_map['tmp_dir']
     print(f"cleaning {tmp_dir}")
     _clean_up(tmp_dir)
 
