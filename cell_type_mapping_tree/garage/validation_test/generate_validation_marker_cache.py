@@ -116,6 +116,8 @@ def create_marker_cache(
     reference_gene_lookup = get_gene_name_lookup(reference_path)
     query_gene_lookup = get_gene_name_lookup(query_path)
 
+    reference_markers = set()
+    query_markers = set()
     with h5py.File(output_path, 'w') as out_file:
         for grp in marker_path_lookup:
             if 'root' not in grp:
@@ -131,6 +133,17 @@ def create_marker_cache(
             for k in ('reference', 'query'):
                 out_file[grp_key].create_dataset(
                     k, data = this_grp[k])
+            reference_markers = reference_markers.union(
+                    set(this_grp['reference']))
+            query_markers = query_markers.union(
+                    set(this_grp['query']))
+        out_file.create_dataset(
+            'all_query_markers',
+            data=np.sort(np.array(list(query_markers))))
+        out_file.create_dataset(
+            'all_reference_markers',
+            data=np.sort(np.array(list(reference_markers)))
+
 
 def assign_rows_to_tree(
         taxonomy_tree,
