@@ -119,6 +119,18 @@ class CellByGeneMatrix(object):
         self._gene_identifiers = copy.deepcopy(selected_genes)
         self._create_gene_to_col()
 
+    def downsample_cells(self, selected_cells):
+        """
+        Return another CellByGeneMatrix that only contains
+        the cells specified by the integer indices in
+        selected_cells
+        """
+        subset = self.data[selected_cells, :]
+        return CellByGeneMatrix(
+            data=subset,
+            gene_identifiers=self.gene_identifiers,
+            normalization=self.normalization)
+
     def to_log2CPM(self):
         """
         Return a new CellByGeneMatrix that is normalized to log2CPM

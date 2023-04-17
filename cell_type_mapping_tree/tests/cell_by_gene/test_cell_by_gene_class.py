@@ -210,3 +210,28 @@ def test_downsampling_error(
     # in place
     with pytest.raises(RuntimeError, match="gene_17 occurs more than once"):
         raw.downsample_genes_in_place(selected_genes)
+
+def test_downsampling_cells(
+        raw_fixture,
+        gene_id_fixture):
+
+    base = CellByGeneMatrix(
+        data=raw_fixture,
+        gene_identifiers=gene_id_fixture,
+        normalization="raw")
+
+    cell_idx = [1, 9, 7]
+    expected_data = raw_fixture[[1, 9, 7], :]
+    other = base.downsample_cells(cell_idx)
+    np.testing.assert_allclose(
+        other.data,
+        expected_data,
+        atol=0.0,
+        rtol=1.0e-6)
+
+    assert other.n_cells == 3
+    assert other.n_genes == base.n_genes
+    assert other.gene_identifiers is not base.gene_identifiers
+    assert other.gene_identifiers == base.gene_identifiers
+    assert other.gene_to_col is not base.gene_to_col
+    assert other.gene_to_col == base.gene_to_col
