@@ -18,11 +18,19 @@ def gene_id_fixture():
         result.append(f"gene_{ii}")
     return result
 
+@pytest.fixture
+def cell_id_fixture():
+     n_cells = 23
+     result = []
+     for ii in range(n_cells):
+         result.append(f"cell_{ii}")
+     return result
+
 
 @pytest.fixture
-def raw_fixture(gene_id_fixture):
+def raw_fixture(gene_id_fixture, cell_id_fixture):
     rng = np.random.default_rng(117231)
-    n_cells = 72
+    n_cells = len(cell_id_fixture)
     n_genes = len(gene_id_fixture)
     data = rng.random((n_cells, n_genes))
     data[14,: ] = 0.0
@@ -68,16 +76,26 @@ def test_cell_by_gene_init_errors():
             normalization="raw")
 
 
+@pytest.mark.parametrize(
+    "use_cell_id", [True, False])
 def test_cell_by_gene_init(
        raw_fixture,
-       gene_id_fixture):
+       gene_id_fixture,
+       cell_id_fixture,
+       use_cell_id):
     """
     Test that mapping between gene identifier and column is correct
     """
+    if use_cell_id:
+        cell_id = cell_id_fixture
+    else:
+        cell_id = None
+
     actual = CellByGeneMatrix(
         data=raw_fixture,
         gene_identifiers=gene_id_fixture,
-        normalization="raw")
+        normalization="raw",
+        cell_identifiers=cell_id)
 
     assert actual.gene_identifiers is not gene_id_fixture
     assert actual.gene_identifiers == gene_id_fixture
@@ -88,15 +106,34 @@ def test_cell_by_gene_init(
     for ii in range(actual.n_genes):
         assert actual.gene_to_col[f"gene_{ii}"] == ii
 
+    if use_cell_id:
+        assert actual.cell_identifiers is not cell_id_fixture
+        assert actual.cell_identifiers == cell_id_fixture
+        for ii in range(actual.n_cells):
+            assert actual.cell_to_row[f"cell_{ii}"] == ii
+    else:
+        assert actual.cell_identifiers is None
+        assert actual.cell_to_row is None
+
+@pytest.mark.parametrize(
+    "use_cell_id", [True, False])
 def test_conversion_to_log2cpm(
         raw_fixture,
         log2cpm_fixture,
-        gene_id_fixture):
+        gene_id_fixture,
+        cell_id_fixture,
+        use_cell_id):
+
+    if use_cell_id:
+        cell_id = cell_id_fixture
+    else:
+        cell_id = None
 
     raw = CellByGeneMatrix(
         data=raw_fixture,
         gene_identifiers=gene_id_fixture,
-        normalization="raw")
+        normalization="raw",
+        cell_identifiers=cell_id)
 
     # as other CellByGeneMatrix
     other = raw.to_log2CPM()
@@ -111,6 +148,17 @@ def test_conversion_to_log2cpm(
     assert other.gene_identifiers == raw.gene_identifiers
     assert other.gene_to_col is not raw.gene_to_col
     assert other.gene_to_col == raw.gene_to_col
+    assert other.n_cells == raw.n_cells
+    assert other.n_genes == raw.n_genes
+
+    if use_cell_id:
+        assert other.cell_identifiers is not cell_id_fixture
+        assert other.cell_identifiers == cell_id_fixture
+        for ii in range(other.n_cells):
+            assert other.cell_to_row[f"cell_{ii}"] == ii
+    else:
+        assert other.cell_identifiers is None
+        assert other.cell_to_row is None
 
     # in place
     raw.to_log2CPM_in_place()
@@ -123,6 +171,15 @@ def test_conversion_to_log2cpm(
     assert other.gene_identifiers == raw.gene_identifiers
     assert other.gene_to_col is not raw.gene_to_col
     assert other.gene_to_col == raw.gene_to_col
+
+    if use_cell_id:
+        assert raw.cell_identifiers is not cell_id_fixture
+        assert raw.cell_identifiers == cell_id_fixture
+        for ii in range(raw.n_cells):
+            assert raw.cell_to_row[f"cell_{ii}"] == ii
+    else:
+        assert raw.cell_identifiers is None
+        assert raw.cell_to_row is None
 
 
 def test_conversion_to_log2cpm_error(
@@ -145,16 +202,26 @@ def test_conversion_to_log2cpm_error(
         base.to_log2CPM_in_place()
 
 
+@pytest.mark.parametrize(
+    "use_cell_id", [True, False])
 def test_downsampling(
         raw_fixture,
-        gene_id_fixture):
+        gene_id_fixture,
+        cell_id_fixture,
+        use_cell_id):
+
+    if use_cell_id:
+        cell_id = cell_id_fixture
+    else:
+        cell_id = None
 
     selected_genes = ["gene_32", "gene_17", "gene_43"]
     expected_data = raw_fixture[:, [32, 17, 43]]
     raw = CellByGeneMatrix(
         data=raw_fixture,
         gene_identifiers=gene_id_fixture,
-        normalization="raw")
+        normalization="raw",
+        cell_identifiers=cell_id)
 
     # as other CellByGeneMatrix
     other = raw.downsample_genes(selected_genes)
@@ -172,6 +239,15 @@ def test_downsampling(
 
     assert other.n_genes == 3
     assert other.n_cells == raw.n_cells
+
+    if use_cell_id:
+        assert other.cell_identifiers is not cell_id_fixture
+        assert other.cell_identifiers == cell_id_fixture
+        for ii in range(other.n_cells):
+            assert other.cell_to_row[f"cell_{ii}"] == ii
+    else:
+        assert other.cell_identifiers is None
+        assert other.cell_to_row is None
 
     # in place
     base_n_cells = raw.n_cells
@@ -192,6 +268,15 @@ def test_downsampling(
     assert raw.n_genes == 3
     assert raw.n_cells == base_n_cells
 
+    if use_cell_id:
+        assert raw.cell_identifiers is not cell_id_fixture
+        assert raw.cell_identifiers == cell_id_fixture
+        for ii in range(raw.n_cells):
+            assert raw.cell_to_row[f"cell_{ii}"] == ii
+    else:
+        assert raw.cell_identifiers is None
+        assert raw.cell_to_row is None
+
 
 def test_downsampling_error(
         raw_fixture,
@@ -211,9 +296,11 @@ def test_downsampling_error(
     with pytest.raises(RuntimeError, match="gene_17 occurs more than once"):
         raw.downsample_genes_in_place(selected_genes)
 
-def test_downsampling_cells(
+
+def test_downsample_by_cell_idx(
         raw_fixture,
-        gene_id_fixture):
+        gene_id_fixture,
+        cell_id_fixture):
 
     base = CellByGeneMatrix(
         data=raw_fixture,
@@ -235,3 +322,56 @@ def test_downsampling_cells(
     assert other.gene_identifiers == base.gene_identifiers
     assert other.gene_to_col is not base.gene_to_col
     assert other.gene_to_col == base.gene_to_col
+
+    # if there are cell identifiers, KeyError should be raised
+    base = CellByGeneMatrix(
+        data=raw_fixture,
+        gene_identifiers=gene_id_fixture,
+        normalization="raw",
+        cell_identifiers=cell_id_fixture)
+
+    with pytest.raises(KeyError):
+        base.downsample_cells(cell_idx)
+
+def test_downsample_by_cell_id(
+        raw_fixture,
+        gene_id_fixture,
+        cell_id_fixture):
+
+    base = CellByGeneMatrix(
+        data=raw_fixture,
+        gene_identifiers=gene_id_fixture,
+        normalization="raw",
+        cell_identifiers=cell_id_fixture)
+
+    selected_cells = ["cell_13", "cell_5", "cell_9"]
+    expected_data = raw_fixture[[13, 5, 9], :]
+
+    other = base.downsample_cells(selected_cells)
+    assert other.n_cells == 3
+    assert other.n_genes == base.n_genes
+    np.testing.assert_allclose(
+        other.data,
+        expected_data,
+        atol=0.0,
+        rtol=1.0e-6)
+    assert other.cell_identifiers is not selected_cells
+    assert other.cell_identifiers == selected_cells
+    assert other.gene_identifiers is not base.gene_identifiers
+    assert other.gene_identifiers == base.gene_identifiers
+    assert other.gene_to_col is not base.gene_to_col
+    assert other.gene_to_col == base.gene_to_col
+    assert other.cell_to_row == {
+        "cell_13": 0,
+        "cell_5": 1,
+        "cell_9": 2}
+
+    # if cell_identifier is None, must select cells by idx
+    base = CellByGeneMatrix(
+        data=raw_fixture,
+        gene_identifiers=gene_id_fixture,
+        normalization="raw",
+        cell_identifiers=None)
+
+    with pytest.raises(IndexError):
+        base.downsample_cells(selected_cells)
