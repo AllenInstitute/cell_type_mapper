@@ -1,4 +1,5 @@
 import h5py
+import json
 import numpy as np
 
 from hierarchical_mapping.diff_exp.scores import (
@@ -19,10 +20,7 @@ def assemble_query_data(
     Returns
     --------
     query_data
-        (n_query_cells, n_markers)
-
-        **Note**: this array has been downsampled to include only
-        the genes in marker_gene_cache_path['all_query_markers']
+        A CellByGeneMatrix containing the query data
 
     reference_data
         (n_reference_cells, n_markers)
@@ -58,25 +56,25 @@ def assemble_query_data(
     with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
         reference_markers = in_file[parent_grp]['reference'][()]
         raw_query_markers = in_file[parent_grp]['query'][()]
-        all_query_markers = in_file['all_query_markers'][()]
+        all_ref_identifiers = json.loads(
+            in_file["reference_gene_names"][()].decode("utf-8"))
+        all_query_identifiers = json.loads(
+            in_file["query_gene_names"][()].decode("utf-8"))
 
-    # translate from global marker index as is stored in
-    # the cache path to the local index of the downsampled
-    # array.
+    # select only the desired query marker genes
 
-    if full_query_data.shape[1] != len(all_query_markers):
+    reference_marker_identifiers = [
+        all_ref_identifiers[ii] for ii in reference_markers]
+
+    query_markers = [all_query_identifiers[ii]
+                     for ii in raw_query_markers]
+
+    query_data = full_query_data.downsample_genes(
+        selected_genes=query_markers)
+
+    if query_data.gene_identifiers != reference_marker_identifiers:
         raise RuntimeError(
-            f"There are {len(all_query_markers)} marker genes "
-            "in the query set. Your query data has shape "
-            f"{full_query_data.shape}. This should have been "
-            "downsampled to contain only the query marker genes")
-
-    global_to_local = {
-        idx: ii for ii, idx in enumerate(all_query_markers)}
-    query_markers = np.array(
-        [global_to_local[idx] for idx in raw_query_markers])
-
-    query_data = full_query_data[:, query_markers]
+            "Mismatch between query marker genes and reference marker genes")
 
     n_reference = len(leaf_to_type)
     reference_data = np.zeros((n_reference, len(reference_markers)),
@@ -115,4 +113,11 @@ def get_leaf_means(
                     gt0_threshold=1,
                     gt1_threshold=0)
         result[leaf] = stats['mean']
+
+    if 'gene_names' in result:
+        raise RuntimeError(
+            "Somehow 'gene_names' is already in leaf_mean lookup")
+
+    result['gene_names'] = precomputed_stats['gene_names']
+
     return result

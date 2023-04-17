@@ -1,5 +1,6 @@
 import anndata
 import h5py
+import json
 import multiprocessing
 import numpy as np
 import time
@@ -16,6 +17,9 @@ from hierarchical_mapping.utils.distance_utils import (
 from hierarchical_mapping.type_assignment.matching import (
    get_leaf_means,
    assemble_query_data)
+
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
 
 
 def run_type_assignment_on_h5ad(
@@ -85,7 +89,11 @@ def run_type_assignment_on_h5ad(
     """
 
     with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
-        all_query_markers = in_file['all_query_markers'][()]
+        all_query_identifiers = json.loads(
+            in_file["query_gene_names"][()].decode("utf-8"))
+        all_query_markers = [
+            all_query_identifiers[ii]
+            for ii in in_file["all_query_markers"][()]]
 
     a_data = anndata.read_h5ad(query_h5ad_path, backed='r')
     query_cell_names = list(a_data.obs_names)
@@ -109,10 +117,14 @@ def run_type_assignment_on_h5ad(
             data = chunk[0]
         else:
             data = chunk[0].toarray()
+        data = CellByGeneMatrix(
+            data=data,
+            gene_identifiers=all_query_identifiers,
+            normalization="log2CPM")
 
         # downsample to just include marker genes
         # to limit memory footprint
-        data = data[:, all_query_markers]
+        data.downsample_genes_in_place(all_query_markers)
 
         p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
@@ -191,11 +203,7 @@ def run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        (n_query_cells, n_query_markers) numpy array. The cells
-        to be mapped.
-
-        **Note**: this array has been downsampled to include only
-        the genes in marker_gene_cache_path['all_query_markers']
+        A CellByGeneMatrix containing the query data.
 
     precomputed_stats_path:
         Path to the HDF5 file where precomputed stats on the
@@ -246,7 +254,7 @@ def run_type_assignment(
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree['hierarchy']
     result = []
-    for i_cell in range(full_query_gene_data.shape[0]):
+    for i_cell in range(full_query_gene_data.n_cells):
         this = dict()
         for level in hierarchy:
             this[level] = None
@@ -280,14 +288,15 @@ def run_type_assignment(
             # only consider the query cells that were assigned
             # to the current parent
             if parent_node is None:
-                chosen_idx = np.arange(full_query_gene_data.shape[0])
+                chosen_idx = np.arange(full_query_gene_data.n_cells)
                 chosen_query_data = full_query_gene_data
             else:
                 if parent_node[1] in previously_assigned[parent_level]:
                     chosen_idx = previously_assigned[
                         parent_level][parent_node[1]]
 
-                    chosen_query_data = full_query_gene_data[chosen_idx, :]
+                    chosen_query_data = full_query_gene_data.downsample_cells(
+                        selected_cells=chosen_idx)
 
                 else:
                     chosen_idx = []
@@ -315,8 +324,8 @@ def run_type_assignment(
                                 bootstrap_iteration=bootstrap_iteration,
                                 rng=rng)
             elif len(possible_children) == 1:
-                assignment = [possible_children[0]]*chosen_query_data.shape[0]
-                confidence = [1.0]*chosen_query_data.shape[0]
+                assignment = [possible_children[0]]*chosen_query_data.n_cells
+                confidence = [1.0]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -367,11 +376,7 @@ def _run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        (n_query_cells, n_query_markers) numpy array. The cells
-        to be mapped.
-
-        **Note**: this array has been downsampled to include only
-        the genes in marker_gene_cache_path['all_query_markers']
+        A CellByGeneMatrix containing the query data
 
     leaf_node_lookup:
         Dict that maps cluster names to mean gene expression
@@ -423,7 +428,7 @@ def _run_type_assignment(
 
     (result,
      confidence) = choose_node(
-        query_gene_data=query_data['query_data'],
+        query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'],
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,

@@ -2,6 +2,7 @@ import pytest
 
 import copy
 import h5py
+import json
 import numpy as np
 import pathlib
 
@@ -13,6 +14,10 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 
 from hierarchical_mapping.type_assignment.matching import (
     assemble_query_data)
+
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 @pytest.fixture
 def n_genes():
@@ -63,7 +68,18 @@ def marker_fixture(n_genes, n_markers):
     ref = rng.choice(np.arange(n_genes), n_markers, replace=False)
     query = rng.choice(np.arange(n_genes), n_markers, replace=False)
     assert not np.array_equal(ref, query)
-    return {'reference': ref, 'query': query}
+
+    ref_names = [f'dummy_{ii}' for ii in range(n_genes)]
+    query_names = [f'other_dummy_{ii}' for ii in range(n_genes)]
+    for ii, (r, q) in enumerate(zip(ref, query)):
+        n = f'marker_{ii}'
+        ref_names[r] = n
+        query_names[q] = n
+
+    return {'reference': ref,
+            'query': query,
+            'reference_names': ref_names,
+            'query_names': query_names}
 
 
 @pytest.fixture
@@ -108,6 +124,12 @@ def test_assemble_query_data(
             data=marker_fixture['reference'])
         out_file.create_dataset(f"{parent_grp}/query",
             data=marker_fixture['query'])
+        out_file.create_dataset(
+            'reference_gene_names',
+            data=json.dumps(marker_fixture['reference_names']).encode('utf-8')),
+        out_file.create_dataset(
+            'query_gene_names',
+            data=json.dumps(marker_fixture['query_names']).encode('utf-8'))
         all_query_markers = np.sort(np.array(marker_fixture['query']))
         out_file.create_dataset('all_query_markers',
                                 data=all_query_markers)
@@ -115,23 +137,37 @@ def test_assemble_query_data(
     rng = np.random.default_rng(44553)
     n_query = 17
     full_query_data = rng.random((n_query, n_genes))
+
     with h5py.File(marker_cache_path, 'r') as in_file:
-        query_markers = in_file['all_query_markers'][()]
+        query_gene_id = json.loads(
+                             in_file["query_gene_names"][()].decode("utf-8"))
+        query_markers = [query_gene_id[ii]
+                         for ii in in_file['all_query_markers'][()]]
+
     assert len(query_markers) < n_genes
-    downsampled_data = full_query_data[:, query_markers]
+
+    query_cell_by_gene = CellByGeneMatrix(
+        data=full_query_data,
+        gene_identifiers=query_gene_id,
+        normalization="log2CPM")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
 
     actual = assemble_query_data(
-            full_query_data=downsampled_data,
+            full_query_data=query_cell_by_gene,
             mean_profile_lookup=mean_lookup_fixture,
             taxonomy_tree=tree_fixture,
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
-    assert actual['query_data'].shape == (n_query, n_markers)
+    assert actual['query_data'].n_cells == n_query
+    assert actual['query_data'].n_genes == n_markers
+
     for ii in range(n_query):
         for jj in range(n_markers):
             jj_o = marker_fixture['query'][jj]
-            assert actual['query_data'][ii, jj] == full_query_data[ii, jj_o]
+            assert actual['query_data'].data[ii, jj] == full_query_data[ii, jj_o]
 
     assert actual['reference_types'] == expected_types
     assert actual['reference_data'].shape == (expected_n_reference, n_markers)
