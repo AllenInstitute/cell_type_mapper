@@ -449,9 +449,9 @@ def choose_node(
     Parameters
     ----------
     query_gene_data
-        cell-by-marker-gene array of query data
+        A numpy array of cell-by-marker-gene data for the query set
     reference_gene_data
-        cell-by-marker-gene array of reference data
+        A numpy array of cell-by-marker-gene data for the reference set
     reference_types
         array of cell types we are chosing from (n_cells in size)
     bootstrap_factor
@@ -491,9 +491,9 @@ def tally_votes(
     Parameters
     ----------
     query_gene_data
-        cell-by-marker-gene array of query data
+        A numpy array of cell-by-marker-gene data for the query set
     reference_gene_data
-        cell-by-marker-gene array of reference data
+        A numpy array of cell-by-marker-gene data for the reference set
     reference_types
         array of cell types we are chosing from (n_cells in size)
     bootstrap_factor
