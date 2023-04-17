@@ -245,7 +245,7 @@ def run_type_assignment(
     """
     # get a dict mapping leaf node name
     # to mean gene expression profile
-    leaf_node_lookup = get_leaf_means(
+    leaf_node_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precomputed_stats_path)
 
@@ -316,7 +316,7 @@ def run_type_assignment(
                 (assignment,
                  confidence) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
-                                leaf_node_lookup=leaf_node_lookup,
+                                leaf_node_matrix=leaf_node_matrix,
                                 marker_gene_cache_path=marker_gene_cache_path,
                                 taxonomy_tree=taxonomy_tree,
                                 parent_node=parent_node,
@@ -362,7 +362,7 @@ def run_type_assignment(
 
 def _run_type_assignment(
         full_query_gene_data,
-        leaf_node_lookup,
+        leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
         parent_node,
@@ -378,9 +378,9 @@ def _run_type_assignment(
     full_query_gene_data:
         A CellByGeneMatrix containing the query data
 
-    leaf_node_lookup:
-        Dict that maps cluster names to mean gene expression
-        profile of cells in that cluster.
+    leaf_node_matrix:
+        A CellByGeneMatrix containing the mean gene expression
+        profiles of each cell type cluster
 
     marker_gene_cache_path:
         Path to the HDF5 file where lists of marker genes for
@@ -421,7 +421,7 @@ def _run_type_assignment(
 
     query_data = assemble_query_data(
         full_query_data=full_query_gene_data,
-        mean_profile_lookup=leaf_node_lookup,
+        mean_profile_matrix=leaf_node_matrix,
         marker_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
@@ -429,7 +429,7 @@ def _run_type_assignment(
     (result,
      confidence) = choose_node(
         query_gene_data=query_data['query_data'].data,
-        reference_gene_data=query_data['reference_data'],
+        reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,

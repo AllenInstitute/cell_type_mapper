@@ -91,6 +91,21 @@ def mean_lookup_fixture(tree_fixture, n_genes):
     return result
 
 
+@pytest.fixture
+def mean_matrix_fixture(mean_lookup_fixture, n_genes, marker_fixture):
+    n_cells = len(mean_lookup_fixture)
+    data = np.zeros((n_cells, n_genes), dtype=float)
+    cell_id = []
+    for ii, k in enumerate(mean_lookup_fixture.keys()):
+        cell_id.append(k)
+        data[ii, :] = mean_lookup_fixture[k]
+    result = CellByGeneMatrix(
+        data=data,
+        gene_identifiers=marker_fixture['reference_names'],
+        cell_identifiers=cell_id,
+        normalization='log2CPM')
+    return result
+
 
 @pytest.mark.parametrize(
     "parent_node, expected_n_reference, expected_types, expected_clusters",
@@ -103,6 +118,7 @@ def test_assemble_query_data(
         tree_fixture,
         marker_fixture,
         mean_lookup_fixture,
+        mean_matrix_fixture,
         n_genes,
         n_markers,
         parent_node,
@@ -156,7 +172,7 @@ def test_assemble_query_data(
 
     actual = assemble_query_data(
             full_query_data=query_cell_by_gene,
-            mean_profile_lookup=mean_lookup_fixture,
+            mean_profile_matrix=mean_matrix_fixture,
             taxonomy_tree=tree_fixture,
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
@@ -170,13 +186,14 @@ def test_assemble_query_data(
             assert actual['query_data'].data[ii, jj] == full_query_data[ii, jj_o]
 
     assert actual['reference_types'] == expected_types
-    assert actual['reference_data'].shape == (expected_n_reference, n_markers)
+    assert actual['reference_data'].n_cells == expected_n_reference
+    assert actual['reference_data'].n_genes == n_markers
 
     cluster_list = copy.deepcopy(expected_clusters)
     cluster_list.sort()
     for ii, ref in enumerate(cluster_list):
         for jj in range(n_markers):
             jj_o = marker_fixture['reference'][jj]
-            assert actual['reference_data'][ii, jj] == mean_lookup_fixture[ref][jj_o]
+            assert actual['reference_data'].data[ii, jj] == mean_lookup_fixture[ref][jj_o]
 
     _clean_up(tmp_dir)

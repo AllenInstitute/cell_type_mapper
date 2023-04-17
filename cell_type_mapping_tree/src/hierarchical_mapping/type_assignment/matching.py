@@ -9,24 +9,49 @@ from hierarchical_mapping.diff_exp.scores import (
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves)
 
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 def assemble_query_data(
         full_query_data,
-        mean_profile_lookup,
+        mean_profile_matrix,
         taxonomy_tree,
         marker_cache_path,
         parent_node):
     """
+    Assemble all of the data needed to select a taxonomy node
+    for a collection of cells.
+
+    Parameters
+    ----------
+    full_query_data:
+        A CellByGeneMatrix containing the query data.
+    mean_profile_matrix:
+        A CellByGeneMatrix containing the mean gene expression profiles
+        for each cell cluster in the reference taxonomy.
+    taxonomy_tree:
+        A dict representing the reference taxonomy.
+    marker_cache_path:
+        Path to the HDF5 file recording the marker genes to be used
+        for this (reference data, query data) pair
+    parent_node:
+        Either None (if we are querying from root) or a
+        (parent_level, parent_node) tuple indicating the parent node
+        in the taxonomy whose children we are choosing between.
+
     Returns
     --------
-    query_data
-        A CellByGeneMatrix containing the query data
+    A dict
+        'query_data' -> a CellByGeneMatrix containing the query data
+        downsampled to just the needed marker genes
 
-    reference_data
-        (n_reference_cells, n_markers)
-    reference_types
-        At the level of this query (i.e. the direct
-        children of parent_node)
+        'reference_data' -> A CellByGeneMatrix containing mean_profile_matrix
+        downsampled to the relevant clusters and marker genes
+
+        'reference_types' -> A list indicating the taxonomic types implied
+        by teh clusters in 'reference_data' (in the order they appear in
+        'reference_data's rows)
     """
 
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
@@ -63,29 +88,41 @@ def assemble_query_data(
 
     # select only the desired query marker genes
 
-    reference_marker_identifiers = [
-        all_ref_identifiers[ii] for ii in reference_markers]
-
     query_markers = [all_query_identifiers[ii]
                      for ii in raw_query_markers]
 
     query_data = full_query_data.downsample_genes(
         selected_genes=query_markers)
 
-    if query_data.gene_identifiers != reference_marker_identifiers:
+    reference_marker_identifiers = [
+        all_ref_identifiers[ii] for ii in reference_markers]
+
+    children = list(leaf_to_type.keys())
+    children.sort()
+
+    reference_data = mean_profile_matrix.downsample_cells(
+        selected_cells=children)
+
+    reference_data.downsample_genes_in_place(
+        selected_genes=reference_marker_identifiers)
+
+    reference_types = []
+    for ii, child in enumerate(reference_data.cell_identifiers):
+        reference_types.append(leaf_to_type[child])
+
+    if query_data.gene_identifiers != reference_data.gene_identifiers:
         raise RuntimeError(
             "Mismatch between query marker genes and reference marker genes")
 
-    n_reference = len(leaf_to_type)
-    reference_data = np.zeros((n_reference, len(reference_markers)),
-                              dtype=float)
-    reference_types = []
-    children = list(leaf_to_type.keys())
-    children.sort()
-    for ii, child in enumerate(children):
-        reference_types.append(leaf_to_type[child])
-        this_mu = mean_profile_lookup[child]
-        reference_data[ii, :] = this_mu[reference_markers]
+    if query_data.normalization != "log2CPM":
+        raise RuntimeError(
+            f"query data normalization is {query_data.normalization}\n"
+            "should be 'log2CPM'")
+
+    if reference_data.normalization != "log2CPM":
+        raise RuntimeError(
+            f"reference data normalization is {query_data.normalization}\n"
+            "should be 'log2CPM'")
 
     return {'query_data': query_data,
             'reference_data': reference_data,
@@ -96,28 +133,37 @@ def get_leaf_means(
         taxonomy_tree,
         precompute_path):
     """
-    Returns a lookup from leaf node name to mean
-    gene expression array
+    Returns a CellByGeneMatrix in which each cell
+    is a cluster and the .data array contains
+    the mean gene expression profile of the cluster.
     """
     precomputed_stats = read_precomputed_stats(precompute_path)
     hierarchy = taxonomy_tree['hierarchy']
     leaf_level = hierarchy[-1]
     leaf_names = list(taxonomy_tree[leaf_level].keys())
+    leaf_names.sort()
     result = dict()
-    for leaf in leaf_names:
 
+    n_cells = len(leaf_names)
+    data = None
+
+    for i_leaf, leaf in enumerate(leaf_names):
         # gt1/0 threshold do not actually matter here
         stats = aggregate_stats(
                     leaf_population=[leaf,],
                     precomputed_stats=precomputed_stats['cluster_stats'],
                     gt0_threshold=1,
                     gt1_threshold=0)
-        result[leaf] = stats['mean']
+        this_mean = stats['mean']
+        if data is None:
+            n_genes = len(this_mean)
+            data = np.zeros((n_cells, n_genes))
+        data[i_leaf, :] = this_mean
 
-    if 'gene_names' in result:
-        raise RuntimeError(
-            "Somehow 'gene_names' is already in leaf_mean lookup")
-
-    result['gene_names'] = precomputed_stats['gene_names']
+    result = CellByGeneMatrix(
+        data=data,
+        gene_identifiers=precomputed_stats['gene_names'],
+        cell_identifiers=leaf_names,
+        normalization="log2CPM")
 
     return result

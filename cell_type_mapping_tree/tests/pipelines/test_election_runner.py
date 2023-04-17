@@ -167,14 +167,14 @@ def test_running_single_election(
     query_cell_by_gene.downsample_genes_in_place(
         selected_genes=query_markers)
 
-    leaf_lookup = get_leaf_means(
+    leaf_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precompute_path)
 
     for parent_node in (None, ("level2", "l2d")):
         data_for_election = assemble_query_data(
             full_query_data=query_cell_by_gene,
-            mean_profile_lookup=leaf_lookup,
+            mean_profile_matrix=leaf_matrix,
             taxonomy_tree=taxonomy_tree,
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
@@ -182,7 +182,7 @@ def test_running_single_election(
         (result,
          confidence) = choose_node(
             query_gene_data=data_for_election['query_data'].data,
-            reference_gene_data=data_for_election['reference_data'],
+            reference_gene_data=data_for_election['reference_data'].data,
             reference_types=data_for_election['reference_types'],
             bootstrap_factor=0.8,
             bootstrap_iteration=23,
