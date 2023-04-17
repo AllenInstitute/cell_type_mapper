@@ -129,13 +129,20 @@ def create_marker_gene_cache(
     query_genes = np.sort(query_genes)
     reference_genes = np.array(list(marker_lookup['reference']))
     reference_genes = np.sort(reference_genes)
-    with h5py.File(cache_path, "a") as in_file:
-        in_file.create_dataset(
+    with h5py.File(cache_path, "a") as cache_file:
+        cache_file.create_dataset(
             "all_query_markers",
             data=query_genes)
-        in_file.create_dataset(
+        cache_file.create_dataset(
             "all_reference_markers",
             data=reference_genes)
+        cache_file.create_dataset(
+            "query_gene_names",
+            data=json.dumps(query_gene_names).encode("utf-8"))
+        with h5py.File(score_path, "r", swmr=True) as reference_file:
+            cache_file.create_dataset(
+                "reference_gene_names",
+                data=reference_file["gene_names"][()])
 
 
 def _marker_gene_worker(

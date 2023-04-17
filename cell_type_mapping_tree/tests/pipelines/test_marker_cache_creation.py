@@ -145,6 +145,16 @@ def test_marker_cache_pipeline(
     expected_query = set()
     expected_reference = set()
     with h5py.File(marker_cache_path, 'r') as actual_file:
+
+        # make sure gene names were correctly transcribed
+        query_names_actual = json.loads(
+            actual_file["query_gene_names"][()].decode("utf-8"))
+        assert query_names_actual == query_genes
+
+        ref_names_actual = json.loads(
+            actual_file["reference_gene_names"][()].decode("utf-8"))
+        assert ref_names_actual == gene_names
+
         assert "all_query_markers" in actual_file.keys()
         assert "all_reference_markers" in actual_file.keys()
         for parent_node in parent_node_list:
