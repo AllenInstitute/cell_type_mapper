@@ -93,4 +93,21 @@ class BinarizedBooleanArray(object):
         (i_int,
          val) = self._col_to_int_val(i_col)
         return (self.data[:, i_int] & val).astype(bool)
-        
+
+    def set_col_false(self, i_col):
+        """
+        Set the column specified by i_col to False in all rows
+        """
+        (i_int,
+         val) = self._col_to_int_val(i_col)
+        operand = 255-val
+        self.data[:, i_int] &= operand
+
+    def set_col_true(self, i_col):
+        """
+        Set the column specified by i_col to True in all rows
+        """
+        (i_int,
+         val) = self._col_to_int_val(i_col)
+        valid = (self.data[:, i_int] & val == 0)
+        self.data[:, i_int][valid] += val
