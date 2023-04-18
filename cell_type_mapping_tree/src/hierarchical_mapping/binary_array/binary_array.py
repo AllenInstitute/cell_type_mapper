@@ -111,3 +111,15 @@ class BinarizedBooleanArray(object):
          val) = self._col_to_int_val(i_col)
         valid = (self.data[:, i_int] & val == 0)
         self.data[:, i_int][valid] += val
+
+    def set_row_false(self, i_row):
+        """
+        Set the row specified by i_row to False in all columns
+        """
+        self.data[i_row, :] = 0
+
+    def set_row_true(self, i_row):
+        """
+        Set the row specified by i_row to True in all columns
+        """
+        self.data[i_row, :] = np.iinfo(np.uint8).max
