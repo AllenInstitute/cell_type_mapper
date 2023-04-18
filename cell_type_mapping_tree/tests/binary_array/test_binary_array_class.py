@@ -2,12 +2,17 @@ import pytest
 
 import numpy as np
 
+from hierarchical_mapping.binary_array.utils import (
+    unpack_binarized_boolean_array)
+
 from hierarchical_mapping.binary_array.binary_array import (
-    BinarizedBooleanArray)
+    BinarizedBooleanArray,
+    n_int_from_n_cols)
 
 
 @pytest.mark.parametrize(
-        "n_rows, n_cols", [(9, 13), (64, 128), (57, 77)])
+        "n_rows, n_cols",
+        [(9, 13), (64, 128), (57, 77), (6, 17), (17, 6), (6, 4)])
 def test_binarized_array_roundtrip(
         n_rows,
         n_cols):
@@ -113,3 +118,35 @@ def test_row_setting():
             expected[been_zeroed] = False
             expected[been_truthed] = True
             np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "n_cols", [17, 32, 5, 22])
+def test_binary_instantiation_from_np(
+        n_cols):
+    n_rows = 25
+    n_int = n_int_from_n_cols(n_cols)
+    rng = np.random.default_rng(55123)
+    src = rng.integers(0, 255, (n_rows, n_int)).astype(np.uint8)
+
+    expected_arr = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+    for i_row in range(n_rows):
+        bool_arr = unpack_binarized_boolean_array(
+            binarized_data=src[i_row, :],
+            n_booleans=n_cols)
+        expected_arr.set_row(i_row=i_row, data=bool_arr)
+
+    actual_arr = BinarizedBooleanArray.from_data_array(
+                    data_array=src,
+                    n_cols=n_cols)
+
+    for i_row in range(n_rows):
+        np.testing.assert_array_equal(
+            expected_arr.get_row(i_row),
+            actual_arr.get_row(i_row))
+    for i_col in range(n_cols):
+        np.testing.assert_array_equal(
+            expected_arr.get_col(i_col),
+            actual_arr.get_col(i_col))

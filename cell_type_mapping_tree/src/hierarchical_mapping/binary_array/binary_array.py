@@ -5,6 +5,13 @@ from hierarchical_mapping.binary_array.utils import (
     unpack_binarized_boolean_array)
 
 
+def n_int_from_n_cols(n_cols):
+    """
+    How many np.uint8 are needed to pack in n_cols booleans
+    """
+    return np.ceil(n_cols/8).astype(int)
+
+
 class BinarizedBooleanArray(object):
     """
     A class for bit packing an array of booleans into an array of np.uint8.
@@ -16,19 +23,24 @@ class BinarizedBooleanArray(object):
 
     n_cols
         Number of columns in the boolean array to be binarized
+    initialize_data:
+        A boolean. If True, create an array of zeros backing this
+        object up. This should only be false when instantiating
+        this class with the from_data_array method.
 
     Notes
     -----
     The constructor will just initialize an array of np.uints of the
     desired shape that are all zeros.
     """
-    def __init__(self, n_rows, n_cols):
+    def __init__(self, n_rows, n_cols, initialize_data=True):
         self.n_rows = n_rows
         self.n_cols = n_cols
 
         # number of np.uint columns to be stored
-        self.n_ints = np.ceil(n_cols/8).astype(int)
-        self.data = np.zeros((self.n_rows, self.n_ints), dtype=np.uint8)
+        self.n_ints = n_int_from_n_cols(n_cols)
+        if initialize_data:
+            self.data = np.zeros((self.n_rows, self.n_ints), dtype=np.uint8)
 
         # mapping from the bit in a given np.uint8 to its value
         self.bit_lookup = {
@@ -123,3 +135,37 @@ class BinarizedBooleanArray(object):
         Set the row specified by i_row to True in all columns
         """
         self.data[i_row, :] = np.iinfo(np.uint8).max
+
+    @classmethod
+    def from_data_array(
+            cls,
+            data_array,
+            n_cols):
+        """
+        Constitute a BinarizedBooleanArray from an array of
+        np.uint8.
+
+        Parameters
+        ----------
+        data_array:
+            array of np.uint8 that will back the
+            resulting BinarizedBooleanArray
+        n_cols:
+            Number of cols in the unpacked boolean array (number of rows is
+            inferred from shape of data_array)
+        """
+        if data_array.dtype != np.uint8:
+            raise ValueError(
+                "data_array must be of type np.uint8\n"
+                f"you gave {data_array.dtype}")
+        n_rows = data_array.shape[0]
+        n_int = n_int_from_n_cols(n_cols)
+        if data_array.shape[1] != n_int:
+            raise ValueError(
+                "You say you are loading a boolean array with"
+                f"{n_cols} columns. That implies a np.uint8 array "
+                f"with {n_int} columns. Your data array has shape "
+                f"{data_array.shape}")
+        result = cls(n_rows=n_rows, n_cols=n_cols, initialize_data=False)
+        result.data = data_array
+        return result
