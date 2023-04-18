@@ -142,7 +142,21 @@ def test_marker_cache_pipeline(
             parent_node_list.append((level, k))
 
     ct = 0
+    expected_query = set()
+    expected_reference = set()
     with h5py.File(marker_cache_path, 'r') as actual_file:
+
+        # make sure gene names were correctly transcribed
+        query_names_actual = json.loads(
+            actual_file["query_gene_names"][()].decode("utf-8"))
+        assert query_names_actual == query_genes
+
+        ref_names_actual = json.loads(
+            actual_file["reference_gene_names"][()].decode("utf-8"))
+        assert ref_names_actual == gene_names
+
+        assert "all_query_markers" in actual_file.keys()
+        assert "all_reference_markers" in actual_file.keys()
         for parent_node in parent_node_list:
             leaf_pair_list = get_all_leaf_pairs(
                 taxonomy_tree=taxonomy_tree,
@@ -170,10 +184,29 @@ def test_marker_cache_pipeline(
                 actual_ref = grp['reference'][()]
                 actual_query = grp['query'][()]
 
+            expected_query = expected_query.union(set(expected['query']))
+            expected_reference = expected_reference.union(set(expected['reference']))
+
             np.testing.assert_array_equal(
                 expected['reference'], actual_ref)
             np.testing.assert_array_equal(
                 expected['query'], actual_query)
+
+        # make sure that we correctly recorded all of the
+        # marker genes needed from the query set
+        expected_query = np.sort(np.array(list(expected_query)))
+        assert len(expected_query) < len(query_genes)
+        np.testing.assert_array_equal(
+            actual_file['all_query_markers'][()],
+            expected_query)
+
+        # make sure that we correctly recorded all of the
+        # marker genes needed from the reference set
+        expected_reference = np.sort(np.array(list(expected_reference)))
+        assert len(expected_reference) == len(expected_query)
+        np.testing.assert_array_equal(
+            actual_file['all_reference_markers'][()],
+            expected_reference)
 
     # make sure we weren't testing all empty datasets
     assert ct > 0

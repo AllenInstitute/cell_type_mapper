@@ -1,0 +1,25 @@
+import numpy as np
+
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
+
+def test_convert_to_cpm():
+    n_cells = 312
+    n_genes = 72
+    rng = np.random.default_rng(23123)
+    data = rng.random((n_cells, n_genes))*2000.0
+    data[11, :] = 0.0
+    actual = convert_to_cpm(data)
+    assert (actual[11, :] == 0.0).all
+    for ii in range(n_cells):
+        if ii == 11:
+            continue
+        row_sum = data[ii, :].sum()
+        expected = data[ii, :]/row_sum
+        expected = 1000000.0*expected
+        np.testing.assert_allclose(
+            expected,
+            actual[ii, :],
+            atol=0.0,
+            rtol=1.0e-6)

@@ -44,6 +44,9 @@ from hierarchical_mapping.type_assignment.election import (
     run_type_assignment,
     run_type_assignment_on_h5ad)
 
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 @pytest.fixture
 def gt0_threshold():
@@ -150,22 +153,36 @@ def test_running_single_election(
 
     assert marker_cache_path.is_file()
 
-    leaf_lookup = get_leaf_means(
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_gene_id = json.loads(
+                             in_file["query_gene_names"][()].decode("utf-8"))
+        query_markers = [query_gene_id[ii]
+                         for ii in in_file['all_query_markers'][()]]
+
+    query_cell_by_gene = CellByGeneMatrix(
+        data=query_data,
+        gene_identifiers=query_gene_id,
+        normalization="log2CPM")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
+
+    leaf_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precompute_path)
 
     for parent_node in (None, ("level2", "l2d")):
         data_for_election = assemble_query_data(
-            full_query_data=query_data,
-            mean_profile_lookup=leaf_lookup,
+            full_query_data=query_cell_by_gene,
+            mean_profile_matrix=leaf_matrix,
             taxonomy_tree=taxonomy_tree,
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
         (result,
          confidence) = choose_node(
-            query_gene_data=data_for_election['query_data'],
-            reference_gene_data=data_for_election['reference_data'],
+            query_gene_data=data_for_election['query_data'].data,
+            reference_gene_data=data_for_election['reference_data'].data,
             reference_types=data_for_election['reference_types'],
             bootstrap_factor=0.8,
             bootstrap_iteration=23,
@@ -276,9 +293,22 @@ def test_running_full_election(
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_gene_id = json.loads(
+                             in_file["query_gene_names"][()].decode("utf-8"))
+        query_markers = [query_gene_id[ii]
+                         for ii in in_file['all_query_markers'][()]]
+
+    query_cell_by_gene = CellByGeneMatrix(
+        data=query_data,
+        gene_identifiers=query_gene_id,
+        normalization="log2CPM")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
 
     result = run_type_assignment(
-        full_query_gene_data=query_data,
+        full_query_gene_data=query_cell_by_gene,
         precomputed_stats_path=precompute_path,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
@@ -413,8 +443,22 @@ def test_running_flat_election(
 
     assert marker_cache_path.is_file()
 
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_gene_id = json.loads(
+                             in_file["query_gene_names"][()].decode("utf-8"))
+        query_markers = [query_gene_id[ii]
+                         for ii in in_file['all_query_markers'][()]]
+
+    query_cell_by_gene = CellByGeneMatrix(
+        data=query_data,
+        gene_identifiers=query_gene_id,
+        normalization="log2CPM")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
+
     result = run_type_assignment(
-        full_query_gene_data=query_data,
+        full_query_gene_data=query_cell_by_gene,
         precomputed_stats_path=precompute_path,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
