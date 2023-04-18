@@ -10,7 +10,7 @@ from hierarchical_mapping.binary_array.utils import (
 
 @pytest.mark.parametrize(
         "n_bool", [8, 32, 64, 57, 13, 23])
-def test_roundtrip(n_bool):
+def test_binary_utils_roundtrip(n_bool):
     rng = np.random.default_rng(6677122)
     src = rng.integers(0, 2, n_bool).astype(bool)
     binarized = binarize_boolean_array(src)
