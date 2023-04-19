@@ -552,8 +552,8 @@ def read_precomputed_stats(
         'gene_names': list of gene names
         'cluster_stats': Dict mapping leaf node name to
             'n_cells'
-            'sum'
-            'sumsq'
+            'sum'  -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
     """
@@ -627,6 +627,10 @@ def score_differential_genes(
     validity_mask:
         np.ndarray of booleans that is a mask for whether or not
         the gene passed the gt1, gt0 thresholds
+
+    Notes
+    -----
+    'sum' and 'sumsq' are in units of log2(CPM+1)
     """
 
     stats_1 = aggregate_stats(
@@ -678,6 +682,10 @@ def diffexp_score(
     A np.ndarray of shape (n_genes,) representing
     the differential score of each gene at distinguishing
     between these two populations
+
+    Notes
+    -----
+    means and variances in input are in units of log2(CPM+1)
     """
 
     (tt_stat,
@@ -711,8 +719,8 @@ def aggregate_stats(
     precomputed_stats:
         Dict mapping leaf node name to
             'n_cells'
-            'sum'
-            'sumsq'
+            'sum' -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
 
@@ -727,6 +735,10 @@ def aggregate_stats(
         'var' -- variance of all gene expression
         'mask' -- boolean mask of genes that pass thresholds
         'n_cells' -- number of cells in the population
+
+    Note
+    -----
+    output mean and var are in units of log2(CPM+1)
     """
     n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
 
@@ -755,7 +767,9 @@ def aggregate_stats(
     return {'mean': mu,
             'var': var,
             'mask': mask,
-            'n_cells': n_cells}
+            'n_cells': n_cells,
+            'gt0': gt0,
+            'gt1': gt1}
 
 
 def rank_genes(

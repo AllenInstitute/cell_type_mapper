@@ -108,6 +108,8 @@ def test_aggregate_stats(
 
     assert expected_mask.shape == (n_genes,)
     np.testing.assert_array_equal(actual['mask'], expected_mask)
+    np.testing.assert_array_equal(actual['gt0'], expected_gt0)
+    np.testing.assert_array_equal(actual['gt1'], expected_gt1)
 
 
 @pytest.mark.parametrize(
