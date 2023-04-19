@@ -1,5 +1,6 @@
 import pytest
 
+from itertools import product
 import numpy as np
 
 from hierarchical_mapping.binary_array.utils import (
@@ -33,8 +34,31 @@ def test_binarized_array_roundtrip(
         actual = arr.get_col(i_col)
         np.testing.assert_array_equal(actual, src[:, i_col])
 
-
 def test_column_setting():
+    n_rows = 34
+    n_cols = 71
+    arr = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols)
+    rng = np.random.default_rng(55667712)
+    i_col = 17
+    expected = rng.integers(0, 2, n_rows).astype(bool)
+    arr.set_col(i_col, expected)
+    actual = arr.get_col(i_col)
+    np.testing.assert_array_equal(actual, expected)
+
+    # make sure appropriate columns get zeroed out
+    arr.data = 255*np.ones(arr.data.shape, dtype=np.uint8)
+    arr.set_col(i_col, expected)
+    actual = arr.get_col(i_col)
+    np.testing.assert_array_equal(actual, expected)
+
+    # make sure appropriate columns get zeroed out
+    arr.data = rng.integers(0, 255, (arr.n_rows, arr.n_ints), dtype=np.uint8)
+    arr.set_col(i_col, expected)
+    actual = arr.get_col(i_col)
+    np.testing.assert_array_equal(actual, expected)
+
+
+def test_column_setting_en_masse():
     rng = np.random.default_rng(55667712)
     n_rows = 34
     n_cols = 71
@@ -190,3 +214,62 @@ def test_binary_col_sums(
     expected = src.sum(axis=1)
     actual = arr.col_sum()
     np.testing.assert_array_equal(expected, actual)
+
+
+def test_add_arrays():
+    n_rows = 25
+    n_cols = 18
+    arr0 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+    arr1 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    rng = np.random.default_rng(8812341)
+    src0 = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+    src1 = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+    for i_row in range(n_rows):
+        arr0.set_row(i_row, src0[i_row, :])
+        arr1.set_row(i_row, src1[i_row, :])
+
+    arr0.add_other(arr1)
+    for i_row in range(n_rows):
+        this_row = arr0.get_row(i_row)
+        for i_col in range(n_cols):
+            if src0[i_row, i_col] or src1[i_row, i_col]:
+                assert this_row[i_col]
+            else:
+                assert not this_row[i_col]
+
+
+@pytest.mark.parametrize(
+    "col_span",
+    product(range(8, 17), range(32, 41)))
+def test_set_col_from_other(col_span):
+    n_rows = 25
+    n_cols = 57
+    arr0 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+    arr1 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    rng = np.random.default_rng(8812341)
+    src0 = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+    src1 = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+    for i_row in range(n_rows):
+        arr0.set_row(i_row, src0[i_row, :])
+        arr1.set_row(i_row, src1[i_row, :])
+
+    col_span = (13, 31)
+    arr0.copy_columns_from_other(arr1, col_span)
+    for i_col in range(n_cols):
+        actual = arr0.get_col(i_col)
+        if i_col < col_span[0] or i_col >= col_span[1]:
+            np.testing.assert_array_equal(actual, src0[:, i_col])
+            assert not np.array_equal(actual, src1[:, i_col])
+        else:
+            np.testing.assert_array_equal(actual, src1[:, i_col])
+            assert not np.array_equal(actual, src0[:, i_col])
