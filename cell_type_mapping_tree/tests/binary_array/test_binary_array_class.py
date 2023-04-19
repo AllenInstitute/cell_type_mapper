@@ -154,7 +154,7 @@ def test_binary_instantiation_from_np(
 
 @pytest.mark.parametrize(
     "n_cols", [17, 32, 5, 22])
-def test_binary_column_sums(
+def test_binary_row_sums(
         n_cols):
     n_rows = 25
     rng = np.random.default_rng(55123)
@@ -168,5 +168,25 @@ def test_binary_column_sums(
         arr.set_row(i_row, data=src[i_row, :])
 
     expected = src.sum(axis=0)
+    actual = arr.row_sum()
+    np.testing.assert_array_equal(expected, actual)
+
+
+@pytest.mark.parametrize(
+    "n_cols", [17, 32, 5, 22])
+def test_binary_col_sums(
+        n_cols):
+    n_rows = 25
+    rng = np.random.default_rng(55123)
+    src = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+
+    arr = BinarizedBooleanArray(
+            n_rows=n_rows,
+            n_cols=n_cols)
+
+    for i_row in range(n_rows):
+        arr.set_row(i_row, data=src[i_row, :])
+
+    expected = src.sum(axis=1)
     actual = arr.col_sum()
     np.testing.assert_array_equal(expected, actual)

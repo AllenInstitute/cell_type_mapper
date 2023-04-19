@@ -32,6 +32,8 @@ class BinarizedBooleanArray(object):
     -----
     The constructor will just initialize an array of np.uints of the
     desired shape that are all zeros.
+
+    This has been optimized for n_cols >> n_rows
     """
     def __init__(self, n_rows, n_cols, initialize_data=True):
         self.n_rows = n_rows
@@ -170,13 +172,23 @@ class BinarizedBooleanArray(object):
         result.data = data_array
         return result
 
-    def col_sum(self):
+    def row_sum(self):
         """
         Return a 1-D numpy array (length=self.n_cols) representing
-        the sum of the booleans across columns
+        the sum of the booleans across rows
         """
         result = np.zeros(self.n_cols, dtype=int)
         for i_row in range(self.n_rows):
             row = self.get_row(i_row)
             result += row
+        return result
+
+    def col_sum(self):
+        """
+        Return a 1-D numpy array (length=self.n_rows) representing
+        the sum of the booleans across rows
+        """
+        result = np.zeros(self.n_rows, dtype=int)
+        for i_row in range(self.n_rows):
+            result[i_row] = self.get_row(i_row).sum()
         return result
