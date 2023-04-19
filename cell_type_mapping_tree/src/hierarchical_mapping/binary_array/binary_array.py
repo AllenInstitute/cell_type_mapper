@@ -178,5 +178,5 @@ class BinarizedBooleanArray(object):
         result = np.zeros(self.n_cols, dtype=int)
         for i_row in range(self.n_rows):
             row = self.get_row(i_row)
-            result += row.astype(int)
+            result += row
         return result
