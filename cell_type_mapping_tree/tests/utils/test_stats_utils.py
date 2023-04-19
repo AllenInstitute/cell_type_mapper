@@ -1,9 +1,11 @@
 import numpy as np
-import scipy.sparse as scipy_sparse
 
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk,
     welch_t_test)
+
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
 
 
 def test_summary_stats_for_chunk():
@@ -16,10 +18,14 @@ def test_summary_stats_for_chunk():
                             replace=False)
     data[chosen_dex] = rng.integers(1, 2000, len(chosen_dex))
     data = data.reshape(nrows, ncols)
-    csr = scipy_sparse.csr_array(data)
+
+    cell_x_gene = CellByGeneMatrix(
+            data=data,
+            gene_identifiers=[f"{ii}" for ii in range(data.shape[1])],
+            normalization="log2CPM")
 
     actual = summary_stats_for_chunk(
-                cell_x_gene=csr)
+                cell_x_gene=cell_x_gene)
 
     assert actual['n_cells'] == nrows
     assert actual['sum'].shape == (ncols,)

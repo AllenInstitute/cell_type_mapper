@@ -1,10 +1,12 @@
 import numpy as np
-import scipy.sparse as scipy_sparse
 import scipy.stats as scipy_stats
+
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
 
 
 def summary_stats_for_chunk(
-        cell_x_gene: scipy_sparse.csr_array) -> dict:
+        cell_x_gene: CellByGeneMatrix) -> dict:
     """
     Take a cell (rows) by gene (columns) expression
     matrix and return summary statistics needed to aggregate
@@ -12,8 +14,7 @@ def summary_stats_for_chunk(
 
     Parameters
     ----------
-    cell_x_gene: scipy_sparse.csr_array
-        rows are cells; columns are genes
+    cell_x_gene: CellByGeneMatrix
 
     Returns
     -------
@@ -24,12 +25,18 @@ def summary_stats_for_chunk(
         'gt0' is a (n_genes,) mask indicating how many cells at expression > 0
         'gt1' is a (n_genes,) mask indicating how many cells had expression > 1
     """
+    if not cell_x_gene.normalization == 'log2CPM':
+        raise RuntimeError(
+            "cell_x_gene normalization is not log2CPM\n"
+            f"is {cell_x_gene.normalization}")
+
     result = dict()
-    result['n_cells'] = cell_x_gene.shape[0]
-    result['sum'] = cell_x_gene.sum(axis=0)
-    result['sumsq'] = (cell_x_gene**2).sum(axis=0)
-    result['gt0'] = (cell_x_gene > 0).sum(axis=0)
-    result['gt1'] = (cell_x_gene > 1).sum(axis=0)
+    data = cell_x_gene.data
+    result['n_cells'] = cell_x_gene.n_cells
+    result['sum'] = data.sum(axis=0)
+    result['sumsq'] = (data**2).sum(axis=0)
+    result['gt0'] = (data > 0).sum(axis=0)
+    result['gt1'] = (data > 1).sum(axis=0)
     return result
 
 
