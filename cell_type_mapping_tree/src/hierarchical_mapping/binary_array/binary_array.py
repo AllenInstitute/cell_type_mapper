@@ -169,3 +169,14 @@ class BinarizedBooleanArray(object):
         result = cls(n_rows=n_rows, n_cols=n_cols, initialize_data=False)
         result.data = data_array
         return result
+
+    def col_sum(self):
+        """
+        Return a 1-D numpy array (length=self.n_cols) representing
+        the sum of the booleans across columns
+        """
+        result = np.zeros(self.n_cols, dtype=int)
+        for i_row in range(self.n_rows):
+            row = self.get_row(i_row)
+            result += row.astype(int)
+        return result
