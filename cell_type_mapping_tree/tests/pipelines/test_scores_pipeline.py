@@ -18,6 +18,7 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 
 from hierarchical_mapping.diff_exp.scores import (
     diffexp_score,
+    diffexp_p_values,
     score_all_taxonomy_pairs,
     rank_genes)
 
@@ -27,10 +28,6 @@ from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
 from hierarchical_mapping.diff_exp.precompute import (
     precompute_summary_stats_from_contiguous_zarr)
 
-
-@pytest.fixture
-def gt0_threshold():
-    return 1
 
 @pytest.fixture
 def tree_fixture(
@@ -44,8 +41,7 @@ def tree_fixture(
 @pytest.fixture
 def brute_force_de_scores(
         cell_x_gene_fixture,
-        tree_fixture,
-        gt0_threshold):
+        tree_fixture):
 
     data = cell_x_gene_fixture
     result = dict()
@@ -64,7 +60,7 @@ def brute_force_de_scores(
             mu1 = np.mean(data1, axis=0)
             var1 = np.var(data1, axis=0, ddof=1)
             n1 = len(row1)
-            valid1 = ((data1 > 0).sum(axis=0) >= gt0_threshold)
+            p_i1 = (data1 > 1.0).sum(axis=0)/max(1, n1)
             for i2 in range(i1+1, len(node_list), 1):
                 node2 = node_list[i2]
                 if level not in result:
@@ -81,7 +77,8 @@ def brute_force_de_scores(
                 mu2 = np.mean(data2, axis=0)
                 var2 = np.var(data2, axis=0, ddof=1)
                 n2 = len(row2)
-                valid2 = ((data2 > 0).sum(axis=0) >= gt0_threshold)
+                p_i2 = (data2 > 1.0).sum(axis=0)/max(1, n2)
+
                 scores = diffexp_score(
                             mean1=mu1,
                             var1=var1,
@@ -89,7 +86,35 @@ def brute_force_de_scores(
                             mean2=mu2,
                             var2=var2,
                             n2=n2)
-                validity = np.logical_or(valid1, valid2)
+
+                p_values = diffexp_p_values(
+                                mean1=mu1,
+                                var1=var1,
+                                n1=n1,
+                                mean2=mu2,
+                                var2=var2,
+                                n2=n2)
+
+                p_valid = (p_values < 0.01)
+
+                q1_valid = np.logical_or(
+                    p_i1 > 0.5,
+                    p_i2 > 0.5)
+
+                diff_denom = np.where(p_i1>p_i2, p_i1, p_i2)
+                diff_denom = np.where(diff_denom > 0.0, diff_denom, 1.0)
+                diff_score = np.abs(p_i1-p_i2)/diff_denom
+                qdiff_valid = (diff_score > 0.7)
+
+                validity = np.logical_and(
+                   p_valid,
+                   np.logical_and(
+                       q1_valid,
+                       qdiff_valid))
+
+                # there should be some marker genes for every pair
+                assert validity.sum() > 0
+
                 ranks = rank_genes(scores=scores, validity=validity)
                 result[level][node1][node2] = {'scores': scores,
                                                'validity': validity,
@@ -109,7 +134,6 @@ def test_scoring_pipeline(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         tree_fixture,
         keep_all_stats,
         to_keep_frac):
@@ -164,8 +188,6 @@ def test_scoring_pipeline(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=keep_all_stats,

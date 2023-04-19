@@ -34,7 +34,7 @@ def summary_stats_for_chunk(
             f"is {cell_x_gene.normalization}")
 
     zero_cutoff = 0.0  # log2(CPM+1) with CPM=0
-    one_cutoff = np.log2(2.0)  # log2(CPM+1) with CPM=1
+    one_cutoff = 1.0  # log2(CPM+1) with CPM=1
 
     result = dict()
     data = cell_x_gene.data

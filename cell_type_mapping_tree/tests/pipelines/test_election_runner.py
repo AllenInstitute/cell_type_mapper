@@ -48,11 +48,6 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 
-@pytest.fixture
-def gt0_threshold():
-    return 1
-
-
 @pytest.mark.parametrize(
     "keep_all_stats, to_keep_frac, n_selection_processors",
     [
@@ -63,7 +58,6 @@ def test_running_single_election(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         keep_all_stats,
         to_keep_frac,
         n_selection_processors):
@@ -120,8 +114,6 @@ def test_running_single_election(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=keep_all_stats,
@@ -204,7 +196,6 @@ def test_running_full_election(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         keep_all_stats,
         to_keep_frac,
         n_selection_processors):
@@ -261,8 +252,6 @@ def test_running_full_election(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=keep_all_stats,
@@ -347,7 +336,6 @@ def test_running_flat_election(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         keep_all_stats,
         to_keep_frac,
         n_selection_processors):
@@ -410,8 +398,6 @@ def test_running_flat_election(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=keep_all_stats,
@@ -482,7 +468,6 @@ def test_running_h5ad_election(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         sparse_query):
     """
     Just a smoke test
@@ -533,8 +518,6 @@ def test_running_h5ad_election(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=False,

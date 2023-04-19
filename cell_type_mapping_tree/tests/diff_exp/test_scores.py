@@ -68,25 +68,19 @@ def precomputed_stats_fixture(
     return result
 
 
-@pytest.mark.parametrize(
-        "gt0_threshold, gt1_threshold",
-        [(1, 0), (1, 40), (1, 1000)])
+
 def test_aggregate_stats(
         data_fixture,
         precomputed_stats_fixture,
         leaf_node_fixture,
-        n_genes,
-        gt0_threshold,
-        gt1_threshold):
+        n_genes):
 
     rng = np.random.default_rng(22312)
     population = rng.choice(leaf_node_fixture, 4, replace=False)
 
     actual = aggregate_stats(
                 leaf_population=population,
-                precomputed_stats=precomputed_stats_fixture,
-                gt0_threshold=gt0_threshold,
-                gt1_threshold=gt1_threshold)
+                precomputed_stats=precomputed_stats_fixture)
 
     data_arr = [data_fixture[n] for n in population]
     data_arr = np.vstack(data_arr)
@@ -102,26 +96,15 @@ def test_aggregate_stats(
     expected_gt0 = (data_arr>0).sum(axis=0)
     expected_gt1 = (data_arr>1).sum(axis=0)
 
-    expected_mask = np.logical_and(
-        expected_gt0>=gt0_threshold,
-        expected_gt1>=gt1_threshold)
-
-    assert expected_mask.shape == (n_genes,)
-    np.testing.assert_array_equal(actual['mask'], expected_mask)
     np.testing.assert_array_equal(actual['gt0'], expected_gt0)
     np.testing.assert_array_equal(actual['gt1'], expected_gt1)
 
 
-@pytest.mark.parametrize(
-        "gt0_threshold, gt1_threshold",
-        [(1, 0), (1, 40), (1, 1000)])
-def test_aggregate_stats(
+def test_score_diff_smoke(
         data_fixture,
         precomputed_stats_fixture,
         leaf_node_fixture,
-        n_genes,
-        gt0_threshold,
-        gt1_threshold):
+        n_genes):
     """
     Just a smoketest to make sure we can run
     score_differential_genes
@@ -134,9 +117,7 @@ def test_aggregate_stats(
      validity) = score_differential_genes(
                      leaf_population_1=pop1,
                      leaf_population_2=pop2,
-                     precomputed_stats=precomputed_stats_fixture,
-                     gt1_threshold=gt1_threshold,
-                     gt0_threshold=gt0_threshold)
+                     precomputed_stats=precomputed_stats_fixture)
 
     assert score.shape == (n_genes,)
     assert validity.shape == (n_genes,)
