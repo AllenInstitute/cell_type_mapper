@@ -15,6 +15,7 @@ def summary_stats_for_chunk(
     Parameters
     ----------
     cell_x_gene: CellByGeneMatrix
+        normalization must be log2CPM
 
     Returns
     -------
@@ -22,21 +23,26 @@ def summary_stats_for_chunk(
         'n_cells' is the number of cells in this cluster
         'sum' is a (n_genes,) array summing the gene expression
         'sumsq' is a (n_genes,) array summy the square of gene expression
-        'gt0' is a (n_genes,) mask indicating how many cells at expression > 0
-        'gt1' is a (n_genes,) mask indicating how many cells had expression > 1
+        'gt0' is a (n_genes,) array indicating
+              how many cells have expression > 0 CPM
+        'gt1' is a (n_genes,) array indicating
+              how many cells have expression > 1 CPM
     """
     if not cell_x_gene.normalization == 'log2CPM':
         raise RuntimeError(
             "cell_x_gene normalization is not log2CPM\n"
             f"is {cell_x_gene.normalization}")
 
+    zero_cutoff = 0.0  # log2(CPM+1) with CPM=0
+    one_cutoff = np.log2(2.0)  # log2(CPM+1) with CPM=1
+
     result = dict()
     data = cell_x_gene.data
     result['n_cells'] = cell_x_gene.n_cells
     result['sum'] = data.sum(axis=0)
     result['sumsq'] = (data**2).sum(axis=0)
-    result['gt0'] = (data > 0).sum(axis=0)
-    result['gt1'] = (data > 1).sum(axis=0)
+    result['gt0'] = (data > zero_cutoff).sum(axis=0)
+    result['gt1'] = (data > one_cutoff).sum(axis=0)
     return result
 
 

@@ -4,6 +4,9 @@ from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk,
     welch_t_test)
 
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
@@ -12,30 +15,51 @@ def test_summary_stats_for_chunk():
     rng = np.random.default_rng(11235813)
     nrows = 100
     ncols = 516
-    data = np.zeros(nrows*ncols, dtype=int)
+    raw_data = np.zeros(nrows*ncols, dtype=int)
     chosen_dex = rng.choice(np.arange(nrows*ncols),
                             (nrows*ncols)//13,
                             replace=False)
-    data[chosen_dex] = rng.integers(1, 2000, len(chosen_dex))
-    data = data.reshape(nrows, ncols)
+    raw_data[chosen_dex] = rng.integers(1, 2000, len(chosen_dex))
+    raw_data = raw_data.reshape(nrows, ncols)
+
+    cpm_data = convert_to_cpm(raw_data)
+    log2cpm_data = np.log(cpm_data+1.0)/np.log(2.0)
 
     cell_x_gene = CellByGeneMatrix(
-            data=data,
-            gene_identifiers=[f"{ii}" for ii in range(data.shape[1])],
-            normalization="log2CPM")
+            data=raw_data,
+            gene_identifiers=[f"{ii}" for ii in range(raw_data.shape[1])],
+            normalization="raw")
+
+    cell_x_gene.to_log2CPM_in_place()
 
     actual = summary_stats_for_chunk(
                 cell_x_gene=cell_x_gene)
 
     assert actual['n_cells'] == nrows
+
     assert actual['sum'].shape == (ncols,)
-    np.testing.assert_array_equal(actual['sum'], data.sum(axis=0))
+    np.testing.assert_allclose(
+        actual['sum'],
+        log2cpm_data.sum(axis=0),
+        atol=0.0,
+        rtol=1.0e-6)
+
     assert actual['sumsq'].shape == (ncols,)
-    np.testing.assert_array_equal(actual['sumsq'], (data**2).sum(axis=0))
+    np.testing.assert_allclose(
+        actual['sumsq'],
+        (log2cpm_data**2).sum(axis=0),
+        atol=0.0,
+        rtol=1.0e-6)
+
     assert actual['gt0'].shape == (ncols,)
-    np.testing.assert_array_equal(actual['gt0'], (data>0).sum(axis=0))
+    assert actual['gt0'].sum() > 0
+    assert actual['gt0'].sum() < nrows*ncols
+    np.testing.assert_array_equal(actual['gt0'], (cpm_data>0).sum(axis=0))
+
     assert actual['gt1'].shape == (ncols,)
-    np.testing.assert_array_equal(actual['gt1'], (data>1).sum(axis=0))
+    assert actual['gt1'].sum() > 0
+    assert actual['gt1'].sum() < nrows*ncols
+    np.testing.assert_array_equal(actual['gt1'], (cpm_data>1).sum(axis=0))
 
 
 def test_welch_t_test():
