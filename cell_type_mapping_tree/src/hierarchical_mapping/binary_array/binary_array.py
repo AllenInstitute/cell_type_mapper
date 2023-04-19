@@ -236,6 +236,38 @@ class BinarizedBooleanArray(object):
                 other_col = other.get_col(i_col)
                 self.set_col(i_col, other_col)
 
+    def copy_other_as_columns(self, other, col0):
+        """
+        Set columns [col0:col0+other.n_cols] from other.
+        Note: col0 *must* be an integer multiple of 8.
+        """
+        if col0 % 8 != 0:
+            raise RuntimeError(
+                "col0 must be integer multiple of 8\n"
+                f"{col0} % 8 = {col0%8}")
+
+        if col0+other.n_cols > self.n_cols:
+            raise RuntimeError(
+                f"col0: {col0}\nother.n_cols {other.n_cols}\n"
+                f"but self only has {self.n_cols} columns")
+
+        if other.n_rows != self.n_rows:
+            raise RuntimeError(
+                "self.n_rows != other.n_rows\n"
+                f"{self.n_rows} != {other.n_rows}")
+
+        this_int0 = col0//8
+        other_int1 = np.floor(other.n_cols/8).astype(int)
+        self.data[:,
+                  this_int0:this_int0+other_int1] = other.data[:,
+                                                               :other_int1]
+        if other.n_cols % 8 != 0:
+            this_col0 = this_int0 * 8
+            other_col0 = other_int1 * 8
+            for i_col in range(other_col0, other.n_cols, 1):
+                col = other.get_col(i_col)
+                self.set_col(this_col0+i_col, col)
+
     @classmethod
     def from_data_array(
             cls,

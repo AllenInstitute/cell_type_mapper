@@ -273,3 +273,68 @@ def test_set_col_from_other(col_span):
         else:
             np.testing.assert_array_equal(actual, src1[:, i_col])
             assert not np.array_equal(actual, src0[:, i_col])
+
+
+def test_copy_other_as_columns_errors():
+    n_rows = 25
+    n_cols = 57
+    arr0 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+    arr1 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=11)
+
+    with pytest.raises(RuntimeError, match="must be integer multiple of 8"):
+        arr0.copy_other_as_columns(arr1, col0=7)
+
+    with pytest.raises(RuntimeError, match="but self only has"):
+        arr0.copy_other_as_columns(arr1, col0=56)
+
+    arr1 = BinarizedBooleanArray(
+        n_rows=5,
+        n_cols=11)
+    with pytest.raises(RuntimeError, match="self.n_rows != other.n_rows"):
+        arr0.copy_other_as_columns(arr1, col0=16)
+
+
+@pytest.mark.parametrize(
+    "col0, n_other_cols",
+    [(8, 1), (8, 2), (8, 3), (8, 4), (8, 5),
+     (8, 6), (8, 7), (8, 8), (8, 9), (8, 16),
+     (8, 17), (56, 1), (48, 9), (48, 8),
+     (48, 7)])
+def test_copy_other_as_columns(n_other_cols, col0):
+    n_rows = 25
+    n_cols = 57
+    arr0 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+    arr1 = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_other_cols)
+
+    rng = np.random.default_rng(8812341)
+    src0 = rng.integers(0, 2, (n_rows, n_cols)).astype(bool)
+    src1 = rng.integers(0, 2, (n_rows, n_other_cols)).astype(bool)
+    for i_row in range(n_rows):
+        arr0.set_row(i_row, src0[i_row, :])
+        arr1.set_row(i_row, src1[i_row, :])
+
+    n_copied = 0
+    arr0.copy_other_as_columns(arr1, col0=col0)
+    for i_col in range(n_cols):
+        actual = arr0.get_col(i_col)
+        if i_col < col0 or i_col >= (col0+n_other_cols):
+            np.testing.assert_array_equal(
+                actual,
+                src0[:, i_col])
+        else:
+            n_copied += 1
+            assert not np.array_equal(
+                actual,
+                src0[:, i_col])
+            np.testing.assert_array_equal(
+                actual,
+                src1[:, i_col-col0])
+    assert n_copied == n_other_cols
