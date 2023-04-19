@@ -176,7 +176,15 @@ class BinarizedBooleanArray(object):
         the sum of the booleans across columns
         """
         result = np.zeros(self.n_cols, dtype=int)
-        for i_row in range(self.n_rows):
-            row = self.get_row(i_row)
-            result += row.astype(int)
+        for i_int in range(self.n_ints):
+            if i_int*8 >= self.n_cols:
+                break
+            this = self.data[:, i_int]
+            for i_bit in range(8):
+                operand = self.bit_lookup[i_bit]
+                i_col = i_int*8+i_bit
+                if i_col >= self.n_cols:
+                    break
+                result[i_col] = sum((this & operand)>0)
+
         return result
