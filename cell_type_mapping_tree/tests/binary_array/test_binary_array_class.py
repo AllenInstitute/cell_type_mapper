@@ -2,6 +2,11 @@ import pytest
 
 from itertools import product
 import numpy as np
+import pathlib
+
+from hierarchical_mapping.utils.utils import (
+    _clean_up,
+    mkstemp_clean)
 
 from hierarchical_mapping.binary_array.utils import (
     unpack_binarized_boolean_array)
@@ -391,3 +396,41 @@ def test_eq_ne():
 
     arr1 = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols//2)
     assert arr1 != arr0
+
+
+def test_serialization(tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('binarized_serialization'))
+
+    rng = np.random.default_rng(8812344)
+    n_col0 = 112
+    n_row0 = 88
+    n_int0 = n_int_from_n_cols(n_col0)
+    n_col1 = 623
+    n_row1 = 34
+    n_int1 = n_int_from_n_cols(n_col1)
+
+    expected0 = BinarizedBooleanArray.from_data_array(
+        data_array=rng.integers(0, 255, (n_row0, n_int0), dtype=np.uint8),
+        n_cols=n_col0)
+
+    expected1 = BinarizedBooleanArray.from_data_array(
+        data_array=rng.integers(0, 255, (n_row1, n_int1), dtype=np.uint8),
+        n_cols=n_col1)
+
+    assert expected0 != expected1
+
+    h5_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
+    expected0.write_to_h5(h5_path=h5_path, h5_group='arr0')
+    expected1.write_to_h5(h5_path=h5_path, h5_group='arr1')
+
+    actual0 = BinarizedBooleanArray.read_from_h5(
+        h5_path=h5_path, h5_group='arr0')
+    actual1 = BinarizedBooleanArray.read_from_h5(
+        h5_path=h5_path, h5_group='arr1')
+
+    assert actual0 is not expected0
+    assert actual0 == expected0
+    assert actual1 is not expected1
+    assert actual1 == expected1
+    _clean_up(tmp_dir)

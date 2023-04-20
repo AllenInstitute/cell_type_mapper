@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 
 from hierarchical_mapping.binary_array.utils import (
@@ -320,3 +321,46 @@ class BinarizedBooleanArray(object):
         result = cls(n_rows=n_rows, n_cols=n_cols, initialize_data=False)
         result.data = data_array
         return result
+
+    def write_to_h5(self, h5_path, h5_group):
+        """
+        Record this BinarizedBooleanArray to an HDF5 file.
+
+        Parameters
+        ----------
+        h5_path:
+           Path to the file that will be written to (will be
+           opened in 'append' mode so that many arrays can
+           be stored in the same file, as long as they have
+           different group names).
+       h5_group:
+           The group under which this array will be stored
+        """
+        with h5py.File(h5_path, 'a') as out_file:
+            out_file.create_dataset(
+                f'{h5_group}/n_cols', data=self.n_cols)
+            out_file.create_dataset(
+                f'{h5_group}/data',
+                data=self.data,
+                chunks=(min(self.n_rows, 1000),
+                        min(self.n_ints, 1000)),
+                compression='gzip')
+
+    @classmethod
+    def read_from_h5(cls, h5_path, h5_group):
+        """
+        Reconstitute the BinarizedBooleanArray from an HDF5 file
+
+        Parameters
+        ----------
+        h5_path:
+            Path to the file to be read.
+        h5_group:
+            The group in the HDF5 file where the data is kept
+        """
+        with h5py.File(h5_path, 'r') as in_file:
+            n_cols = in_file[f'{h5_group}/n_cols'][()]
+            data = in_file[f'{h5_group}/data'][()]
+        return cls.from_data_array(
+            data_array=data,
+            n_cols=n_cols)
