@@ -53,10 +53,10 @@ class BackedBinarizedBooleanArray(object):
         self.chunk_has_changed = False
 
         # how many rows to load at a time
-        self._load_row_size = 8000000//n_cols
+        self._load_row_size = (8*1024**3)//n_cols
 
         # how many columns to load at a time
-        self._load_col_size = 8000000//n_rows
+        self._load_col_size = (8*1024**3)//n_rows
 
         # mapping from the bit in a given np.uint8 to its value
         self.bit_lookup = {
@@ -258,3 +258,45 @@ class BackedBinarizedBooleanArray(object):
         mapped_col = i_col - self.loaded_chunk['cols'][0]
         self.loaded_chunk['data'].set_col(mapped_col, data)
         self.chunk_has_changed = True
+
+    def copy_other_as_columns(
+            self,
+            other,
+            col0):
+        """
+        Other is a BinarizedBooleanArray who will be used to
+        populate columns col0:other.n_cols
+        """
+        if col0 % 8 != 0:
+            raise RuntimeError(
+                "col0 must be integer multiple of 8\n"
+                f"{col0} % 8 = {col0%8}")
+
+        if col0+other.n_cols > self.n_cols:
+            raise RuntimeError(
+                f"col0: {col0}\nother.n_cols {other.n_cols}\n"
+                f"but self only has {self.n_cols} columns")
+
+        if other.n_rows != self.n_rows:
+            raise RuntimeError(
+                "self.n_rows != other.n_rows\n"
+                f"{self.n_rows} != {other.n_rows}")
+
+        if self.chunk_has_changed:
+            self._write_chunk_back()
+        self.loaded_chunk = None
+        self.chunk_has_changed = False
+
+        this_int0 = col0//8
+        other_int1 = np.floor(other.n_cols/8).astype(int)
+        with h5py.File(self.h5_path, 'a') as out_file:
+            out_file['data'][:,
+                this_int0:this_int0+other_int1] = other.data[:,
+                    :other_int1]
+
+        if other.n_cols % 8 != 0:
+            this_col0 = this_int0 * 8
+            other_col0 = other_int1 * 8
+            for i_col in range(other_col0, other.n_cols, 1):
+                col = other.get_col(i_col)
+                self.set_col(this_col0+i_col, col)
