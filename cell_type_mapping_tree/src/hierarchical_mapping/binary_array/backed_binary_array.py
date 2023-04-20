@@ -16,7 +16,9 @@ class BackedBinarizedBooleanArray(object):
     ----------
     h5_path:
         Path to the HDF5 file where backed data will be stored.
-        (Raises exception if already exists)
+
+    h5_group:
+        Group under which the data will be stored
 
     n_rows
         Number of rows in the boolean array to be binarized
@@ -32,22 +34,30 @@ class BackedBinarizedBooleanArray(object):
     def __init__(
             self,
             h5_path,
+            h5_group,
             n_rows,
             n_cols):
         self.h5_path = pathlib.Path(h5_path)
-
-        if self.h5_path.exists():
-            raise RuntimeError(
-                f"{self.h5_path} already exists")
+        self.h5_group = h5_group
+        self.data_key = f'{self.h5_group}/data'
 
         self.n_rows = n_rows
         self.n_cols = n_cols
         self.n_ints = n_int_from_n_cols(n_cols)
-        with h5py.File(self.h5_path, 'w') as out_file:
-            out_file.create_dataset(
-                'data',
-                data=np.zeros((self.n_rows, self.n_ints), dtype=np.uint8),
-                chunks=(min(self.n_rows, 1000), min(self.n_ints, 1000)))
+        need_to_init = False
+        if not self.h5_path.exists():
+            need_to_init = True
+        if self.h5_path.exists():
+            with h5py.File(self.h5_path, 'r') as out_file:
+                if self.data_key not in out_file:
+                    need_to_init = True
+
+        if need_to_init:
+            with h5py.File(self.h5_path, 'a') as out_file:
+                out_file.create_dataset(
+                    self.data_key,
+                    data=np.zeros((self.n_rows, self.n_ints), dtype=np.uint8),
+                    chunks=(min(self.n_rows, 1000), min(self.n_ints, 1000)))
 
         self.loaded_chunk = None
         self.chunk_has_changed = False
@@ -110,7 +120,7 @@ class BackedBinarizedBooleanArray(object):
         int_min = self._col_to_int(col_spec[0])
         int_max = min(self.n_ints, self._col_to_int(col_spec[1])+1)
         with h5py.File(self.h5_path, 'r') as in_file:
-            chunk = in_file['data'][
+            chunk = in_file[self.data_key][
                     row_spec[0]:row_spec[1],
                     int_min:int_max]
 
@@ -138,7 +148,7 @@ class BackedBinarizedBooleanArray(object):
         data = self.loaded_chunk['data'].data
 
         with h5py.File(self.h5_path, "a") as out_file:
-            out_file['data'][
+            out_file[self.data_key][
                 rows[0]:rows[1],
                 cols[0]:cols[1]] = data
         self.chunk_has_changed = False
@@ -292,7 +302,7 @@ class BackedBinarizedBooleanArray(object):
         with h5py.File(self.h5_path, 'a') as out_file:
             i0 = this_int0
             i1 = this_int0+other_int1
-            out_file['data'][:, i0:i1] = other.data[:, :other_int1]
+            out_file[self.data_key][:, i0:i1] = other.data[:, :other_int1]
 
         if other.n_cols % 8 != 0:
             this_col0 = this_int0 * 8

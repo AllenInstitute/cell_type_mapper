@@ -52,14 +52,17 @@ def test_backed_get_row_col(
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
 
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file.create_dataset(
+            'test/data',
+            data=baseline_data_fixture.data,
+            chunks=(50,50))
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
+        h5_group='test',
         n_rows=n_rows,
         n_cols=n_cols)
-
-    # hack to populate data
-    with h5py.File(h5_path, 'a') as out_file:
-        out_file['data'][:, :] = baseline_data_fixture.data
 
     # force loading
     backed_array._load_row_size = 50
@@ -84,14 +87,17 @@ def test_backed_changing_columns(
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
 
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file.create_dataset(
+            'test/data',
+            data=baseline_data_fixture.data,
+            chunks=(50,50))
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
+        h5_group='test',
         n_rows=n_rows,
         n_cols=n_cols)
-
-    # hack to populate data
-    with h5py.File(h5_path, 'a') as out_file:
-        out_file['data'][:, :] = baseline_data_fixture.data
 
     # force loading
     backed_array._load_row_size = 50
@@ -124,14 +130,17 @@ def test_backed_changing_rows(
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
 
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file.create_dataset(
+            'test/data',
+            data=baseline_data_fixture.data,
+            chunks=(50,50))
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
+        h5_group='test',
         n_rows=n_rows,
         n_cols=n_cols)
-
-    # hack to populate data
-    with h5py.File(h5_path, 'a') as out_file:
-        out_file['data'][:, :] = baseline_data_fixture.data
 
     # force loading
     backed_array._load_row_size = 50
@@ -167,14 +176,17 @@ def test_backed_set_col(
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
 
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file.create_dataset(
+            'test/data',
+            data=baseline_data_fixture.data,
+            chunks=(50,50))
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
+        h5_group='test',
         n_rows=n_rows,
         n_cols=n_cols)
-
-    # hack to populate data
-    with h5py.File(h5_path, 'a') as out_file:
-        out_file['data'][:, :] = baseline_data_fixture.data
 
     # force loading
     backed_array._load_row_size = 50
@@ -216,6 +228,7 @@ def test_backed_copy_as_columns(
 
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
+        h5_group='test',
         n_rows=n_rows,
         n_cols=n_cols)
 
