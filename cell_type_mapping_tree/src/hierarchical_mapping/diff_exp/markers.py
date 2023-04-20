@@ -25,6 +25,9 @@ from hierarchical_mapping.diff_exp.scores import (
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
+from hierarchical_mapping.binary_array.backed_binary_array import (
+    BackedBinarizedBooleanArray)
+
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -189,11 +192,15 @@ def find_markers_for_all_taxonomy_pairs(
                 tot_chunks=len(idx_to_pair),
                 unit='hr')
 
-    marker_flag = BinarizedBooleanArray(
+    marker_flag = BackedBinarizedBooleanArray(
+        h5_path=output_path,
+        h5_group='markers',
         n_rows=n_genes,
         n_cols=n_pairs)
 
-    up_regulated_flag = BinarizedBooleanArray(
+    up_regulated_flag = BackedBinarizedBooleanArray(
+        h5_path=output_path,
+        h5_group='up_regulated',
         n_rows=n_genes,
         n_cols=n_pairs)
 
@@ -210,14 +217,6 @@ def find_markers_for_all_taxonomy_pairs(
             other=markers, col0=col0)
         up_regulated_flag.copy_other_as_columns(
             other=up_reg, col0=col0)
-
-    print("writing final data to HDF5")
-    marker_flag.write_to_h5(
-        h5_path=output_path,
-        h5_group='markers')
-    marker_flag.write_to_h5(
-        h5_path=output_path,
-        h5_group='up_regulated')
 
     _clean_up(tmp_dir)
     duration = time.time()-t0

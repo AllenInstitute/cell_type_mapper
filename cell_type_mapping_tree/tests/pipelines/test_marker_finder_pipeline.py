@@ -61,7 +61,6 @@ def test_marker_finding_pipeline(
 
     taxonomy_tree = tree_fixture
 
-    assert not marker_path.is_file()
 
     # make sure flush_every is not an integer
     # divisor of the number of sibling pairs
@@ -71,6 +70,7 @@ def test_marker_finding_pipeline(
     assert len(siblings) > (n_processors*flush_every)
     assert len(siblings) % (n_processors*flush_every) != 0
 
+    assert not marker_path.is_file()
     find_markers_for_all_taxonomy_pairs(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
@@ -79,5 +79,10 @@ def test_marker_finding_pipeline(
             tmp_dir=tmp_dir)
 
     assert marker_path.is_file()
+    with h5py.File(marker_path, 'r') as in_file:
+        assert 'markers/data' in in_file
+        assert 'up_regulated/data' in in_file
+        assert 'gene_names' in in_file
+        assert 'pair_to_idx' in in_file
 
     _clean_up(tmp_dir)
