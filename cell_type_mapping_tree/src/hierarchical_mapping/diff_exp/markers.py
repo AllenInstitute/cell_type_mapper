@@ -362,7 +362,6 @@ def _prep_output_file(
             pair_to_idx_out[level][node2] = dict()
 
         pair_to_idx_out[level][node1][node2] = idx
-        pair_to_idx_out[level][node2][node1] = idx
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
@@ -372,5 +371,9 @@ def _prep_output_file(
         out_file.create_dataset(
             'pair_to_idx',
             data=json.dumps(pair_to_idx_out).encode('utf-8'))
+
+        out_file.create_dataset(
+            'n_pairs',
+            data=len(idx_to_pair))
 
     return idx_to_pair
