@@ -273,3 +273,72 @@ def test_backed_copy_as_columns(
         np.testing.assert_array_equal(
             actual,
             expected)
+
+
+def test_storing_two_backed_arrays(
+        tmp_dir_fixture):
+    """
+    Make sure we can store 2 arrays in the same HDF5 file
+    """
+    rng = np.random.default_rng(61234)
+    h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
+    h5_path.unlink()
+    nr0 = 193
+    nr1 = 271
+
+    nc0 = 312
+    nc1 = 149
+
+    arr0 = BinarizedBooleanArray.from_data_array(
+        data_array=rng.integers(0, 255,
+                                (nr0, n_int_from_n_cols(nc0)),
+                                dtype=np.uint8),
+        n_cols=nc0)
+
+    arr1 = BinarizedBooleanArray.from_data_array(
+        data_array=rng.integers(0, 255,
+                                (nr1, n_int_from_n_cols(nc1)),
+                                dtype=np.uint8),
+        n_cols=nc1)
+
+    b_arr0 = BackedBinarizedBooleanArray(
+       h5_path=h5_path,
+       h5_group='arr0',
+       n_rows=nr0,
+       n_cols=nc0)
+    b_arr0.copy_other_as_columns(arr0, col0=0)
+    del b_arr0
+
+    b_arr1 = BackedBinarizedBooleanArray(
+       h5_path=h5_path,
+       h5_group='arr1',
+       n_rows=nr1,
+       n_cols=nc1)
+    b_arr1.copy_other_as_columns(arr1, col0=0)
+    del b_arr1
+
+    actual0 = BackedBinarizedBooleanArray(
+       h5_path=h5_path,
+       h5_group='arr0',
+       n_rows=nr0,
+       n_cols=nc0)
+
+    actual1 = BackedBinarizedBooleanArray(
+       h5_path=h5_path,
+       h5_group='arr1',
+       n_rows=nr1,
+       n_cols=nc1)
+
+    for actual, expected in zip((actual1, actual0), (arr1, arr0)):
+        assert actual.n_rows == expected.n_rows
+        assert actual.n_cols == expected.n_cols
+        print(f'test {actual.data_key}')
+        for i_row in range(actual.n_rows):
+            print(i_row)
+            np.testing.assert_array_equal(
+                actual.get_row(i_row),
+                expected.get_row(i_row))
+        for i_col in range(actual.n_cols):
+            np.testing.assert_array_equal(
+                actual.get_col(i_col),
+                expected.get_col(i_col))

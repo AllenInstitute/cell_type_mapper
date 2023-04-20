@@ -80,6 +80,10 @@ class BackedBinarizedBooleanArray(object):
         raise NotImplementedError(
             "do not have __ne__ for BackedBinarizedBooleanArray")
 
+    def __del__(self):
+        if self.chunk_has_changed:
+            self._write_chunk_back()
+
     def _col_to_int(self, i_col):
         """
         Convert i_col, the index of the column in the full
@@ -152,6 +156,7 @@ class BackedBinarizedBooleanArray(object):
                 rows[0]:rows[1],
                 cols[0]:cols[1]] = data
         self.chunk_has_changed = False
+        self.loaded_chunk = None
 
     def _need_to_load_col(self, i_col):
         """
@@ -310,3 +315,4 @@ class BackedBinarizedBooleanArray(object):
             for i_col in range(other_col0, other.n_cols, 1):
                 col = other.get_col(i_col)
                 self.set_col(this_col0+i_col, col)
+        self._write_chunk_back()
