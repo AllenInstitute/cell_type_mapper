@@ -479,7 +479,8 @@ def _score_pairs_worker(
         pop1 = tree_as_leaves[level][node1]
         pop2 = tree_as_leaves[level][node2]
         (scores,
-         validity) = score_differential_genes(
+         validity,
+         _) = score_differential_genes(
                          leaf_population_1=pop1,
                          leaf_population_2=pop2,
                          precomputed_stats=cluster_stats,
@@ -630,6 +631,11 @@ def score_differential_genes(
         np.ndarray of booleans that is a mask for whether or not
         the gene passes the criteria for being a marker gene
 
+    up_mask:
+        Array of unsigned integers that is (n_genes,) in size.
+        Will be 0 for genes that are more prevalent in leaf_population_1
+        and 1 for genes that are mre prevalent in leaf_population_1
+
     Notes
     -----
     'sum' and 'sumsq' are in units of log2(CPM+1)
@@ -682,7 +688,10 @@ def score_differential_genes(
             q1_valid,
             qdiff_valid))
 
-    return -1.0*np.log(pvalues), validity_mask
+    up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
+    up_mask[pij_2 > pij_1] = 1
+
+    return -1.0*np.log(pvalues), validity_mask, up_mask
 
 
 def diffexp_p_values(

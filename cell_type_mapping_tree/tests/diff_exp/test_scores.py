@@ -114,7 +114,8 @@ def test_score_diff_smoke(
     pop2 = ['f', 'e', 'g', 'h']
 
     (score,
-     validity) = score_differential_genes(
+     validity,
+     up_mask) = score_differential_genes(
                      leaf_population_1=pop1,
                      leaf_population_2=pop2,
                      precomputed_stats=precomputed_stats_fixture)
@@ -123,6 +124,8 @@ def test_score_diff_smoke(
     assert validity.shape == (n_genes,)
     assert validity.dtype == bool
     assert score.dtype == float
+    assert up_mask.shape == (n_genes,)
+    assert up_mask.dtype == np.uint8
 
 
 def test_diffexp_score():
