@@ -76,7 +76,7 @@ def test_backed_get_row_col(
             backed_array.get_col(i_col))
 
 
-def test_changing_columns(
+def test_backed_changing_columns(
         n_rows,
         n_cols,
         baseline_data_fixture,
@@ -115,7 +115,7 @@ def test_changing_columns(
             baseline_data_fixture.get_row(i_row),
             backed_array.get_row(i_row))
 
-def test_changing_rows(
+def test_backed_changing_rows(
         n_rows,
         n_cols,
         baseline_data_fixture,
@@ -156,7 +156,7 @@ def test_changing_rows(
             backed_array.get_row(i_row))
 
 
-def test_set_col(
+def test_backed_set_col(
         n_rows,
         n_cols,
         baseline_data_fixture,
@@ -201,3 +201,62 @@ def test_set_col(
             backed_array.get_col(i_col),
             expected)
     assert ct ==len(to_change)
+
+
+def test_backed_copy_as_columns(
+        n_rows,
+        n_cols,
+        baseline_data_fixture,
+        tmp_dir_fixture):
+
+    rng = np.random.default_rng(765543)
+
+    h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
+    h5_path.unlink()
+
+    backed_array = BackedBinarizedBooleanArray(
+        h5_path=h5_path,
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    # force loading
+    backed_array._load_row_size = 50
+    backed_array._load_col_size = 50
+
+    backed_array.copy_other_as_columns(
+        other=baseline_data_fixture,
+        col0=0)
+
+    for i_row in range(n_rows):
+        np.testing.assert_array_equal(
+            baseline_data_fixture.get_row(i_row),
+            backed_array.get_row(i_row))
+
+    for i_col in range(n_cols):
+        np.testing.assert_array_equal(
+            baseline_data_fixture.get_col(i_col),
+            backed_array.get_col(i_col))
+
+    col0 = 320
+    n_other_cols = 13
+    other = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_other_cols)
+    for i_col in range(13):
+        this = rng.integers(0, 2, n_rows, dtype=bool)
+        other.set_col(i_col, this)
+
+    backed_array.copy_other_as_columns(
+        other=other,
+        col0=col0)
+
+    for i_col in range(n_cols):
+        actual = backed_array.get_col(i_col)
+        if i_col >= col0 and i_col < col0+n_other_cols:
+            expected = other.get_col(i_col-col0)
+        else:
+            expected = baseline_data_fixture.get_col(i_col)
+
+        np.testing.assert_array_equal(
+            actual,
+            expected)

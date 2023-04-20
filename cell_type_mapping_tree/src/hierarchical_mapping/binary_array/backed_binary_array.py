@@ -290,9 +290,9 @@ class BackedBinarizedBooleanArray(object):
         this_int0 = col0//8
         other_int1 = np.floor(other.n_cols/8).astype(int)
         with h5py.File(self.h5_path, 'a') as out_file:
-            out_file['data'][:,
-                this_int0:this_int0+other_int1] = other.data[:,
-                    :other_int1]
+            i0 = this_int0
+            i1 = this_int0+other_int1
+            out_file['data'][:, i0:i1] = other.data[:, :other_int1]
 
         if other.n_cols % 8 != 0:
             this_col0 = this_int0 * 8
