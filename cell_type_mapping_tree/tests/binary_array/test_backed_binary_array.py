@@ -51,7 +51,7 @@ def test_backed_get_row_col(
         tmp_dir_fixture):
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
-    
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
         n_rows=n_rows,
@@ -83,7 +83,7 @@ def test_changing_columns(
         tmp_dir_fixture):
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
-    
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
         n_rows=n_rows,
@@ -120,9 +120,10 @@ def test_changing_rows(
         n_cols,
         baseline_data_fixture,
         tmp_dir_fixture):
+
     h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
     h5_path.unlink()
-    
+
     backed_array = BackedBinarizedBooleanArray(
         h5_path=h5_path,
         n_rows=n_rows,
@@ -153,3 +154,50 @@ def test_changing_rows(
         np.testing.assert_array_equal(
             baseline_data_fixture.get_row(i_row),
             backed_array.get_row(i_row))
+
+
+def test_set_col(
+        n_rows,
+        n_cols,
+        baseline_data_fixture,
+        tmp_dir_fixture):
+
+    rng = np.random.default_rng(765543)
+
+    h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
+    h5_path.unlink()
+
+    backed_array = BackedBinarizedBooleanArray(
+        h5_path=h5_path,
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    # hack to populate data
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file['data'][:, :] = baseline_data_fixture.data
+
+    # force loading
+    backed_array._load_row_size = 50
+    backed_array._load_col_size = 50
+
+    to_change = (0, 22, 117, n_cols-1)
+    expected_lookup = dict()
+    for i_col in to_change:
+        new_col = rng.integers(0, 2, n_rows, dtype=bool)
+        expected_lookup[i_col] = new_col
+        assert not np.array_equal(
+            new_col,
+            baseline_data_fixture.get_col(i_col))
+        backed_array.set_col(i_col, new_col)
+
+    ct = 0
+    for i_col in range(n_cols):
+        if i_col in to_change:
+            expected = expected_lookup[i_col]
+            ct += 1
+        else:
+            expected = baseline_data_fixture.get_col(i_col)
+        np.testing.assert_array_equal(
+            backed_array.get_col(i_col),
+            expected)
+    assert ct ==len(to_change)

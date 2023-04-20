@@ -232,7 +232,8 @@ class BackedBinarizedBooleanArray(object):
         if need_to_load:
             self._load_chunk(
                 row_spec=(0, self.n_rows),
-                col_spec=(i_col, min(self.n_cols, i_col+1000)))
+                col_spec=(i_col, min(self.n_cols,
+                                     i_col+self._load_col_size)))
         mapped_col = i_col-self.loaded_chunk['cols'][0]
         return self.loaded_chunk['data'].get_col(mapped_col)
 
@@ -240,7 +241,20 @@ class BackedBinarizedBooleanArray(object):
         need_to_load = self._need_to_load_row(i_row)
         if need_to_load:
             self._load_chunk(
-                row_spec=(i_row, min(self.n_rows, i_row+1000)),
+                row_spec=(i_row, min(self.n_rows,
+                                     i_row+self._load_row_size)),
                 col_spec=(0, self.n_cols))
         mapped_row = i_row-self.loaded_chunk['rows'][0]
         return self.loaded_chunk['data'].get_row(mapped_row)
+
+    def set_col(self, i_col, data):
+        need_to_load = self._need_to_load_col(i_col)
+        if need_to_load:
+            self._load_chunk(
+                row_spec=(0, self.n_rows),
+                col_spec=(i_col, min(self.n_cols,
+                                     i_col+self._load_col_size)))
+
+        mapped_col = i_col - self.loaded_chunk['cols'][0]
+        self.loaded_chunk['data'].set_col(mapped_col, data)
+        self.chunk_has_changed = True
