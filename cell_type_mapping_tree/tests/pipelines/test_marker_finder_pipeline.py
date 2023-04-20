@@ -36,28 +36,12 @@ def tree_fixture(
 
 
 
-@pytest.mark.parametrize(
-    "keep_all_stats, to_keep_frac",
-    [(True, None),
-     (False, None),
-     (False, 3)
-    ])
 def test_marker_finding_pipeline(
         h5ad_path_fixture,
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        tree_fixture,
-        keep_all_stats,
-        to_keep_frac):
-
-    n_genes = len(gene_names)
-    if to_keep_frac is not None:
-        genes_to_keep = n_genes // to_keep_frac
-        assert genes_to_keep > 0
-        assert genes_to_keep < n_genes
-    else:
-        genes_to_keep = None
+        tree_fixture):
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
     hdf5_tmp = tmp_dir / 'hdf5'
@@ -91,10 +75,8 @@ def test_marker_finding_pipeline(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=marker_path,
-            flush_every=flush_every,
             n_processors=n_processors,
-            keep_all_stats=keep_all_stats,
-            genes_to_keep=genes_to_keep)
+            tmp_dir=tmp_dir)
 
     assert marker_path.is_file()
 

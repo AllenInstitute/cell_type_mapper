@@ -1,33 +1,29 @@
 import json
 import h5py
 import multiprocessing
-import numpy as np
-import os
 import pathlib
 import tempfile
 import time
 
 from hierarchical_mapping.utils.utils import (
     print_timing,
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    DummyLock)
+    winnow_process_dict)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
     get_all_pairs)
 
-from hierarchical_mapping.utils.stats_utils import (
-    welch_t_test,
-    correct_ttest)
-
 from hierarchical_mapping.diff_exp.scores import (
     read_precomputed_stats,
-    _prep_output_file,
     _get_this_cluster_stats,
-    score_differential_genes,
-    rank_genes)
+    score_differential_genes)
+
+from hierarchical_mapping.binary_array.binary_array import (
+    BinarizedBooleanArray)
 
 
 def find_markers_for_all_taxonomy_pairs(
@@ -39,9 +35,7 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         flush_every=1000,
         n_processors=4,
-        tmp_dir=None,
-        keep_all_stats=True,
-        genes_to_keep=None):
+        tmp_dir=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -72,18 +66,6 @@ def find_markers_for_all_taxonomy_pairs(
     n_processors:
         Number of independent worker processes to spin out
 
-    keep_all_stats:
-        If True, keep scores and validity as well as ranked_list
-        for each cell type pair. If False,  only keep ranked_list.
-        (True results in a much larger file than False)
-
-    genes_to_keep:
-        If None, store data for all genes. If an integer, keep only the
-        top-ranked genes_to_keep genes.
-
-        Since validity, scores and ranked_list are not in the same order,
-        can only call non-none genes_to_keep if keep_all_stats is False.
-
     Returns
     --------
     None
@@ -109,12 +91,6 @@ def find_markers_for_all_taxonomy_pairs(
         discriminator
     """
 
-    if genes_to_keep is not None and keep_all_stats:
-        raise RuntimeError(
-            "Cannot have non-None genes_to_keep if "
-            "keep_all_stats is True; "
-            f"you have genes_to_keep={genes_to_keep}")
-
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_dir = pathlib.Path(tmp_dir)
 
@@ -127,27 +103,11 @@ def find_markers_for_all_taxonomy_pairs(
     del precomputed_stats
 
     n_genes = len(gene_names)
-    if n_genes < 2**8:
-        rank_dtype = np.uint8
-    elif n_genes < 2**16:
-        rank_dtype = np.uint16
-    elif n_genes < 2**32:
-        rank_dtype = np.uint32
-    else:
-        rank_dtype = np.uint
-
-    n_genes_to_keep = n_genes
-    if genes_to_keep is not None:
-        n_genes_to_keep = genes_to_keep
 
     idx_to_pair = _prep_output_file(
             output_path=output_path,
             taxonomy_tree=taxonomy_tree,
-            n_genes=n_genes,
-            n_genes_to_keep=n_genes_to_keep,
-            keep_all_stats=keep_all_stats,
-            gene_names=gene_names,
-            rank_dtype=rank_dtype)
+            gene_names=gene_names)
 
     print("starting to score")
     t0 = time.time()
@@ -155,24 +115,26 @@ def find_markers_for_all_taxonomy_pairs(
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
 
-    process_list = []
-    tmp_path_list = []
-    mgr = multiprocessing.Manager()
-    output_lock = mgr.Lock()
-    n_per = len(idx_values)//n_processors
-    for i_process in range(n_processors):
-        i0 = i_process*n_per
-        i1 = i0+n_per
-        if i_process == n_processors-1:
-            i1 = len(idx_values)
+    process_dict = {}
+    tmp_path_dict = {}
+    n_pairs = len(idx_to_pair)
 
-        tmp_path = tempfile.mkstemp(
-                        dir=tmp_dir,
-                        suffix='.h5')
-        os.close(tmp_path[0])
-        tmp_path = pathlib.Path(tmp_path[1])
+    # how many pairs to run per proceess
+    n_per = min(1000000, n_pairs//(2*n_processors))
+    n_per -= (n_per % 8)
+    n_per = max(8, n_per)
+    t0 = time.time()
+    ct_complete = 0
 
-        this_idx_values = idx_values[i0:i1]
+    for col0 in range(0, n_pairs, n_per):
+        col1 = col0+n_per
+        tmp_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix=f'columns_{col0}_{col1}_',
+            suffix='.h5')
+        tmp_path_dict[col0] = tmp_path
+
+        this_idx_values = idx_values[col0:col1]
         this_idx_to_pair = {
             ii: idx_to_pair.pop(ii)
             for ii in this_idx_values}
@@ -189,21 +151,24 @@ def find_markers_for_all_taxonomy_pairs(
                     'cluster_stats': this_cluster_stats,
                     'tree_as_leaves': this_tree_as_leaves,
                     'idx_to_pair': this_idx_to_pair,
-                    'idx_values': this_idx_values,
                     'n_genes': n_genes,
                     'p_th': p_th,
                     'q1_th': q1_th,
                     'qdiff_th': qdiff_th,
-                    'flush_every': flush_every,
-                    'tmp_path': tmp_path,
-                    'keep_all_stats': keep_all_stats,
-                    'rank_dtype': rank_dtype,
-                    'genes_to_keep': genes_to_keep,
-                    'output_path': output_path,
-                    'output_lock': output_lock})
+                    'tmp_path': tmp_path})
         p.start()
-        process_list.append(p)
-        tmp_path_list.append(tmp_path)
+        process_dict[col0] = p
+        while len(process_dict) >= n_processors:
+            n0 = len(process_dict)
+            process_dict = winnow_process_dict(process_dict)
+            n1 = len(process_dict)
+            if n1 < n0:
+                ct_complete += (n0-n1)*n_per
+                print_timing(
+                    t0=t0,
+                    i_chunk=ct_complete,
+                    tot_chunks=len(idx_to_pair),
+                    unit='hr')
 
     del cluster_stats
     del tree_as_leaves
@@ -212,8 +177,47 @@ def find_markers_for_all_taxonomy_pairs(
     del this_idx_to_pair
     del this_tree_as_leaves
 
-    for p in process_list:
-        p.join()
+    while len(process_dict) > 0:
+        n0 = len(process_dict)
+        process_dict = winnow_process_dict(process_dict)
+        n1 = len(process_dict)
+        if n1 < n0:
+            ct_complete += (n0-n1)*n_per
+            print_timing(
+                t0=t0,
+                i_chunk=ct_complete,
+                tot_chunks=len(idx_to_pair),
+                unit='hr')
+
+    marker_flag = BinarizedBooleanArray(
+        n_rows=n_genes,
+        n_cols=n_pairs)
+
+    up_regulated_flag = BinarizedBooleanArray(
+        n_rows=n_genes,
+        n_cols=n_pairs)
+
+    print("copying from temp files")
+    for col0 in tmp_path_dict:
+        markers = BinarizedBooleanArray.read_from_h5(
+            h5_path=tmp_path_dict[col0],
+            h5_group='markers')
+        up_reg = BinarizedBooleanArray.read_from_h5(
+            h5_path=tmp_path_dict[col0],
+            h5_group='up_regulated')
+
+        marker_flag.copy_other_as_columns(
+            other=markers, col0=col0)
+        up_regulated_flag.copy_other_as_columns(
+            other=up_reg, col0=col0)
+
+    print("writing final data to HDF5")
+    marker_flag.write_to_h5(
+        h5_path=output_path,
+        h5_group='markers')
+    marker_flag.write_to_h5(
+        h5_path=output_path,
+        h5_group='up_regulated')
 
     _clean_up(tmp_dir)
     duration = time.time()-t0
@@ -224,18 +228,11 @@ def _find_markers_worker(
         cluster_stats,
         tree_as_leaves,
         idx_to_pair,
-        idx_values,
         n_genes,
         p_th,
         q1_th,
         qdiff_th,
-        flush_every,
-        tmp_path,
-        keep_all_stats,
-        rank_dtype,
-        genes_to_keep,
-        output_path,
-        output_lock=None):
+        tmp_path):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -249,91 +246,35 @@ def _find_markers_worker(
     tree_as_leaves:
         Result of convert_tree_to_leaves
     idx_to_pair:
-        Dict mapping row in output file to
+        Dict mapping col in final output file to
         (level, node1, node2) sibling pair
-    idx_values:
-        Row indexes to be processed by this worker
+        [Just the columns that this worker is responsible for]
     n_genes:
         Number of genes in dataset
     p_th/q1_th/qdiff_th
         Thresholds for determining if a gene is a valid marker.
         See Notes under score_differential_genes
-    flush_every:
-        Write to temporary output file every flush_every rows
     tmp_path:
         Path to temporary HDF5 file where results for this worker
-        will be stored (this process creates and destroys that file)
-    keep_all_stats:
-        If True, keep scores and validity as well as ranked_list
-        for each cell type pair. If False,  only keep ranked_list.
-        (True results in a much larger file than False)
-    rank_dtype:
-        The dtype to use when storing ranked lists of genes
-    genes_to_keep:
-        If None, store data for all genes. If an integer, keep only the
-        top-ranked genes_to_keep genes.
-
-        Since validity, scores and ranked_list are not in the same order,
-        can only call non-none genes_to_keep if keep_all_stats is False.
-    output_path:
-        Final output file
-    output_lock:
-        Multiprocessing lock to prevent multiple workers from writing
-        to file at output_path simultaneously
+        will be stored (this process creates that file)
     """
-    if genes_to_keep is not None and keep_all_stats:
+
+    idx_values = list(idx_to_pair.keys())
+    idx_values.sort()
+    col0 = min(idx_values)
+    if col0 % 8 != 0:
         raise RuntimeError(
-            "Cannot have non-None genes_to_keep if "
-            "keep_all_stats is True; "
-            f"you have genes_to_keep={genes_to_keep}")
+            f"col0 ({col0}) is not an integer multiple of 8")
+    n_sibling_pairs = len(idx_to_pair)
 
-    n_genes_to_keep = n_genes
-    if genes_to_keep is not None:
-        n_genes_to_keep = genes_to_keep
+    marker_mask = BinarizedBooleanArray(
+        n_rows=n_genes,
+        n_cols=n_sibling_pairs)
 
-    n_sibling_pairs = len(idx_values)
+    up_regulated_mask = BinarizedBooleanArray(
+        n_rows=n_genes,
+        n_cols=n_sibling_pairs)
 
-    chunk_size = (max(1, min(1000000//n_genes_to_keep, n_sibling_pairs)),
-                  n_genes_to_keep)
-
-    this_bounds = (idx_values[0], idx_values[-1]+1)
-
-    with h5py.File(tmp_path, 'w') as out_file:
-
-        out_file.create_dataset(
-            'ranked_list',
-            shape=(n_sibling_pairs, n_genes_to_keep),
-            dtype=rank_dtype,
-            chunks=chunk_size,
-            compression='gzip')
-
-        if keep_all_stats:
-            out_file.create_dataset(
-                'validity',
-                shape=(n_sibling_pairs, n_genes),
-                dtype=bool,
-                chunks=chunk_size,
-                compression='gzip')
-
-            out_file.create_dataset(
-                'scores',
-                shape=(n_sibling_pairs, n_genes),
-                dtype=float,
-                chunks=chunk_size)
-
-    t0 = time.time()
-    if output_lock is None:
-        output_lock = DummyLock()
-
-    ranked_list_buffer = np.zeros((flush_every, n_genes_to_keep),
-                                  dtype=rank_dtype)
-
-    if keep_all_stats:
-        validity_buffer = np.zeros((flush_every, n_genes), dtype=bool)
-        score_buffer = np.zeros((flush_every, n_genes), dtype=float)
-
-    buffer_idx = 0
-    ct = 0
     for idx in idx_values:
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
@@ -343,8 +284,8 @@ def _find_markers_worker(
         pop1 = tree_as_leaves[level][node1]
         pop2 = tree_as_leaves[level][node2]
         (scores,
-         validity,
-         _) = score_differential_genes(
+         validity_mask,
+         up_mask) = score_differential_genes(
                          leaf_population_1=pop1,
                          leaf_population_2=pop2,
                          precomputed_stats=cluster_stats,
@@ -352,57 +293,85 @@ def _find_markers_worker(
                          q1_th=q1_th,
                          qdiff_th=qdiff_th)
 
-        ranked_list = rank_genes(
-                         scores=scores,
-                         validity=validity)
+        this_col = idx-col0
+        marker_mask.set_col(
+            this_col,
+            validity_mask)
+        up_regulated_mask.set_col(
+            this_col,
+            up_mask.astype(bool))
 
-        if genes_to_keep is not None:
-            ranked_list = ranked_list[:n_genes_to_keep]
+    marker_mask.write_to_h5(
+        h5_path=tmp_path,
+        h5_group='markers')
+    up_regulated_mask.write_to_h5(
+        h5_path=tmp_path,
+        h5_group='up_regulated')
+    with h5py.File(tmp_path, 'a') as out_file:
+        out_file.create_dataset(
+            'col0',
+            data=col0)
 
-        ranked_list_buffer[buffer_idx, :] = ranked_list.astype(rank_dtype)
 
-        if keep_all_stats:
-            score_buffer[buffer_idx, :] = scores
-            validity_buffer[buffer_idx, :] = validity
+def _prep_output_file(
+       output_path,
+       taxonomy_tree,
+       gene_names):
+    """
+    Create the HDF5 file where the differential gene scoring stats
+    will be stored.
 
-        buffer_idx += 1
-        ct += 1
-        if buffer_idx == flush_every or idx == idx_values[-1]:
-            with h5py.File(tmp_path, 'a') as out_file:
-                out_idx1 = idx+1-min(idx_values)
-                out_idx0 = out_idx1-buffer_idx
-                out_file['ranked_list'][out_idx0:out_idx1,
-                                        :] = ranked_list_buffer[:buffer_idx, :]
+    Parameters
+    ----------
+    output_path:
+        Path to the HDF5 file
+    taxonomy_tree:
+        Dict encoding the taxonomy tree (created when we create the
+        contiguous zarr file and stored in that file's metadata.json)
+    gene_names:
+        Ordered list of gene names for entire dataset
 
-                if keep_all_stats:
-                    out_file['scores'][out_idx0:out_idx1,
-                                       :] = score_buffer[:buffer_idx, :]
+    Returns
+    -------
+    idx_to_pair:
+        Dict mapping the row index of a sibling pair
+        in the final output file to that sibling pair's
+        (level, node1, node2) specification.
 
-                    out_file['validity'][out_idx0:out_idx1,
-                                         :] = validity_buffer[:buffer_idx, :]
+    Notes
+    -----
+    This method also creates the file at output_path with
+    empty datasets for the stats that need to be saved.
+    """
+    siblings = get_all_pairs(taxonomy_tree)
+    n_sibling_pairs = len(siblings)
+    print(f"{n_sibling_pairs:.2e} sibling pairs")
 
-                buffer_idx = 0
+    idx_to_pair = dict()
+    pair_to_idx_out = dict()
+    for idx, sibling_pair in enumerate(siblings):
+        level = sibling_pair[0]
+        node1 = sibling_pair[1]
+        node2 = sibling_pair[2]
+        idx_to_pair[idx] = sibling_pair
 
-            print_timing(
-                t0=t0,
-                i_chunk=ct+1,
-                tot_chunks=len(idx_values),
-                unit='hr')
+        if level not in pair_to_idx_out:
+            pair_to_idx_out[level] = dict()
+        if node1 not in pair_to_idx_out[level]:
+            pair_to_idx_out[level][node1] = dict()
+        if node2 not in pair_to_idx_out[level]:
+            pair_to_idx_out[level][node2] = dict()
 
-    # write this output from the temporary file to
-    # the final output file
-    if keep_all_stats:
-        key_list = ('ranked_list', 'scores', 'validity')
-    else:
-        key_list = ('ranked_list', )
+        pair_to_idx_out[level][node1][node2] = idx
+        pair_to_idx_out[level][node2][node1] = idx
 
-    with output_lock:
-        d_write = max(1, 10000000//n_genes_to_keep)
-        with h5py.File(tmp_path, 'r') as in_file:
-            with h5py.File(output_path, 'a') as out_file:
-                for i0 in range(this_bounds[0], this_bounds[1], d_write):
-                    i1 = min(this_bounds[1], i0+d_write)
-                    for k in key_list:
-                        out_file[k][i0:i1] = in_file[k][i0-this_bounds[0]:
-                                                        i1-this_bounds[0]]
-    tmp_path.unlink()
+    with h5py.File(output_path, 'w') as out_file:
+        out_file.create_dataset(
+            'gene_names',
+            data=json.dumps(gene_names).encode('utf-8'))
+
+        out_file.create_dataset(
+            'pair_to_idx',
+            data=json.dumps(pair_to_idx_out).encode('utf-8'))
+
+    return idx_to_pair
