@@ -19,9 +19,6 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
-    contiguous_zarr_from_h5ad)
-
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
