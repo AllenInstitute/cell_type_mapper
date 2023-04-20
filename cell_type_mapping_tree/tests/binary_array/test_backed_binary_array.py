@@ -12,7 +12,7 @@ from hierarchical_mapping.binary_array.binary_array import (
     n_int_from_n_cols,
     BinarizedBooleanArray)
 
-from hierarchical_mapping.binary_array.binary_array_backed import (
+from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
 
