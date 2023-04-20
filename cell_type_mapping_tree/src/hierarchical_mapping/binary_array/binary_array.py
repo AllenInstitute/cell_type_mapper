@@ -48,6 +48,25 @@ class BinarizedBooleanArray(object):
         self.bit_lookup = {
             ii: np.uint8(2**ii) for ii in range(8)}
 
+    def __eq__(self, other):
+        if self.n_rows != other.n_rows:
+            return False
+        if self.n_cols != other.n_cols:
+            return False
+        if not np.array_equal(self.data[:, :self.n_ints-1],
+                              other.data[:, :self.n_ints-1]):
+            return False
+
+        for i_col in range(8*(self.n_cols//8), self.n_cols, 1):
+            if not np.array_equal(self.get_col(i_col),
+                                  other.get_col(i_col)):
+                return False
+
+        return True
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     def _col_to_int(self, i_col):
         """
         Convert i_col, the index of the column in the full

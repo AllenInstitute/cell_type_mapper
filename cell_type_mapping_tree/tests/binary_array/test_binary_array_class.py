@@ -338,3 +338,56 @@ def test_copy_other_as_columns(n_other_cols, col0):
                 actual,
                 src1[:, i_col-col0])
     assert n_copied == n_other_cols
+
+
+def test_eq_ne():
+    rng = np.random.default_rng(88)
+    n_cols = 44
+    n_rows = 31
+    n_int = n_int_from_n_cols(n_cols)
+    data0 = rng.integers(0, 255, (n_rows, n_int), dtype=np.uint8)
+    arr0 = BinarizedBooleanArray.from_data_array(
+            data_array=data0,
+            n_cols=n_cols)
+    data1 = np.copy(data0)
+    arr1 = BinarizedBooleanArray.from_data_array(
+            data_array=data1,
+            n_cols=n_cols)
+    assert not arr1 is arr0
+    assert not arr1.data is arr0.data
+    assert arr1 == arr0
+
+    # zero out extraneous bits in data1,
+    # make sure the BinarizedBooleanArrays are still equal
+    val = np.uint8(31)
+    data1[:, n_int-1] &= val
+    assert not np.array_equal(data1, data0)
+    arr1 = BinarizedBooleanArray.from_data_array(
+            data_array=data1,
+            n_cols=n_cols)
+    assert not arr1 is arr0
+    assert not arr1.data is arr0.data
+    assert not np.array_equal(arr0.data, arr1.data)
+    assert arr1 == arr0
+
+    # zero out one useful bit,
+    # make sure the BinarizedBooleanArrays are not equal
+    val = np.uint8(32)
+    data1[:, n_int-1] &= val
+    assert not np.array_equal(data1, data0)
+    arr1 = BinarizedBooleanArray.from_data_array(
+            data_array=data1,
+            n_cols=n_cols)
+    assert not arr1 is arr0
+    assert not arr1.data is arr0.data
+    assert not np.array_equal(arr0.data, arr1.data)
+    assert arr1 != arr0
+
+    arr1 = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols)
+    assert arr1 != arr0
+
+    arr1 = BinarizedBooleanArray(n_rows=n_rows//2, n_cols=n_cols)
+    assert arr1 != arr0
+
+    arr1 = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols//2)
+    assert arr1 != arr0
