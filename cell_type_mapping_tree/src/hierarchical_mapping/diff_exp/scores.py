@@ -229,7 +229,6 @@ def _get_this_cluster_stats(
     this_cluster_stats
     this_tree_as_leaves
     """
-    t0 = time.time()
     leaf_set = set()
     this_cluster_stats = dict()
     this_tree_as_leaves = dict()
@@ -247,9 +246,6 @@ def _get_this_cluster_stats(
     for node in leaf_set:
         this_cluster_stats[node] = cluster_stats[node]
 
-    dur = time.time()-t0
-    print(f"getting this_cluster_stats took {dur:.2e} seconds "
-          f"-- {len(leaf_set)} nodes")
     return this_cluster_stats, this_tree_as_leaves
 
 

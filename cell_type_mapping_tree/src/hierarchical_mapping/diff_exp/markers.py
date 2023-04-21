@@ -170,7 +170,7 @@ def find_markers_for_all_taxonomy_pairs(
                 print_timing(
                     t0=t0,
                     i_chunk=ct_complete,
-                    tot_chunks=len(idx_to_pair),
+                    tot_chunks=n_pairs,
                     unit='hr')
 
     del cluster_stats
@@ -189,7 +189,7 @@ def find_markers_for_all_taxonomy_pairs(
             print_timing(
                 t0=t0,
                 i_chunk=ct_complete,
-                tot_chunks=len(idx_to_pair),
+                tot_chunks=n_pairs,
                 unit='hr')
 
     marker_flag = BackedBinarizedBooleanArray(
