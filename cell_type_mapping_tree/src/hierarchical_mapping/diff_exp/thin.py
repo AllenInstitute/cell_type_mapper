@@ -26,10 +26,8 @@ def thin_marker_file(
         Path to the original (un-thinned) marker file
     thinned_marker_file_path:
         File to be written
-    n_processors
-        Number of independent workers to spin up
     max_bytes:
-        Maximum number of bytes a worker should load at once
+        Maximum number of bytes to load at once
     tmp_dir:
         Optional fast temp dir to copy input file into before thinning
     """
