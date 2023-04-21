@@ -139,9 +139,10 @@ class BinarizedBooleanArray(object):
         """
         Return an array of boolean rows
         """
-        return unpack_binarized_boolean_array_2D(
-            binarized_data=self.data[row0:row1, :],
-            n_booleans=self.n_cols)
+        result = np.zeros((row1-row0, self.n_cols), dtype=bool)
+        for i_row in range(row0, row1, 1):
+            result[i_row-row0, :] = self.get_row(i_row)
+        return result
 
     def get_col(self, i_col):
         """
