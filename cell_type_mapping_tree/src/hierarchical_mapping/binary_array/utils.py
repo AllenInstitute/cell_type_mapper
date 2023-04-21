@@ -58,8 +58,7 @@ def unpack_binarized_boolean_array(
     pwr = np.uint8(1)
     factor = np.uint8(2)
     for ii in range(8):
-        valid = (binarized_data & pwr > 0)
-        result[:, ii] = valid
+        result[:, ii] = (binarized_data & pwr > 0)
         if ii < 7:
             pwr *= factor
     return result.flatten()[:n_booleans]
@@ -89,8 +88,7 @@ def unpack_binarized_boolean_array_2D(
     pwr = np.uint8(1)
     factor = np.uint8(2)
     for ii in range(8):
-        valid = (binarized_data & pwr > 0)
-        result[:, :, ii] = valid
+        result[:, :, ii] = (binarized_data & pwr > 0)
         if ii < 7:
             pwr *= factor
     return result.reshape(binarized_data.shape[0], n_int*8)[:, :n_booleans]
