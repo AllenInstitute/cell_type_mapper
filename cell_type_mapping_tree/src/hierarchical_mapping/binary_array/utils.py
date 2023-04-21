@@ -54,14 +54,14 @@ def unpack_binarized_boolean_array(
     1-D numpy array of booleans
     """
     n_rows = len(binarized_data)
-    result = np.zeros((n_rows, 8), dtype=bool)
+    result = np.zeros(n_rows*8, dtype=bool)
     pwr = np.uint8(1)
     factor = np.uint8(2)
     for ii in range(8):
-        result[:, ii] = (binarized_data & pwr > 0)
+        result[ii::8] = (binarized_data & pwr > 0)
         if ii < 7:
             pwr *= factor
-    return result.flatten()[:n_booleans]
+    return result[:n_booleans]
 
 
 def unpack_binarized_boolean_array_2D(
@@ -84,11 +84,16 @@ def unpack_binarized_boolean_array_2D(
     2-D numpy array of booleans
     """
     n_int = binarized_data.shape[1]
-    result = np.zeros((binarized_data.shape[0], n_int, 8), dtype=bool)
+    nrows = binarized_data.shape[0]
+    result = np.zeros(nrows*n_int*8, dtype=bool)
+    binarized_data = binarized_data.flatten()
     pwr = np.uint8(1)
     factor = np.uint8(2)
+    import time
+    t0 = time.time()
     for ii in range(8):
-        result[:, :, ii] = (binarized_data & pwr > 0)
+        result[ii::8] = (binarized_data & pwr > 0)
         if ii < 7:
             pwr *= factor
-    return result.reshape(binarized_data.shape[0], n_int*8)[:, :n_booleans]
+    print(f"mask {time.time()-t0:.2e}")
+    return result.reshape(nrows, n_int*8)[:, :n_booleans]
