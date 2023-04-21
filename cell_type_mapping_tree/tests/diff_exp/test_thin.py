@@ -78,20 +78,28 @@ def baseline_marker_fixture(
     return tmp_path
 
 
+@pytest.mark.parametrize(
+    "with_tmp", [True, False])
 def test_thin_marker_file(
         nonzero_gene_fixture,
         baseline_marker_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        with_tmp):
 
     thin_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
+    if with_tmp:
+        thin_tmp_dir = tmp_dir_fixture
+    else:
+        thin_tmp_dir = None
+
     thin_marker_file(
         marker_file_path=baseline_marker_fixture,
         thinned_marker_file_path=thin_path,
-        n_processors=3,
-        max_bytes=5000)
+        max_bytes=5000,
+        tmp_dir=thin_tmp_dir)
 
     with h5py.File(baseline_marker_fixture, 'r') as expected:
         with h5py.File(thin_path, 'r') as actual:

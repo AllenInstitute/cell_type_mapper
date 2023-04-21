@@ -1,19 +1,13 @@
 import h5py
 import json
-import multiprocessing
 import numpy as np
 import pathlib
 import shutil
 import tempfile
-import time
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
-
-from hierarchical_mapping.utils.multiprocessing_utils import (
-    winnow_process_list,
-    DummyLock)
 
 
 def thin_marker_file(
@@ -58,26 +52,20 @@ def thin_marker_file(
         shutil.copy(src=marker_file_path, dst=new_path)
         marker_file_path = pathlib.Path(new_path)
 
-    print("past copying")
-
     with h5py.File(thinned_marker_file_path, "w") as dst:
         with h5py.File(marker_file_path, "r") as src:
             dst.create_dataset('n_pairs', data=src['n_pairs'][()])
             dst.create_dataset('pair_to_idx', data=src['pair_to_idx'][()])
             base_shape = src['markers/data'].shape
 
-    output_list = []
-    output_lock = DummyLock()
-    _find_nonzero_rows(
+    rows_to_keep = find_nonzero_rows(
         path=marker_file_path,
         row0=0,
         row1=base_shape[0],
         n_cols=base_shape[1],
-        output_lock=output_lock,
-        output_list=output_list,
-        max_bytes=n_processors*max_bytes)
+        max_bytes=max_bytes)
 
-    rows_to_keep = np.array(output_list)
+    rows_to_keep = np.array(rows_to_keep)
     rows_to_keep = np.sort(rows_to_keep)
     n_keep = len(rows_to_keep)
 
@@ -125,13 +113,11 @@ def thin_marker_file(
         _clean_up(tmp_dir)
 
 
-def _find_nonzero_rows(
+def find_nonzero_rows(
         path,
         row0,
         row1,
         n_cols,
-        output_lock,
-        output_list,
         max_bytes):
     """
     Scane the markers/data array in the file at path. Log any rows between
@@ -141,21 +127,16 @@ def _find_nonzero_rows(
 
     n_cols is the number of columns in the array (used to set how many
     rows to load at a time)
+
+    Return list of non-zero rows
     """
-    t0 = time.time()
-    these_rows = []
+    non_zero_rows = []
     rows_at_a_time = max(1, max_bytes//n_cols)
     for r0 in range(row0, row1, rows_at_a_time):
         r1 = min(row1, r0+rows_at_a_time)
         with h5py.File(path, 'r', swmr=True) as src:
             chunk = src['markers/data'][r0:r1, :]
-        row_sums = chunk.sum(axis=1)
-        these_rows += list(np.where(row_sums > 0)[0] + r0)
-        dur = time.time()-t0
-        print(f"    scanned rows {r0}:{r1} ({r1-r0}) in {dur:.2e} seconds")
+        chunk = chunk.sum(axis=1)
+        non_zero_rows += list(np.where(chunk > 0)[0] + r0)
 
-    with output_lock:
-        for r in these_rows:
-            output_list.append(r)
-    dur = time.time()-t0
-    print(f"scanned rows {row0}:{row1} in {dur:.2e} seconds")
+    return non_zero_rows
