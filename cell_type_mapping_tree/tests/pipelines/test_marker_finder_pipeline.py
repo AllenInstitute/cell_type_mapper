@@ -87,9 +87,12 @@ def test_marker_finding_pipeline(
         assert 'markers/data' in in_file
         assert 'up_regulated/data' in in_file
         assert 'gene_names' in in_file
+        assert 'full_gene_names' in in_file
         assert 'pair_to_idx' in in_file
         pair_to_idx = json.loads(in_file['pair_to_idx'][()].decode('utf-8'))
         n_cols = in_file['n_pairs'][()]
+        filtered_gene_names = set(json.loads(
+                                      in_file['gene_names'][()].decode('utf-8')))
 
     # check that we get the expected result
     precomputed_stats = read_precomputed_stats(precompute_path)
@@ -120,8 +123,8 @@ def test_marker_finding_pipeline(
                 cluster_stats = precomputed_stats['cluster_stats']
 
                 (_,
-                 expected_markers,
-                 expected_up_reg) = score_differential_genes(
+                 raw_expected_markers,
+                 raw_expected_up_reg) = score_differential_genes(
                     leaf_population_1=pop1,
                     leaf_population_2=pop2,
                     precomputed_stats=cluster_stats,
@@ -129,11 +132,23 @@ def test_marker_finding_pipeline(
                     q1_th=0.5,
                     qdiff_th=0.7)
 
+                for flag, name in zip(raw_expected_markers, gene_names):
+                    if flag:
+                        are_markers.add(name)
+
+                expected_markers = []
+                expected_up_reg = []
+                for ig, gn in enumerate(gene_names):
+                    if gn in filtered_gene_names:
+                        expected_markers.append(raw_expected_markers[ig])
+                        expected_up_reg.append(raw_expected_up_reg[ig])
+
+                expected_markers = np.array(expected_markers)
+                expected_up_reg = np.array(expected_up_reg)
+
                 idx = pair_to_idx[level][node1][node2]
                 actual_markers = markers.get_col(idx)
                 actual_up_reg = up_regulated.get_col(idx)
-                are_markers = are_markers.union(
-                    set(list(np.where(expected_markers)[0])))
 
                 np.testing.assert_array_equal(
                     expected_markers,
@@ -156,5 +171,8 @@ def test_marker_finding_pipeline(
     assert marker_sum < tot_markers
     assert up_sum > 0
     assert up_sum < tot_up
-    assert are_markers == set([ii for ii in range(len(gene_names))])
+
+    # make sure that the marker file only kept genes that ever occur as markers
+    assert len(are_markers) < len(gene_names)
+    assert are_markers == set(filtered_gene_names)
     _clean_up(tmp_dir)
