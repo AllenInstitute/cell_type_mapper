@@ -2,6 +2,7 @@ import json
 import h5py
 import multiprocessing
 import pathlib
+import shutil
 import tempfile
 import time
 
@@ -97,6 +98,12 @@ def find_markers_for_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_dir = pathlib.Path(tmp_dir)
 
+    tmp_output_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix='unthinned_',
+            suffix='.h5'))
+
     tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
 
     precomputed_stats = read_precomputed_stats(
@@ -108,7 +115,7 @@ def find_markers_for_all_taxonomy_pairs(
     n_genes = len(gene_names)
 
     idx_to_pair = _prep_output_file(
-            output_path=output_path,
+            output_path=tmp_output_path,
             taxonomy_tree=taxonomy_tree,
             gene_names=gene_names)
 
@@ -193,13 +200,13 @@ def find_markers_for_all_taxonomy_pairs(
                 unit='hr')
 
     marker_flag = BackedBinarizedBooleanArray(
-        h5_path=output_path,
+        h5_path=tmp_output_path,
         h5_group='markers',
         n_rows=n_genes,
         n_cols=n_pairs)
 
     up_regulated_flag = BackedBinarizedBooleanArray(
-        h5_path=output_path,
+        h5_path=tmp_output_path,
         h5_group='up_regulated',
         n_rows=n_genes,
         n_cols=n_pairs)
@@ -219,6 +226,10 @@ def find_markers_for_all_taxonomy_pairs(
             other=up_reg, col0=col0)
 
         tmp_path_dict[col0].unlink()
+
+    shutil.move(
+        src=tmp_output_path,
+        dst=output_path)
 
     _clean_up(tmp_dir)
     duration = time.time()-t0
