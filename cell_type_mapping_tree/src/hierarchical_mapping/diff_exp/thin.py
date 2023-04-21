@@ -69,8 +69,7 @@ def thin_marker_file(
     rows_to_keep = np.sort(rows_to_keep)
     n_keep = len(rows_to_keep)
 
-    this_max_bytes = max(1, n_processors//2)*max_bytes
-    rows_at_a_time = max(1000, this_max_bytes//base_shape[1])
+    rows_at_a_time = max(1000, max_bytes//base_shape[1])
 
     with h5py.File(thinned_marker_file_path, "a") as dst:
         with h5py.File(marker_file_path, "r") as src:
