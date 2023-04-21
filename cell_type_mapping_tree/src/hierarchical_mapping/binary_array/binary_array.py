@@ -3,8 +3,7 @@ import numpy as np
 
 from hierarchical_mapping.binary_array.utils import (
     binarize_boolean_array,
-    unpack_binarized_boolean_array,
-    unpack_binarized_boolean_array_2D)
+    unpack_binarized_boolean_array)
 
 
 def n_int_from_n_cols(n_cols):

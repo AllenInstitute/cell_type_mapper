@@ -89,11 +89,8 @@ def unpack_binarized_boolean_array_2D(
     binarized_data = binarized_data.flatten()
     pwr = np.uint8(1)
     factor = np.uint8(2)
-    import time
-    t0 = time.time()
     for ii in range(8):
         result[ii::8] = (binarized_data & pwr > 0)
         if ii < 7:
             pwr *= factor
-    print(f"mask {time.time()-t0:.2e}")
     return result.reshape(nrows, n_int*8)[:, :n_booleans]
