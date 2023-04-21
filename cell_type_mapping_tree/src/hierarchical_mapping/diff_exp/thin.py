@@ -49,8 +49,14 @@ def thin_marker_file(
         new_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
         shutil.copy(src=marker_file_path, dst=new_path)
         marker_file_path = pathlib.Path(new_path)
+        tmp_thinned_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='thin_',
+            suffix='.h5')
+    else:
+        tmp_thinned_path = thinned_marker_file_path
 
-    with h5py.File(thinned_marker_file_path, "w") as dst:
+    with h5py.File(tmp_thinned_path, "w") as dst:
         with h5py.File(marker_file_path, "r") as src:
             dst.create_dataset('n_pairs', data=src['n_pairs'][()])
             dst.create_dataset('pair_to_idx', data=src['pair_to_idx'][()])
@@ -69,7 +75,7 @@ def thin_marker_file(
 
     rows_at_a_time = max(1000, max_bytes//base_shape[1])
 
-    with h5py.File(thinned_marker_file_path, "a") as dst:
+    with h5py.File(tmp_thinned_path, "a") as dst:
         with h5py.File(marker_file_path, "r") as src:
             full_gene_names = json.loads(src['gene_names'][()].decode('utf-8'))
             dst.create_dataset(
@@ -104,6 +110,12 @@ def thin_marker_file(
                     chunk = src[k][i0:i1, :]
                     chunk = chunk[these_rows_to_keep, :]
                     dst[k][map_to, :] = chunk
+
+    if tmp_thinned_path != thinned_marker_file_path:
+        print(f"moving {tmp_thinned_path} to {thinned_marker_file_path}")
+        shutil.move(
+            src=tmp_thinned_path,
+            dst=thinned_marker_file_path)
 
     if tmp_dir is not None:
         print(f"cleaning {tmp_dir}")
