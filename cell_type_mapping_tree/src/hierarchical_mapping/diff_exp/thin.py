@@ -13,7 +13,6 @@ from hierarchical_mapping.utils.utils import (
 def thin_marker_file(
         marker_file_path,
         thinned_marker_file_path,
-        n_processors=6,
         max_bytes=6*1024**3,
         tmp_dir=None):
     """
@@ -78,6 +77,11 @@ def thin_marker_file(
     with h5py.File(tmp_thinned_path, "a") as dst:
         with h5py.File(marker_file_path, "r") as src:
             full_gene_names = json.loads(src['gene_names'][()].decode('utf-8'))
+
+            dst.create_dataset(
+                'full_gene_names',
+                data=src['gene_names'][()])
+
             dst.create_dataset(
                 'gene_names',
                 data=json.dumps(

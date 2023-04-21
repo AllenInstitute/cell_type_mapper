@@ -105,6 +105,7 @@ def test_thin_marker_file(
         with h5py.File(thin_path, 'r') as actual:
             assert actual['pair_to_idx'][()] == expected['pair_to_idx'][()]
             assert actual['n_pairs'][()] == expected['n_pairs'][()]
+            assert actual['full_gene_names'][()] == expected['gene_names'][()]
             actual_genes = json.loads(
                 actual['gene_names'][()].decode('utf-8'))
             expected_genes = json.loads(
