@@ -135,7 +135,7 @@ def find_markers_for_all_taxonomy_pairs(
             dir=tmp_dir,
             prefix=f'columns_{col0}_{col1}_',
             suffix='.h5')
-        tmp_path_dict[col0] = tmp_path
+        tmp_path_dict[col0] = pathlib.Path(tmp_path)
 
         this_idx_values = idx_values[col0:col1]
         this_idx_to_pair = {
@@ -217,6 +217,8 @@ def find_markers_for_all_taxonomy_pairs(
             other=markers, col0=col0)
         up_regulated_flag.copy_other_as_columns(
             other=up_reg, col0=col0)
+
+        tmp_path_dict[col0].unlink()
 
     _clean_up(tmp_dir)
     duration = time.time()-t0
