@@ -3,7 +3,8 @@ import numpy as np
 
 from hierarchical_mapping.binary_array.utils import (
     binarize_boolean_array,
-    unpack_binarized_boolean_array)
+    unpack_binarized_boolean_array,
+    unpack_binarized_boolean_array_2D)
 
 
 def n_int_from_n_cols(n_cols):
@@ -132,6 +133,14 @@ class BinarizedBooleanArray(object):
         """
         return unpack_binarized_boolean_array(
             binarized_data=self.data[i_row, :],
+            n_booleans=self.n_cols)
+
+    def get_row_batch(self, row0, row1):
+        """
+        Return an array of boolean rows
+        """
+        return unpack_binarized_boolean_array_2D(
+            binarized_data=self.data[row0:row1, :],
             n_booleans=self.n_cols)
 
     def get_col(self, i_col):

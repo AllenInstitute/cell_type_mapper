@@ -434,3 +434,22 @@ def test_serialization(tmp_path_factory):
     assert actual1 is not expected1
     assert actual1 == expected1
     _clean_up(tmp_dir)
+
+
+def test_binary_get_row_batch():
+    rng = np.random.default_rng(88)
+    n_cols = 44
+    n_rows = 31
+    n_int = n_int_from_n_cols(n_cols)
+    data0 = rng.integers(0, 255, (n_rows, n_int), dtype=np.uint8)
+    arr0 = BinarizedBooleanArray.from_data_array(
+            data_array=data0,
+            n_cols=n_cols)
+
+    for row0, row1 in [(0, 12), (13, 27), (24, 31)]:
+        batch = arr0.get_row_batch(row0=row0, row1=row1)
+        for i_row in range(row0, row1, 1):
+            expected = arr0.get_row(i_row)
+            np.testing.assert_array_equal(
+                batch[i_row-row0, :],
+                expected)

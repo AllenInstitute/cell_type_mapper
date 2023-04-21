@@ -262,6 +262,22 @@ class BackedBinarizedBooleanArray(object):
         mapped_row = i_row-self.loaded_chunk['rows'][0]
         return self.loaded_chunk['data'].get_row(mapped_row)
 
+    def get_row_batch(self, row0, row1):
+
+        need_to_load = self._need_to_load_row(row0)
+        if not need_to_load:
+            need_to_load = self._need_to_load_row(row1)
+
+        if need_to_load:
+            self._load_chunk(
+                row_spec=(row0, min(row1,
+                                    row0+self._load_row_size)),
+                col_spec=(0, self.n_cols))
+        mapped_row0 = row0-self.loaded_chunk['rows'][0]
+        mapped_row1 = row1-self.loaded_chunk['rows'][0]
+        return self.loaded_chunk['data'].get_row_batch(
+                    mapped_row0, mapped_row1)
+
     def set_col(self, i_col, data):
         need_to_load = self._need_to_load_col(i_col)
         if need_to_load:

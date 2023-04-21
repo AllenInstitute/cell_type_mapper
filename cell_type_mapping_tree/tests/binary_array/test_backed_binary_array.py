@@ -342,3 +342,35 @@ def test_storing_two_backed_arrays(
             np.testing.assert_array_equal(
                 actual.get_col(i_col),
                 expected.get_col(i_col))
+
+
+@pytest.mark.parametrize(
+        "row0, row1", [(0, 250), (100, 222), (199, 312)])
+def test_backed_get_row_batch(
+        n_rows,
+        n_cols,
+        baseline_data_fixture,
+        tmp_dir_fixture,
+        row0,
+        row1):
+    h5_path = pathlib.Path(mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5'))
+    h5_path.unlink()
+
+    with h5py.File(h5_path, 'a') as out_file:
+        out_file.create_dataset(
+            'test/data',
+            data=baseline_data_fixture.data,
+            chunks=(50,50))
+
+    backed_array = BackedBinarizedBooleanArray(
+        h5_path=h5_path,
+        h5_group='test',
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    batch = backed_array.get_row_batch(row0=row0, row1=row1)
+    for i_row in range(row0, row1, 1):
+        expected = baseline_data_fixture.get_row(i_row)
+        np.testing.assert_array_equal(
+            batch[i_row-row0, :],
+            expected)
