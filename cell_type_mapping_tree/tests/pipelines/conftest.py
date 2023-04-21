@@ -128,6 +128,12 @@ def cluster_to_signal(
     class_to_l2 = l2_to_class_fixture[1]
     l2_to_l1 = l1_to_l2_fixture[1]
 
+    # shuffle the genes so that marker vs. non-marker
+    # isn't influenced by the order of the genes
+    rng = np.random.default_rng(123)
+    shuffle_order = np.arange(n_genes, dtype=int)
+    rng.shuffle(shuffle_order)
+
     taxon_to_idx = dict()
     ct = 0
     for k in cluster_to_class:
@@ -153,6 +159,7 @@ def cluster_to_signal(
             idx = taxon_to_idx[k]
             signal[idx] += 1.0
         signal[-n_non_markers:] = 0.0
+        signal = signal[shuffle_order]
         result[cluster] = signal
     return result
 
