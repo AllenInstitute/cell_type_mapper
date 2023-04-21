@@ -29,6 +29,9 @@ from hierarchical_mapping.binary_array.binary_array import (
 from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
+from hierarchical_mapping.diff_exp.thin import (
+    thin_marker_file)
+
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -39,7 +42,8 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         flush_every=1000,
         n_processors=4,
-        tmp_dir=None):
+        tmp_dir=None,
+        max_bytes=6*1024**3):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -69,6 +73,9 @@ def find_markers_for_all_taxonomy_pairs(
 
     n_processors:
         Number of independent worker processes to spin out
+
+    max_bytes:
+        Maximum number of bytes to load when thinning marker file
 
     Returns
     --------
@@ -227,8 +234,20 @@ def find_markers_for_all_taxonomy_pairs(
 
         tmp_path_dict[col0].unlink()
 
+    tmp_thinned_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix='thinned_',
+            suffix='.h5'))
+
+    thin_marker_file(
+        marker_file_path=tmp_output_path,
+        thinned_marker_file_path=tmp_thinned_path,
+        max_bytes=max_bytes,
+        tmp_dir=None)
+
     shutil.move(
-        src=tmp_output_path,
+        src=tmp_thinned_path,
         dst=output_path)
 
     _clean_up(tmp_dir)

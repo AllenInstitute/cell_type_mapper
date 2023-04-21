@@ -111,6 +111,7 @@ def test_marker_finding_pipeline(
     marker_sum = 0
     tot_up = 0
     up_sum = 0
+    are_markers = set()
     for level in pair_to_idx:
         for node1 in pair_to_idx[level]:
             for node2 in pair_to_idx[level][node1]:
@@ -131,6 +132,8 @@ def test_marker_finding_pipeline(
                 idx = pair_to_idx[level][node1][node2]
                 actual_markers = markers.get_col(idx)
                 actual_up_reg = up_regulated.get_col(idx)
+                are_markers = are_markers.union(
+                    set(list(np.where(expected_markers)[0])))
 
                 np.testing.assert_array_equal(
                     expected_markers,
@@ -153,4 +156,5 @@ def test_marker_finding_pipeline(
     assert marker_sum < tot_markers
     assert up_sum > 0
     assert up_sum < tot_up
+    assert are_markers == set([ii for ii in range(len(gene_names))])
     _clean_up(tmp_dir)
