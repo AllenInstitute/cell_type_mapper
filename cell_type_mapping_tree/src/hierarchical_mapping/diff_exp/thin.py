@@ -3,18 +3,25 @@ import json
 import multiprocessing
 import numpy as np
 import pathlib
+import shutil
+import tempfile
 import time
 
+from hierarchical_mapping.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    winnow_process_list)
+    winnow_process_list,
+    DummyLock)
 
 
 def thin_marker_file(
         marker_file_path,
         thinned_marker_file_path,
         n_processors=6,
-        max_bytes=6*1024**3):
+        max_bytes=6*1024**3,
+        tmp_dir=None):
     """
     Remove all rows (genes) from marker_file_path that are not
     markers for any cluster pairs.
@@ -29,7 +36,10 @@ def thin_marker_file(
         Number of independent workers to spin up
     max_bytes:
         Maximum number of bytes a worker should load at once
+    tmp_dir:
+        Optional fast temp dir to copy input file into before thinning
     """
+
     marker_file_path = pathlib.Path(
         marker_file_path)
     thinned_marker_file_path = pathlib.Path(
@@ -41,37 +51,31 @@ def thin_marker_file(
             "marker_file_path == thinned_marker_file_path\n"
             "Will not run in this mode; they must be different")
 
+    if tmp_dir is not None:
+        tmp_dir = pathlib.Path(
+            tempfile.mkdtemp(dir=tmp_dir))
+        new_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
+        shutil.copy(src=marker_file_path, dst=new_path)
+        marker_file_path = pathlib.Path(new_path)
+
+    print("past copying")
+
     with h5py.File(thinned_marker_file_path, "w") as dst:
         with h5py.File(marker_file_path, "r") as src:
             dst.create_dataset('n_pairs', data=src['n_pairs'][()])
             dst.create_dataset('pair_to_idx', data=src['pair_to_idx'][()])
             base_shape = src['markers/data'].shape
 
-    mgr = multiprocessing.Manager()
-    output_lock = mgr.Lock()
-    output_list = mgr.list()
-
-    n_per = np.ceil(base_shape[1]/n_processors).astype(int)
-    process_list = []
-    for i0 in range(0, base_shape[0], n_per):
-        p = multiprocessing.Process(
-                target=_find_nonzero_rows,
-                kwargs={
-                    'path': marker_file_path,
-                    'row0': i0,
-                    'row1': min(base_shape[0], i0+n_per),
-                    'n_cols': base_shape[1],
-                    'output_lock': output_lock,
-                    'output_list': output_list,
-                    'max_bytes': max_bytes})
-        p.start()
-        process_list.append(p)
-    for p in process_list:
-        p.join()
-
-    # because this will raise an exception if one of the
-    # jobs exits with a non-zero state
-    winnow_process_list(process_list)
+    output_list = []
+    output_lock = DummyLock()
+    _find_nonzero_rows(
+        path=marker_file_path,
+        row0=0,
+        row1=base_shape[0],
+        n_cols=base_shape[1],
+        output_lock=output_lock,
+        output_list=output_list,
+        max_bytes=n_processors*max_bytes)
 
     rows_to_keep = np.array(output_list)
     rows_to_keep = np.sort(rows_to_keep)
@@ -115,6 +119,10 @@ def thin_marker_file(
                     chunk = src[k][i0:i1, :]
                     chunk = chunk[these_rows_to_keep, :]
                     dst[k][map_to, :] = chunk
+
+    if tmp_dir is not None:
+        print(f"cleaning {tmp_dir}")
+        _clean_up(tmp_dir)
 
 
 def _find_nonzero_rows(
