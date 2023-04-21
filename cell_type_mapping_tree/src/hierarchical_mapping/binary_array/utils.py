@@ -44,16 +44,16 @@ def unpack_binarized_boolean_array(
     Parameters
     ----------
     binarized_data:
-        np.array of np.uint8 to be unpacked
+        1-D np.array of np.uint8 to be unpacked
     n_booleans:
         expected size of output array (since the array of
         np.uint8 could have trailing bits)
 
     Returns
     -------
-    numpy array of booleans
+    1-D numpy array of booleans
     """
-    n_rows = np.ceil(n_booleans/8).astype(int)
+    n_rows = len(binarized_data)
     result = np.zeros((n_rows, 8), dtype=bool)
     pwr = np.uint8(1)
     factor = np.uint8(2)
@@ -63,3 +63,37 @@ def unpack_binarized_boolean_array(
         if ii < 7:
             pwr *= factor
     return result.flatten()[:n_booleans]
+
+
+def unpack_binarized_boolean_array_2D(
+        binarized_data,
+        n_booleans):
+    """
+    Convert a bit-packed array of np.uint8 back into an
+    array of booleans.
+
+    Parameters
+    ----------
+    binarized_data:
+        2-D np.array of np.uint8 to be unpacked
+    n_booleans:
+        number of booleans per row of the output
+        (since the array of np.uint8 could have trailing bits)
+
+    Returns
+    -------
+    2-D numpy array of booleans
+    """
+    n_int = binarized_data.shape[1]
+    result = np.zeros((binarized_data.shape[0], n_int, 8), dtype=bool)
+    pwr = np.uint8(1)
+    factor = np.uint8(2)
+
+    for ii in range(8):
+        valid = (binarized_data & pwr > 0)
+        result[:, :, ii][valid] = True
+        if ii < 7:
+            pwr *= factor
+    result = result.reshape(binarized_data.shape[0], n_int*8)
+    result = result[:, :n_booleans]
+    return result
