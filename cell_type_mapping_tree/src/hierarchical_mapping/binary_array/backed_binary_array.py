@@ -270,7 +270,7 @@ class BackedBinarizedBooleanArray(object):
 
         if need_to_load:
             self._load_chunk(
-                row_spec=(row0, min(row1,
+                row_spec=(row0, max(row1,
                                     row0+self._load_row_size)),
                 col_spec=(0, self.n_cols))
         mapped_row0 = row0-self.loaded_chunk['rows'][0]
