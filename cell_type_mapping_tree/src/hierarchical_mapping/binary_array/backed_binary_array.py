@@ -32,6 +32,9 @@ class BackedBinarizedBooleanArray(object):
     load_col_size
         Number of cols to load at a time when loading a chunk of data
 
+    read_only:
+        If True, cannot write back changes to disk.
+
     Notes
     -----
     Right now, can only be populated using copy_other_as_columns
@@ -44,7 +47,9 @@ class BackedBinarizedBooleanArray(object):
             n_rows,
             n_cols,
             load_row_size=600,
-            load_col_size=5):
+            load_col_size=5,
+            read_only=False):
+        self._read_only = read_only
         self.h5_path = pathlib.Path(h5_path)
         self.h5_group = h5_group
         self.data_key = f'{self.h5_group}/data'
@@ -153,6 +158,8 @@ class BackedBinarizedBooleanArray(object):
         """
         Write the current loaded chunk back to disk
         """
+        if self._read_only:
+            return
         if self.loaded_chunk is None:
             return
         rows = self.loaded_chunk['rows']
@@ -220,9 +227,13 @@ class BackedBinarizedBooleanArray(object):
         self.chunk_has_changed = True
 
     def set_col_true(self, i_col):
+        if self._read_only:
+            raise RuntimeError("array is read only")
         self._change_whole_col(i_col, set_to=True)
 
     def set_col_false(self, i_col):
+        if self._read_only:
+            raise RuntimeError("array is read only")
         self._change_whole_col(i_col, set_to=False)
 
     def _change_whole_row(self, i_row, set_to):
@@ -245,9 +256,13 @@ class BackedBinarizedBooleanArray(object):
         self.chunk_has_changed = True
 
     def set_row_true(self, i_row):
+        if self._read_only:
+            raise RuntimeError("array is read only")
         self._change_whole_row(i_row, set_to=True)
 
     def set_row_false(self, i_row):
+        if self._read_only:
+            raise RuntimeError("array is read only")
         self._change_whole_row(i_row, set_to=False)
 
     def get_col(self, i_col):
@@ -287,6 +302,8 @@ class BackedBinarizedBooleanArray(object):
                     mapped_row0, mapped_row1)
 
     def set_col(self, i_col, data):
+        if self._read_only:
+            raise RuntimeError("array is read only")
         need_to_load = self._need_to_load_col(i_col)
         if need_to_load:
             self._load_chunk(
@@ -306,6 +323,9 @@ class BackedBinarizedBooleanArray(object):
         Other is a BinarizedBooleanArray who will be used to
         populate columns col0:other.n_cols
         """
+        if self._read_only:
+            raise RuntimeError("array is read only")
+
         if col0 % 8 != 0:
             raise RuntimeError(
                 "col0 must be integer multiple of 8\n"
