@@ -45,14 +45,14 @@ class MarkerGeneArray(object):
 
         self.is_marker = BackedBinarizedBooleanArray(
             h5_path=self.cache_path,
-            h5_group='markers/data',
+            h5_group='markers',
             n_rows=self.n_genes,
             n_cols=self.n_pairs,
             read_only=True)
 
         self.up_regulated = BackedBinarizedBooleanArray(
             h5_path=self.cache_path,
-            h5_group='up_regulated/data',
+            h5_group='up_regulated',
             n_rows=self.n_genes,
             n_cols=self.n_pairs,
             read_only=True)
@@ -73,10 +73,10 @@ class MarkerGeneArray(object):
         if node1 not in self.taxonomy_pair_to_idx[level]:
             raise RuntimeError(
                 f"{node1} not under taxonomy level {level}")
-        if node2 not in self.taxnomy_pair_to_idx[level][node1]:
+        if node2 not in self.taxonomy_pair_to_idx[level][node1]:
             raise RuntimeError(
                 f"({level},  {node1}, {node2})\n"
-                "not a valid taxonomy pair specifcation; try reversing "
+                "not a valid taxonomy pair specification; try reversing "
                 "node1 and node2")
 
         pair_idx = self.taxonomy_pair_to_idx[level][node1][node2]
@@ -86,7 +86,7 @@ class MarkerGeneArray(object):
             self,
             gene_idx):
         marker_mask = self.is_marker.get_row(i_row=gene_idx)
-        up_mask = self.is_marker.get_row(i_row=gene_idx)
+        up_mask = self.up_regulated.get_row(i_row=gene_idx)
         return marker_mask, up_mask
 
     def marker_mask_from_pair_idx(
@@ -106,34 +106,3 @@ class MarkerGeneArray(object):
         marker_mask = self.is_marker.get_col(i_col=pair_idx)
         up_mask = self.up_regulated.get_col(i_col=pair_idx)
         return (marker_mask, up_mask)
-
-    def marker_mask_from_pair(
-            self,
-            level,
-            node1,
-            node2):
-        """
-        Get an array of gene indexes that match the utility
-        specification.
-
-        Parameters
-        ----------
-        level:
-            The taxonomy level of node1 and node 2
-        node1, node2:
-            The two taxonomy pairs we are looking for markers between
-        sign:
-            if +1, then return marker genes that are up-regulated in
-            node1; if -1, then return marker genes that are up-regulated
-            in node 2.
-
-        Returns
-        -------
-        Returns (marker_mask, up_mask):
-        (n_genes,) array of booleans indicating
-                - is the gene a marker for this pair
-                - for which node in the pair is the gene up-regulated
-        """
-        pair_idx = self.idx_of_pair(level=level, node1=node1, node2=node2)
-        return self.gene_idx_from_pair_idx(
-            pair_idx)
