@@ -16,7 +16,8 @@ from hierarchical_mapping.marker_selection.marker_array import (
     MarkerGeneArray)
 
 from hierarchical_mapping.marker_selection.selection import (
-    recalculate_utility_array)
+    recalculate_utility_array,
+    _get_taxonomy_idx)
 
 
 @pytest.fixture
@@ -34,17 +35,68 @@ def n_genes():
 
 @pytest.fixture
 def n_cols():
-    return 9
+    return 31
+
+@pytest.fixture
+def taxonomy_tree_fixture():
+    tree = dict()
+    tree['hierarchy'] = ['level1', 'level2', 'cluster']
+    tree['level1'] = {'a': ['aa', 'bb'],
+                      'b': ['cc', 'dd']}
+    tree['level2'] = {
+        'aa': ['1', '2'],
+        'bb': ['3', '4', '5'],
+        'cc': ['6'],
+        'dd': ['7', '8']}
+    tree['cluster'] = {str(ii): ii*10 for ii in range(9)}
+
+    return tree
 
 @pytest.fixture
 def pair_to_idx_fixture():
     pair_to_idx = dict()
-    pair_to_idx['level1'] = {
-        'aa': {'bb': 0, 'cc': 1},
-        'dd': {'ee': 2, 'ff': 3}}
-    pair_to_idx['level2'] = {
-        'a': {'b': 4, 'c': 5, 'd': 6},
-        'e': {'f': 7, 'g': 8}}
+    pair_to_idx['cluster'] = dict()
+    pair_to_idx['cluster']['1'] = {
+        '2': 0,
+        '3': 1,
+        '4': 5,
+        '5': 6,
+        '6': 7,
+        '7': 8,
+        '8': 9}
+    pair_to_idx['cluster']['2'] = {
+        '3': 10,
+        '4': 11,
+        '5': 12,
+        '6': 13,
+        '7': 14,
+        '8': 15}
+
+    pair_to_idx['cluster']['3'] = {
+        '4': 16,
+        '5': 17,
+        '6': 18,
+        '7': 19,
+        '8': 20}
+
+    pair_to_idx['cluster']['4'] = {
+        '5': 21,
+        '6': 22,
+        '7': 23,
+        '8': 24}
+
+    pair_to_idx['cluster']['5'] = {
+        '6': 25,
+        '7': 26,
+        '8': 27}
+
+    pair_to_idx['cluster']['6'] = {
+        '7': 28,
+        '8': 29}
+
+    pair_to_idx['cluster']['7'] = {
+        '8': 30}
+
     return pair_to_idx
 
 @pytest.fixture
@@ -140,3 +192,21 @@ def test_recalculate_utilty_array(
             marker_gene_array=arr,
             pair_idx=4,
             sign=3)
+
+def test_get_taxonomy_idx(
+        taxonomy_tree_fixture,
+        backed_array_fixture):
+    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+    np.testing.assert_array_equal(
+        _get_taxonomy_idx(
+            taxonomy_tree=taxonomy_tree_fixture,
+            parent_node=('level1', 'b'),
+            marker_gene_array=arr),
+        np.array([28, 29]))
+
+    np.testing.assert_array_equal(
+        _get_taxonomy_idx(
+            taxonomy_tree=taxonomy_tree_fixture,
+            parent_node=('level2', 'aa'),
+            marker_gene_array=arr),
+        np.array([0,]))
