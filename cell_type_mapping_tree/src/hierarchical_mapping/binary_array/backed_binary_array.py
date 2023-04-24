@@ -26,6 +26,12 @@ class BackedBinarizedBooleanArray(object):
     n_cols
         Number of columns in the boolean array to be binarized
 
+    load_row_size
+        Number of rows to load at a time when loading a chunk of data
+
+    load_col_size
+        Number of cols to load at a time when loading a chunk of data
+
     Notes
     -----
     Right now, can only be populated using copy_other_as_columns
@@ -36,7 +42,9 @@ class BackedBinarizedBooleanArray(object):
             h5_path,
             h5_group,
             n_rows,
-            n_cols):
+            n_cols,
+            load_row_size=600,
+            load_col_size=5):
         self.h5_path = pathlib.Path(h5_path)
         self.h5_group = h5_group
         self.data_key = f'{self.h5_group}/data'
@@ -63,10 +71,10 @@ class BackedBinarizedBooleanArray(object):
         self.chunk_has_changed = False
 
         # how many rows to load at a time
-        self._load_row_size = (8*1024**3)//n_cols
+        self._load_row_size = load_row_size
 
         # how many columns to load at a time
-        self._load_col_size = (8*1024**3)//n_rows
+        self._load_col_size = load_col_size
 
         # mapping from the bit in a given np.uint8 to its value
         self.bit_lookup = {
