@@ -593,7 +593,8 @@ def score_differential_genes(
         precomputed_stats,
         p_th=0.01,
         q1_th=0.5,
-        qdiff_th=0.7):
+        qdiff_th=0.7,
+        fold_change=2.0):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -615,6 +616,10 @@ def score_differential_genes(
     p_th/q1_th/qdiff_th:
         Thresholds for determining if the gene is a differentially
         expressed gene (see Notes below)
+
+    fold_change:
+        Genes must have a fold changes > fold_change between the
+        two populations to be considered a marker gene.
 
     Returns
     -------
@@ -678,11 +683,16 @@ def score_differential_genes(
     qdiff_score = np.abs(pij_1-pij_2)/denom
     qdiff_valid = (qdiff_score > qdiff_th)
 
+    log2_fold = np.log2(fold_change)
+    fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
+
     validity_mask = np.logical_and(
         pvalue_valid,
         np.logical_and(
             q1_valid,
-            qdiff_valid))
+            np.logical_and(
+                qdiff_valid,
+                fold_valid)))
 
     up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
     up_mask[pij_2 > pij_1] = 1

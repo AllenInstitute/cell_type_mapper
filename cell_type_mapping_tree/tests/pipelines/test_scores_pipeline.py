@@ -105,12 +105,15 @@ def brute_force_de_scores(
                 diff_denom = np.where(diff_denom > 0.0, diff_denom, 1.0)
                 diff_score = np.abs(p_i1-p_i2)/diff_denom
                 qdiff_valid = (diff_score > 0.7)
+                fold_valid = np.abs(mu1-mu2) > np.log2(2.0)
 
                 validity = np.logical_and(
                    p_valid,
                    np.logical_and(
                        q1_valid,
-                       qdiff_valid))
+                       np.logical_and(
+                           qdiff_valid,
+                           fold_valid)))
 
                 # there should be some marker genes for every pair
                 assert validity.sum() > 0
