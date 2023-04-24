@@ -9,7 +9,8 @@ import json
 import scipy.sparse as scipy_sparse
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree,
@@ -30,6 +31,19 @@ from hierarchical_mapping.diff_exp.precompute_from_anndata import (
 from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
+from hierarchical_mapping.marker_selection.marker_array import (
+    MarkerGeneArray)
+
+from hierarchical_mapping.marker_selection.selection import (
+    select_marker_genes_v2)
+
+
+@pytest.fixture
+def tmp_dir_fixture(tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('smoke'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
 
 @pytest.fixture
 def tree_fixture(
@@ -176,3 +190,60 @@ def test_marker_finding_pipeline(
     assert len(are_markers) < len(gene_names)
     assert are_markers == set(filtered_gene_names)
     _clean_up(tmp_dir)
+
+
+def test_select_marker_genes_v2(
+        h5ad_path_fixture,
+        column_hierarchy,
+        tmp_path_factory,
+        gene_names,
+        tree_fixture,
+        tmp_dir_fixture):
+    """
+    this is just a smoke test
+    """
+    rng = np.random.default_rng(776123)
+    tmp_dir = tmp_dir_fixture
+    hdf5_tmp = tmp_dir / 'hdf5'
+    hdf5_tmp.mkdir()
+    marker_path = pathlib.Path(
+        mkstemp_clean(dir=hdf5_tmp, suffix='.h5'))
+
+    precompute_path = pathlib.Path(
+        mkstemp_clean(dir=hdf5_tmp, suffix='.h5'))
+
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        output_path=precompute_path,
+        rows_at_a_time=1000)
+
+    taxonomy_tree = tree_fixture
+
+    # make sure flush_every is not an integer
+    # divisor of the number of sibling pairs
+    flush_every = 11
+    n_processors = 3
+    siblings = get_all_pairs(tree_fixture)
+
+    find_markers_for_all_taxonomy_pairs(
+            precomputed_stats_path=precompute_path,
+            taxonomy_tree=taxonomy_tree,
+            output_path=marker_path,
+            n_processors=n_processors,
+            tmp_dir=tmp_dir)
+
+    marker_array = MarkerGeneArray(cache_path=marker_path)
+    query_gene_names = rng.choice(gene_names,
+                                  len(gene_names)//2,
+                                  replace=False)
+    result = select_marker_genes_v2(
+        marker_gene_array=marker_array,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=tree_fixture,
+        parent_node=None,
+        n_per_utility=15)
+
+    assert len(result) > 0
+    for g in result:
+        assert g in query_gene_names

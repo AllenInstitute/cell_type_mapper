@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
@@ -58,6 +59,7 @@ def select_marker_genes_v2(
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
     """
+    t0 = time.time()
 
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
@@ -96,7 +98,7 @@ def select_marker_genes_v2(
 
     # mask out the genes which were not matched so that they
     # are not selected
-    utility_array[np.logical_not[reference_gene_mask]] = 0
+    utility_array[np.logical_not(reference_gene_mask)] = 0
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
@@ -109,6 +111,9 @@ def select_marker_genes_v2(
 
     # we will just start at the most useful gene and work our way down
     sorted_utility_idx = list(np.argsort(utility_array))
+
+    duration = (time.time()-t0)/3600.0
+    print(f"preparation took {duration:.2e} hours")
 
     while True:
 
@@ -162,6 +167,10 @@ def select_marker_genes_v2(
                     sign=sign)
                 been_filled[pair_idx, raw_sign] = True
             sorted_utility_idx = list(np.argsort(utility_array))
+            filled_sum = been_filled.sum()
+            duration = (time.time()-t0)/3600.0
+            print(f"filled {filled_sum} of {been_filled_size} "
+                  f"in {duration:.2e} hours")
 
             if been_filled.sum() == been_filled_size:
                 # we have found all the genes we need
