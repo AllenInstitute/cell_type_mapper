@@ -10,6 +10,9 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
+from hierarchical_mapping.binary_array.backed_binary_array import (
+    BackedBinarizedBooleanArray)
+
 
 def select_marker_genes(
         score_path,
@@ -217,3 +220,53 @@ def _process_rank_chunk(
         if len(this_row) > 0:
             marker_set = marker_set.union(set(this_row[:genes_per_pair]))
     return marker_set
+
+
+def create_usefulness_array(
+        cache_path,
+        gb_size=10):
+    """
+    Create an (n_genes,) array of how useful each gene is as a marker.
+    Usefulness is just a count of how many (+/-, taxonomy_pair) combinations
+    the gene is a marker for (in this case +/- indicates which node in the
+    taxonomy pair the gene is up-regulated for).
+
+    Parameters
+    ----------
+    cache_path:
+        path to the file created by markers.find_markers_for_all_taxonomy_pairs
+    gb_size:
+        Number of gigabytes to load at a time (approximately)
+
+    Returns
+    -------
+    A numpy array of ints indicating the usefulness of each gene.
+
+    Notes
+    -----
+    As implemented, it is assumed that the rows of the arrays in cache_path
+    are genes and the columns are taxonomy pairs
+    """
+
+    with h5py.File(cache_path, "r", swmr=True) as src:
+        n_cols = src['n_pairs'][()]
+        n_rows = len(json.loads(src['gene_names'][()].decode('utf-8')))
+
+    is_marker = BackedBinarizedBooleanArray(
+        h5_path=cache_path,
+        h5_group='markers',
+        n_rows=n_rows,
+        n_cols=n_cols,
+        read_only=True)
+
+    usefulness_sum = np.zeros(is_marker.n_rows, dtype=int)
+
+    byte_size = gb_size*1024**3
+    batch_size = max(1, np.round(byte_size/n_cols).astype(int))
+
+    for row0 in range(0, n_rows, batch_size):
+        row1 = min(n_rows, row0+batch_size)
+        row_batch = is_marker.get_row_batch(row0, row1)
+        usefulness_sum[row0:row1] = row_batch.sum(axis=1)
+
+    return usefulness_sum

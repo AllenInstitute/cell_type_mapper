@@ -57,56 +57,50 @@ class MarkerGeneArray(object):
             n_cols=self.n_pairs,
             read_only=True)
 
-        self.gene_utility = create_usefulness_array(
-            cache_path=self.cache_path,
-            gb_size=10)
+    def gene_idx_from_utility(
+            self,
+            level,
+            node1,
+            node2,
+            sign):
+        """
+        Get an array of gene indexes that match the utility
+        specification.
 
+        Parameters
+        ----------
+        level:
+            The taxonomy level of node1 and node 2
+        node1, node2:
+            The two taxonomy pairs we are looking for markers between
+        sign:
+            if +1, then return marker genes that are up-regulated in
+            node1; if -1, then return marker genes that are up-regulated
+            in node 2.
 
-def create_usefulness_array(
-        cache_path,
-        gb_size=10):
-    """
-    Create an (n_genes,) array of how useful each gene is as a marker.
-    Usefulness is just a count of how many (+/-, taxonomy_pair) combinations
-    the gene is a marker for (in this case +/- indicates which node in the
-    taxonomy pair the gene is up-regulated for).
+        Returns
+        -------
+        Numpy array of numerical indexes of genes that fit the utility
+        criterion
+        """
+        if sign not in (1, -1):
+            raise RuntimeError(
+                f"Do not know how to interpret sign={sign}\n"
+                "must be (+1 or -1)")
 
-    Parameters
-    ----------
-    cache_path:
-        path to the file created by markers.find_markers_for_all_taxonomy_pairs
-    gb_size:
-        Number of gigabytes to load at a time (approximately)
+        if node1 not in self.taxonomy_pair_to_idx[level]:
+            raise RuntimeError(
+                f"{node1} not under taxonomy level {level}")
+        if node2 not in self.taxnomy_pair_to_idx[level][node1]:
+            raise RuntimeError(
+                f"({level},  {node1}, {node2})\n"
+                "not a valid taxonomy pair specifcation; try reversing "
+                "node1 and node2")
 
-    Returns
-    -------
-    A numpy array of ints indicating the usefulness of each gene.
-
-    Notes
-    -----
-    As implemented, it is assumed that the rows of the arrays in cache_path
-    are genes and the columns are taxonomy pairs
-    """
-
-    with h5py.File(cache_path, "r", swmr=True) as src:
-        n_cols = src['n_pairs'][()]
-        n_rows = len(json.loads(src['gene_names'][()].decode('utf-8')))
-
-    is_marker = BackedBinarizedBooleanArray(
-        h5_path=cache_path,
-        h5_group='markers',
-        n_rows=n_rows,
-        n_cols=n_cols,
-        read_only=True)
-
-    usefulness_sum = np.zeros(is_marker.n_rows, dtype=int)
-
-    byte_size = gb_size*1024**3
-    batch_size = max(1, np.round(byte_size/n_cols).astype(int))
-
-    for row0 in range(0, n_rows, batch_size):
-        row1 = min(n_rows, row0+batch_size)
-        row_batch = is_marker.get_row_batch(row0, row1)
-        usefulness_sum[row0:row1] = row_batch.sum(axis=1)
-
-    return usefulness_sum
+        pair_idx = self.taxonomy_pair_to_idx[level][node1][node2]
+        marker_mask = self.is_marker.get_col(i_col=pair_idx)
+        up_mask = self.up_regulated.get_col(i_col=pair_idx)
+        if sign < 0:
+            up_mask = np.logical_not(up_mask)
+        full_mask = np.logical_and(marker_mask, up_mask)
+        return np.where(full_mask)[0]

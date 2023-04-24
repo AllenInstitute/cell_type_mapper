@@ -12,7 +12,7 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
-from hierarchical_mapping.diff_exp.marker_array import (
+from hierarchical_mapping.marker_selection.utils import (
     create_usefulness_array)
 
 
