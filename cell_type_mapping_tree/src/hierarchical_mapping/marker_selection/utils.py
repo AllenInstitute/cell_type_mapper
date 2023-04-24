@@ -222,12 +222,13 @@ def _process_rank_chunk(
     return marker_set
 
 
-def create_usefulness_array(
+def create_utility_array(
         cache_path,
-        gb_size=10):
+        gb_size=10,
+        taxonomy_mask=None):
     """
     Create an (n_genes,) array of how useful each gene is as a marker.
-    Usefulness is just a count of how many (+/-, taxonomy_pair) combinations
+    Utility is just a count of how many (+/-, taxonomy_pair) combinations
     the gene is a marker for (in this case +/- indicates which node in the
     taxonomy pair the gene is up-regulated for).
 
@@ -237,10 +238,13 @@ def create_usefulness_array(
         path to the file created by markers.find_markers_for_all_taxonomy_pairs
     gb_size:
         Number of gigabytes to load at a time (approximately)
+    taxonomy_mask:
+        if not None, a list of integers denoting which columns to
+        sum utility for.
 
     Returns
     -------
-    A numpy array of ints indicating the usefulness of each gene.
+    A numpy array of ints indicating the utility of each gene.
 
     Notes
     -----
@@ -259,7 +263,7 @@ def create_usefulness_array(
         n_cols=n_cols,
         read_only=True)
 
-    usefulness_sum = np.zeros(is_marker.n_rows, dtype=int)
+    utility_sum = np.zeros(is_marker.n_rows, dtype=int)
 
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/n_cols).astype(int))
@@ -267,6 +271,8 @@ def create_usefulness_array(
     for row0 in range(0, n_rows, batch_size):
         row1 = min(n_rows, row0+batch_size)
         row_batch = is_marker.get_row_batch(row0, row1)
-        usefulness_sum[row0:row1] = row_batch.sum(axis=1)
+        if taxonomy_mask is not None:
+            row_batch = row_batch[:, taxonomy_mask]
+        utility_sum[row0:row1] = row_batch.sum(axis=1)
 
-    return usefulness_sum
+    return utility_sum

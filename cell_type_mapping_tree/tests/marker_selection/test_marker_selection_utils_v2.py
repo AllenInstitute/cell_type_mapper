@@ -1,6 +1,7 @@
 import pytest
 
 import h5py
+from itertools import product
 import json
 import numpy as np
 import pathlib
@@ -13,7 +14,7 @@ from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
 from hierarchical_mapping.marker_selection.utils import (
-    create_usefulness_array)
+    create_utility_array)
 
 
 @pytest.fixture
@@ -75,17 +76,30 @@ def backed_array_fixture(
     return h5_path
 
 
-@pytest.mark.parametrize("gb_size", [1, 1.0e-7])
-def test_create_usefulness_array(
+@pytest.mark.parametrize(
+        "gb_size, taxonomy_mask",
+        product([1, 1.0e-7],
+                [None, np.array([13, 22, 81, 37])]))
+def test_create_utility_array(
         mask_array_fixture,
         backed_array_fixture,
         n_rows,
-        gb_size):
+        gb_size,
+        taxonomy_mask):
 
-    actual = create_usefulness_array(
+    actual = create_utility_array(
         cache_path=backed_array_fixture,
-        gb_size=gb_size)
+        gb_size=gb_size,
+        taxonomy_mask=taxonomy_mask)
 
-    expected = np.sum(mask_array_fixture, axis=1)
+    if taxonomy_mask is None:
+        expected = np.sum(mask_array_fixture, axis=1)
+    else:
+        expected = np.zeros(n_rows, dtype=int)
+        for i_row in range(n_rows):
+            for i_col in taxonomy_mask:
+                if mask_array_fixture[i_row, i_col]:
+                    expected[i_row] += 1
     assert expected.shape == (n_rows, )
     np.testing.assert_array_equal(expected, actual)
+    assert expected.sum() > 0
