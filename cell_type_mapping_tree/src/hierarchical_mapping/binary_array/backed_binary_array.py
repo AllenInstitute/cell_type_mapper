@@ -159,6 +159,8 @@ class BackedBinarizedBooleanArray(object):
         Write the current loaded chunk back to disk
         """
         if self._read_only:
+            self.chunk_has_changed = False
+            self.loaded_chunk = None
             return
         if self.loaded_chunk is None:
             return
