@@ -59,6 +59,7 @@ def select_marker_genes_v2(
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
     """
+    t0 = time.time()
 
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
@@ -80,6 +81,9 @@ def select_marker_genes_v2(
             marker_gene_array=marker_gene_array,
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
+
+    duration = (time.time()-t0)/3600.0
+    print(f"preparation took {duration:.2e} hours")
 
     marker_gene_names = _run_selection(
         marker_gene_array=marker_gene_array,
@@ -103,8 +107,6 @@ def _run_selection(
     # the final result
     marker_gene_idx_set = set()
 
-    duration = (time.time()-t0)/3600.0
-    print(f"preparation took {duration:.2e} hours")
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
@@ -144,7 +146,7 @@ def _run_selection(
                   f"in {duration:.2e} hours -- "
                   f"{len(marker_gene_idx_set)} genes -- "
                   + _stats_from_marker_counts(marker_counts)
-                  + f"max_utility {utility_array.max():.2e}")
+                  + f" max_utility {utility_array.max():.2e}")
 
         if been_filled.sum() == been_filled_size:
             # we have found all the genes we need
