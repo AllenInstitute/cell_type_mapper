@@ -97,7 +97,7 @@ def select_marker_genes_v2(
     print(f"preparation took {duration:.2e} hours")
 
     sorted_utility_idx = None
-    filled_sum = 0
+    filled_sum = been_filled.sum()
 
     while True:
 
