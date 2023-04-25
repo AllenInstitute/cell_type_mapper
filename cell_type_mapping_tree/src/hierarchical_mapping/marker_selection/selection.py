@@ -182,6 +182,8 @@ def select_marker_genes_v2(
         marker_gene_array.gene_names[idx]
         for idx in marker_gene_idx_set]
     marker_gene_names.sort()
+    print(f"selected {len(marker_gene_names)} from "
+          f"{marker_gene_array.n_genes}")
     return marker_gene_names
 
 
