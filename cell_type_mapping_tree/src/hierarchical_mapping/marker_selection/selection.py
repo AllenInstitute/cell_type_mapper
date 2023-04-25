@@ -124,7 +124,8 @@ def select_marker_genes_v2(
             duration = (time.time()-t0)/3600.0
             print(f"filled {filled_sum} of {been_filled_size} "
                   f"in {duration:.2e} hours -- "
-                  f"{len(marker_gene_idx_set)} genes")
+                  f"{len(marker_gene_idx_set)} genes -- "
+                  + _stats_from_marker_counts(marker_counts))
 
         if been_filled.sum() == been_filled_size:
             # we have found all the genes we need
@@ -154,6 +155,7 @@ def select_marker_genes_v2(
     print(f"selected {len(marker_gene_names)} from "
           f"{marker_gene_array.n_genes}")
     print(f"filled {been_filled.sum()} of {been_filled_size}")
+    print(_stats_from_marker_counts(marker_counts))
     return marker_gene_names
 
 
@@ -372,3 +374,19 @@ def recalculate_utility_array(
         full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
     utility_array[full_mask] -= 1
     return utility_array
+
+
+def _stats_from_marker_counts(
+        marker_counts):
+    genes_per_pair = marker_counts.sum(axis=1)
+    med_genes = np.median(genes_per_pair)
+    min_genes = genes_per_pair.min()
+    max_genes = genes_per_pair.max()
+    n_zero = (genes_per_pair == 0).sum()
+    lt_5 = (genes_per_pair < 5).sum()
+    lt_15 = (genes_per_pair < 10).sum()
+    lt_30 = (genes_per_pair < 30).sum()
+    msg = f"genes per pair {min_genes} {med_genes} {max_genes} "
+    msg += f"n_zero {n_zero:.2e} n_lt_5 {lt_5:.2e} "
+    msg += f"n_lt15 {lt_15:.2e} n_lt30 {lt_30:.2e}"
+    return msg
