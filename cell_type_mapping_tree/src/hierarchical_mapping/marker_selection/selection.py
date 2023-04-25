@@ -143,7 +143,8 @@ def _run_selection(
             print(f"filled {filled_sum} of {been_filled_size} "
                   f"in {duration:.2e} hours -- "
                   f"{len(marker_gene_idx_set)} genes -- "
-                  + _stats_from_marker_counts(marker_counts))
+                  + _stats_from_marker_counts(marker_counts)
+                  + f"max_utility {utility_array.max():.2e}")
 
         if been_filled.sum() == been_filled_size:
             # we have found all the genes we need
