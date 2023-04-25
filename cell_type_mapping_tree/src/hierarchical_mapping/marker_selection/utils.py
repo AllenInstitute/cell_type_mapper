@@ -243,6 +243,9 @@ def create_utility_array(
     -------
     A numpy array of ints indicating the utility of each gene.
 
+    A numpy of ints indicating how many markers there are for
+    each taxonomy pair.
+
     Notes
     -----
     As implemented, it is assumed that the rows of the arrays in cache_path
@@ -254,6 +257,11 @@ def create_utility_array(
     n_rows = marker_gene_array.n_genes
 
     utility_sum = np.zeros(is_marker.n_rows, dtype=int)
+    if taxonomy_mask is None:
+        n_taxon = n_cols
+    else:
+        n_taxon = len(taxonomy_mask)
+    marker_census = np.zeros(n_taxon, dtype=int)
 
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/n_cols).astype(int))
@@ -265,5 +273,6 @@ def create_utility_array(
         if taxonomy_mask is not None:
             row_batch = row_batch[:, taxonomy_mask]
         utility_sum[row0:row1] = row_batch.sum(axis=1)
+        marker_census += row_batch.sum(axis=0)
 
-    return utility_sum
+    return utility_sum, marker_census

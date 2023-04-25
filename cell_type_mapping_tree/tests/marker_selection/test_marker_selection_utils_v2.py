@@ -108,19 +108,25 @@ def test_create_utility_array(
 
     arr = MarkerGeneArray(cache_path=backed_array_fixture)
 
-    actual = create_utility_array(
+    (actual,
+     actual_census) = create_utility_array(
         marker_gene_array=arr,
         gb_size=gb_size,
         taxonomy_mask=taxonomy_mask)
 
     if taxonomy_mask is None:
         expected = np.sum(mask_array_fixture, axis=1)
+        expected_census = np.sum(mask_array_fixture, axis=0)
     else:
         expected = np.zeros(n_rows, dtype=int)
+        expected_census = np.zeros(len(taxonomy_mask), dtype=int)
         for i_row in range(n_rows):
-            for i_col in taxonomy_mask:
+            for i_taxon, i_col in enumerate(taxonomy_mask):
                 if mask_array_fixture[i_row, i_col]:
                     expected[i_row] += 1
+                    expected_census[i_taxon] += 1
     assert expected.shape == (n_rows, )
     np.testing.assert_array_equal(expected, actual)
     assert expected.sum() > 0
+    np.testing.assert_array_equal(expected_census, actual_census)
+    assert expected_census.sum() > 0
