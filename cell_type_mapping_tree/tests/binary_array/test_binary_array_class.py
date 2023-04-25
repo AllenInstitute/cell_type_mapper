@@ -453,3 +453,36 @@ def test_binary_get_row_batch():
             np.testing.assert_array_equal(
                 batch[i_row-row0, :],
                 expected)
+
+
+def test_downsample_rows():
+    rng = np.random.default_rng(9911)
+    n_rows = 27
+    n_cols = 13
+    data = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
+    arr = BinarizedBooleanArray(
+            n_rows=n_rows,
+            n_cols=n_cols)
+    for i_row in range(n_rows):
+        arr.set_row(i_row, data[i_row, :])
+    for i_col in range(n_cols):
+        np.testing.assert_array_equal(
+            data[:, i_col],
+            arr.get_col(i_col))
+    subsample = np.array([1, 12, 3, 7])
+    arr.downsample_rows(subsample)
+    assert arr.n_cols == n_cols
+    assert arr.n_rows == 4
+    for i_col in range(n_cols):
+        expected = np.array(
+            [data[1, i_col],
+             data[12, i_col],
+             data[3, i_col],
+             data[7, i_col]])
+        actual = arr.get_col(i_col)
+        np.testing.assert_array_equal(actual, expected)
+
+    for ii, i_row in enumerate(subsample):
+        np.testing.assert_array_equal(
+            data[i_row, :],
+            arr.get_row(ii))
