@@ -312,9 +312,7 @@ def _update_been_filled(
     """
     # see if we have completed the desired complement of genes
     # for any taxonomy pair
-    newly_full_mask = np.logical_and(
-                np.logical_not(been_filled),
-                marker_counts >= n_per_utility)
+    newly_full_mask = (marker_counts >= n_per_utility)
 
     # check cases where we have grabbed all the markers we can
     maxed_out = (marker_counts == marker_census)
@@ -332,6 +330,12 @@ def _update_been_filled(
     newly_full_mask = np.logical_or(
         newly_full_mask,
         filled_hopeless)
+
+    # don't correct for pairs that were already marked
+    # as "filled"
+    newly_full_mask = np.logical_and(
+        newly_full_mask,
+        np.logical_not(been_filled))
 
     newly_full = np.where(newly_full_mask)
 
