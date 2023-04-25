@@ -41,13 +41,23 @@ def n_cols():
 def mask_array_fixture(
         n_rows,
         n_cols):
-    rng =np.random.default_rng()
+    rng =np.random.default_rng(554422)
     data = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
     return data
 
 @pytest.fixture
+def up_regulated_fixture(
+        n_rows,
+        n_cols):
+    rng =np.random.default_rng(118823)
+    data = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
+    return data
+
+
+@pytest.fixture
 def backed_array_fixture(
         mask_array_fixture,
+        up_regulated_fixture,
         tmp_dir_fixture,
         n_rows,
         n_cols):
@@ -77,7 +87,7 @@ def backed_array_fixture(
         read_only=False)
 
     for i_col in range(n_cols):
-        arr.set_col(i_col, mask_array_fixture[:, i_col])
+        arr.set_col(i_col, up_regulated_fixture[:, i_col])
 
     del arr
 
@@ -101,8 +111,10 @@ def backed_array_fixture(
                 [None, np.array([13, 22, 81, 37])]))
 def test_create_utility_array(
         mask_array_fixture,
+        up_regulated_fixture,
         backed_array_fixture,
         n_rows,
+        n_cols,
         gb_size,
         taxonomy_mask):
 
@@ -116,15 +128,25 @@ def test_create_utility_array(
 
     if taxonomy_mask is None:
         expected = np.sum(mask_array_fixture, axis=1)
-        expected_census = np.sum(mask_array_fixture, axis=0)
+        expected_census = np.zeros((mask_array_fixture.shape[1], 2), dtype=int)
+        for i_row in range(n_rows):
+            for i_col in range(n_cols):
+                if mask_array_fixture[i_row, i_col]:
+                    if up_regulated_fixture[i_row, i_col]:
+                        expected_census[i_col, 1] += 1
+                    else:
+                        expected_census[i_col, 0] += 1
     else:
         expected = np.zeros(n_rows, dtype=int)
-        expected_census = np.zeros(len(taxonomy_mask), dtype=int)
+        expected_census = np.zeros((len(taxonomy_mask), 2), dtype=int)
         for i_row in range(n_rows):
             for i_taxon, i_col in enumerate(taxonomy_mask):
                 if mask_array_fixture[i_row, i_col]:
                     expected[i_row] += 1
-                    expected_census[i_taxon] += 1
+                    if up_regulated_fixture[i_row, i_col]:
+                        expected_census[i_taxon, 1] += 1
+                    else:
+                        expected_census[i_taxon, 0] += 1
     assert expected.shape == (n_rows, )
     np.testing.assert_array_equal(expected, actual)
     assert expected.sum() > 0
