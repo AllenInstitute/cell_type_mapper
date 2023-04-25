@@ -82,6 +82,12 @@ def select_marker_genes_v2(
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
+    census_sum = np.sum(marker_census, axis=1)
+    min_dex = np.argmin(census_sum)
+    print(f"min census {census_sum.min()}")
+    print(f"at {min_dex}")
+    print(f"which is taxon pair {taxonomy_idx_array[min_dex]}")
+
     duration = (time.time()-t0)/3600.0
     print(f"preparation took {duration:.2e} hours")
 
