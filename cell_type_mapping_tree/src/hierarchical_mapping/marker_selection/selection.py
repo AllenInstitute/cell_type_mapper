@@ -76,20 +76,9 @@ def select_marker_genes_v2(
         dtype=bool)
     taxonomy_mask[taxonomy_idx_array] = True
 
-    # figure out which genes are in both the reference dataset
-    # and the query dataset
-    matched_genes = match_genes(
-        reference_gene_names=marker_gene_array.gene_names,
+    marker_gene_array = _thin_marker_gene_array(
+        marker_gene_array=marker_gene_array,
         query_gene_names=query_gene_names)
-
-    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
-    reference_gene_mask[matched_genes['reference']] = True
-    if reference_gene_mask.sum() == 0:
-        raise RuntimeError(
-            "No gene overlap between reference and query set")
-
-    reference_gene_idx = np.where(reference_gene_mask)[0]
-    marker_gene_array.downsample_genes(reference_gene_idx)
 
     # calculate the initial array indicating how useful each gene
     # (*all* reference genes at this point) is at discriminating
@@ -185,6 +174,44 @@ def select_marker_genes_v2(
     print(f"selected {len(marker_gene_names)} from "
           f"{marker_gene_array.n_genes}")
     return marker_gene_names
+
+
+def _thin_marker_gene_array(
+        marker_gene_array,
+        query_gene_names):
+    """
+    Remove rows that are not in the query gene set from
+    marker_gene_array
+
+    Parameters
+    ----------
+    marker_gene_array:
+        A MarkerGeneArray containing the marker gene data
+        from the reference dataset
+    query_gene_names:
+        List of the names of the genes in the query dataset
+
+    Returns
+    -------
+    marker_gene_array:
+        With only the nodes that overlap with query_gene_naems
+        returned.
+    """
+    # figure out which genes are in both the reference dataset
+    # and the query dataset
+    matched_genes = match_genes(
+        reference_gene_names=marker_gene_array.gene_names,
+        query_gene_names=query_gene_names)
+
+    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
+    reference_gene_mask[matched_genes['reference']] = True
+    if reference_gene_mask.sum() == 0:
+        raise RuntimeError(
+            "No gene overlap between reference and query set")
+
+    reference_gene_idx = np.where(reference_gene_mask)[0]
+    marker_gene_array.downsample_genes(reference_gene_idx)
+    return marker_gene_array
 
 
 def _get_taxonomy_idx(
