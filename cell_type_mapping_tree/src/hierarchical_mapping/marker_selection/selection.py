@@ -93,7 +93,7 @@ def select_marker_genes_v2(
     # between the taxonomy pairs that we cair about
     utility_array = create_utility_array(
             cache_path=marker_gene_array.cache_path,
-            gb_size=10,
+            gb_size=4,
             taxonomy_mask=taxonomy_idx_array)
 
     # mask out the genes which were not matched so that they
