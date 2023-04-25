@@ -118,17 +118,11 @@ def select_marker_genes_v2(
         utility_array[chosen_idx] = 0
 
         # update marker_counts
-        (marker_mask,
-         up_mask) = marker_gene_array.marker_mask_from_gene_idx(
-                         gene_idx=chosen_idx)
-
-        marker_mask = marker_mask[taxonomy_idx_array]
-        up_mask = up_mask[taxonomy_idx_array]
-
-        full_mask = np.logical_and(marker_mask, up_mask)
-        marker_counts[full_mask, 1] += 1
-        full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
-        marker_counts[full_mask, 0] += 1
+        marker_counts = _update_marker_counts(
+            marker_gene_array=marker_gene_array,
+            chosen_gene_idx=chosen_idx,
+            taxonomy_idx_array=taxonomy_idx_array,
+            marker_counts=marker_counts)
 
         # see if we have completed the desired complement of genes
         # for any taxonomy pair
@@ -206,6 +200,49 @@ def _thin_marker_gene_array(
     reference_gene_idx = np.where(reference_gene_mask)[0]
     marker_gene_array.downsample_genes(reference_gene_idx)
     return marker_gene_array
+
+
+def _update_marker_counts(
+        marker_gene_array,
+        chosen_gene_idx,
+        taxonomy_idx_array,
+        marker_counts):
+    """
+    Update marker_counts to reflect the new chosen gene
+
+    Parameters
+    ----------
+    marker_gene_array:
+        A MarkerGeneArray carrying the marker data from the reference
+        dataset
+    chosen_gene_idx:
+        The index of the gene that has been chosen as a the next marker
+    taxonomy_idx_array:
+        Array of pair_idx indicating which taxonomy pairs we need
+        to contrast.
+    marker_counts:
+        A (n_pairs, 2) array indicating how many genes have been
+        chosen for each (taxonomy_pair, sign) combination
+
+    Returns
+    -------
+    marker_counts
+        updated to reflect the newly chosen gene
+    """
+    # update marker_counts
+    (marker_mask,
+     up_mask) = marker_gene_array.marker_mask_from_gene_idx(
+                     gene_idx=chosen_gene_idx)
+
+    marker_mask = marker_mask[taxonomy_idx_array]
+    up_mask = up_mask[taxonomy_idx_array]
+
+    full_mask = np.logical_and(marker_mask, up_mask)
+    marker_counts[full_mask, 1] += 1
+    full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
+    marker_counts[full_mask, 0] += 1
+
+    return marker_counts
 
 
 def _get_taxonomy_idx(
