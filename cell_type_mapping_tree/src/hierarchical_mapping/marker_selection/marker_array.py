@@ -17,6 +17,9 @@ import pathlib
 from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
+from hierarchical_mapping.binary_array.binary_array import (
+    BinarizedBooleanArray)
+
 
 class MarkerGeneArray(object):
     """
@@ -42,7 +45,14 @@ class MarkerGeneArray(object):
             self.taxonomy_pair_to_idx = json.loads(
                 src['pair_to_idx'][()].decode('utf-8'))
             self.n_pairs = src['n_pairs'][()]
+            self.is_marker = BinarizedBooleanArray.from_data_array(
+                data_array=src['markers/data'][()],
+                n_cols=self.n_pairs)
+            self.up_regulated = BinarizedBooleanArray.from_data_array(
+                data_array=src['up_regulated/data'][()],
+                n_cols=self.n_pairs)
 
+        """
         self.is_marker = BackedBinarizedBooleanArray(
             h5_path=self.cache_path,
             h5_group='markers',
@@ -56,6 +66,7 @@ class MarkerGeneArray(object):
             n_rows=self.n_genes,
             n_cols=self.n_pairs,
             read_only=True)
+        """
 
     @property
     def gene_names(self):
