@@ -107,7 +107,6 @@ def _run_selection(
     # the final result
     marker_gene_idx_set = set()
 
-
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
     marker_counts = np.zeros((len(taxonomy_idx_array), 2), dtype=np.uint8)
@@ -137,7 +136,8 @@ def _run_selection(
                  marker_census=marker_census,
                  sorted_utility_idx=sorted_utility_idx,
                  n_per_utility=n_per_utility,
-                 marker_gene_array=marker_gene_array)
+                 marker_gene_array=marker_gene_array,
+                 taxonomy_idx_array=taxonomy_idx_array)
 
         filled_sum = been_filled.sum()
         if filled_sum > filled_sum0:
@@ -269,6 +269,7 @@ def _update_been_filled(
         sorted_utility_idx,
         n_per_utility,
         marker_gene_array,
+        taxonomy_idx_array,
         n_min=5):
     """
     Update stats on which (taxonoy pair, sign) combinations
@@ -299,6 +300,9 @@ def _update_been_filled(
     marker_gene_array:
         A MarkerGeneArray carrying marker data form the
         reference dataset
+    taxonomy_idx_array:
+        The array of integers indicating which taxon pairs
+        we are actually working with
     n_min:
         keep trying until we get at least this many markers
         per pair
@@ -313,6 +317,7 @@ def _update_been_filled(
     sorted_utility_array_idx:
         sorted idices of the utility array
     """
+
     # see if we have completed the desired complement of genes
     # for any taxonomy pair
     newly_full_mask = (marker_counts >= n_per_utility)
@@ -351,7 +356,7 @@ def _update_been_filled(
             utility_array = recalculate_utility_array(
                 utility_array=utility_array,
                 marker_gene_array=marker_gene_array,
-                pair_idx=pair_idx,
+                pair_idx=taxonomy_idx_array[pair_idx],
                 sign=sign)
             been_filled[pair_idx, raw_sign] = True
 
