@@ -165,3 +165,41 @@ def test_marker_mask_from_pair_idx(
         np.testing.assert_array_equal(
             actual_up,
             up_reg_fixture[:, i_col])
+
+def test_marker_downsample_genes(
+        backed_array_fixture,
+        is_marker_fixture,
+        up_reg_fixture,
+        n_cols,
+        n_genes,
+        gene_names_fixture):
+
+    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+    assert arr.n_genes == n_genes
+    assert arr.n_pairs == n_cols
+
+    rng = np.random.default_rng(55123)
+    subsample = rng.choice(np.arange(n_genes), 8, replace=False)
+    arr.downsample_genes(gene_idx_array=subsample)
+    assert arr.n_pairs == n_cols
+    assert arr.n_genes == 8
+    assert arr.gene_names == [gene_names_fixture[ii] for ii in subsample]
+    for ii, i_gene in enumerate(subsample):
+        (marker,
+         up) = arr.marker_mask_from_gene_idx(ii)
+        np.testing.assert_array_equal(
+            marker,
+            is_marker_fixture[i_gene, :])
+        np.testing.assert_array_equal(
+            up,
+            up_reg_fixture[i_gene, :])
+
+    for i_col in range(n_cols):
+        (marker,
+         up) = arr.marker_mask_from_pair_idx(i_col)
+        np.testing.assert_array_equal(
+            marker,
+            is_marker_fixture[subsample, i_col])
+        np.testing.assert_array_equal(
+            up,
+            up_reg_fixture[subsample, i_col])
