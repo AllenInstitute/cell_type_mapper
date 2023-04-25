@@ -84,6 +84,7 @@ def select_marker_genes_v2(
     marker_gene_names = _run_selection(
         marker_gene_array=marker_gene_array,
         utility_array=utility_array,
+        marker_census=marker_census,
         taxonomy_idx_array=taxonomy_idx_array,
         n_per_utility=n_per_utility)
 
@@ -93,6 +94,7 @@ def select_marker_genes_v2(
 def _run_selection(
         marker_gene_array,
         utility_array,
+        marker_census,
         taxonomy_idx_array,
         n_per_utility):
 
@@ -130,6 +132,7 @@ def _run_selection(
                  marker_counts=marker_counts,
                  been_filled=been_filled,
                  utility_array=utility_array,
+                 marker_census=marker_census,
                  sorted_utility_idx=sorted_utility_idx,
                  n_per_utility=n_per_utility,
                  marker_gene_array=marker_gene_array)
@@ -259,9 +262,11 @@ def _update_been_filled(
         marker_counts,
         been_filled,
         utility_array,
+        marker_census,
         sorted_utility_idx,
         n_per_utility,
-        marker_gene_array):
+        marker_gene_array,
+        n_min=5):
     """
     Update stats on which (taxonoy pair, sign) combinations
     have been filled.
@@ -279,6 +284,10 @@ def _update_been_filled(
         (n_genes, ) array of integers indicating how many
         (taxonomy_pair, sign) combinations each gene is a
         marker for
+    marker_census:
+        (n_pairs, 2) array of integers indicating how many
+        markers can be expected for each (taxon_pair, sign)
+        combination
     sorted_utility_idx:
         Sorted indices of utility_array
     n_per_utility:
@@ -287,6 +296,9 @@ def _update_been_filled(
     marker_gene_array:
         A MarkerGeneArray carrying marker data form the
         reference dataset
+    n_min:
+        keep trying until we get at least this many markers
+        per pair
 
     Returns
     -------
@@ -300,10 +312,28 @@ def _update_been_filled(
     """
     # see if we have completed the desired complement of genes
     # for any taxonomy pair
-    newly_full = np.where(
-        np.logical_and(
-            np.logical_not(been_filled),
-            marker_counts >= n_per_utility))
+    newly_full_mask = np.logical_and(
+                np.logical_not(been_filled),
+                marker_counts >= n_per_utility)
+
+    # check cases where we have grabbed all the markers we can
+    maxed_out = (marker_counts == marker_census)
+
+    newly_full_mask = np.logical_or(
+        newly_full_mask,
+        maxed_out)
+
+    # check hopeless cases
+    is_hopeless = (marker_census < n_per_utility)
+    filled_hopeless = np.logical_and(
+        is_hopeless,
+        marker_counts >= n_min)
+
+    newly_full_mask = np.logical_or(
+        newly_full_mask,
+        filled_hopeless)
+
+    newly_full = np.where(newly_full_mask)
 
     # if so, update the utility_array so that taxonomy pairs that
     # already have their full complement of marker genes do not
