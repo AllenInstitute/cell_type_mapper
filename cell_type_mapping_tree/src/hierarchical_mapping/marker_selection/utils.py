@@ -10,9 +10,6 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
-from hierarchical_mapping.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
-
 
 def select_marker_genes(
         score_path,

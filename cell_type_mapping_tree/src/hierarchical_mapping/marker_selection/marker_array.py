@@ -14,9 +14,6 @@ import h5py
 import json
 import pathlib
 
-from hierarchical_mapping.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
-
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
