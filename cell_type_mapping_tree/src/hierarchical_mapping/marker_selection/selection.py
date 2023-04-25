@@ -59,7 +59,6 @@ def select_marker_genes_v2(
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
     """
-    t0 = time.time()
 
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
@@ -82,19 +81,34 @@ def select_marker_genes_v2(
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
-    assert utility_array.shape == (marker_gene_array.n_genes,)
+    marker_gene_names = _run_selection(
+        marker_gene_array=marker_gene_array,
+        utility_array=utility_array,
+        taxonomy_idx_array=taxonomy_idx_array,
+        n_per_utility=n_per_utility)
 
-    # tally how many markers are chosen for each taxonomy pair
-    # (the 2 columns are for up/down distinctions)
-    marker_counts = np.zeros((len(taxonomy_idx_array), 2), dtype=np.uint8)
-    been_filled = np.zeros((len(taxonomy_idx_array), 2), dtype=bool)
-    been_filled_size = been_filled.size
+    return marker_gene_names
+
+
+def _run_selection(
+        marker_gene_array,
+        utility_array,
+        taxonomy_idx_array,
+        n_per_utility):
+
+    t0 = time.time()
 
     # the final result
     marker_gene_idx_set = set()
 
     duration = (time.time()-t0)/3600.0
     print(f"preparation took {duration:.2e} hours")
+
+    # tally how many markers are chosen for each taxonomy pair
+    # (the 2 columns are for up/down distinctions)
+    marker_counts = np.zeros((len(taxonomy_idx_array), 2), dtype=np.uint8)
+    been_filled = np.zeros((len(taxonomy_idx_array), 2), dtype=bool)
+    been_filled_size = been_filled.size
 
     sorted_utility_idx = None
     filled_sum = been_filled.sum()
