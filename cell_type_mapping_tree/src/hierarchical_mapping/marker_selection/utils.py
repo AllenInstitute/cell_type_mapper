@@ -270,6 +270,7 @@ def create_utility_array(
 
     for row0 in range(0, n_rows, batch_size):
         row1 = min(n_rows, row0+batch_size)
+        print(f"rows {row0}:{row1}")
         row_batch = is_marker.get_row_batch(row0, row1)
         if taxonomy_mask is not None:
             row_batch = row_batch[:, taxonomy_mask]
