@@ -69,13 +69,6 @@ def select_marker_genes_v2(
         parent_node=parent_node,
         marker_gene_array=marker_gene_array)
 
-    # mask across all available taxonomy pairs indicating
-    # which ones are actually being considered right now
-    taxonomy_mask = np.zeros(
-        marker_gene_array.n_pairs,
-        dtype=bool)
-    taxonomy_mask[taxonomy_idx_array] = True
-
     marker_gene_array = _thin_marker_gene_array(
         marker_gene_array=marker_gene_array,
         query_gene_names=query_gene_names)
@@ -129,8 +122,8 @@ def select_marker_genes_v2(
          up_mask) = marker_gene_array.marker_mask_from_gene_idx(
                          gene_idx=chosen_idx)
 
-        marker_mask = marker_mask[taxonomy_mask]
-        up_mask = up_mask[taxonomy_mask]
+        marker_mask = marker_mask[taxonomy_idx_array]
+        up_mask = up_mask[taxonomy_idx_array]
 
         full_mask = np.logical_and(marker_mask, up_mask)
         marker_counts[full_mask, 1] += 1
