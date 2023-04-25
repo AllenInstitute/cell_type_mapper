@@ -173,6 +173,7 @@ def select_marker_genes_v2(
     marker_gene_names.sort()
     print(f"selected {len(marker_gene_names)} from "
           f"{marker_gene_array.n_genes}")
+    print(f"filled {been_filled.sum()} of {been_filled_size}")
     return marker_gene_names
 
 
