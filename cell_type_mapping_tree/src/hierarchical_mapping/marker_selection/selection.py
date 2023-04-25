@@ -92,11 +92,11 @@ def select_marker_genes_v2(
     # the final result
     marker_gene_idx_set = set()
 
-    # we will just start at the most useful gene and work our way down
-    sorted_utility_idx = list(np.argsort(utility_array))
-
     duration = (time.time()-t0)/3600.0
     print(f"preparation took {duration:.2e} hours")
+
+    sorted_utility_idx = None
+    filled_sum = 0
 
     while True:
 
@@ -105,6 +105,29 @@ def select_marker_genes_v2(
         # none of the genes left have any utility in the taxonomy pairs
         # we care about
         if utility_array.max() <= 0:
+            break
+
+        filled_sum0 = filled_sum
+
+        (been_filled,
+         utility_array,
+         sorted_utility_idx) = _update_been_filled(
+                 marker_counts=marker_counts,
+                 been_filled=been_filled,
+                 utility_array=utility_array,
+                 sorted_utility_idx=sorted_utility_idx,
+                 n_per_utility=n_per_utility,
+                 marker_gene_array=marker_gene_array)
+
+        filled_sum = been_filled.sum()
+        if filled_sum > filled_sum0:
+            duration = (time.time()-t0)/3600.0
+            print(f"filled {filled_sum} of {been_filled_size} "
+                  f"in {duration:.2e} hours -- "
+                  f"{len(marker_gene_idx_set)} genes")
+
+        if been_filled.sum() == been_filled_size:
+            # we have found all the genes we need
             break
 
         # chose the gene with the largest utility
@@ -122,37 +145,7 @@ def select_marker_genes_v2(
             marker_gene_array=marker_gene_array,
             chosen_gene_idx=chosen_idx,
             taxonomy_idx_array=taxonomy_idx_array,
-            marker_counts=marker_counts)
-
-        # see if we have completed the desired complement of genes
-        # for any taxonomy pair
-        newly_full = np.where(
-            np.logical_and(
-                np.logical_not(been_filled),
-                marker_counts >= n_per_utility))
-
-        # if so, update the utility_array so that taxonomy pairs that
-        # already have their full complement of marker genes do not
-        # contribute to the utility score if genes
-        if len(newly_full[0]) > 0:
-            for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
-                sign = {0: -1, 1: 1}[raw_sign]
-                utility_array = recalculate_utility_array(
-                    utility_array=utility_array,
-                    marker_gene_array=marker_gene_array,
-                    pair_idx=pair_idx,
-                    sign=sign)
-                been_filled[pair_idx, raw_sign] = True
-            sorted_utility_idx = list(np.argsort(utility_array))
-            filled_sum = been_filled.sum()
-            duration = (time.time()-t0)/3600.0
-            print(f"filled {filled_sum} of {been_filled_size} "
-                  f"in {duration:.2e} hours -- "
-                  f"{len(marker_gene_idx_set)} genes")
-
-            if been_filled.sum() == been_filled_size:
-                # we have found all the genes we need
-                break
+            marker_counts=marker_counts,)
 
     marker_gene_names = [
         marker_gene_array.gene_names[idx]
@@ -243,6 +236,75 @@ def _update_marker_counts(
     marker_counts[full_mask, 0] += 1
 
     return marker_counts
+
+
+def _update_been_filled(
+        marker_counts,
+        been_filled,
+        utility_array,
+        sorted_utility_idx,
+        n_per_utility,
+        marker_gene_array):
+    """
+    Update stats on which (taxonoy pair, sign) combinations
+    have been filled.
+
+    Parameters
+    ----------
+    marker_counts:
+        (n_pairs, 2) array indicating how many genes have been
+        selected for each (taxonomy_pair, sign) combination
+    been_filled:
+        (n_pairs, 2) array of booleans indicating which
+        (taxonomy_pair, sign) combinations have had their
+        complement of markers filled
+    utility_array:
+        (n_genes, ) array of integers indicating how many
+        (taxonomy_pair, sign) combinations each gene is a
+        marker for
+    sorted_utility_idx:
+        Sorted indices of utility_array
+    n_per_utility:
+        number of genes to select per (taxonomy_pair, sign)
+        combination
+    marker_gene_array:
+        A MarkerGeneArray carrying marker data form the
+        reference dataset
+
+    Returns
+    -------
+    been_filled:
+        updated for any new combinations that have their complement
+        filled
+    utility_array:
+        updated
+    sorted_utility_array_idx:
+        sorted idices of the utility array
+    """
+    # see if we have completed the desired complement of genes
+    # for any taxonomy pair
+    newly_full = np.where(
+        np.logical_and(
+            np.logical_not(been_filled),
+            marker_counts >= n_per_utility))
+
+    # if so, update the utility_array so that taxonomy pairs that
+    # already have their full complement of marker genes do not
+    # contribute to the utility score if genes
+    if len(newly_full[0]) > 0:
+        for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
+            sign = {0: -1, 1: 1}[raw_sign]
+            utility_array = recalculate_utility_array(
+                utility_array=utility_array,
+                marker_gene_array=marker_gene_array,
+                pair_idx=pair_idx,
+                sign=sign)
+            been_filled[pair_idx, raw_sign] = True
+
+    if len(newly_full[0]) > 0 or sorted_utility_idx is None:
+        sorted_utility_idx = list(np.argsort(utility_array))
+
+    return (been_filled, utility_array, sorted_utility_idx)
 
 
 def _get_taxonomy_idx(
