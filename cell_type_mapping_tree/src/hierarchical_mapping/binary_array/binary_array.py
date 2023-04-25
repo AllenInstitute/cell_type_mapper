@@ -68,6 +68,13 @@ class BinarizedBooleanArray(object):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def downsample_rows(self, row_idx_array):
+        """
+        Downselect the array to the specified rows
+        """
+        self.data = self.data[row_idx_array, :]
+        self.n_rows = len(row_idx_array)
+
     def _col_to_int(self, i_col):
         """
         Convert i_col, the index of the column in the full

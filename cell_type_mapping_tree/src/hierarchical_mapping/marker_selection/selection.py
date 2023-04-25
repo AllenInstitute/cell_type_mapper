@@ -88,17 +88,18 @@ def select_marker_genes_v2(
         raise RuntimeError(
             "No gene overlap between reference and query set")
 
+    reference_gene_idx = np.where(reference_gene_mask)[0]
+    marker_gene_array.downsample_genes(reference_gene_idx)
+
     # calculate the initial array indicating how useful each gene
     # (*all* reference genes at this point) is at discriminating
     # between the taxonomy pairs that we cair about
     utility_array = create_utility_array(
-            cache_path=marker_gene_array.cache_path,
-            gb_size=4,
+            marker_gene_array=marker_gene_array,
+            gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
-    # mask out the genes which were not matched so that they
-    # are not selected
-    utility_array[np.logical_not(reference_gene_mask)] = 0
+    assert utility_array.shape == (marker_gene_array.n_genes,)
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)

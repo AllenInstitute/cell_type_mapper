@@ -68,6 +68,16 @@ class MarkerGeneArray(object):
             read_only=True)
         """
 
+    def downsample_genes(self, gene_idx_array):
+        """
+        Downselect to just the specified genes
+        """
+        self.is_marker.downsample_rows(gene_idx_array)
+        self.up_regulated.downsample_rows(gene_idx_array)
+        self._gene_names = [
+            self._gene_names[ii]
+            for ii in gene_idx_array]
+
     @property
     def gene_names(self):
         return self._gene_names

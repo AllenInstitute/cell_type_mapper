@@ -223,7 +223,7 @@ def _process_rank_chunk(
 
 
 def create_utility_array(
-        cache_path,
+        marker_gene_array,
         gb_size=10,
         taxonomy_mask=None):
     """
@@ -234,8 +234,8 @@ def create_utility_array(
 
     Parameters
     ----------
-    cache_path:
-        path to the file created by markers.find_markers_for_all_taxonomy_pairs
+    marker_gene_array:
+        A MarkerGeneArray
     gb_size:
         Number of gigabytes to load at a time (approximately)
     taxonomy_mask:
@@ -252,16 +252,9 @@ def create_utility_array(
     are genes and the columns are taxonomy pairs
     """
 
-    with h5py.File(cache_path, "r", swmr=True) as src:
-        n_cols = src['n_pairs'][()]
-        n_rows = len(json.loads(src['gene_names'][()].decode('utf-8')))
-
-    is_marker = BackedBinarizedBooleanArray(
-        h5_path=cache_path,
-        h5_group='markers',
-        n_rows=n_rows,
-        n_cols=n_cols,
-        read_only=True)
+    is_marker = marker_gene_array.is_marker
+    n_cols = marker_gene_array.n_pairs
+    n_rows = marker_gene_array.n_genes
 
     utility_sum = np.zeros(is_marker.n_rows, dtype=int)
 

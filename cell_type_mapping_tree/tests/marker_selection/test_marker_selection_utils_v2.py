@@ -13,6 +13,9 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
+from hierarchical_mapping.marker_selection.marker_array import (
+    MarkerGeneArray)
+
 from hierarchical_mapping.marker_selection.utils import (
     create_utility_array)
 
@@ -66,12 +69,28 @@ def backed_array_fixture(
 
     del arr
 
+    arr = BackedBinarizedBooleanArray(
+        h5_path=h5_path,
+        h5_group='up_regulated',
+        n_rows=n_rows,
+        n_cols=n_cols,
+        read_only=False)
+
+    for i_col in range(n_cols):
+        arr.set_col(i_col, mask_array_fixture[:, i_col])
+
+    del arr
+
+
     with h5py.File(h5_path, "a") as out_file:
         out_file.create_dataset('n_pairs', data=n_cols)
         out_file.create_dataset(
             'gene_names',
             data=json.dumps(
                 [f"g_{ii}" for ii in range(n_rows)]).encode('utf-8'))
+        out_file.create_dataset(
+            'pair_to_idx',
+            data=json.dumps({'a': 1, 'b':2}).encode('utf-8'))
 
     return h5_path
 
@@ -87,8 +106,10 @@ def test_create_utility_array(
         gb_size,
         taxonomy_mask):
 
+    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+
     actual = create_utility_array(
-        cache_path=backed_array_fixture,
+        marker_gene_array=arr,
         gb_size=gb_size,
         taxonomy_mask=taxonomy_mask)
 
