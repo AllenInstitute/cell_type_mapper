@@ -52,22 +52,6 @@ class MarkerGeneArray(object):
                 data_array=src['up_regulated/data'][()],
                 n_cols=self.n_pairs)
 
-        """
-        self.is_marker = BackedBinarizedBooleanArray(
-            h5_path=self.cache_path,
-            h5_group='markers',
-            n_rows=self.n_genes,
-            n_cols=self.n_pairs,
-            read_only=True)
-
-        self.up_regulated = BackedBinarizedBooleanArray(
-            h5_path=self.cache_path,
-            h5_group='up_regulated',
-            n_rows=self.n_genes,
-            n_cols=self.n_pairs,
-            read_only=True)
-        """
-
     def downsample_genes(self, gene_idx_array):
         """
         Downselect to just the specified genes
