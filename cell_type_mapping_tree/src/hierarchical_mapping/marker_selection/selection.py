@@ -139,6 +139,19 @@ def _run_selection(
 
     filled_sum = been_filled.sum()
 
+    (marker_gene_idx_set,
+     utility_array,
+     sorted_utility_idx,
+     marker_counts) = _choose_desperate_markers(
+        marker_gene_idx_set=marker_gene_idx_set,
+        utility_array=utility_array,
+        sorted_utility_idx=sorted_utility_idx,
+        marker_gene_array=marker_gene_array,
+        marker_counts=marker_counts,
+        taxonomy_idx_array=taxonomy_idx_array,
+        marker_census=marker_census,
+        n_per_utility=n_per_utility)
+
     while True:
 
         # because the utility_array for genes that are not in the query
@@ -222,6 +235,48 @@ def _choose_gene(
         chosen_gene_idx=chosen_idx,
         taxonomy_idx_array=taxonomy_idx_array,
         marker_counts=marker_counts)
+
+    return (marker_gene_idx_set,
+            utility_array,
+            sorted_utility_idx,
+            marker_counts)
+
+
+def _choose_desperate_markers(
+        marker_gene_idx_set,
+        utility_array,
+        sorted_utility_idx,
+        marker_gene_array,
+        marker_counts,
+        taxonomy_idx_array,
+        marker_census,
+        n_per_utility):
+    """
+    Find cases where a taxonomy_pair cannot match 2*n_per_utility
+    markers. Select all of the markers for those genes.
+    """
+    total_markers = marker_census.sum(axis=1)
+    desperate_cases = np.where(total_markers < 2*n_per_utility)[0]
+    for local_idx in desperate_cases:
+        global_idx = taxonomy_idx_array[local_idx]
+        (marker_mask,
+         _) = marker_gene_array.marker_mask_from_pair_idx(
+                 pair_idx=global_idx)
+        valid_genes = np.where(marker_mask)[0]
+        for gene_idx in valid_genes:
+            if gene_idx in marker_gene_idx_set:
+                continue
+
+            (marker_gene_idx_set,
+             utility_array,
+             sorted_utility_idx,
+             marker_counts) = _choose_gene(
+                    marker_gene_idx_set=marker_gene_idx_set,
+                    utility_array=utility_array,
+                    sorted_utility_idx=sorted_utility_idx,
+                    marker_gene_array=marker_gene_array,
+                    marker_counts=marker_counts,
+                    taxonomy_idx_array=taxonomy_idx_array)
 
     return (marker_gene_idx_set,
             utility_array,
