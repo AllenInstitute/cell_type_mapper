@@ -77,7 +77,8 @@ def select_marker_genes_v2(
     # (*all* reference genes at this point) is at discriminating
     # between the taxonomy pairs that we cair about
     (utility_array,
-     marker_census) = create_utility_array(
+     marker_census,
+     taxon_scores) = create_utility_array(
             marker_gene_array=marker_gene_array,
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
@@ -95,6 +96,7 @@ def select_marker_genes_v2(
         marker_gene_array=marker_gene_array,
         utility_array=utility_array,
         marker_census=marker_census,
+        taxon_scores=taxon_scores,
         taxonomy_idx_array=taxonomy_idx_array,
         n_per_utility=n_per_utility)
 
@@ -105,6 +107,7 @@ def _run_selection(
         marker_gene_array,
         utility_array,
         marker_census,
+        taxon_scores,
         taxonomy_idx_array,
         n_per_utility):
 
@@ -140,6 +143,7 @@ def _run_selection(
                  been_filled=been_filled,
                  utility_array=utility_array,
                  marker_census=marker_census,
+                 taxon_scores=taxon_scores,
                  sorted_utility_idx=sorted_utility_idx,
                  n_per_utility=n_per_utility,
                  marker_gene_array=marker_gene_array,
@@ -166,7 +170,7 @@ def _run_selection(
         marker_gene_idx_set.add(chosen_idx)
 
         # so we do not choose this gene again
-        utility_array[chosen_idx] = 0
+        utility_array[chosen_idx] = -1.0
 
         # update marker_counts
         marker_counts = _update_marker_counts(
@@ -272,6 +276,7 @@ def _update_been_filled(
         been_filled,
         utility_array,
         marker_census,
+        taxon_scores,
         sorted_utility_idx,
         n_per_utility,
         marker_gene_array,
@@ -298,6 +303,9 @@ def _update_been_filled(
         (n_pairs, 2) array of integers indicating how many
         markers can be expected for each (taxon_pair, sign)
         combination
+    taxon_scores
+        (n_pairs, 2) array of utility scores given to each
+        (taxonomy_pair, sign) combination
     sorted_utility_idx:
         Sorted indices of utility_array
     n_per_utility:
@@ -359,9 +367,11 @@ def _update_been_filled(
     if len(newly_full[0]) > 0:
         for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
             sign = {0: -1, 1: 1}[raw_sign]
+            this_score = taxon_scores[pair_idx, raw_sign]
             utility_array = recalculate_utility_array(
                 utility_array=utility_array,
                 marker_gene_array=marker_gene_array,
+                taxon_score=this_score,
                 pair_idx=taxonomy_idx_array[pair_idx],
                 sign=sign)
             been_filled[pair_idx, raw_sign] = True
@@ -400,12 +410,16 @@ def _get_taxonomy_idx(
 def recalculate_utility_array(
         utility_array,
         marker_gene_array,
+        taxon_score,
         pair_idx,
         sign):
     """
     utility_array is existing utility array
 
     marker_gene_array is a MarkerGeneArray
+
+    taxon_score is the utility score of the (taxon pair, sign)
+    combination
 
     pair_idx is the index of the taxonomy pair that has been fulfilled
 
@@ -435,7 +449,7 @@ def recalculate_utility_array(
         full_mask = np.logical_and(marker_mask, up_mask)
     else:
         full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
-    utility_array[full_mask] -= 1
+    utility_array[full_mask] -= taxon_score
     return utility_array
 
 
