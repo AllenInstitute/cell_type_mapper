@@ -291,13 +291,29 @@ def create_utility_array(
 
     t0 = time.time()
     scores = np.zeros(marker_census.shape, dtype=float)
-    unq_score = np.sort(np.unique(marker_census.flatten()))
-    for ct, ii in enumerate(range(len(unq_score)-1, -1, -1)):
+    (unq_score,
+     unq_ct) = np.unique(marker_census.flatten(), return_counts=True)
+
+    total_elements = marker_census.size
+    assert total_elements == unq_ct.sum()
+    log_bonus_max = np.log10(marker_census.size**2)
+
+    for ii, val in enumerate(unq_score):
         val = unq_score[ii]
         if val == 0:
             continue
-        valid = np.where(marker_census == val)
-        scores[valid] = ct+1
+        valid = (marker_census == val)
+        current_score = len(unq_score) - ii
+        running_ct = unq_ct[:ii].sum()
+
+        n_log = running_ct//(total_elements//10)
+        bonus = np.power(10, log_bonus_max-2*n_log)
+        current_score += bonus
+
+        scores[valid] = current_score
+        assert current_score > 0
+        print(f"{val}, {current_score:.2e} -- {valid.sum()} elements")
+
     del unq_score
     duration = (time.time()-t0)
     print(f"got scores in {duration:.2e} seconds")
