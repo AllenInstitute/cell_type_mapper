@@ -270,7 +270,7 @@ def create_utility_array(
     marker_census = np.zeros((n_taxon, 2), dtype=int)
 
     byte_size = gb_size*1024**3
-    batch_size = max(1, np.round(byte_size/n_cols).astype(int))
+    batch_size = max(1, np.round(byte_size/(17*n_cols)).astype(int))
 
     for row0 in range(0, n_rows, batch_size):
         row1 = min(n_rows, row0+batch_size)
@@ -299,6 +299,8 @@ def create_utility_array(
     # to is scored according to how rare it is. Rarer combinations
     # get a higher score.
     utility_sum = np.zeros(is_marker.n_rows, dtype=float)
+    pos_scores = np.vstack([scores[:, 1]]*batch_size)
+    neg_scores = np.vstack([scores[:, 0]]*batch_size)
 
     for row0 in range(0, n_rows, batch_size):
         row1 = min(n_rows, row0+batch_size)
@@ -309,19 +311,13 @@ def create_utility_array(
             marker_batch = marker_batch[:, taxonomy_mask]
             up_reg_batch = up_reg_batch[:, taxonomy_mask]
 
-        pos_idx = np.where(np.logical_and(marker_batch,
-                                          up_reg_batch))
-        for unqp0 in np.unique(pos_idx[0]):
-            valid = np.where(pos_idx[0] == unqp0)
-            this_sum = scores[pos_idx[1][valid], 1].sum()
-            utility_sum[row0+unqp0] += this_sum
-
-        neg_idx = np.where(np.logical_and(marker_batch,
-                                          np.logical_not(up_reg_batch)))
-
-        for unqn0 in np.unique(neg_idx[0]):
-            valid = np.where(neg_idx[0] == unqn0)
-            this_sum = scores[neg_idx[1][valid], 0].sum()
-            utility_sum[row0+unqn0] += this_sum
+        pos_mask = np.logical_and(marker_batch,
+                                  up_reg_batch)
+        utility_sum[row0:row1] += (pos_scores[:row1-row0, :]
+                                   * pos_mask).sum(axis=1)
+        neg_mask = np.logical_and(marker_batch,
+                                  np.logical_not(up_reg_batch))
+        utility_sum[row0:row1] += (neg_scores[:row1-row0, :]
+                                   * neg_mask).sum(axis=1)
 
     return utility_sum, marker_census, scores
