@@ -2,6 +2,7 @@ import h5py
 import json
 import numpy as np
 import multiprocessing
+import time
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list,
@@ -272,6 +273,7 @@ def create_utility_array(
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/(17*n_cols)).astype(int))
 
+    t0 = time.time()
     for row0 in range(0, n_rows, batch_size):
         row1 = min(n_rows, row0+batch_size)
         up_reg_batch = up_regulated.get_row_batch(row0, row1)
@@ -284,7 +286,10 @@ def create_utility_array(
         marker_census[:, 0] += (np.logical_not(up_reg_batch)
                                 * marker_batch).sum(axis=0)
         marker_census[:, 1] += (up_reg_batch*marker_batch).sum(axis=0)
+    duration = (time.time()-t0)
+    print(f"got census in {duration:.2e} seconds")
 
+    t0 = time.time()
     scores = np.zeros(marker_census.shape, dtype=float)
     unq_score = np.sort(np.unique(marker_census.flatten()))
     for ct, ii in enumerate(range(len(unq_score)-1, -1, -1)):
@@ -294,7 +299,11 @@ def create_utility_array(
         valid = np.where(marker_census == val)
         scores[valid] = ct+1
     del unq_score
+    duration = (time.time()-t0)
+    print(f"got scores in {duration:.2e} seconds")
 
+    t0 = time.time()
+    ct = 0
     # Every (taxon pair, sign) combination the gene contributes
     # to is scored according to how rare it is. Rarer combinations
     # get a higher score.
@@ -319,5 +328,10 @@ def create_utility_array(
                                   np.logical_not(up_reg_batch))
         utility_sum[row0:row1] += (neg_scores[:row1-row0, :]
                                    * neg_mask).sum(axis=1)
+
+        ct += (row1-row0)
+        duration = time.time()-t0
+        print(f"got {ct} rows in {duration:.2e} seconds -- "
+              f"{duration/ct:.2e} per row")
 
     return utility_sum, marker_census, scores
