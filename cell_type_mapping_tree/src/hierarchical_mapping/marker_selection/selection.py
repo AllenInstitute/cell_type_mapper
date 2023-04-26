@@ -353,6 +353,23 @@ def _update_been_filled(
         newly_full_mask,
         filled_hopeless)
 
+    # grab taxons where there are 2*n_per_utility markers
+    # for the whole pair (+ and -) and at least a quarter
+    # are in both (+ and -)
+    de_facto_pair = (marker_counts.sum(axis=1) >= (2*n_per_utility))
+    halfway_there = (marker_counts >= (n_per_utility//2))
+    halfway_there = np.logical_and(halfway_there[:, 0],
+                                   halfway_there[:, 1])
+    de_facto_pair = np.logical_and(
+        halfway_there,
+        de_facto_pair)
+
+    n0 = newly_full_mask.sum()
+    newly_full_mask = np.logical_or(
+        newly_full_mask,
+        np.array([de_facto_pair, de_facto_pair]).transpose())
+    print(f"de facto added {newly_full_mask.sum()-n0}")
+
     # don't correct for pairs that were already marked
     # as "filled"
     newly_full_mask = np.logical_and(
