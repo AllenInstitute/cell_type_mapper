@@ -80,7 +80,7 @@ def select_marker_genes_v2(
      marker_census,
      taxon_scores) = create_utility_array(
             marker_gene_array=marker_gene_array,
-            gb_size=10,
+            gb_size=30,
             taxonomy_mask=taxonomy_idx_array)
 
     census_sum = np.sum(marker_census, axis=1)
