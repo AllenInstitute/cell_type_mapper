@@ -122,7 +122,21 @@ def _run_selection(
     been_filled = np.zeros((len(taxonomy_idx_array), 2), dtype=bool)
     been_filled_size = been_filled.size
 
-    sorted_utility_idx = None
+    # first pass (will mostly mark off those taxon pair that
+    # have zero markers)
+    (been_filled,
+     utility_array,
+     sorted_utility_idx) = _update_been_filled(
+             marker_counts=marker_counts,
+             been_filled=been_filled,
+             utility_array=utility_array,
+             marker_census=marker_census,
+             taxon_scores=taxon_scores,
+             sorted_utility_idx=None,
+             n_per_utility=n_per_utility,
+             marker_gene_array=marker_gene_array,
+             taxonomy_idx_array=taxonomy_idx_array)
+
     filled_sum = been_filled.sum()
 
     while True:
@@ -162,22 +176,16 @@ def _run_selection(
             # we have found all the genes we need
             break
 
-        # chose the gene with the largest utility
-        chosen_idx = sorted_utility_idx.pop(-1)
-        if chosen_idx in marker_gene_idx_set:
-            raise RuntimeError(
-                f"Something is wrong; chose gene {chosen_idx} twice")
-        marker_gene_idx_set.add(chosen_idx)
-
-        # so we do not choose this gene again
-        utility_array[chosen_idx] = -1.0
-
-        # update marker_counts
-        marker_counts = _update_marker_counts(
-            marker_gene_array=marker_gene_array,
-            chosen_gene_idx=chosen_idx,
-            taxonomy_idx_array=taxonomy_idx_array,
-            marker_counts=marker_counts,)
+        (marker_gene_idx_set,
+         utility_array,
+         sorted_utility_idx,
+         marker_counts) = _choose_gene(
+             marker_gene_idx_set=marker_gene_idx_set,
+             utility_array=utility_array,
+             sorted_utility_idx=sorted_utility_idx,
+             marker_gene_array=marker_gene_array,
+             marker_counts=marker_counts,
+             taxonomy_idx_array=taxonomy_idx_array)
 
     marker_gene_names = [
         marker_gene_array.gene_names[idx]
@@ -188,6 +196,37 @@ def _run_selection(
     print(f"filled {been_filled.sum()} of {been_filled_size}")
     print(_stats_from_marker_counts(marker_counts))
     return marker_gene_names
+
+
+def _choose_gene(
+        marker_gene_idx_set,
+        utility_array,
+        sorted_utility_idx,
+        marker_gene_array,
+        marker_counts,
+        taxonomy_idx_array):
+
+    # chose the gene with the largest utility
+    chosen_idx = sorted_utility_idx.pop(-1)
+    if chosen_idx in marker_gene_idx_set:
+        raise RuntimeError(
+            f"Something is wrong; chose gene {chosen_idx} twice")
+    marker_gene_idx_set.add(chosen_idx)
+
+    # so we do not choose this gene again
+    utility_array[chosen_idx] = -1.0
+
+    # update marker_counts
+    marker_counts = _update_marker_counts(
+        marker_gene_array=marker_gene_array,
+        chosen_gene_idx=chosen_idx,
+        taxonomy_idx_array=taxonomy_idx_array,
+        marker_counts=marker_counts)
+
+    return (marker_gene_idx_set,
+            utility_array,
+            sorted_utility_idx,
+            marker_counts)
 
 
 def _thin_marker_gene_array(
