@@ -115,21 +115,23 @@ def expected_utility_score(
         mask_array = mask_array[:, taxonomy_idx]
         up_regulated = up_regulated[:, taxonomy_idx]
 
-    unq_census_values, unq_ct = np.unique(census, return_counts=True)
-    np.testing.assert_array_equal(unq_census_values, np.sort(unq_census_values))
+    #census = np.zeros((mask_array.shape[1], 2), dtype=int)
+    #for i_row in range(mask_array.shape[0]):
+    #    for i_col in range(mask_array.shape[1]):
+    #        if mask_array[i_row, i_col]:
+    #            if up_regulated[i_row, i_col]:
+    #                census[i_col, 1] += 1
+    #            else:
+    #                census[i_col, 0] += 1
+
+    unq_census_values = np.sort(np.unique(census))
     value_to_score = dict()
     value_to_score[0] = 0.0
-
-    max_log_bonus = np.log10((census.shape[0]*census.shape[1])**2)
-
-    for ii, val in enumerate(unq_census_values):
+    for ct, ii in enumerate(range(len(unq_census_values)-1, -1, -1)):
+        val = unq_census_values[ii]
         if val == 0:
             continue
-        this_score = len(unq_census_values) - ii
-        ct = unq_ct[:ii].sum()
-        n_log = ct//(census.size//10)
-        bonus = np.power(10, max_log_bonus-2*n_log)
-        value_to_score[val] = this_score + bonus
+        value_to_score[val] = float(ct+1)
 
     scores = np.zeros(census.shape, dtype=float)
     for i_row in range(census.shape[0]):
