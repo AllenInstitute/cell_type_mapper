@@ -12,6 +12,7 @@ selects marker genes for a given query dataset.
 
 import h5py
 import json
+import numpy as np
 import pathlib
 
 from hierarchical_mapping.binary_array.binary_array import (
@@ -29,8 +30,12 @@ class MarkerGeneArray(object):
     cache_path:
         path to the file created by
         diff_exp.markers.find_markers_for_all_taxonomy_pairs
+
+    only_keep_pairs:
+        If not None, a list of (level, node1, node2) pairs that
+        will be the only taxonomy pairs kept in this MarkerGeneArray
     """
-    def __init__(self, cache_path):
+    def __init__(self, cache_path, only_keep_pairs=None):
         self.cache_path = pathlib.Path(cache_path)
         if not self.cache_path.is_file():
             raise RuntimeError(
@@ -41,13 +46,42 @@ class MarkerGeneArray(object):
                 src['gene_names'][()].decode('utf-8'))
             self.taxonomy_pair_to_idx = json.loads(
                 src['pair_to_idx'][()].decode('utf-8'))
+
+            if only_keep_pairs is not None:
+                col_idx = np.array(
+                    [self.idx_of_pair(
+                        pair[0],
+                        pair[1],
+                        pair[2])
+                     for pair in only_keep_pairs])
+
             self.n_pairs = src['n_pairs'][()]
+
             self.is_marker = BinarizedBooleanArray.from_data_array(
                 data_array=src['markers/data'][()],
                 n_cols=self.n_pairs)
+
+            if only_keep_pairs is not None:
+                self.is_marker.downsample_columns(col_idx)
+
             self.up_regulated = BinarizedBooleanArray.from_data_array(
                 data_array=src['up_regulated/data'][()],
                 n_cols=self.n_pairs)
+
+            if only_keep_pairs is not None:
+                self.up_regulated.downsample_columns(col_idx)
+                self.n_pairs = len(col_idx)
+                new_lookup = dict()
+                for ii, pair in enumerate(only_keep_pairs):
+                    level = pair[0]
+                    node1 = pair[1]
+                    node2 = pair[2]
+                    if level not in new_lookup:
+                        new_lookup[level] = dict()
+                    if node1 not in new_lookup[level]:
+                        new_lookup[level][node1] = dict()
+                    new_lookup[level][node1][node2] = ii
+                self.taxonomy_pair_to_idx = new_lookup
 
     def downsample_genes(self, gene_idx_array):
         """

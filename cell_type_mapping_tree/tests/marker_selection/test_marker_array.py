@@ -4,6 +4,7 @@ import h5py
 import json
 import numpy as np
 import pathlib
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -203,3 +204,44 @@ def test_marker_downsample_genes(
         np.testing.assert_array_equal(
             up,
             up_reg_fixture[subsample, i_col])
+
+
+def test_downsampling_by_taxon_pairs(
+       backed_array_fixture,
+       pair_to_idx_fixture):
+    base_array = MarkerGeneArray(cache_path=backed_array_fixture)
+    pairs_to_keep = [('level2', 'e', 'g'), ('level1', 'dd', 'ff'),
+                     ('level2', 'a', 'c')]
+    test_array = MarkerGeneArray(
+            cache_path=backed_array_fixture,
+            only_keep_pairs=pairs_to_keep)
+
+    assert test_array.n_genes == base_array.n_genes
+    assert test_array.n_pairs == len(pairs_to_keep)
+    assert test_array.n_pairs < base_array.n_pairs
+    for ii, pair in enumerate(pairs_to_keep):
+        base_idx = base_array.idx_of_pair(
+            pair[0],
+            pair[1],
+            pair[2])
+        base_m, base_u = base_array.marker_mask_from_pair_idx(base_idx)
+        test_m, test_u = test_array.marker_mask_from_pair_idx(ii)
+        np.testing.assert_array_equal(test_m, base_m)
+        np.testing.assert_array_equal(test_u, base_u)
+
+        assert test_array.idx_of_pair(
+                    pair[0],
+                    pair[1],
+                    pair[2]) == ii
+
+    for level in pair_to_idx_fixture:
+        for node1 in pair_to_idx_fixture[level]:
+            for node2 in pair_to_idx_fixture[level][node1]:
+                pair = (level, node1, node2)
+                if pair not in pairs_to_keep:
+                    with pytest.raises(RuntimeError, match='taxonomy'):
+                        test_array.idx_of_pair(
+                            pair[0], pair[1], pair[2])
+                else:
+                    test_array.idx_of_pair(
+                        pair[0], pair[1], pair[2])
