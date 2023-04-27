@@ -310,9 +310,10 @@ def create_utility_array(
         bonus = np.power(10, log_bonus_max-2*n_log)
         current_score += bonus
 
-        scores[valid] = current_score
-        assert current_score > 0
-        print(f"{val}, {current_score:.2e} -- {valid.sum()} elements")
+        scores[valid] = 1
+        #scores[valid] = current_score
+        #assert current_score > 0
+        #print(f"{val}, {current_score:.2e} -- {valid.sum()} elements")
 
     del unq_score
     duration = (time.time()-t0)
