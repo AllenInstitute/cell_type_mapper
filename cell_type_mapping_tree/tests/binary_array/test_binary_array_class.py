@@ -496,7 +496,7 @@ def test_downsample_columns():
     arr = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols)
     for i_row in range(n_rows):
         arr.set_row(i_row, baseline[i_row, :])
-    chosen_cols = np.array([1, 5, 13, 17, 26, 31, 32, 33, 41, 43, 45])
+    chosen_cols = np.array([26, 1, 5, 13, 17, 31, 32, 33, 41, 43, 45])
     arr.downsample_columns(chosen_cols)
     assert arr.n_cols == len(chosen_cols)
     assert arr.n_cols < n_cols

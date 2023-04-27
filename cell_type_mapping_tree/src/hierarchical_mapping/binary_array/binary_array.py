@@ -79,9 +79,6 @@ class BinarizedBooleanArray(object):
         """
         Downselect the array to the specified columns
         """
-        if not np.array_equal(col_idx_array, np.sort(col_idx_array)):
-            raise RuntimeError(
-                "col_idx_array must be sorted")
 
         new_n_cols = len(col_idx_array)
         new_n_ints = n_int_from_n_cols(new_n_cols)
