@@ -170,10 +170,9 @@ def test_recalculate_utilty_array(
         utility_array=util,
         marker_gene_array=arr,
         pair_idx=4,
-        taxon_score=5,
         sign=-1)
     expected = np.zeros(n_genes, dtype=int)
-    expected[3] = -5
+    expected[3] = -1
     np.testing.assert_array_equal(expected, util)
 
     util = np.zeros(n_genes, dtype=int)
@@ -181,11 +180,10 @@ def test_recalculate_utilty_array(
         utility_array=util,
         marker_gene_array=arr,
         pair_idx=4,
-        taxon_score=3,
         sign=1)
     expected = np.zeros(n_genes, dtype=int)
-    expected[2] = -3
-    expected[11] = -3
+    expected[2] = -1
+    expected[11] = -1
     np.testing.assert_array_equal(expected, util)
 
     with pytest.raises(RuntimeError, match="Unclear how to interpret sign"):
@@ -193,7 +191,6 @@ def test_recalculate_utilty_array(
             utility_array=util,
             marker_gene_array=arr,
             pair_idx=4,
-            taxon_score=6,
             sign=3)
 
 def test_get_taxonomy_idx(

@@ -105,49 +105,6 @@ def backed_array_fixture(
     return h5_path
 
 
-def expected_utility_score(
-        mask_array,
-        up_regulated,
-        taxonomy_idx,
-        census):
-
-    if taxonomy_idx is not None:
-        mask_array = mask_array[:, taxonomy_idx]
-        up_regulated = up_regulated[:, taxonomy_idx]
-
-    #census = np.zeros((mask_array.shape[1], 2), dtype=int)
-    #for i_row in range(mask_array.shape[0]):
-    #    for i_col in range(mask_array.shape[1]):
-    #        if mask_array[i_row, i_col]:
-    #            if up_regulated[i_row, i_col]:
-    #                census[i_col, 1] += 1
-    #            else:
-    #                census[i_col, 0] += 1
-
-    unq_census_values = np.sort(np.unique(census))
-    value_to_score = dict()
-    value_to_score[0] = 0.0
-    for ct, ii in enumerate(range(len(unq_census_values)-1, -1, -1)):
-        val = unq_census_values[ii]
-        if val == 0:
-            continue
-        value_to_score[val] = float(ct+1)
-
-    scores = np.zeros(census.shape, dtype=float)
-    for i_row in range(census.shape[0]):
-        for i_col in range(census.shape[1]):
-            scores[i_row, i_col] = value_to_score[census[i_row, i_col]]
-
-    utility = np.zeros(mask_array.shape[0], dtype=float)
-    for i_row in range(mask_array.shape[0]):
-        for i_col in range(mask_array.shape[1]):
-            if mask_array[i_row, i_col]:
-                if up_regulated[i_row, i_col]:
-                    utility[i_row] += value_to_score[census[i_col, 1]]
-                else:
-                    utility[i_row] += value_to_score[census[i_col, 0]]
-    return utility, scores
-
 @pytest.mark.parametrize(
         "gb_size, taxonomy_mask",
         product([1, 1.0e-7],
@@ -164,13 +121,13 @@ def test_create_utility_array(
     arr = MarkerGeneArray(cache_path=backed_array_fixture)
 
     (actual_util,
-     actual_census,
-     actual_scores) = create_utility_array(
+     actual_census) = create_utility_array(
         marker_gene_array=arr,
         gb_size=gb_size,
         taxonomy_mask=taxonomy_mask)
 
     if taxonomy_mask is None:
+        expected_util = np.sum(mask_array_fixture, axis=1)
         expected_census = np.zeros((mask_array_fixture.shape[1], 2), dtype=int)
         for i_row in range(n_rows):
             for i_col in range(n_cols):
@@ -180,34 +137,21 @@ def test_create_utility_array(
                     else:
                         expected_census[i_col, 0] += 1
     else:
+        expected_util = np.zeros(n_rows, dtype=int)
         expected_census = np.zeros((len(taxonomy_mask), 2), dtype=int)
         for i_row in range(n_rows):
             for i_taxon, i_col in enumerate(taxonomy_mask):
                 if mask_array_fixture[i_row, i_col]:
+                    expected_util[i_row] += 1
                     if up_regulated_fixture[i_row, i_col]:
                         expected_census[i_taxon, 1] += 1
                     else:
                         expected_census[i_taxon, 0] += 1
 
-    (expected_util,
-     expected_scores) = expected_utility_score(
-        mask_array=mask_array_fixture,
-        up_regulated=up_regulated_fixture,
-        taxonomy_idx=taxonomy_mask,
-        census=expected_census)
-
     np.testing.assert_array_equal(expected_census, actual_census)
     assert expected_census.sum() > 0
 
     assert expected_util.shape == (n_rows, )
-    np.testing.assert_allclose(expected_util,
-                               actual_util,
-                               atol=0.0,
-                               rtol=1.0e-6)
+    np.testing.assert_array_equal(expected_util,
+                                  actual_util)
     assert expected_util.sum() > 0
-
-    np.testing.assert_allclose(
-        expected_scores,
-        actual_scores,
-        atol=0.0,
-        rtol=1.0e-7)

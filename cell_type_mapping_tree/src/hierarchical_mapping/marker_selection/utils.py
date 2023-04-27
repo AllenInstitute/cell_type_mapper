@@ -249,10 +249,6 @@ def create_utility_array(
         A numpy of ints indicating how many markers there are for
         each (taxonomy pair, sign) combination.
 
-    taxon_score
-        A numpy array of ints indicating the utility scores
-        afforded to each (taxonomy pair, sign) combination
-
     Notes
     -----
     As implemented, it is assumed that the rows of the arrays in cache_path
@@ -269,6 +265,7 @@ def create_utility_array(
     else:
         n_taxon = len(taxonomy_mask)
     marker_census = np.zeros((n_taxon, 2), dtype=int)
+    utility_sum = np.zeros(is_marker.n_rows, dtype=int)
 
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/n_cols).astype(int))
@@ -283,59 +280,11 @@ def create_utility_array(
             marker_batch = marker_batch[:, taxonomy_mask]
             up_reg_batch = up_reg_batch[:, taxonomy_mask]
 
+        utility_sum[row0:row1] = marker_batch.sum(axis=1)
         marker_census[:, 0] += (np.logical_not(up_reg_batch)
                                 * marker_batch).sum(axis=0)
         marker_census[:, 1] += (up_reg_batch*marker_batch).sum(axis=0)
     duration = (time.time()-t0)
     print(f"got census in {duration:.2e} seconds")
 
-    t0 = time.time()
-    scores = np.zeros(marker_census.shape, dtype=float)
-    unq_score = np.sort(np.unique(marker_census.flatten()))
-    for ct, ii in enumerate(range(len(unq_score)-1, -1, -1)):
-        val = unq_score[ii]
-        if val == 0:
-            continue
-        valid = np.where(marker_census == val)
-        scores[valid] = ct+1
-    del unq_score
-    duration = (time.time()-t0)
-    print(f"got scores in {duration:.2e} seconds")
-
-    t0 = time.time()
-    ct = 0
-    # Every (taxon pair, sign) combination the gene contributes
-    # to is scored according to how rare it is. Rarer combinations
-    # get a higher score.
-    utility_sum = np.zeros(is_marker.n_rows, dtype=float)
-
-    for row0 in range(0, n_rows, batch_size):
-        row1 = min(n_rows, row0+batch_size)
-        marker_batch = is_marker.get_row_batch(row0, row1)
-        up_reg_batch = up_regulated.get_row_batch(row0, row1)
-
-        if taxonomy_mask is not None:
-            marker_batch = marker_batch[:, taxonomy_mask]
-            up_reg_batch = up_reg_batch[:, taxonomy_mask]
-
-        pos_idx = np.where(np.logical_and(marker_batch,
-                                          up_reg_batch))
-        for unqp0 in np.unique(pos_idx[0]):
-            valid = np.where(pos_idx[0] == unqp0)
-            this_sum = scores[pos_idx[1][valid], 1].sum()
-            utility_sum[row0+unqp0] += this_sum
-
-        neg_idx = np.where(np.logical_and(marker_batch,
-                                          np.logical_not(up_reg_batch)))
-
-        for unqn0 in np.unique(neg_idx[0]):
-            valid = np.where(neg_idx[0] == unqn0)
-            this_sum = scores[neg_idx[1][valid], 0].sum()
-            utility_sum[row0+unqn0] += this_sum
-
-        ct += (row1-row0)
-        duration = time.time()-t0
-        print(f"got {ct} rows in {duration:.2e} seconds -- "
-              f"{duration/ct:.2e} per row")
-
-    return utility_sum, marker_census, scores
+    return utility_sum, marker_census
