@@ -150,7 +150,8 @@ def _run_selection(
         marker_counts=marker_counts,
         taxonomy_idx_array=taxonomy_idx_array,
         marker_census=marker_census,
-        n_per_utility=n_per_utility)
+        n_per_utility=n_per_utility,
+        n_desperate=n_per_utility)
 
     while True:
 
@@ -260,13 +261,22 @@ def _choose_desperate_markers(
         marker_counts,
         taxonomy_idx_array,
         marker_census,
-        n_per_utility):
+        n_per_utility,
+        n_desperate=5):
     """
     Find cases where a taxonomy_pair cannot match 2*n_per_utility
     markers. Select all of the markers for those genes.
     """
+    print("choosing desperate markers")
     total_markers = marker_census.sum(axis=1)
-    desperate_cases = np.where(total_markers < 2*n_per_utility)[0]
+    desperate_cases = np.where(np.logical_and(
+            total_markers <= n_desperate,
+            total_markers > 0))[0]
+
+    print(f"{len(desperate_cases)} cases")
+
+    t0 = time.time()
+    ct = 0
     for local_idx in desperate_cases:
         global_idx = taxonomy_idx_array[local_idx]
         (marker_mask,
@@ -286,8 +296,15 @@ def _choose_desperate_markers(
                     sorted_utility_idx=sorted_utility_idx,
                     marker_gene_array=marker_gene_array,
                     marker_counts=marker_counts,
-                    taxonomy_idx_array=taxonomy_idx_array)
+                    taxonomy_idx_array=taxonomy_idx_array,
+                    chosen_idx=gene_idx)
 
+        ct += 1
+        duration = time.time()-t0
+        print(f"{ct} in {duration:.2e} -- {duration/ct:.2e} -- "
+              f"{len(marker_gene_idx_set)} genes")
+
+    print("done with desperate cases")
     return (marker_gene_idx_set,
             utility_array,
             sorted_utility_idx,
