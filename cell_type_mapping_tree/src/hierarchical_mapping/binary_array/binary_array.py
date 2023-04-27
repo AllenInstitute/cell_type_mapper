@@ -75,6 +75,27 @@ class BinarizedBooleanArray(object):
         self.data = self.data[row_idx_array, :]
         self.n_rows = len(row_idx_array)
 
+    def downsample_columns(self, col_idx_array):
+        """
+        Downselect the array to the specified columns
+        """
+        if not np.array_equal(col_idx_array, np.sort(col_idx_array)):
+            raise RuntimeError(
+                "col_idx_array must be sorted")
+
+        new_n_cols = len(col_idx_array)
+        new_n_ints = n_int_from_n_cols(new_n_cols)
+        new_data = np.zeros((self.n_rows, new_n_ints), dtype=np.uint8)
+        for new_col, old_col in enumerate(col_idx_array):
+            i_int = new_col // 8
+            i_bit = new_col % 8
+            val = self.bit_lookup[i_bit]
+            valid = self.get_col(old_col)
+            new_data[:, i_int][valid] += val
+        self.data = new_data
+        self.n_cols = new_n_cols
+        self.n_ints = new_n_ints
+
     def _col_to_int(self, i_col):
         """
         Convert i_col, the index of the column in the full
