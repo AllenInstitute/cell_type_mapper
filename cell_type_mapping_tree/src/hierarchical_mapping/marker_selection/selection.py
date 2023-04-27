@@ -279,7 +279,7 @@ def _choose_desperate_markers(
     print(f"{len(desperate_cases)} cases")
 
     t0 = time.time()
-    ct = 0
+
     for local_idx in desperate_cases:
         global_idx = taxonomy_idx_array[local_idx]
         (marker_mask,
@@ -304,12 +304,12 @@ def _choose_desperate_markers(
                     taxonomy_idx_array=taxonomy_idx_array,
                     chosen_idx=gene_idx)
 
-        ct += 1
-        duration = time.time()-t0
-        print(f"{ct} in {duration:.2e} -- {duration/ct:.2e} -- "
-              f"{len(marker_gene_idx_set)} genes")
+    duration = time.time()-t0
 
-    print("done with desperate cases")
+    print("done with desperate cases -- "
+          f"{len(marker_gene_idx_set)} genes chosen "
+          f"in {duration:.2e} seconds")
+
     return (marker_gene_idx_set,
             marker_gene_name_list,
             utility_array,
