@@ -112,6 +112,7 @@ def _run_selection(
 
     # the final result
     marker_gene_idx_set = set()
+    marker_gene_name_list = []  # in order they were chosen
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
@@ -136,10 +137,12 @@ def _run_selection(
     filled_sum = been_filled.sum()
 
     (marker_gene_idx_set,
+     marker_gene_name_list,
      utility_array,
      sorted_utility_idx,
      marker_counts) = _choose_desperate_markers(
         marker_gene_idx_set=marker_gene_idx_set,
+        marker_gene_name_list=marker_gene_name_list,
         utility_array=utility_array,
         sorted_utility_idx=sorted_utility_idx,
         marker_gene_array=marker_gene_array,
@@ -186,10 +189,12 @@ def _run_selection(
             break
 
         (marker_gene_idx_set,
+         marker_gene_name_lit,
          utility_array,
          sorted_utility_idx,
          marker_counts) = _choose_gene(
              marker_gene_idx_set=marker_gene_idx_set,
+             marker_gene_name_list=marker_gene_name_list,
              utility_array=utility_array,
              sorted_utility_idx=sorted_utility_idx,
              marker_gene_array=marker_gene_array,
@@ -197,19 +202,18 @@ def _run_selection(
              taxonomy_idx_array=taxonomy_idx_array,
              chosen_idx=None)
 
-    marker_gene_names = [
-        marker_gene_array.gene_names[idx]
-        for idx in marker_gene_idx_set]
-    marker_gene_names.sort()
-    print(f"selected {len(marker_gene_names)} from "
+    assert len(marker_gene_idx_set) == len(marker_gene_name_list)
+
+    print(f"selected {len(marker_gene_name_list)} from "
           f"{marker_gene_array.n_genes}")
     print(f"filled {been_filled.sum()} of {been_filled_size}")
     print(_stats_from_marker_counts(marker_counts))
-    return marker_gene_names
+    return marker_gene_name_list
 
 
 def _choose_gene(
         marker_gene_idx_set,
+        marker_gene_name_list,
         utility_array,
         sorted_utility_idx,
         marker_gene_array,
@@ -227,6 +231,8 @@ def _choose_gene(
                 break
         sorted_utility_idx.pop(to_pop)
 
+    marker_gene_name_list.append(marker_gene_array.gene_names[chosen_idx])
+
     if chosen_idx in marker_gene_idx_set:
         raise RuntimeError(
             f"Something is wrong; chose gene {chosen_idx} twice")
@@ -243,6 +249,7 @@ def _choose_gene(
         marker_counts=marker_counts)
 
     return (marker_gene_idx_set,
+            marker_gene_name_list,
             utility_array,
             sorted_utility_idx,
             marker_counts)
@@ -250,6 +257,7 @@ def _choose_gene(
 
 def _choose_desperate_markers(
         marker_gene_idx_set,
+        marker_gene_name_list,
         utility_array,
         sorted_utility_idx,
         marker_gene_array,
@@ -283,10 +291,12 @@ def _choose_desperate_markers(
                 continue
 
             (marker_gene_idx_set,
+             marker_gene_name_list,
              utility_array,
              sorted_utility_idx,
              marker_counts) = _choose_gene(
                     marker_gene_idx_set=marker_gene_idx_set,
+                    marker_gene_name_list=marker_gene_name_list,
                     utility_array=utility_array,
                     sorted_utility_idx=sorted_utility_idx,
                     marker_gene_array=marker_gene_array,
@@ -301,6 +311,7 @@ def _choose_desperate_markers(
 
     print("done with desperate cases")
     return (marker_gene_idx_set,
+            marker_gene_name_list,
             utility_array,
             sorted_utility_idx,
             marker_counts)
