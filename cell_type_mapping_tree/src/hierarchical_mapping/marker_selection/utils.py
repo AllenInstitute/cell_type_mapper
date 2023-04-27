@@ -268,7 +268,7 @@ def create_utility_array(
     utility_sum = np.zeros(is_marker.n_rows, dtype=int)
 
     byte_size = gb_size*1024**3
-    batch_size = max(1, np.round(byte_size/n_cols).astype(int))
+    batch_size = max(1, np.round(byte_size/(3*n_cols)).astype(int))
 
     t0 = time.time()
     for row0 in range(0, n_rows, batch_size):
