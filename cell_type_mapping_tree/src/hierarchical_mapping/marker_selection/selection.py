@@ -198,7 +198,8 @@ def _run_selection(
              sorted_utility_idx=sorted_utility_idx,
              marker_gene_array=marker_gene_array,
              marker_counts=marker_counts,
-             taxonomy_idx_array=taxonomy_idx_array)
+             taxonomy_idx_array=taxonomy_idx_array,
+             chosen_idx=None)
 
     marker_gene_names = [
         marker_gene_array.gene_names[idx]
@@ -217,10 +218,19 @@ def _choose_gene(
         sorted_utility_idx,
         marker_gene_array,
         marker_counts,
-        taxonomy_idx_array):
+        taxonomy_idx_array,
+        chosen_idx=None):
 
     # chose the gene with the largest utility
-    chosen_idx = sorted_utility_idx.pop(-1)
+    if chosen_idx is None:
+        chosen_idx = sorted_utility_idx.pop(-1)
+    else:
+        for ii in range(len(sorted_utility_idx)):
+            if sorted_utility_idx[ii] == chosen_idx:
+                to_pop = ii
+                break
+        sorted_utility_idx.pop(to_pop)
+
     if chosen_idx in marker_gene_idx_set:
         raise RuntimeError(
             f"Something is wrong; chose gene {chosen_idx} twice")
