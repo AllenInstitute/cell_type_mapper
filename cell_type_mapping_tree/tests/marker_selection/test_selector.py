@@ -247,7 +247,7 @@ def test_selecting_from_blank_markers(
         taxonomy_tree_fixture,
         blank_marker_cache_fixture):
 
-    marker_array = MarkerGeneArray(
+    marker_array = MarkerGeneArray.from_cache_path(
         cache_path=blank_marker_cache_fixture)
 
     marker_genes = select_marker_genes_v2(
@@ -266,7 +266,7 @@ def test_selecting_from_no_matched_genes(
     """
     Test that case where no genes match raises an error
     """
-    marker_array = MarkerGeneArray(
+    marker_array = MarkerGeneArray.from_cache_path(
         cache_path=marker_cache_fixture)
 
     with pytest.raises(RuntimeError, match='No gene overlap'):

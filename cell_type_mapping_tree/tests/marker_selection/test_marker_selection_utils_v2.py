@@ -118,7 +118,8 @@ def test_create_utility_array(
         gb_size,
         taxonomy_mask):
 
-    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+    arr = MarkerGeneArray.from_cache_path(
+        cache_path=backed_array_fixture)
 
     (actual_util,
      actual_census) = create_utility_array(

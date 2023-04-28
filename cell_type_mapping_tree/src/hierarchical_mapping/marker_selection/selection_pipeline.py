@@ -161,7 +161,7 @@ def _marker_selection_worker(
         only_keep_pairs = None
 
     with input_lock:
-        marker_gene_array = MarkerGeneArray(
+        marker_gene_array = MarkerGeneArray.from_cache_path(
             cache_path=marker_cache_path,
             only_keep_pairs=only_keep_pairs)
 
