@@ -72,6 +72,10 @@ def select_marker_genes_v2(
     if lock is None:
         lock = DummyLock()
 
+    with lock:
+        print("starting marker selection for "
+              f"parent node {parent_node}")
+
     marker_gene_array = _thin_marker_gene_array(
         marker_gene_array=marker_gene_array,
         query_gene_names=query_gene_names)
