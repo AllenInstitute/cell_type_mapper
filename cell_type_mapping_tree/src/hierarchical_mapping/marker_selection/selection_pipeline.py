@@ -1,4 +1,3 @@
-import json
 import multiprocessing
 
 from hierarchical_mapping.utils.taxonomy_utils import (
@@ -18,7 +17,6 @@ def select_all_markers(
         marker_cache_path,
         query_gene_names,
         taxonomy_tree,
-        output_path,
         n_per_utility=15,
         n_processors=4,
         behemoth_cutoff=1000000):
@@ -35,8 +33,6 @@ def select_all_markers(
         List of gene names from the query dataset
     taxonomy_tree:
         Dict representing the taxonomy tree.
-    output_path:
-        Path to the file that will be written.
     n_per_utility:
         How many genes to select per (taxon_pair, sign)
         combination
@@ -45,6 +41,11 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+
+    Returns
+    -------
+    A dict mapping parent node tuple to list of marker gene
+    names
     """
 
     parent_list = [None]
@@ -130,17 +131,7 @@ def select_all_markers(
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
 
-    # JSON cannot serialize a dict whose keys are tuples
-    to_write = dict()
-    k_list = output_dict.keys()
-    for k in k_list:
-        new_k = json.dumps(k)
-        assert new_k not in to_write
-        to_write[new_k] = output_dict.pop(k)
-
-    with open(output_path, 'w') as out_file:
-        out_file.write(
-            json.dumps(dict(to_write), indent=2))
+    return dict(output_dict)
 
 
 def _marker_selection_worker(

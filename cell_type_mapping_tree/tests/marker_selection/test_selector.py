@@ -344,35 +344,26 @@ def test_full_marker_selection_smoke(
         assert n_list[len(n_list)//4] < behemoth_cutoff
         assert n_list[3*len(n_list)//4] > behemoth_cutoff
 
-    output_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix='chosen_markers_',
-            suffix='.json'))
-
     query_gene_names = gene_names_fixture
 
-    select_all_markers(
+    result = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree_fixture,
-        output_path=output_path,
         n_per_utility=7,
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
 
-    result = json.load(open(output_path, 'rb'))
     # class bb and subclass a should have no markers
-    null_parents = [json.dumps(('class', 'bb')),
-                    json.dumps(('subclass', 'a'))]
+    null_parents = [('class', 'bb'),
+                    ('subclass', 'a')]
 
     parent_list = []
     for level in taxonomy_tree_fixture['hierarchy'][:-1]:
         for node in taxonomy_tree_fixture[level]:
             parent = (level, node)
-            parent = json.dumps(parent)
             parent_list.append(parent)
-    parent_list.append(json.dumps(None))
+    parent_list.append(None)
 
     for parent in parent_list:
         assert parent in result
