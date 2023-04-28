@@ -42,22 +42,6 @@ def create_marker_gene_cache_v2(
     print(f"creating marker gene cache in {output_cache_path}")
     t0 = time.time()
 
-    parent_node_list = [None]
-    hierarchy = taxonomy_tree['hierarchy']
-    with h5py.File(output_cache_path, 'w') as out_file:
-        out_file.create_group('None')
-        for level in hierarchy[:-1]:
-            out_file.create_group(level)
-            these_parents = list(taxonomy_tree[level].keys())
-            these_parents.sort()
-            for parent in these_parents:
-                parent_node_list.append((level, parent))
-                out_file[level].create_group(parent)
-
-        out_file.create_dataset(
-            'parent_node_list',
-            data=json.dumps(parent_node_list).encode('utf-8'))
-
     # create a dict mapping from parent_node to
     # lists of marker gene names
     marker_lookup = select_all_markers(
@@ -67,6 +51,12 @@ def create_marker_gene_cache_v2(
         n_per_utility=n_per_utility,
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff)
+
+    parent_node_list = list(marker_lookup.keys())
+    with h5py.File(output_cache_path, 'w') as out_file:
+        out_file.create_dataset(
+            'parent_node_list',
+            data=json.dumps(parent_node_list).encode('utf-8'))
 
     with h5py.File(input_cache_path, 'r') as in_file:
         reference_gene_names = json.loads(
@@ -87,12 +77,6 @@ def create_marker_gene_cache_v2(
     query_genes = np.sort(np.array(list(query_genes)))
     reference_genes = np.sort(np.array(list(reference_genes)))
 
-    # list the set of genes we actually need to keep
-    # from the query set for all comparisons
-    query_genes = np.array(list(marker_lookup['query']))
-    query_genes = np.sort(query_genes)
-    reference_genes = np.array(list(marker_lookup['reference']))
-    reference_genes = np.sort(reference_genes)
     created_groups = set()
     with h5py.File(output_cache_path, "a") as cache_file:
         cache_file.create_dataset(
@@ -110,12 +94,26 @@ def create_marker_gene_cache_v2(
 
         for parent in marker_lookup:
             if parent is None:
+                level = None
+                node = 'None'
                 parent_grp = 'None'
             else:
+                level = parent[0]
+                node = parent[1]
                 parent_grp = f'{parent[0]}/{parent[1]}'
+
             assert parent_grp not in created_groups
             created_groups.add(parent_grp)
-            out_grp = cache_file.create_group(parent_grp)
+
+            if level is not None:
+                if level not in cache_file:
+                    level_grp = cache_file.create_group(level)
+                else:
+                    level_grp = cache_file[level]
+                out_grp = level_grp.create_group(node)
+            else:
+                out_grp = cache_file.create_group(node)
+
             these_reference = []
             these_query = []
             for gene in marker_lookup[parent]:

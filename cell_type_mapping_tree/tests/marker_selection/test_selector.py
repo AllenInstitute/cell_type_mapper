@@ -30,6 +30,9 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
     _marker_selection_worker,
     select_all_markers)
 
+from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+    create_marker_gene_cache_v2)
+
 
 @pytest.fixture
 def tmp_dir_fixture(
@@ -161,6 +164,16 @@ def marker_cache_fixture(
         h5_path=out_path,
         h5_group='up_regulated')
 
+    # Add some nonsense genes to full_gene_names and shuffle.
+    # This is meant to simulate the case where the reference
+    # dataset contains genes that are not markers for any
+    # taxon pairs.
+    rng = np.random.default_rng(887123)
+    full_gene_names = copy.deepcopy(gene_names_fixture)
+    for ii in range(7):
+        full_gene_names.append(f'full_{ii}')
+    rng.shuffle(full_gene_names)
+
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
         pair_to_idx.pop('n_pairs')
@@ -170,6 +183,9 @@ def marker_cache_fixture(
         dst.create_dataset(
             'gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
+        dst.create_dataset(
+            'full_gene_names',
+            data=json.dumps(full_gene_names).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',
             data=n_cols)
@@ -373,3 +389,101 @@ def test_full_marker_selection_smoke(
             assert len(result[parent]) > 0
             for g in result[parent]:
                 assert g in query_gene_names
+
+
+@pytest.mark.parametrize("n_clip", [0, 5, 15])
+def test_full_marker_cache_creation_smoke(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip):
+    """
+    Run a smoketest of create_marker_gene_cache_v2
+    """
+
+    # select a behemoth cut-off that puts several
+    # parents on either side of the divide
+    n_list = []
+    for level in taxonomy_tree_fixture['hierarchy'][:-1]:
+        for node in taxonomy_tree_fixture[level]:
+            parent = (level, node)
+            ct = len(get_all_leaf_pairs(
+                        taxonomy_tree=taxonomy_tree_fixture,
+                        parent_node=parent))
+            if ct > 0:
+                n_list.append(ct)
+    n_list.sort()
+    behemoth_cutoff = n_list[len(n_list)//2]
+    assert n_list[len(n_list)//4] < behemoth_cutoff
+    assert n_list[3*len(n_list)//4] > behemoth_cutoff
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(62234)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree_fixture,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    create_marker_gene_cache_v2(
+        output_cache_path=output_path,
+        input_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree_fixture,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    # because I added some nonsense genes to full_gene_names
+    # in the test fixture, to simulate the case where there
+    # are genes in the reference data that do not make it
+    # through reference marker cache creation
+    with h5py.File(marker_cache_fixture, 'r') as src:
+        full_gene_names = json.loads(
+            src['full_gene_names'][()].decode('utf-8'))
+
+    with h5py.File(output_path, 'r') as actual:
+        actual_all_ref_idx = actual['all_reference_markers'][()]
+        actual_all_query_idx = actual['all_query_markers'][()]
+        all_ref_idx = set()
+        all_query_idx = set()
+        for parent in expected:
+            if parent is None:
+                actual_grp = 'None'
+            else:
+                actual_grp = f"{parent[0]}/{parent[1]}"
+            assert actual_grp in actual
+            actual_reference = []
+            for ii in actual[actual_grp]['reference'][()]:
+                actual_reference.append(full_gene_names[ii])
+                all_ref_idx.add(ii)
+            actual_query = []
+            for ii in actual[actual_grp]['query'][()]:
+                actual_query.append(query_gene_names[ii])
+                all_query_idx.add(ii)
+            assert actual_reference == actual_query
+            assert set(actual_reference) == set(expected[parent])
+        assert all_ref_idx == set(actual_all_ref_idx)
+        assert all_query_idx == set(actual_all_query_idx)
+
+        ref_names = json.loads(
+            actual['reference_gene_names'][()].decode('utf-8'))
+        assert ref_names == full_gene_names
+        query_names = json.loads(
+            actual['query_gene_names'][()].decode('utf-8'))
+        assert query_names == query_gene_names
