@@ -13,6 +13,9 @@ from hierarchical_mapping.utils.taxonomy_utils import (
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
+from hierarchical_mapping.diff_exp.markers import (
+    find_markers_for_all_taxonomy_pairs)
+
 
 @pytest.fixture
 def tmp_dir_fixture(
@@ -35,7 +38,8 @@ def taxonomy_tree_fixture(
 def test_all_of_it(
         tmp_dir_fixture,
         h5ad_path_fixture,
-        column_hierarchy
+        column_hierarchy,
+        taxonomy_tree_fixture,
         ):
 
     precomputed_path = mkstemp_clean(
@@ -52,3 +56,20 @@ def test_all_of_it(
     # make sure it is not empty
     with h5py.File(precomputed_path, 'r') as in_file:
         assert len(in_file.keys()) > 0
+
+    ref_marker_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='reference_markers_',
+        suffix='.h5')
+
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precomputed_path,
+        taxonomy_tree=taxonomy_tree_fixture,
+        output_path=ref_marker_path,
+        tmp_dir=tmp_dir_fixture,
+        max_bytes=6*1024**2)
+
+    with h5py.File(ref_marker_path, 'r') as in_file:
+        assert len(in_file.keys()) > 0
+        assert in_file['up_regulated/data'][()].sum() > 0
+        assert in_file['markers/data'][()].sum() > 0
