@@ -1,6 +1,9 @@
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    DummyLock)
+
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_all_leaf_pairs)
 
@@ -16,7 +19,8 @@ def select_marker_genes_v2(
         query_gene_names,
         taxonomy_tree,
         parent_node,
-        n_per_utility=15):
+        n_per_utility=15,
+        lock=None):
     """
     Select marker genes given a reference set and a query set.
 
@@ -54,12 +58,19 @@ def select_marker_genes_v2(
         Number of marker genes to select per (node1, node2, +/-) set
         (+/- indicates which node the gene is more prominent in)
 
+    lock:
+       Optional multiprocessing lock to prevent stdout prints from
+       stumbling over each other (can be None)
+
     Returns
     -------
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
     """
     t0 = time.time()
+
+    if lock is None:
+        lock = DummyLock()
 
     marker_gene_array = _thin_marker_gene_array(
         marker_gene_array=marker_gene_array,
@@ -82,21 +93,19 @@ def select_marker_genes_v2(
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
-    census_sum = np.sum(marker_census, axis=1)
-    min_dex = np.argmin(census_sum)
-    print(f"min census {census_sum.min()}")
-    print(f"at {min_dex}")
-    print(f"which is taxon pair {taxonomy_idx_array[min_dex]}")
-
     duration = (time.time()-t0)/3600.0
-    print(f"preparation took {duration:.2e} hours")
+    with lock:
+        print(f"parent: {parent_node} -- "
+              f"preparation took {duration:.2e} hours")
 
     marker_gene_names = _run_selection(
         marker_gene_array=marker_gene_array,
         utility_array=utility_array,
         marker_census=marker_census,
         taxonomy_idx_array=taxonomy_idx_array,
-        n_per_utility=n_per_utility)
+        n_per_utility=n_per_utility,
+        parent_node=parent_node,
+        lock=lock)
 
     return marker_gene_names
 
@@ -106,9 +115,12 @@ def _run_selection(
         utility_array,
         marker_census,
         taxonomy_idx_array,
-        n_per_utility):
+        n_per_utility,
+        parent_node,
+        lock=None):
 
-    t0 = time.time()
+    if lock is None:
+        lock = DummyLock()
 
     # the final result
     marker_gene_idx_set = set()
@@ -161,8 +173,6 @@ def _run_selection(
         if utility_array.max() <= 0:
             break
 
-        filled_sum0 = filled_sum
-
         (been_filled,
          utility_array,
          sorted_utility_idx) = _update_been_filled(
@@ -176,15 +186,7 @@ def _run_selection(
                  taxonomy_idx_array=taxonomy_idx_array)
 
         filled_sum = been_filled.sum()
-        if filled_sum > filled_sum0:
-            duration = (time.time()-t0)/3600.0
-            print(f"filled {filled_sum} of {been_filled_size} "
-                  f"in {duration:.2e} hours -- "
-                  f"{len(marker_gene_idx_set)} genes -- "
-                  + _stats_from_marker_counts(marker_counts)
-                  + f" max_utility {utility_array.max():.2e}")
-
-        if been_filled.sum() == been_filled_size:
+        if filled_sum == been_filled_size:
             # we have found all the genes we need
             break
 
@@ -204,10 +206,14 @@ def _run_selection(
 
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
-    print(f"selected {len(marker_gene_name_list)} from "
-          f"{marker_gene_array.n_genes}")
-    print(f"filled {been_filled.sum()} of {been_filled_size}")
-    print(_stats_from_marker_counts(marker_counts))
+    with lock:
+        msg = f"\n======parent_node: {parent_node}======\n"
+        msg += f"selected {len(marker_gene_name_list)} from "
+        msg += f"{marker_gene_array.n_genes}\n"
+        msg += f"filled {been_filled.sum()} of {been_filled_size}\n"
+        msg += _stats_from_marker_counts(marker_counts)
+        msg += "\n============"
+        print(msg)
     return marker_gene_name_list
 
 
@@ -270,15 +276,10 @@ def _choose_desperate_markers(
     Find cases where a taxonomy_pair cannot match 2*n_per_utility
     markers. Select all of the markers for those genes.
     """
-    print("choosing desperate markers")
     total_markers = marker_census.sum(axis=1)
     desperate_cases = np.where(np.logical_and(
             total_markers <= n_desperate,
             total_markers > 0))[0]
-
-    print(f"{len(desperate_cases)} cases")
-
-    t0 = time.time()
 
     for local_idx in desperate_cases:
         global_idx = taxonomy_idx_array[local_idx]
@@ -303,12 +304,6 @@ def _choose_desperate_markers(
                     marker_counts=marker_counts,
                     taxonomy_idx_array=taxonomy_idx_array,
                     chosen_idx=gene_idx)
-
-    duration = time.time()-t0
-
-    print("done with desperate cases -- "
-          f"{len(marker_gene_idx_set)} genes chosen "
-          f"in {duration:.2e} seconds")
 
     return (marker_gene_idx_set,
             marker_gene_name_list,
@@ -488,11 +483,11 @@ def _update_been_filled(
         halfway_there,
         de_facto_pair)
 
-    n0 = newly_full_mask.sum()
+    # n0 = newly_full_mask.sum()
     newly_full_mask = np.logical_or(
         newly_full_mask,
         np.array([de_facto_pair, de_facto_pair]).transpose())
-    print(f"de facto added {newly_full_mask.sum()-n0}")
+    # print(f"de facto added {newly_full_mask.sum()-n0}")
 
     # don't correct for pairs that were already marked
     # as "filled"

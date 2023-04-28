@@ -72,6 +72,7 @@ def select_all_markers(
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
     input_lock = mgr.Lock()
+    stdout_lock = mgr.Lock()
 
     started_parents = set()
     completed_parents = set()
@@ -110,7 +111,8 @@ def select_all_markers(
                         'n_per_utility': n_per_utility,
                         'behemoth_cutoff': behemoth_cutoff,
                         'output_dict': output_dict,
-                        'input_lock': input_lock})
+                        'input_lock': input_lock,
+                        'stdout_lock': stdout_lock})
             p.start()
 
             process_dict[chosen_parent] = p
@@ -149,7 +151,8 @@ def _marker_selection_worker(
         behemoth_cutoff,
         n_per_utility,
         output_dict,
-        input_lock):
+        input_lock,
+        stdout_lock):
 
     leaf_pair_list = get_all_leaf_pairs(
             taxonomy_tree=taxonomy_tree,
@@ -176,6 +179,7 @@ def _marker_selection_worker(
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node,
-        n_per_utility=n_per_utility)
+        n_per_utility=n_per_utility,
+        lock=stdout_lock)
 
     output_dict[parent_node] = marker_genes

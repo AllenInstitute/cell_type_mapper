@@ -274,7 +274,6 @@ def test_selection_worker_smoke(
     rng = np.random.default_rng(2231)
     query_gene_names = rng.choice(gene_names_fixture, 40, replace=False)
     output_dict = dict()
-    input_lock = DummyLock()
 
     parent_list = [None,
                    ('subclass', 'e'),
@@ -302,7 +301,8 @@ def test_selection_worker_smoke(
             behemoth_cutoff=behemoth_cutoff,
             n_per_utility=5,
             output_dict=output_dict,
-            input_lock=input_lock)
+            input_lock=DummyLock(),
+            stdout_lock=DummyLock())
 
     for parent in parent_list:
         if parent == ('class', 'bb'):
