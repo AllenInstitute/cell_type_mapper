@@ -108,6 +108,7 @@ def select_all_markers(
                         'taxonomy_tree': taxonomy_tree,
                         'parent_node': chosen_parent,
                         'n_per_utility': n_per_utility,
+                        'behemoth_cutoff': behemoth_cutoff,
                         'output_dict': output_dict,
                         'input_lock': input_lock})
             p.start()
@@ -137,6 +138,7 @@ def _marker_selection_worker(
         query_gene_names,
         taxonomy_tree,
         parent_node,
+        behemoth_cutoff,
         n_per_utility,
         output_dict,
         input_lock):
@@ -145,7 +147,7 @@ def _marker_selection_worker(
             taxonomy_tree=taxonomy_tree,
             parent_node=parent_node)
 
-    if len(leaf_pair_list) < 1000000:
+    if len(leaf_pair_list) < behemoth_cutoff:
         only_keep_pairs = leaf_pair_list
     else:
         only_keep_pairs = None
