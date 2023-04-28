@@ -167,6 +167,7 @@ def test_conversion_to_log2cpm(
         log2cpm_fixture,
         atol=0.0,
         rtol=1.0e-6)
+    assert raw.normalization == "log2CPM"
     assert other.gene_identifiers is not raw.gene_identifiers
     assert other.gene_identifiers == raw.gene_identifiers
     assert other.gene_to_col is not raw.gene_to_col

@@ -17,6 +17,9 @@ from hierarchical_mapping.utils.stats_utils import (
 from hierarchical_mapping.diff_exp.precompute import (
     _create_empty_stats_file)
 
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
@@ -100,6 +103,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
         matrix
     """
     a_data = anndata.read_h5ad(data_path, backed='r')
+    gene_names = a_data.var_names
 
     column_hierarchy = taxonomy_tree['hierarchy']
     cluster_to_input_row = taxonomy_tree[column_hierarchy[-1]]
@@ -148,7 +152,13 @@ def precompute_summary_stats_from_h5ad_and_tree(
             valid = np.where(cluster_chunk == unq_cluster)[0]
             valid = np.sort(valid)
             this_cluster = chunk[0][valid, :].toarray()
+            this_cluster = CellByGeneMatrix(
+                data=this_cluster,
+                gene_identifiers=gene_names,
+                normalization='log2CPM')
+
             summary_chunk = summary_stats_for_chunk(this_cluster)
+
             for k in summary_chunk.keys():
                 if len(buffer_dict[k].shape) == 1:
                     buffer_dict[k][unq_cluster] += summary_chunk[k]

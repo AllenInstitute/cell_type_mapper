@@ -79,10 +79,19 @@ def class_to_cluster_fixture(l2_to_class_fixture):
     return forward, backward
 
 @pytest.fixture
+def n_non_markers():
+    """
+    number of genes that will be pure noise
+    (i.e. will never occur as marker genes)
+    """
+    return 10
+
+@pytest.fixture
 def n_genes(
         class_to_cluster_fixture,
         l2_to_class_fixture,
-        l1_to_l2_fixture):
+        l1_to_l2_fixture,
+        n_non_markers):
     cluster_to_class = class_to_cluster_fixture[1]
     class_to_l2 = l2_to_class_fixture[1]
     l2_to_l1 = l1_to_l2_fixture[1]
@@ -91,6 +100,9 @@ def n_genes(
     ct += len(class_to_l2)
     ct += len(l2_to_l1)
     ct += len(l1_to_l2_fixture[0])
+
+    # add some more genes that are not markers
+    ct += n_non_markers
     return ct
 
 
@@ -110,10 +122,17 @@ def cluster_to_signal(
         class_to_cluster_fixture,
         l2_to_class_fixture,
         l1_to_l2_fixture,
-        n_genes):
+        n_genes,
+        n_non_markers):
     cluster_to_class = class_to_cluster_fixture[1]
     class_to_l2 = l2_to_class_fixture[1]
     l2_to_l1 = l1_to_l2_fixture[1]
+
+    # shuffle the genes so that marker vs. non-marker
+    # isn't influenced by the order of the genes
+    rng = np.random.default_rng(123)
+    shuffle_order = np.arange(n_genes, dtype=int)
+    rng.shuffle(shuffle_order)
 
     taxon_to_idx = dict()
     ct = 0
@@ -139,6 +158,8 @@ def cluster_to_signal(
         for k in (cluster, cl, l2, l1):
             idx = taxon_to_idx[k]
             signal[idx] += 1.0
+        signal[-n_non_markers:] = 0.0
+        signal = signal[shuffle_order]
         result[cluster] = signal
     return result
 

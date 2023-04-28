@@ -211,3 +211,4 @@ class CellByGeneMatrix(object):
                 "You are calling to_log2CPM_in_place, but this "
                 "CellByGeneMatrix already is not raw")
         self._data = np.log2(1.0+convert_to_cpm(self.data))
+        self._normalization = "log2CPM"

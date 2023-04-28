@@ -305,7 +305,7 @@ def get_all_leaf_pairs(
                 break
         child_level_idx += 1
 
-        if child_level_idx > len(hierarchy):
+        if child_level_idx >= len(hierarchy):
             raise RuntimeError(
                 f"Somehow, child_level_idx={child_level_idx}\n"
                 f"while the hierarchy has {len(hierarchy)} levels;\n"

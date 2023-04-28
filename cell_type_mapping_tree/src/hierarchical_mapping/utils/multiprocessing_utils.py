@@ -27,6 +27,10 @@ def winnow_process_list(
     for ii in range(len(process_list)-1, -1, -1):
         if process_list[ii].exitcode is not None:
             to_pop.append(ii)
+            if process_list[ii].exitcode != 0:
+                raise RuntimeError(
+                    "One of the processes exited with code "
+                    f"{process_list[ii].exitcode}")
     for ii in to_pop:
         process_list.pop(ii)
     return process_list
@@ -41,5 +45,9 @@ def winnow_process_dict(
     key_list = list(process_dict.keys())
     for k in key_list:
         if process_dict[k].exitcode is not None:
+            if process_dict[k].exitcode != 0:
+                raise RuntimeError(
+                    f"One of the processes (key={k}) exited with code "
+                    f"{process_dict[k].exitcode}")
             process_dict.pop(k)
     return process_dict

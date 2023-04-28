@@ -27,8 +27,9 @@ def score_all_taxonomy_pairs(
         precomputed_stats_path,
         taxonomy_tree,
         output_path,
-        gt1_threshold=0,
-        gt0_threshold=1,
+        p_th=0.01,
+        q1_th=0.5,
+        qdiff_th=0.7,
         flush_every=1000,
         n_processors=4,
         tmp_dir=None,
@@ -54,9 +55,9 @@ def score_all_taxonomy_pairs(
     output_path:
         Path to the HDF5 file where results will be stored
 
-    gt1_thresdhold/gt0_threshold:
-        Number of cells that must express above 0/1 in order to be
-        considered a valid differential gene.
+    p_th/q1_th/qdiff_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under score_differential_genes
 
     flush_every:
         Write to HDF5 every flush_every pairs
@@ -183,8 +184,9 @@ def score_all_taxonomy_pairs(
                     'idx_to_pair': this_idx_to_pair,
                     'idx_values': this_idx_values,
                     'n_genes': n_genes,
-                    'gt0_threshold': gt0_threshold,
-                    'gt1_threshold': gt1_threshold,
+                    'p_th': p_th,
+                    'q1_th': q1_th,
+                    'qdiff_th': qdiff_th,
                     'flush_every': flush_every,
                     'tmp_path': tmp_path,
                     'keep_all_stats': keep_all_stats,
@@ -227,7 +229,6 @@ def _get_this_cluster_stats(
     this_cluster_stats
     this_tree_as_leaves
     """
-    t0 = time.time()
     leaf_set = set()
     this_cluster_stats = dict()
     this_tree_as_leaves = dict()
@@ -245,9 +246,6 @@ def _get_this_cluster_stats(
     for node in leaf_set:
         this_cluster_stats[node] = cluster_stats[node]
 
-    dur = time.time()-t0
-    print(f"getting this_cluster_stats took {dur:.2e} seconds "
-          f"-- {len(leaf_set)} nodes")
     return this_cluster_stats, this_tree_as_leaves
 
 
@@ -360,8 +358,9 @@ def _score_pairs_worker(
         idx_to_pair,
         idx_values,
         n_genes,
-        gt0_threshold,
-        gt1_threshold,
+        p_th,
+        q1_th,
+        qdiff_th,
         flush_every,
         tmp_path,
         keep_all_stats,
@@ -388,12 +387,9 @@ def _score_pairs_worker(
         Row indexes to be processed by this worker
     n_genes:
         Number of genes in dataset
-    gt0_threshold:
-        How many cells must express a gene above 0 for
-        it to be valid
-    gt1_threshold:
-        How many cells must express a gene above 1 for
-        it to be valid
+    p_th/q1_th/qdiff_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under score_differential_genes
     flush_every:
         Write to temporary output file every flush_every rows
     tmp_path:
@@ -479,12 +475,14 @@ def _score_pairs_worker(
         pop1 = tree_as_leaves[level][node1]
         pop2 = tree_as_leaves[level][node2]
         (scores,
-         validity) = score_differential_genes(
+         validity,
+         _) = score_differential_genes(
                          leaf_population_1=pop1,
                          leaf_population_2=pop2,
                          precomputed_stats=cluster_stats,
-                         gt1_threshold=gt1_threshold,
-                         gt0_threshold=gt0_threshold)
+                         p_th=p_th,
+                         q1_th=q1_th,
+                         qdiff_th=qdiff_th)
 
         ranked_list = rank_genes(
                          scores=scores,
@@ -552,8 +550,8 @@ def read_precomputed_stats(
         'gene_names': list of gene names
         'cluster_stats': Dict mapping leaf node name to
             'n_cells'
-            'sum'
-            'sumsq'
+            'sum'  -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
     """
@@ -593,11 +591,13 @@ def score_differential_genes(
         leaf_population_1,
         leaf_population_2,
         precomputed_stats,
-        gt1_threshold=0,
-        gt0_threshold=1):
+        p_th=0.01,
+        q1_th=0.5,
+        qdiff_th=0.7,
+        fold_change=2.0):
     """
     Rank genes according to their ability to differentiate between
-    two populations fo cells.
+    two populations of cells.
 
     Parameters
     ----------
@@ -613,9 +613,13 @@ def score_differential_genes(
             'gt0'
             'gt1'
 
-    gt1_thresdhold/gt0_threshold:
-        Number of cells that must express above 0/1 in order to be
-        considered a valid differential gene.
+    p_th/q1_th/qdiff_th:
+        Thresholds for determining if the gene is a differentially
+        expressed gene (see Notes below)
+
+    fold_change:
+        Genes must have a fold changes > fold_change between the
+        two populations to be considered a marker gene.
 
     Returns
     -------
@@ -626,22 +630,38 @@ def score_differential_genes(
 
     validity_mask:
         np.ndarray of booleans that is a mask for whether or not
-        the gene passed the gt1, gt0 thresholds
+        the gene passes the criteria for being a marker gene
+
+    up_mask:
+        Array of unsigned integers that is (n_genes,) in size.
+        Will be 0 for genes that are more prevalent in leaf_population_1
+        and 1 for genes that are mre prevalent in leaf_population_1
+
+    Notes
+    -----
+    'sum' and 'sumsq' are in units of log2(CPM+1)
+
+    Marker gene criteria (from Tasic et al. 2018):
+
+        adjusted p_value < p_th
+
+        more than twofold expression change between clusters
+
+        define P_ij as the fraction of cells in cluster j expressing gene
+        i at greater than 1CPM
+            P_ij > q1_th for at least one cluster (the up-regulated cluster)
+            (P_i1j-Pi2j)/max(P_i1j, P_i2j) > qdiff_th
     """
 
     stats_1 = aggregate_stats(
                 leaf_population=leaf_population_1,
-                precomputed_stats=precomputed_stats,
-                gt0_threshold=gt0_threshold,
-                gt1_threshold=gt1_threshold)
+                precomputed_stats=precomputed_stats)
 
     stats_2 = aggregate_stats(
                 leaf_population=leaf_population_2,
-                precomputed_stats=precomputed_stats,
-                gt0_threshold=gt0_threshold,
-                gt1_threshold=gt1_threshold)
+                precomputed_stats=precomputed_stats)
 
-    score = diffexp_score(
+    pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
                 var1=stats_1['var'],
                 n1=stats_1['n_cells'],
@@ -649,11 +669,76 @@ def score_differential_genes(
                 var2=stats_2['var'],
                 n2=stats_2['n_cells'])
 
-    validity_mask = np.logical_or(
-                        stats_1['mask'],
-                        stats_2['mask'])
+    pvalue_valid = (pvalues < p_th)
 
-    return score, validity_mask
+    pij_1 = stats_1['gt1']/max(1, stats_1['n_cells'])
+    pij_2 = stats_2['gt1']/max(1, stats_2['n_cells'])
+
+    q1_valid = np.logical_or(
+        (pij_1 > q1_th),
+        (pij_2 > q1_th))
+
+    denom = np.where(pij_1 > pij_2, pij_1, pij_2)
+    denom = np.where(denom > 0.0, denom, 1.0)
+    qdiff_score = np.abs(pij_1-pij_2)/denom
+    qdiff_valid = (qdiff_score > qdiff_th)
+
+    log2_fold = np.log2(fold_change)
+    fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
+
+    validity_mask = np.logical_and(
+        pvalue_valid,
+        np.logical_and(
+            q1_valid,
+            np.logical_and(
+                qdiff_valid,
+                fold_valid)))
+
+    up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
+    up_mask[pij_2 > pij_1] = 1
+
+    return -1.0*np.log(pvalues), validity_mask, up_mask
+
+
+def diffexp_p_values(
+        mean1,
+        var1,
+        n1,
+        mean2,
+        var2,
+        n2):
+    """
+    Parameters (np.ndarrays of shape (n_genes, ))
+    ---------------------------------------------
+    mean1 -- mean gene expression values in pop1
+    var1 -- variance of gene expression values in pop1
+    n1 -- number of cells in pop1
+    mean2 -- mean gene expression values in pop2
+    var2 -- variance of gene expression values in pop2
+    n2 -- number of cells in pop2
+
+    Returns
+    -------
+    A np.ndarray of shape (n_genes,) representing
+    the corrected p_values of the genes as markers
+
+    Notes
+    -----
+    means and variances in input are in units of log2(CPM+1)
+    """
+
+    (tt_stat,
+     tt_nunu,
+     pvalues) = welch_t_test(
+                    mean1=mean1,
+                    var1=var1,
+                    n1=n1,
+                    mean2=mean2,
+                    var2=var2,
+                    n2=n2)
+
+    pvalues = correct_ttest(pvalues)
+    return pvalues
 
 
 def diffexp_score(
@@ -678,19 +763,20 @@ def diffexp_score(
     A np.ndarray of shape (n_genes,) representing
     the differential score of each gene at distinguishing
     between these two populations
+
+    Notes
+    -----
+    means and variances in input are in units of log2(CPM+1)
     """
 
-    (tt_stat,
-     tt_nunu,
-     pvalues) = welch_t_test(
-                    mean1=mean1,
-                    var1=var1,
-                    n1=n1,
-                    mean2=mean2,
-                    var2=var2,
-                    n2=n2)
+    pvalues = diffexp_p_values(
+        mean1=mean1,
+        var1=var1,
+        n1=n1,
+        mean2=mean2,
+        var2=var2,
+        n2=n2)
 
-    pvalues = correct_ttest(pvalues)
     with np.errstate(divide='ignore'):
         score = -1.0*np.log(pvalues)
     return score
@@ -698,9 +784,7 @@ def diffexp_score(
 
 def aggregate_stats(
        leaf_population,
-       precomputed_stats,
-       gt0_threshold=1,
-       gt1_threshold=0):
+       precomputed_stats):
     """
     Parameters
     ----------
@@ -711,22 +795,21 @@ def aggregate_stats(
     precomputed_stats:
         Dict mapping leaf node name to
             'n_cells'
-            'sum'
-            'sumsq'
+            'sum' -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
-
-    gt1_thresdhold/gt0_threshold:
-        Number of cells that must express above 0/1 in order to be
-        considered a valid differential gene.
 
     Returns
     -------
     Dict with
         'mean' -- mean value of all gene expression
         'var' -- variance of all gene expression
-        'mask' -- boolean mask of genes that pass thresholds
         'n_cells' -- number of cells in the population
+
+    Note
+    -----
+    output mean and var are in units of log2(CPM+1)
     """
     n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
 
@@ -748,14 +831,11 @@ def aggregate_stats(
     mu = sum_arr/n_cells
     var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
 
-    mask = np.logical_and(
-                gt0 >= gt0_threshold,
-                gt1 >= gt1_threshold)
-
     return {'mean': mu,
             'var': var,
-            'mask': mask,
-            'n_cells': n_cells}
+            'n_cells': n_cells,
+            'gt0': gt0,
+            'gt1': gt1}
 
 
 def rank_genes(

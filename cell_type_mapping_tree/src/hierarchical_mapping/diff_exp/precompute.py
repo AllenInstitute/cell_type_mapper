@@ -17,6 +17,9 @@ from hierarchical_mapping.utils.sparse_utils import (
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
 
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 def precompute_summary_stats_from_contiguous_zarr(
         zarr_path,
@@ -259,8 +262,15 @@ def _summary_stats_worker(
         for cluster in sub_row_mapping:
             rows = sub_row_mapping[cluster]
             csr = parent_csr[rows[0]:rows[1], :]
+
+            cell_x_gene = CellByGeneMatrix(
+                    data=csr.toarray(),
+                    gene_identifiers=[f"{ii}" for ii in range(csr.shape[1])],
+                    normalization="log2CPM")
+
             summary_stats = summary_stats_for_chunk(
-                                cell_x_gene=csr)
+                                cell_x_gene=cell_x_gene)
+
             output_idx = cluster_to_output_row[cluster]
             results[output_idx] = summary_stats
             timing_ct += 1

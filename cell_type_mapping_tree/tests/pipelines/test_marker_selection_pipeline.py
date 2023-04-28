@@ -32,11 +32,6 @@ from hierarchical_mapping.marker_selection.utils import (
     select_marker_genes)
 
 
-@pytest.fixture
-def gt0_threshold():
-    return 1
-
-
 @pytest.mark.parametrize(
     "keep_all_stats, to_keep_frac, from_root, n_selection_processors",
     [(True, None, False, 3),
@@ -50,7 +45,6 @@ def test_marker_selection_pipeline(
         column_hierarchy,
         tmp_path_factory,
         gene_names,
-        gt0_threshold,
         keep_all_stats,
         to_keep_frac,
         from_root,
@@ -105,8 +99,6 @@ def test_marker_selection_pipeline(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
             output_path=score_path,
-            gt1_threshold=0,
-            gt0_threshold=gt0_threshold,
             flush_every=flush_every,
             n_processors=n_processors,
             keep_all_stats=keep_all_stats,
