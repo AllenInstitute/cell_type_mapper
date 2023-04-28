@@ -61,6 +61,10 @@ def select_marker_genes_v2(
     """
     t0 = time.time()
 
+    marker_gene_array = _thin_marker_gene_array(
+        marker_gene_array=marker_gene_array,
+        query_gene_names=query_gene_names)
+
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
     # parent node
@@ -68,10 +72,6 @@ def select_marker_genes_v2(
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node,
         marker_gene_array=marker_gene_array)
-
-    marker_gene_array = _thin_marker_gene_array(
-        marker_gene_array=marker_gene_array,
-        query_gene_names=query_gene_names)
 
     # calculate the initial array indicating how useful each gene
     # (*all* reference genes at this point) is at discriminating
@@ -344,11 +344,12 @@ def _thin_marker_gene_array(
         reference_gene_names=marker_gene_array.gene_names,
         query_gene_names=query_gene_names)
 
-    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
-    reference_gene_mask[matched_genes['reference']] = True
-    if reference_gene_mask.sum() == 0:
+    if len(matched_genes['reference']) == 0:
         raise RuntimeError(
             "No gene overlap between reference and query set")
+
+    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
+    reference_gene_mask[matched_genes['reference']] = True
 
     reference_gene_idx = np.where(reference_gene_mask)[0]
     marker_gene_array.downsample_genes(reference_gene_idx)

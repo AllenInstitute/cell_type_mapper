@@ -237,6 +237,25 @@ def test_selecting_from_blank_markers(
 
     assert marker_genes == []
 
+
+def test_selecting_from_no_matched_genes(
+         marker_cache_fixture,
+         taxonomy_tree_fixture):
+    """
+    Test that case where no genes match raises an error
+    """
+    marker_array = MarkerGeneArray(
+        cache_path=marker_cache_fixture)
+
+    with pytest.raises(RuntimeError, match='No gene overlap'):
+        select_marker_genes_v2(
+            marker_gene_array=marker_array,
+            query_gene_names=['nope_1', 'nope_2'],
+            taxonomy_tree=taxonomy_tree_fixture,
+            parent_node=None,
+            n_per_utility=5)
+
+
 @pytest.mark.parametrize("behemoth_cutoff", [1000000, 5])
 def test_selection_worker_smoke(
          marker_cache_fixture,
