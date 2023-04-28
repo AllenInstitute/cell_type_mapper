@@ -278,12 +278,10 @@ def test_selecting_from_no_matched_genes(
             n_per_utility=5)
 
 
-@pytest.mark.parametrize("behemoth_cutoff", [1000000, 'adaptive', -1])
 def test_selection_worker_smoke(
          marker_cache_fixture,
          gene_names_fixture,
-         taxonomy_tree_fixture,
-         behemoth_cutoff):
+         taxonomy_tree_fixture):
     """
     Run a smoketest of _marker_selection_worker
     """
@@ -296,28 +294,17 @@ def test_selection_worker_smoke(
                    ('class', 'aa'),
                    ('class', 'bb')]
 
-    # select a behemoth cutoff that affects some but not all
-    # parents
-    if behemoth_cutoff == 'adaptive':
-        n_list = []
-        for p in [('subclass', 'e'), ('class', 'aa')]:
-            n_list.append(
-                len(get_all_leaf_pairs(
-                        taxonomy_tree=taxonomy_tree_fixture,
-                        parent_node=p)))
-        assert min(n_list) > 0
-        behemoth_cutoff = max(n_list)-1
-
     for parent in parent_list:
+        marker_gene_array = MarkerGeneArray.from_cache_path(
+            cache_path=marker_cache_fixture)
+
         _marker_selection_worker(
-            marker_cache_path=marker_cache_fixture,
+            marker_gene_array=marker_gene_array,
             query_gene_names=query_gene_names,
             taxonomy_tree=taxonomy_tree_fixture,
             parent_node=parent,
-            behemoth_cutoff=behemoth_cutoff,
             n_per_utility=5,
             output_dict=output_dict,
-            input_lock=DummyLock(),
             stdout_lock=DummyLock())
 
     for parent in parent_list:
