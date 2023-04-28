@@ -17,6 +17,12 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
+from hierarchical_mapping.marker_selection.marker_array import (
+    MarkerGeneArray)
+
+from hierarchical_mapping.marker_selection.selection import (
+    select_marker_genes_v2)
+
 from hierarchical_mapping.marker_selection.selection_pipeline import (
     _marker_selection_worker)
 
@@ -164,6 +170,72 @@ def marker_cache_fixture(
 
     return out_path
 
+
+@pytest.fixture
+def blank_marker_cache_fixture(
+         tmp_dir_fixture,
+         gene_names_fixture,
+         pair_to_idx_fixture):
+    """
+    Case where there are no marker genes
+    """
+    out_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='blank_markers_',
+            suffix='.h5'))
+
+    n_rows = len(gene_names_fixture)
+    n_cols = pair_to_idx_fixture['n_pairs']
+
+    is_marker = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    up_reg = BinarizedBooleanArray(
+        n_rows=n_rows,
+        n_cols=n_cols)
+
+    is_marker.write_to_h5(
+        h5_path=out_path,
+        h5_group='markers')
+
+    up_reg.write_to_h5(
+        h5_path=out_path,
+        h5_group='up_regulated')
+
+    with h5py.File(out_path, 'a') as dst:
+        pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
+        pair_to_idx.pop('n_pairs')
+        dst.create_dataset(
+            'pair_to_idx',
+            data=json.dumps(pair_to_idx).encode('utf-8'))
+        dst.create_dataset(
+            'gene_names',
+            data=json.dumps(gene_names_fixture).encode('utf-8'))
+        dst.create_dataset(
+            'n_pairs',
+            data=n_cols)
+
+    return out_path
+
+
+def test_selecting_from_blank_markers(
+        gene_names_fixture,
+        taxonomy_tree_fixture,
+        blank_marker_cache_fixture):
+
+    marker_array = MarkerGeneArray(
+        cache_path=blank_marker_cache_fixture)
+
+    marker_genes = select_marker_genes_v2(
+        marker_gene_array=marker_array,
+        query_gene_names=gene_names_fixture,
+        taxonomy_tree=taxonomy_tree_fixture,
+        parent_node=None,
+        n_per_utility=5)
+
+    assert marker_genes == []
 
 @pytest.mark.parametrize("behemoth_cutoff", [1000000, 5])
 def test_selection_worker_smoke(
