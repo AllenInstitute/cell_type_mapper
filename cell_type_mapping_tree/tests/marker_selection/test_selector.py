@@ -39,8 +39,8 @@ def taxonomy_tree_fixture():
     tree['hierarchy'] = ['class', 'subclass', 'cluster']
     tree['class']  = {
         'aa': ['a', 'b', 'c', 'd'],
-        'bb': ['e', 'f'],
-        'cc': ['g', 'h']}
+        'bb': ['e'],
+        'cc': ['f', 'g', 'h']}
 
     cluster_list = []
     name_ct = 0
@@ -79,7 +79,7 @@ def pair_to_idx_fixture(
         if pair[0] not in pair_to_idx['cluster']:
             pair_to_idx['cluster'][pair[0]] = dict()
         pair_to_idx['cluster'][pair[0]][pair[1]] = idx
-    pair_to_idx['n_pairs'] = idx
+    pair_to_idx['n_pairs'] = idx + 1
     return pair_to_idx
 
 
@@ -179,7 +179,10 @@ def test_selection_worker_smoke(
     output_dict = dict()
     input_lock = DummyLock()
 
-    parent_list = [None, ('subclass', 'e'), ('class', 'bb')]
+    parent_list = [None,
+                   ('subclass', 'e'),
+                   ('class', 'aa'),
+                   ('class', 'bb')]
 
     for parent in parent_list:
         _marker_selection_worker(
@@ -193,6 +196,9 @@ def test_selection_worker_smoke(
             input_lock=input_lock)
 
     for parent in parent_list:
-        assert len(output_dict[parent]) > 0
-        for g in output_dict[parent]:
-            assert g in gene_names_fixture
+        if parent == ('class', 'bb'):
+            assert len(output_dict[parent]) == 0
+        else:
+            assert len(output_dict[parent]) > 0
+            for g in output_dict[parent]:
+                assert g in gene_names_fixture

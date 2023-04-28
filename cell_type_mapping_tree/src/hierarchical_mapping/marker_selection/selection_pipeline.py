@@ -147,6 +147,12 @@ def _marker_selection_worker(
             taxonomy_tree=taxonomy_tree,
             parent_node=parent_node)
 
+    # this could happen if a parent node has only one
+    # immediate descendant
+    if len(leaf_pair_list) == 0:
+        output_dict[parent_node] = []
+        return
+
     if len(leaf_pair_list) < behemoth_cutoff:
         only_keep_pairs = leaf_pair_list
     else:
