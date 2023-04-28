@@ -220,6 +220,7 @@ def test_downsampling_by_taxon_pairs(
     assert test_array.n_genes == base_array.n_genes
     assert test_array.n_pairs == len(pairs_to_keep)
     assert test_array.n_pairs < base_array.n_pairs
+    assert test_array.gene_names == base_array.gene_names
     for ii, pair in enumerate(pairs_to_keep):
         base_idx = base_array.idx_of_pair(
             pair[0],
@@ -246,3 +247,75 @@ def test_downsampling_by_taxon_pairs(
                 else:
                     test_array.idx_of_pair(
                         pair[0], pair[1], pair[2])
+
+
+def test_downsampling_by_taxon_pairs_other(
+       backed_array_fixture,
+       pair_to_idx_fixture):
+    base_array = MarkerGeneArray.from_cache_path(
+            cache_path=backed_array_fixture)
+    pairs_to_keep = [('level2', 'e', 'g'), ('level1', 'dd', 'ff'),
+                     ('level2', 'a', 'c')]
+    test_array = base_array.downsample_pairs_to_other(
+        only_keep_pairs=pairs_to_keep)
+
+    assert test_array is not base_array
+
+    assert test_array.n_genes == base_array.n_genes
+    assert test_array.n_pairs == len(pairs_to_keep)
+    assert test_array.n_pairs < base_array.n_pairs
+    assert test_array.gene_names == base_array.gene_names
+    for ii, pair in enumerate(pairs_to_keep):
+        base_idx = base_array.idx_of_pair(
+            pair[0],
+            pair[1],
+            pair[2])
+
+        assert base_idx != ii
+
+        base_m, base_u = base_array.marker_mask_from_pair_idx(base_idx)
+        test_m, test_u = test_array.marker_mask_from_pair_idx(ii)
+        np.testing.assert_array_equal(test_m, base_m)
+        np.testing.assert_array_equal(test_u, base_u)
+
+        assert test_array.idx_of_pair(
+                    pair[0],
+                    pair[1],
+                    pair[2]) == ii
+
+    for level in pair_to_idx_fixture:
+        for node1 in pair_to_idx_fixture[level]:
+            for node2 in pair_to_idx_fixture[level][node1]:
+                pair = (level, node1, node2)
+                if pair not in pairs_to_keep:
+                    with pytest.raises(RuntimeError, match='taxonomy'):
+                        test_array.idx_of_pair(
+                            pair[0], pair[1], pair[2])
+                else:
+                    test_array.idx_of_pair(
+                        pair[0], pair[1], pair[2])
+
+    # make sure base array data was not changed
+    with h5py.File(backed_array_fixture, 'r') as expected:
+        assert base_array.n_pairs == expected['n_pairs'][()]
+        expected_lookup = json.loads(
+            expected['pair_to_idx'][()].decode('utf-8'))
+        expected_gene_names = json.loads(
+            expected['gene_names'][()].decode('utf-8'))
+        assert base_array.taxonomy_pair_to_idx == expected_lookup
+        assert base_array.gene_names == expected_gene_names
+        expected_markers = expected['markers/data'][()]
+        np.testing.assert_array_equal(
+            base_array.is_marker.data,
+            expected_markers)
+        assert not np.array_equal(
+            test_array.is_marker.data,
+            expected_markers)
+
+        expected_up = expected['up_regulated/data'][()]
+        np.testing.assert_array_equal(
+            base_array.up_regulated.data,
+            expected_up)
+        assert not np.array_equal(
+            test_array.up_regulated.data,
+            expected_up)

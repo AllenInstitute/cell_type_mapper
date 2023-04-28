@@ -125,6 +125,29 @@ class MarkerGeneArray(object):
         Create and return a new MarkerGeneArray, only keeping
         the specified taxonomy pairs.
         """
+        col_idx = np.array(
+            [_idx_of_pair(
+                self.taxonomy_pair_to_idx,
+                pair[0],
+                pair[1],
+                pair[2])
+             for pair in only_keep_pairs])
+
+        new_taxonomy_lookup = _create_new_pair_lookup(
+                    only_keep_pairs)
+
+        new_n_pairs = len(only_keep_pairs)
+        new_is_marker = self.is_marker.downsample_columns_to_other(
+            col_idx_array=col_idx)
+        new_up = self.up_regulated.downsample_columns_to_other(
+            col_idx_array=col_idx)
+
+        return MarkerGeneArray(
+            gene_names=self.gene_names,
+            taxonomy_pair_to_idx=new_taxonomy_lookup,
+            n_pairs=new_n_pairs,
+            is_marker=new_is_marker,
+            up_regulated=new_up)
 
     def downsample_genes(self, gene_idx_array):
         """
