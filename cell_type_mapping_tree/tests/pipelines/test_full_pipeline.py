@@ -1,5 +1,6 @@
 import pytest
 
+import anndata
 import h5py
 import pathlib
 
@@ -15,6 +16,9 @@ from hierarchical_mapping.diff_exp.precompute_from_anndata import (
 
 from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
+
+from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+    create_marker_gene_cache_v2)
 
 
 @pytest.fixture
@@ -40,6 +44,7 @@ def test_all_of_it(
         h5ad_path_fixture,
         column_hierarchy,
         taxonomy_tree_fixture,
+        query_h5ad_path_fixture
         ):
 
     precomputed_path = mkstemp_clean(
@@ -73,3 +78,23 @@ def test_all_of_it(
         assert len(in_file.keys()) > 0
         assert in_file['up_regulated/data'][()].sum() > 0
         assert in_file['markers/data'][()].sum() > 0
+
+    a_data = anndata.read_h5ad(query_h5ad_path_fixture, backed='r')
+    query_gene_names = list(a_data.var_names)
+
+    marker_cache_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='ref_and_query_markers_',
+        suffix='.h5')
+
+    create_marker_gene_cache_v2(
+        output_cache_path=marker_cache_path,
+        input_cache_path=ref_marker_path,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree_fixture,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=1000000)
+
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        assert len(in_file['None']['reference'][()]) > 0
