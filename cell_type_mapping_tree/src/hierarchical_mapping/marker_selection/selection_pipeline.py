@@ -113,7 +113,7 @@ def select_all_markers(
                         'input_lock': input_lock})
             p.start()
 
-        process_dict[chosen_parent] = p
+            process_dict[chosen_parent] = p
 
         # the test on have_chosen_parent is there in case we have
         # a traffic jam of behemoths trying to get through
@@ -128,9 +128,17 @@ def select_all_markers(
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
 
+    # JSON cannot serialize a dict whose keys are tuples
+    to_write = dict()
+    k_list = output_dict.keys()
+    for k in k_list:
+        new_k = json.dumps(k)
+        assert new_k not in to_write
+        to_write[new_k] = output_dict.pop(k)
+
     with open(output_path, 'w') as out_file:
         out_file.write(
-            json.dumps(dict(output_dict), indent=2))
+            json.dumps(dict(to_write), indent=2))
 
 
 def _marker_selection_worker(
