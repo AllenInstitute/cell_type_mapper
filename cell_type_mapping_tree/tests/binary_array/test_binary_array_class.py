@@ -505,3 +505,31 @@ def test_downsample_columns():
         np.testing.assert_array_equal(
             arr.get_col(i_new),
             baseline[:, i_old])
+
+
+def test_downsample_columns_to_other():
+    rng = np.random.default_rng(117123)
+    n_rows = 23
+    n_cols = 47
+    baseline = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
+    arr = BinarizedBooleanArray(n_rows=n_rows, n_cols=n_cols)
+    for i_row in range(n_rows):
+        arr.set_row(i_row, baseline[i_row, :])
+    chosen_cols = np.array([26, 1, 5, 13, 17, 31, 32, 33, 41, 43, 45])
+    other = arr.downsample_columns_to_other(chosen_cols)
+    assert other.n_cols == len(chosen_cols)
+    assert other.n_cols < n_cols
+    assert other.n_rows == n_rows
+
+    assert arr.n_cols == n_cols
+    assert arr.n_rows == n_rows
+
+    for i_new, i_old in enumerate(chosen_cols):
+        np.testing.assert_array_equal(
+            other.get_col(i_new),
+            baseline[:, i_old])
+
+    for i_col in range(baseline.shape[1]):
+        np.testing.assert_array_equal(
+            arr.get_col(i_col),
+            baseline[:, i_col])
