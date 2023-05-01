@@ -1,4 +1,3 @@
-import json
 import multiprocessing
 
 from hierarchical_mapping.utils.taxonomy_utils import (
@@ -18,7 +17,6 @@ def select_all_markers(
         marker_cache_path,
         query_gene_names,
         taxonomy_tree,
-        output_path,
         n_per_utility=15,
         n_processors=4,
         behemoth_cutoff=1000000):
@@ -35,8 +33,6 @@ def select_all_markers(
         List of gene names from the query dataset
     taxonomy_tree:
         Dict representing the taxonomy tree.
-    output_path:
-        Path to the file that will be written.
     n_per_utility:
         How many genes to select per (taxon_pair, sign)
         combination
@@ -45,33 +41,41 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+
+    Returns
+    -------
+    A dict mapping parent node tuple to list of marker gene
+    names
     """
 
+    parent_to_leaves = dict()
     parent_list = [None]
-    n_leaves = [len(get_all_leaf_pairs(taxonomy_tree=taxonomy_tree,
-                                       parent_node=None))]
+
     for level in taxonomy_tree['hierarchy'][:-1]:
         for node in taxonomy_tree[level]:
             parent = (level, node)
             parent_list.append(parent)
-            n_leaves.append(
-                len(get_all_leaf_pairs(
-                        taxonomy_tree=taxonomy_tree,
-                        parent_node=parent)))
 
     # want to make sure that the memory hogs are not
     # all running at once
     behemoth_parents = []
     smaller_parents = []
-    for parent, n_leaf in zip(parent_list, n_leaves):
-        if n_leaf > behemoth_cutoff:
+    for parent in parent_list:
+        leaves = get_all_leaf_pairs(
+            taxonomy_tree=taxonomy_tree,
+            parent_node=parent)
+        parent_to_leaves[parent] = leaves
+        n_leaves = len(leaves)
+        if n_leaves > behemoth_cutoff:
             behemoth_parents.append(parent)
         else:
             smaller_parents.append(parent)
 
+    parent_marker_cache = MarkerGeneArray.from_cache_path(
+        cache_path=marker_cache_path)
+
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
-    input_lock = mgr.Lock()
     stdout_lock = mgr.Lock()
 
     started_parents = set()
@@ -86,11 +90,13 @@ def select_all_markers(
                 break
 
         have_chosen_parent = False
+        is_behemoth = False
         if not are_behemoths_running:
             for parent in behemoth_parents:
                 if parent not in started_parents:
                     chosen_parent = parent
                     have_chosen_parent = True
+                    is_behemoth = True
                     break
         if not have_chosen_parent:
             for parent in smaller_parents:
@@ -101,21 +107,30 @@ def select_all_markers(
 
         if have_chosen_parent:
             started_parents.add(chosen_parent)
-            p = multiprocessing.Process(
-                    target=_marker_selection_worker,
-                    kwargs={
-                        'marker_cache_path': marker_cache_path,
-                        'query_gene_names': query_gene_names,
-                        'taxonomy_tree': taxonomy_tree,
-                        'parent_node': chosen_parent,
-                        'n_per_utility': n_per_utility,
-                        'behemoth_cutoff': behemoth_cutoff,
-                        'output_dict': output_dict,
-                        'input_lock': input_lock,
-                        'stdout_lock': stdout_lock})
-            p.start()
+            leaves = parent_to_leaves[chosen_parent]
+            if len(leaves) == 0:
+                output_dict[chosen_parent] = []
+                completed_parents.add(chosen_parent)
+            else:
+                if is_behemoth:
+                    marker_gene_array = parent_marker_cache
+                else:
+                    marker_gene_array = \
+                        parent_marker_cache.downsample_pairs_to_other(
+                            only_keep_pairs=leaves)
 
-            process_dict[chosen_parent] = p
+                p = multiprocessing.Process(
+                        target=_marker_selection_worker,
+                        kwargs={
+                            'marker_gene_array': marker_gene_array,
+                            'query_gene_names': query_gene_names,
+                            'taxonomy_tree': taxonomy_tree,
+                            'parent_node': chosen_parent,
+                            'n_per_utility': n_per_utility,
+                            'output_dict': output_dict,
+                            'stdout_lock': stdout_lock})
+                p.start()
+                process_dict[chosen_parent] = p
 
         # the test on have_chosen_parent is there in case we have
         # a traffic jam of behemoths trying to get through
@@ -130,28 +145,16 @@ def select_all_markers(
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
 
-    # JSON cannot serialize a dict whose keys are tuples
-    to_write = dict()
-    k_list = output_dict.keys()
-    for k in k_list:
-        new_k = json.dumps(k)
-        assert new_k not in to_write
-        to_write[new_k] = output_dict.pop(k)
-
-    with open(output_path, 'w') as out_file:
-        out_file.write(
-            json.dumps(dict(to_write), indent=2))
+    return dict(output_dict)
 
 
 def _marker_selection_worker(
-        marker_cache_path,
+        marker_gene_array,
         query_gene_names,
         taxonomy_tree,
         parent_node,
-        behemoth_cutoff,
         n_per_utility,
         output_dict,
-        input_lock,
         stdout_lock):
 
     leaf_pair_list = get_all_leaf_pairs(
@@ -163,16 +166,6 @@ def _marker_selection_worker(
     if len(leaf_pair_list) == 0:
         output_dict[parent_node] = []
         return
-
-    if len(leaf_pair_list) < behemoth_cutoff:
-        only_keep_pairs = leaf_pair_list
-    else:
-        only_keep_pairs = None
-
-    with input_lock:
-        marker_gene_array = MarkerGeneArray(
-            cache_path=marker_cache_path,
-            only_keep_pairs=only_keep_pairs)
 
     marker_genes = select_marker_genes_v2(
         marker_gene_array=marker_gene_array,

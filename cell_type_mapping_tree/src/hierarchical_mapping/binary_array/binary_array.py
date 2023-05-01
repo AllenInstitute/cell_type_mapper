@@ -75,11 +75,7 @@ class BinarizedBooleanArray(object):
         self.data = self.data[row_idx_array, :]
         self.n_rows = len(row_idx_array)
 
-    def downsample_columns(self, col_idx_array):
-        """
-        Downselect the array to the specified columns
-        """
-
+    def _create_col_downsampled_data(self, col_idx_array):
         new_n_cols = len(col_idx_array)
         new_n_ints = n_int_from_n_cols(new_n_cols)
         new_data = np.zeros((self.n_rows, new_n_ints), dtype=np.uint8)
@@ -89,9 +85,34 @@ class BinarizedBooleanArray(object):
             val = self.bit_lookup[i_bit]
             valid = self.get_col(old_col)
             new_data[:, i_int][valid] += val
+        return (new_n_cols, new_n_ints, new_data)
+
+    def downsample_columns(self, col_idx_array):
+        """
+        Downselect the array to the specified columns
+        """
+        (new_n_cols,
+         new_n_ints,
+         new_data) = self._create_col_downsampled_data(
+                         col_idx_array)
+
         self.data = new_data
         self.n_cols = new_n_cols
         self.n_ints = new_n_ints
+
+    def downsample_columns_to_other(self, col_idx_array):
+        """
+        Return a new BinarizedBooleanArray that has been
+        downsampled to the specified columns
+        """
+        (new_n_cols,
+         _,
+         new_data) = self._create_col_downsampled_data(
+                         col_idx_array)
+
+        return BinarizedBooleanArray.from_data_array(
+            data_array=new_data,
+            n_cols=new_n_cols)
 
     def _col_to_int(self, i_col):
         """

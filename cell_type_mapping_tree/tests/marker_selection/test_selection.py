@@ -164,7 +164,8 @@ def backed_array_fixture(
 def test_recalculate_utilty_array(
         backed_array_fixture,
         n_genes):
-    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+    arr = MarkerGeneArray.from_cache_path(
+        cache_path=backed_array_fixture)
     util = np.zeros(n_genes, dtype=int)
     util = recalculate_utility_array(
         utility_array=util,
@@ -196,7 +197,8 @@ def test_recalculate_utilty_array(
 def test_get_taxonomy_idx(
         taxonomy_tree_fixture,
         backed_array_fixture):
-    arr = MarkerGeneArray(cache_path=backed_array_fixture)
+    arr = MarkerGeneArray.from_cache_path(
+        cache_path=backed_array_fixture)
     np.testing.assert_array_equal(
         _get_taxonomy_idx(
             taxonomy_tree=taxonomy_tree_fixture,

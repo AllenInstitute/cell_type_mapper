@@ -138,7 +138,8 @@ class CellByGeneMatrix(object):
                     f"gene {g} occurs more than once in selected_genes")
             id_set.add(g)
 
-        idx_array = np.array([self.gene_to_col[n] for n in selected_genes])
+        idx_array = np.array([self.gene_to_col[n] for n in selected_genes],
+                             dtype=int)
 
         return self.data[:, idx_array]
 

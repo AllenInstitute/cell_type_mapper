@@ -233,7 +233,8 @@ def test_select_marker_genes_v2(
             n_processors=n_processors,
             tmp_dir=tmp_dir)
 
-    marker_array = MarkerGeneArray(cache_path=marker_path)
+    marker_array = MarkerGeneArray.from_cache_path(
+        cache_path=marker_path)
     query_gene_names = rng.choice(gene_names,
                                   len(gene_names)//2,
                                   replace=False)
