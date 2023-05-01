@@ -32,6 +32,10 @@ def precompute_summary_stats_from_contiguous_zarr(
     in the sense that cells of the same cluster occupy contiguous blocks
     of rows). This assumes that there is a metadata.json file that contains
     the mapping between cell cluster and row index.
+
+    Note
+    ----
+    Normalization of input cell by gene matrix *must* be log2(CPM+1)
     """
     zarr_path = pathlib.Path(zarr_path)
     output_path = pathlib.Path(output_path)

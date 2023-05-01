@@ -25,7 +25,8 @@ def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
         column_hierarchy: List[str],
         output_path: Union[str, pathlib.Path],
-        rows_at_a_time: int = 10000):
+        rows_at_a_time: int = 10000,
+        normalization="log2CPM"):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -49,6 +50,10 @@ def precompute_summary_stats_from_h5ad(
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
         matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
     """
     taxonomy_tree = get_taxonomy_tree_from_h5ad(
         h5ad_path=data_path,
@@ -58,7 +63,8 @@ def precompute_summary_stats_from_h5ad(
         data_path=data_path,
         taxonomy_tree=taxonomy_tree,
         output_path=output_path,
-        rows_at_a_time=rows_at_a_time)
+        rows_at_a_time=rows_at_a_time,
+        normalization=normalization)
 
 
 def get_taxonomy_tree_from_h5ad(
@@ -78,7 +84,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         data_path: Union[str, pathlib.Path],
         taxonomy_tree: dict,
         output_path: Union[str, pathlib.Path],
-        rows_at_a_time: int = 10000):
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM'):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -101,6 +108,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
         matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
     """
     a_data = anndata.read_h5ad(data_path, backed='r')
     gene_names = a_data.var_names
@@ -155,7 +166,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
             this_cluster = CellByGeneMatrix(
                 data=this_cluster,
                 gene_identifiers=gene_names,
-                normalization='log2CPM')
+                normalization=normalization)
+
+            if this_cluster.normalization != 'log2CPM':
+                this_cluster.to_log2CPM_in_place()
 
             summary_chunk = summary_stats_for_chunk(this_cluster)
 
