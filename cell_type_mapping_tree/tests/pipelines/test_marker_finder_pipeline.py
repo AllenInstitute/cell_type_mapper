@@ -39,13 +39,6 @@ from hierarchical_mapping.marker_selection.selection import (
 
 
 @pytest.fixture
-def tmp_dir_fixture(tmp_path_factory):
-    tmp_dir = pathlib.Path(
-        tmp_path_factory.mktemp('smoke'))
-    yield tmp_dir
-    _clean_up(tmp_dir)
-
-@pytest.fixture
 def tree_fixture(
         records_fixture,
         column_hierarchy):
@@ -58,17 +51,21 @@ def tree_fixture(
 def test_marker_finding_pipeline(
         h5ad_path_fixture,
         column_hierarchy,
-        tmp_path_factory,
+        tmp_dir_fixture,
         gene_names,
         tree_fixture):
 
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    hdf5_tmp = tmp_dir / 'hdf5'
-    hdf5_tmp.mkdir()
-    marker_path = tmp_dir / 'marker_results.h5'
+    tmp_dir = tmp_dir_fixture
 
-    precompute_path = tmp_dir / 'precomputed.h5'
-    assert not precompute_path.is_file()
+    marker_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5'))
+
+    precompute_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5'))
 
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,
@@ -76,7 +73,8 @@ def test_marker_finding_pipeline(
         output_path=precompute_path,
         rows_at_a_time=1000)
 
-    assert precompute_path.is_file()
+    with h5py.File(precompute_path, 'r') as in_file:
+        assert len(in_file['n_cells'][()]) > 0
 
     taxonomy_tree = tree_fixture
 
@@ -88,7 +86,6 @@ def test_marker_finding_pipeline(
     assert len(siblings) > (n_processors*flush_every)
     assert len(siblings) % (n_processors*flush_every) != 0
 
-    assert not marker_path.is_file()
     find_markers_for_all_taxonomy_pairs(
             precomputed_stats_path=precompute_path,
             taxonomy_tree=taxonomy_tree,
@@ -96,7 +93,6 @@ def test_marker_finding_pipeline(
             n_processors=n_processors,
             tmp_dir=tmp_dir)
 
-    assert marker_path.is_file()
     with h5py.File(marker_path, 'r') as in_file:
         assert 'markers/data' in in_file
         assert 'up_regulated/data' in in_file
@@ -189,7 +185,6 @@ def test_marker_finding_pipeline(
     # make sure that the marker file only kept genes that ever occur as markers
     assert len(are_markers) < len(gene_names)
     assert are_markers == set(filtered_gene_names)
-    _clean_up(tmp_dir)
 
 
 def test_select_marker_genes_v2(
@@ -204,13 +199,11 @@ def test_select_marker_genes_v2(
     """
     rng = np.random.default_rng(776123)
     tmp_dir = tmp_dir_fixture
-    hdf5_tmp = tmp_dir / 'hdf5'
-    hdf5_tmp.mkdir()
     marker_path = pathlib.Path(
-        mkstemp_clean(dir=hdf5_tmp, suffix='.h5'))
+        mkstemp_clean(dir=tmp_dir, suffix='.h5'))
 
     precompute_path = pathlib.Path(
-        mkstemp_clean(dir=hdf5_tmp, suffix='.h5'))
+        mkstemp_clean(dir=tmp_dir, suffix='.h5'))
 
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,

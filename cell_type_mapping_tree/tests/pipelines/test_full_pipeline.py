@@ -27,15 +27,6 @@ from hierarchical_mapping.type_assignment.election import (
 
 
 @pytest.fixture
-def tmp_dir_fixture(
-        tmp_path_factory):
-    tmp_dir = pathlib.Path(
-        tmp_path_factory.mktemp('full_pipeline'))
-    yield tmp_dir
-    _clean_up(tmp_dir)
-
-
-@pytest.fixture
 def taxonomy_tree_fixture(
         records_fixture,
         column_hierarchy):
