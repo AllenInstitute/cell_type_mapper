@@ -31,7 +31,8 @@ def run_type_assignment_on_h5ad(
         chunk_size,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        normalization='log2CPM'):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -72,6 +73,10 @@ def run_type_assignment_on_h5ad(
 
     rng:
         A random number generator
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
 
     Returns
     -------
@@ -120,7 +125,10 @@ def run_type_assignment_on_h5ad(
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
-            normalization="log2CPM")
+            normalization=normalization)
+
+        if data.normalization != 'log2CPM':
+            data.to_log2CPM_in_place()
 
         # downsample to just include marker genes
         # to limit memory footprint
@@ -204,6 +212,7 @@ def run_type_assignment(
     ----------
     full_query_gene_data:
         A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
 
     precomputed_stats_path:
         Path to the HDF5 file where precomputed stats on the
@@ -376,7 +385,8 @@ def _run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        A CellByGeneMatrix containing the query data
+        A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'
 
     leaf_node_matrix:
         A CellByGeneMatrix containing the mean gene expression

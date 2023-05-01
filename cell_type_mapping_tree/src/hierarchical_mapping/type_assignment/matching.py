@@ -27,6 +27,7 @@ def assemble_query_data(
     ----------
     full_query_data:
         A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
     mean_profile_matrix:
         A CellByGeneMatrix containing the mean gene expression profiles
         for each cell cluster in the reference taxonomy.
@@ -116,12 +117,13 @@ def assemble_query_data(
 
     if query_data.normalization != "log2CPM":
         raise RuntimeError(
-            f"query data normalization is {query_data.normalization}\n"
+            f"query data normalization is '{query_data.normalization}'\n"
             "should be 'log2CPM'")
 
     if reference_data.normalization != "log2CPM":
         raise RuntimeError(
-            f"reference data normalization is {query_data.normalization}\n"
+            "reference data normalization is "
+            f"'{reference_data.normalization}'\n"
             "should be 'log2CPM'")
 
     return {'query_data': query_data,

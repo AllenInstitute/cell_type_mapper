@@ -7,7 +7,8 @@ import numpy as np
 import pathlib
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves)
@@ -17,6 +18,15 @@ from hierarchical_mapping.type_assignment.matching import (
 
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
+
+
+@pytest.fixture
+def tmp_dir_fixture(
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('type_matching'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
 
 
 @pytest.fixture
@@ -107,6 +117,22 @@ def mean_matrix_fixture(mean_lookup_fixture, n_genes, marker_fixture):
     return result
 
 
+@pytest.fixture
+def raw_mean_matrix_fixture(mean_lookup_fixture, n_genes, marker_fixture):
+    n_cells = len(mean_lookup_fixture)
+    data = np.zeros((n_cells, n_genes), dtype=float)
+    cell_id = []
+    for ii, k in enumerate(mean_lookup_fixture.keys()):
+        cell_id.append(k)
+        data[ii, :] = mean_lookup_fixture[k]
+    result = CellByGeneMatrix(
+        data=data,
+        gene_identifiers=marker_fixture['reference_names'],
+        cell_identifiers=cell_id,
+        normalization='raw')
+    return result
+
+
 @pytest.mark.parametrize(
     "parent_node, expected_n_reference, expected_types, expected_clusters",
     [(None, 13, ['A', 'B', 'C', 'C', 'C', 'A', 'B', 'B', 'A', 'A', 'B', 'B', 'B'],
@@ -125,10 +151,12 @@ def test_assemble_query_data(
         expected_n_reference,
         expected_types,
         expected_clusters,
-        tmp_path_factory):
+        tmp_dir_fixture):
 
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('for_reference'))
-    marker_cache_path = tmp_dir / 'marker_cache.h5'
+    tmp_dir = tmp_dir_fixture
+    marker_cache_path = mkstemp_clean(
+        dir=tmp_dir,
+        suffix='.h5')
 
     if parent_node is None:
         parent_grp = 'None'
@@ -196,4 +224,81 @@ def test_assemble_query_data(
             jj_o = marker_fixture['reference'][jj]
             assert actual['reference_data'].data[ii, jj] == mean_lookup_fixture[ref][jj_o]
 
-    _clean_up(tmp_dir)
+
+def test_assemble_query_data_errors(
+        tree_fixture,
+        marker_fixture,
+        mean_lookup_fixture,
+        mean_matrix_fixture,
+        raw_mean_matrix_fixture,
+        n_genes,
+        n_markers,
+        tmp_dir_fixture):
+
+    tmp_dir = tmp_dir_fixture
+    marker_cache_path = mkstemp_clean(
+        dir=tmp_dir,
+        suffix='.h5')
+    parent_node = None
+    parent_grp = 'None'
+
+    with h5py.File(marker_cache_path, 'w') as out_file:
+        out_file.create_dataset(f"{parent_grp}/reference",
+            data=marker_fixture['reference'])
+        out_file.create_dataset(f"{parent_grp}/query",
+            data=marker_fixture['query'])
+        out_file.create_dataset(
+            'reference_gene_names',
+            data=json.dumps(marker_fixture['reference_names']).encode('utf-8')),
+        out_file.create_dataset(
+            'query_gene_names',
+            data=json.dumps(marker_fixture['query_names']).encode('utf-8'))
+        all_query_markers = np.sort(np.array(marker_fixture['query']))
+        out_file.create_dataset('all_query_markers',
+                                data=all_query_markers)
+
+    rng = np.random.default_rng(44553)
+    n_query = 17
+    full_query_data = rng.random((n_query, n_genes))
+
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        query_gene_id = json.loads(
+                             in_file["query_gene_names"][()].decode("utf-8"))
+        query_markers = [query_gene_id[ii]
+                         for ii in in_file['all_query_markers'][()]]
+
+    assert len(query_markers) < n_genes
+
+    # when query data is raw
+    query_cell_by_gene = CellByGeneMatrix(
+        data=full_query_data,
+        gene_identifiers=query_gene_id,
+        normalization="raw")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
+
+    with pytest.raises(RuntimeError, match="should be 'log2CPM'"):
+        assemble_query_data(
+            full_query_data=query_cell_by_gene,
+            mean_profile_matrix=mean_matrix_fixture,
+            taxonomy_tree=tree_fixture,
+            marker_cache_path=marker_cache_path,
+            parent_node=parent_node)
+
+    # when reference data is raw
+    query_cell_by_gene = CellByGeneMatrix(
+        data=full_query_data,
+        gene_identifiers=query_gene_id,
+        normalization="log2CPM")
+
+    query_cell_by_gene.downsample_genes_in_place(
+        selected_genes=query_markers)
+
+    with pytest.raises(RuntimeError, match="should be 'log2CPM'"):
+        assemble_query_data(
+            full_query_data=query_cell_by_gene,
+            mean_profile_matrix=raw_mean_matrix_fixture,
+            taxonomy_tree=tree_fixture,
+            marker_cache_path=marker_cache_path,
+            parent_node=parent_node)
