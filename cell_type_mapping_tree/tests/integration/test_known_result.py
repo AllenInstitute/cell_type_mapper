@@ -390,7 +390,8 @@ def test_cli_pipeline(
     config['precomputed_stats'] = {
         'column_hierarchy': taxonomy_tree['hierarchy'],
         'reference_path': str(raw_reference_h5ad_fixture.resolve().absolute()),
-        'path': str(precompute_out)}
+        'path': str(precompute_out),
+        'normalization': 'raw'}
 
     config['reference_markers'] = {
         'n_processors': 3,
@@ -406,7 +407,8 @@ def test_cli_pipeline(
         'bootstrap_factor': 0.9,
         'bootstrap_iteration': 27,
         'rng_seed': 66234,
-        'chunk_size': 1000}
+        'chunk_size': 1000,
+        'normalization': 'raw'}
 
     assert not precompute_out.is_file()
     assert not ref_marker_out.is_file()

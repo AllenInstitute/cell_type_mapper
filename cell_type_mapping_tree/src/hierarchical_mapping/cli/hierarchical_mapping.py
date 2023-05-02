@@ -80,7 +80,8 @@ def _run_mapping(config, tmp_dir, log):
                   'chunk_size',
                   'bootstrap_factor',
                   'bootstrap_iteration',
-                  'rng_seed'],
+                  'rng_seed',
+                  'normalization'],
         log=log)
 
     (query_tmp,
@@ -115,7 +116,7 @@ def _run_mapping(config, tmp_dir, log):
         _check_config(
             config_dict=precomputed_config,
             config_name='precomputed_config',
-            key_name=['column_hierarchy', 'reference_path'],
+            key_name=['column_hierarchy', 'reference_path', 'normalization'],
             log=log)
 
         reference_path = pathlib.Path(
@@ -136,7 +137,7 @@ def _run_mapping(config, tmp_dir, log):
             taxonomy_tree=None,
             output_path=precomputed_tmp,
             rows_at_a_time=10000,
-            normalization='raw')
+            normalization=precomputed_config['normalization'])
         log.benchmark(msg="precomputing stats",
                       duration=time.time()-t0)
 
@@ -239,7 +240,7 @@ def _run_mapping(config, tmp_dir, log):
         bootstrap_factor=type_assignment_config['bootstrap_factor'],
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
-        normalization='raw')
+        normalization=type_assignment_config['normalization'])
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 
