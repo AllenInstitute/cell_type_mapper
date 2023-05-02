@@ -11,6 +11,7 @@ import h5py
 import numpy as np
 import pandas as pd
 import pathlib
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -27,6 +28,9 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
+
+from hierarchical_mapping.cli.hierarchical_mapping import (
+    run_mapping)
 
 
 @pytest.fixture
@@ -82,6 +86,35 @@ def taxonomy_tree(n_reference_cells):
         assert len(tree['cluster'][cluster]) > 3
 
     return tree
+
+@pytest.fixture
+def obs_records_fixture(taxonomy_tree):
+    cluster_to_subclass = dict()
+    for subclass in taxonomy_tree['subclass']:
+        for cl in taxonomy_tree['subclass'][subclass]:
+            cluster_to_subclass[cl] = subclass
+    subclass_to_class = dict()
+    for class_name in taxonomy_tree['class']:
+        for subclass in taxonomy_tree['class'][class_name]:
+            subclass_to_class[subclass] = class_name
+
+    row_to_cluster = dict()
+    for cluster in taxonomy_tree['cluster']:
+        for idx in taxonomy_tree['cluster'][cluster]:
+            row_to_cluster[idx] = cluster
+    cell_id_list = list(row_to_cluster.keys())
+    cell_id_list.sort()
+    results = []
+    for idx in cell_id_list:
+        cluster = row_to_cluster[idx]
+        subclass = cluster_to_subclass[cluster]
+        class_name = subclass_to_class[subclass]
+        results.append(
+            {'cell_id': idx,
+             'cluster': cluster,
+             'subclass': subclass,
+             'class': class_name})
+    return results
 
 
 @pytest.fixture
@@ -164,6 +197,7 @@ def raw_reference_cell_x_gene(
 def raw_reference_h5ad_fixture(
         raw_reference_cell_x_gene,
         reference_gene_names,
+        obs_records_fixture,
         tmp_dir_fixture):
 
     var_data = [{'gene_name': g, 'garbage': ii}
@@ -172,8 +206,12 @@ def raw_reference_h5ad_fixture(
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
+    obs = pd.DataFrame(obs_records_fixture)
+    obs = obs.set_index('cell_id')
+
     a_data = anndata.AnnData(
         X=raw_reference_cell_x_gene,
+        obs=obs,
         var=var)
 
     h5ad_path = pathlib.Path(
@@ -193,7 +231,7 @@ def expected_cluster_fixture(
         cluster_list,
         n_query_cells,
         replace=True)
-    return chosen_clusters                    
+    return chosen_clusters
 
 @pytest.fixture
 def raw_query_cell_x_gene_fixture(
@@ -324,3 +362,52 @@ def test_raw_pipeline(
         actual_class = cell['class']['assignment']
         assert actual_sub in taxonomy_tree['class'][actual_class]
 
+
+def test_cli_pipeline(
+        raw_reference_h5ad_fixture,
+        raw_query_h5ad_fixture,
+        expected_cluster_fixture,
+        taxonomy_tree,
+        query_gene_names,
+        tmp_dir_fixture):
+
+    tmp_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture)
+
+    to_store = pathlib.Path(
+        tempfile.mkdtemp(
+            dir=tmp_dir_fixture))
+
+    precompute_out = to_store / 'precomputed.h5'
+    ref_marker_out = to_store / 'ref_markers.h5'
+
+    config = dict()
+    config['tmp_dir'] = tmp_dir
+    config['query_path'] = str(
+        raw_query_h5ad_fixture.resolve().absolute())
+
+    config['precomputed_stats'] = {
+        'column_hierarchy': taxonomy_tree['hierarchy'],
+        'reference_path': str(raw_reference_h5ad_fixture.resolve().absolute()),
+        'path': str(precompute_out)}
+
+    config['reference_markers'] = {
+        'n_processors': 3,
+        'max_bytes': 6*1024**2,
+        'path': str(ref_marker_out)}
+
+    config["query_markers"] = {
+        'n_per_utility': 5,
+        'n_processors': 3}
+
+    assert not precompute_out.is_file()
+    assert not ref_marker_out.is_file()
+
+    log_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.json')
+
+    run_mapping(config, log_path=log_path)
+
+    assert precompute_out.is_file()
+    assert ref_marker_out.is_file()

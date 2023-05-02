@@ -1,0 +1,302 @@
+import anndata
+import h5py
+import json
+import pathlib
+import shutil
+import tempfile
+import time
+
+from hierarchical_mapping.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
+
+from hierarchical_mapping.cli.cli_log import (
+    CommandLog)
+
+from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
+
+from hierarchical_mapping.diff_exp.markers import (
+    find_markers_for_all_taxonomy_pairs)
+
+from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+    create_marker_gene_cache_v2)
+
+from hierarchical_mapping.type_assignment.election import (
+    run_type_assignment_on_h5ad)
+
+
+def run_mapping(config, log_path=None):
+
+    log = CommandLog()
+
+    if 'tmp_dir' not in config:
+        raise RuntimeError("did not specify tmp_dir")
+
+    tmp_dir = tempfile.mkdtemp(dir=config['tmp_dir'])
+
+    try:
+        _run_mapping(
+            config=config,
+            tmp_dir=tmp_dir,
+            log=log)
+        log.info("RAN SUCCESSFULLY")
+    finally:
+        _clean_up(tmp_dir)
+        log.info("CLEANING UP")
+        if log_path is not None:
+            log.write_log(log_path)
+
+
+def _run_mapping(config, tmp_dir, log):
+
+    if "query_path" not in config:
+        log.error("'query_path' not in config")
+
+    if "precomputed_stats" not in config:
+        log.error("'precomputed_stats' not in config")
+
+    if "reference_markers" not in config:
+        log.error("'reference_markers' not in config")
+
+    if "query_markers" not in config:
+        log.error("'query_markers' not in config")
+
+    (query_tmp,
+     query_is_valid) = _copy_over_file(
+         file_path=config["query_path"],
+         tmp_dir=tmp_dir,
+         log=log)
+
+    if not query_is_valid:
+        log.error(
+            f"{config['query_path']} is not a valid file")
+
+    reference_marker_config = config["reference_markers"]
+
+    precomputed_config = config["precomputed_stats"]
+    lookup = _make_temp_path(
+        config_dict=precomputed_config,
+        tmp_dir=tmp_dir,
+        log=log,
+        suffix=".h5")
+
+    precomputed_path = lookup["path"]
+    precomputed_tmp = lookup["tmp"]
+    precomputed_is_valid = lookup["is_valid"]
+
+    # ========= precomputed stats =========
+
+    if precomputed_is_valid:
+        log.info(f"using {precomputed_tmp} for precomputed_stats")
+    else:
+        log.info("creating precomputed stats file")
+        _check_config(
+            config_dict=precomputed_config,
+            config_name='precomputed_config',
+            key_name=['column_hierarchy', 'reference_path'],
+            log=log)
+
+        reference_path = pathlib.Path(
+            precomputed_config['reference_path'])
+
+        ref_tmp = pathlib.Path(
+            tempfile.mkdtemp(dir=tmp_dir))
+
+        (reference_path,
+         _) = _copy_over_file(file_path=reference_path,
+                              tmp_dir=ref_tmp,
+                              log=log)
+
+        t0 = time.time()
+        precompute_summary_stats_from_h5ad(
+            data_path=reference_path,
+            column_hierarchy=precomputed_config['column_hierarchy'],
+            taxonomy_tree=None,
+            output_path=precomputed_tmp,
+            rows_at_a_time=10000,
+            normalization='raw')
+        log.benchmark(msg="precomputing stats",
+                      duration=time.time()-t0)
+
+        if precomputed_path is not None:
+            log.info("copying precomputed stats from "
+                     f"{precomputed_tmp} to {precomputed_path}")
+            shutil.copy(
+                src=precomputed_tmp,
+                dst=precomputed_path)
+
+        _clean_up(ref_tmp)
+
+    log.info(f"reading taxonomy_tree from {precomputed_tmp}")
+    with h5py.File(precomputed_tmp, "r") as in_file:
+        taxonomy_tree = json.loads(
+            in_file["taxonomy_tree"][()].decode("utf-8"))
+
+    reference_marker_config = config["reference_markers"]
+    lookup = _make_temp_path(
+        config_dict=reference_marker_config,
+        tmp_dir=tmp_dir,
+        log=log,
+        suffix=".h5")
+
+    reference_marker_path = lookup["path"]
+    reference_marker_tmp = lookup["tmp"]
+    reference_marker_is_valid = lookup["is_valid"]
+
+    # ========= reference marker cache =========
+
+    if reference_marker_is_valid:
+        log.info(f"using {reference_marker_tmp} for reference markers")
+    else:
+        log.info("creating reference marker file")
+
+        _check_config(
+            config_dict=reference_marker_config,
+            config_name='reference_markers',
+            key_name=['n_processors', 'max_bytes'],
+            log=log)
+
+        marker_tmp = tempfile.mkdtemp(dir=tmp_dir)
+
+        t0 = time.time()
+        find_markers_for_all_taxonomy_pairs(
+            precomputed_stats_path=precomputed_tmp,
+            taxonomy_tree=taxonomy_tree,
+            output_path=reference_marker_tmp,
+            tmp_dir=marker_tmp,
+            n_processors=reference_marker_config['n_processors'],
+            max_bytes=reference_marker_config['max_bytes'])
+
+        log.benchmark(msg="finding reference markers",
+                      duration=time.time()-t0)
+
+        _clean_up(marker_tmp)
+        if reference_marker_path is not None:
+            log.info(f"copying reference markers from "
+                     "{reference_marker_tmp} to "
+                     f"{reference_marker_path}")
+            shutil.copy(
+                src=reference_marker_tmp,
+                dst=reference_marker_path)
+
+    # ========= query marker cache =========
+
+    query_marker_config = config["query_markers"]
+    _check_config(
+        config_dict=query_marker_config,
+        config_name="query_markers",
+        key_name=['n_per_utility', 'n_processors'],
+        log=log)
+
+    query_marker_tmp = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir, suffix='.h5'))
+
+    t0 = time.time()
+    create_marker_gene_cache_v2(
+        output_cache_path=query_marker_tmp,
+        input_cache_path=reference_marker_tmp,
+        query_gene_names=_get_query_gene_names(query_tmp),
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=query_marker_config['n_per_utility'],
+        n_processors=query_marker_config['n_processors'],
+        behemoth_cutoff=5000000)
+    log.benchmark(msg="creating query marker cache",
+                  duration=time.time()-t0)
+
+
+def _copy_over_file(file_path, tmp_dir, log):
+    """
+    If a file exists, copy it into the tmp_dir.
+
+    Parameters
+    ----------
+    file_path:
+        the path to the file we are considering
+    tmp_dir:
+        the path to the fast tmp_dir
+    log:
+        CommandLog to record actions
+
+    Returns
+    -------
+    new_path:
+        Where the file was copied (even if file was not copied,
+        return a to a file in tmp_dir)
+
+    valid:
+        boolean indicating whether this file can be used (True)
+        or if it is just a placeholder (False)
+    """
+    file_path = pathlib.Path(file_path)
+    tmp_dir = pathlib.Path(tmp_dir)
+    new_path = mkstemp_clean(dir=tmp_dir, suffix=file_path.suffix)
+
+    is_valid = False
+    if file_path.exists():
+        if not file_path.is_file():
+            log.error(
+                f"{file_path} exists but is not a file")
+        else:
+            t0 = time.time()
+            log.info(f"copying {file_path}")
+            shutil.copy(src=file_path, dst=new_path)
+            duration = time.time()-t0
+            log.info(f"copied {file_path} to {new_path} "
+                     f"in {duration:.4e} seconds")
+            is_valid = True
+
+    return new_path, is_valid
+
+
+def _make_temp_path(
+        config_dict,
+        tmp_dir,
+        log,
+        suffix):
+    """
+    Create a temp path for an actual file.
+
+    Returns
+    -------
+    {'tmp': tmp_path created
+     'path': path in actual storage (can be None)
+     'is_valid': True if 'path' exists; False if must be created}
+    """
+
+    if "path" in config_dict:
+        file_path = pathlib.Path(
+            config_dict["path"])
+        (tmp_path,
+         is_valid) = _copy_over_file(
+                 file_path=file_path,
+                 tmp_dir=tmp_dir,
+                 log=log)
+    else:
+        tmp_path = pathlib.Path(
+            mkstemp_clean(dir=tmp_dir, suffix=suffix))
+        is_valid = False
+        file_path = None
+
+    return {'tmp': tmp_path,
+            'path': file_path,
+            'is_valid': is_valid}
+
+
+def _check_config(config_dict, config_name, key_name, log):
+    if isinstance(key_name, list):
+        for el in key_name:
+            _check_config(
+                config_dict=config_dict,
+                config_name=config_name,
+                key_name=el,
+                log=log)
+    else:
+        if key_name not in config_dict:
+            log.error(f"'{config_name}' config missing key '{key_name}'")
+
+
+def _get_query_gene_names(query_gene_path):
+    a_data = anndata.read_h5ad(query_gene_path, backed='r')
+    gene_names = list(a_data.var_names)
+    return gene_names
