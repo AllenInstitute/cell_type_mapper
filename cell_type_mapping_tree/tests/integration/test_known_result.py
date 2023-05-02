@@ -364,13 +364,15 @@ def test_raw_pipeline(
         assert actual_sub in taxonomy_tree['class'][actual_class]
 
 
+@pytest.mark.parametrize('use_tree', [True, False])
 def test_cli_pipeline(
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
         taxonomy_tree,
         query_gene_names,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        use_tree):
 
     tmp_dir = tempfile.mkdtemp(
         dir=tmp_dir_fixture)
@@ -388,10 +390,17 @@ def test_cli_pipeline(
         raw_query_h5ad_fixture.resolve().absolute())
 
     config['precomputed_stats'] = {
-        'column_hierarchy': taxonomy_tree['hierarchy'],
         'reference_path': str(raw_reference_h5ad_fixture.resolve().absolute()),
         'path': str(precompute_out),
         'normalization': 'raw'}
+
+    if use_tree:
+        tree_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.json')
+        with open(tree_path, 'w') as out_file:
+            out_file.write(json.dumps(taxonomy_tree))
+        config['precomputed_stats']['taxonomy_tree'] = tree_path
+    else:
+        config['precomputed_stats']['column_hierarchy'] = taxonomy_tree['hierarchy']
 
     config['reference_markers'] = {
         'n_processors': 3,

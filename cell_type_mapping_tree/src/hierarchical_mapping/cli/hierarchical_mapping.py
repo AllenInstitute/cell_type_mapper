@@ -98,11 +98,19 @@ def _run_mapping(config, tmp_dir, log):
                               tmp_dir=ref_tmp,
                               log=log)
 
+        if 'column_hierarchy' in precomputed_config:
+            column_hierarchy = precomputed_config['column_hierarchy']
+            taxonomy_tree = None
+        else:
+            taxonomy_tree = json.load(
+                open(precomputed_config['taxonomy_tree'], 'rb'))
+            column_hierarchy = None
+
         t0 = time.time()
         precompute_summary_stats_from_h5ad(
             data_path=reference_path,
-            column_hierarchy=precomputed_config['column_hierarchy'],
-            taxonomy_tree=None,
+            column_hierarchy=column_hierarchy,
+            taxonomy_tree=taxonomy_tree,
             output_path=precomputed_tmp,
             rows_at_a_time=10000,
             normalization=precomputed_config['normalization'])
@@ -257,8 +265,21 @@ def _validate_config(
         _check_config(
             config_dict=precomputed_config,
             config_name='precomputed_config',
-            key_name=['column_hierarchy', 'reference_path', 'normalization'],
+            key_name=['reference_path', 'normalization'],
             log=log)
+
+        has_columns = 'column_hierarchy' in precomputed_config
+        has_taxonomy = 'taxonomy_tree' in precomputed_config
+
+        if has_columns and has_taxonomy:
+            log.error(
+                "Cannot specify both column_hierarchy and "
+                "taxonomy_tree in precomputed_config")
+
+        if not has_columns and not has_taxonomy:
+            log.error(
+                "Must specify one of column_hierarchy or "
+                "taxonomy_tree in precomputed_config")
 
     reference_marker_config = config["reference_markers"]
     lookup = _make_temp_path(
