@@ -8,6 +8,7 @@ import pytest
 import anndata
 import copy
 import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -410,11 +411,37 @@ def test_cli_pipeline(
     assert not precompute_out.is_file()
     assert not ref_marker_out.is_file()
 
-    log_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.json')
+    log_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
 
-    run_mapping(config, log_path=log_path)
+    output_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
+
+    run_mapping(
+        config,
+        output_path=output_path,
+        log_path=log_path)
 
     assert precompute_out.is_file()
     assert ref_marker_out.is_file()
+
+    log = json.load(open(log_path, 'rb'))
+    assert isinstance(log, list)
+    assert len(log) > 0
+
+    results = json.load(open(output_path, 'rb'))
+    assert len(results["results"]) == len(expected_cluster_fixture)
+
+    for cell in results["results"]:
+        cell_id = int(cell['cell_id'])
+        actual_cluster = cell['cluster']['assignment']
+        expected_cluster = expected_cluster_fixture[cell_id]
+        assert actual_cluster == expected_cluster
+        actual_sub = cell['subclass']['assignment']
+        assert actual_cluster in taxonomy_tree['subclass'][actual_sub]
+        actual_class = cell['class']['assignment']
+        assert actual_sub in taxonomy_tree['class'][actual_class]

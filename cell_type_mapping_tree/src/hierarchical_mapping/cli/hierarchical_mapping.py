@@ -27,7 +27,7 @@ from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
 
-def run_mapping(config, log_path=None):
+def run_mapping(config, output_path, log_path=None):
 
     log = CommandLog()
 
@@ -36,17 +36,24 @@ def run_mapping(config, log_path=None):
 
     tmp_dir = tempfile.mkdtemp(dir=config['tmp_dir'])
 
+    output = dict()
+
     try:
         type_assignment = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             log=log)
         log.info("RAN SUCCESSFULLY")
+        output["results"] = type_assignment
     finally:
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
         if log_path is not None:
             log.write_log(log_path)
+        output["config"] = config
+        output["log"] = log.log
+        with open(output_path, "w") as out_file:
+            out_file.write(json.dumps(output, indent=2))
 
 
 def _run_mapping(config, tmp_dir, log):
