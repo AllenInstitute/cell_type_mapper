@@ -434,6 +434,76 @@ def test_cli_pipeline(
     assert len(log) > 0
 
     results = json.load(open(output_path, 'rb'))
+    other_log = results["log"]
+
+    # this is convoluted because the logger as
+    # implemented prepends some timing information
+    # to the log messages
+    for msg in ("creating precomputed stats",
+                "creating reference marker file"):
+        for this_log in (log, other_log):
+            found_it = False
+            for line in this_log:
+                if msg in line:
+                    found_it = True
+                    break
+            assert found_it
+
+    assert len(results["results"]) == len(expected_cluster_fixture)
+
+    for cell in results["results"]:
+        cell_id = int(cell['cell_id'])
+        actual_cluster = cell['cluster']['assignment']
+        expected_cluster = expected_cluster_fixture[cell_id]
+        assert actual_cluster == expected_cluster
+        actual_sub = cell['subclass']['assignment']
+        assert actual_cluster in taxonomy_tree['subclass'][actual_sub]
+        actual_class = cell['class']['assignment']
+        assert actual_sub in taxonomy_tree['class'][actual_class]
+
+    # ======== now run it, reusing the precomputed files =========
+    config.pop('precomputed_stats')
+    config.pop('reference_markers')
+    precompute_str = str(precompute_out.resolve().absolute())
+    ref_marker_str = str(ref_marker_out.resolve().absolute())
+
+    config['precomputed_stats'] = {'path': precompute_str}
+    config['reference_markers'] = {'path': ref_marker_str}
+
+    log_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
+
+    output_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
+
+    run_mapping(
+        config,
+        output_path=output_path,
+        log_path=log_path)
+
+    log = json.load(open(log_path, 'rb'))
+    assert isinstance(log, list)
+    assert len(log) > 0
+
+    results = json.load(open(output_path, 'rb'))
+    other_log = results["log"]
+
+    # make sure we did not create new stats/marker files
+    # when we did not have to
+    for msg in ("creating precomputed stats",
+                "creating reference marker file"):
+        for this_log in (log, other_log):
+            found_it = False
+            for line in this_log:
+                if msg in line:
+                    found_it = True
+                    break
+            assert not found_it
+
     assert len(results["results"]) == len(expected_cluster_fixture)
 
     for cell in results["results"]:
