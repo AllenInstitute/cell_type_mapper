@@ -1,6 +1,7 @@
 import anndata
 import h5py
 import json
+import numpy as np
 import pathlib
 import shutil
 import tempfile
@@ -36,7 +37,7 @@ def run_mapping(config, log_path=None):
     tmp_dir = tempfile.mkdtemp(dir=config['tmp_dir'])
 
     try:
-        _run_mapping(
+        type_assignment = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             log=log)
@@ -61,6 +62,19 @@ def _run_mapping(config, tmp_dir, log):
 
     if "query_markers" not in config:
         log.error("'query_markers' not in config")
+
+    if "type_assignment" not in config:
+        log.error("'type_assignment' not in config")
+
+    _check_config(
+        config_dict=config["type_assignment"],
+        config_name="type_assignment",
+        key_name=['n_processors',
+                  'chunk_size',
+                  'bootstrap_factor',
+                  'bootstrap_iteration',
+                  'rng_seed'],
+        log=log)
 
     (query_tmp,
      query_is_valid) = _copy_over_file(
@@ -203,6 +217,26 @@ def _run_mapping(config, tmp_dir, log):
         behemoth_cutoff=5000000)
     log.benchmark(msg="creating query marker cache",
                   duration=time.time()-t0)
+
+    # ========= type assignment =========
+    type_assignment_config = config["type_assignment"]
+    t0 = time.time()
+    rng = np.random.default_rng(type_assignment_config['rng_seed'])
+    result = run_type_assignment_on_h5ad(
+        query_h5ad_path=query_tmp,
+        precomputed_stats_path=precomputed_tmp,
+        marker_gene_cache_path=query_marker_tmp,
+        taxonomy_tree=taxonomy_tree,
+        n_processors=type_assignment_config['n_processors'],
+        chunk_size=type_assignment_config['chunk_size'],
+        bootstrap_factor=type_assignment_config['bootstrap_factor'],
+        bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
+        rng=rng,
+        normalization='raw')
+    log.benchmark(msg="assigning cell types",
+                  duration=time.time()-t0)
+
+    return result
 
 
 def _copy_over_file(file_path, tmp_dir, log):

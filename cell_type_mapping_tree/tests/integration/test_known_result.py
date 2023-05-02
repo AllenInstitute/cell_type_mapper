@@ -400,6 +400,13 @@ def test_cli_pipeline(
         'n_per_utility': 5,
         'n_processors': 3}
 
+    config["type_assignment"] = {
+        'n_processors': 3,
+        'bootstrap_factor': 0.9,
+        'bootstrap_iteration': 27,
+        'rng_seed': 66234,
+        'chunk_size': 1000}
+
     assert not precompute_out.is_file()
     assert not ref_marker_out.is_file()
 
