@@ -3,6 +3,7 @@ import argparse
 import h5py
 import json
 import numpy as np
+import os
 import pathlib
 import shutil
 import tempfile
@@ -415,10 +416,14 @@ def main():
     parser.add_argument('--config_path', type=str, default=None)
     parser.add_argument('--result_path', type=str, default=None)
     parser.add_argument('--log_path', type=str, default=None)
+    parser.add_argument('--local_tmp', default=False, action='store_true')
     args = parser.parse_args()
 
     with open(args.config_path, 'rb') as in_file:
         config = json.load(in_file)
+
+    if args.local_tmp:
+        config['tmp_dir'] = os.environ['TMPDIR']
 
     run_mapping(
         config=config,
