@@ -58,54 +58,27 @@ def run_mapping(config, output_path, log_path=None):
 
 def _run_mapping(config, tmp_dir, log):
 
-    if "query_path" not in config:
-        log.error("'query_path' not in config")
+    t0 = time.time()
+    validation_result = _validate_config(
+            config=config,
+            tmp_dir=tmp_dir,
+            log=log)
 
-    if "precomputed_stats" not in config:
-        log.error("'precomputed_stats' not in config")
-
-    if "reference_markers" not in config:
-        log.error("'reference_markers' not in config")
-
-    if "query_markers" not in config:
-        log.error("'query_markers' not in config")
-
-    if "type_assignment" not in config:
-        log.error("'type_assignment' not in config")
-
-    _check_config(
-        config_dict=config["type_assignment"],
-        config_name="type_assignment",
-        key_name=['n_processors',
-                  'chunk_size',
-                  'bootstrap_factor',
-                  'bootstrap_iteration',
-                  'rng_seed',
-                  'normalization'],
-        log=log)
-
-    (query_tmp,
-     query_is_valid) = _copy_over_file(
-         file_path=config["query_path"],
-         tmp_dir=tmp_dir,
-         log=log)
-
-    if not query_is_valid:
-        log.error(
-            f"{config['query_path']} is not a valid file")
+    query_tmp = validation_result['query_tmp']
+    precomputed_path = validation_result['precomputed_path']
+    precomputed_tmp = validation_result['precomputed_tmp']
+    precomputed_is_valid = validation_result['precomputed_is_valid']
+    reference_marker_path = validation_result['reference_marker_path']
+    reference_marker_tmp = validation_result['reference_marker_tmp']
+    reference_marker_is_valid = validation_result['reference_marker_is_valid']
 
     reference_marker_config = config["reference_markers"]
-
     precomputed_config = config["precomputed_stats"]
-    lookup = _make_temp_path(
-        config_dict=precomputed_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        suffix=".h5")
+    query_marker_config = config["query_markers"]
+    type_assignment_config = config["type_assignment"]
 
-    precomputed_path = lookup["path"]
-    precomputed_tmp = lookup["tmp"]
-    precomputed_is_valid = lookup["is_valid"]
+    log.benchmark(msg="validating config and copying data",
+                  duration=time.time()-t0)
 
     # ========= precomputed stats =========
 
@@ -113,11 +86,6 @@ def _run_mapping(config, tmp_dir, log):
         log.info(f"using {precomputed_tmp} for precomputed_stats")
     else:
         log.info("creating precomputed stats file")
-        _check_config(
-            config_dict=precomputed_config,
-            config_name='precomputed_config',
-            key_name=['column_hierarchy', 'reference_path', 'normalization'],
-            log=log)
 
         reference_path = pathlib.Path(
             precomputed_config['reference_path'])
@@ -155,29 +123,12 @@ def _run_mapping(config, tmp_dir, log):
         taxonomy_tree = json.loads(
             in_file["taxonomy_tree"][()].decode("utf-8"))
 
-    reference_marker_config = config["reference_markers"]
-    lookup = _make_temp_path(
-        config_dict=reference_marker_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        suffix=".h5")
-
-    reference_marker_path = lookup["path"]
-    reference_marker_tmp = lookup["tmp"]
-    reference_marker_is_valid = lookup["is_valid"]
-
     # ========= reference marker cache =========
 
     if reference_marker_is_valid:
         log.info(f"using {reference_marker_tmp} for reference markers")
     else:
         log.info("creating reference marker file")
-
-        _check_config(
-            config_dict=reference_marker_config,
-            config_name='reference_markers',
-            key_name=['n_processors', 'max_bytes'],
-            log=log)
 
         marker_tmp = tempfile.mkdtemp(dir=tmp_dir)
 
@@ -204,13 +155,6 @@ def _run_mapping(config, tmp_dir, log):
 
     # ========= query marker cache =========
 
-    query_marker_config = config["query_markers"]
-    _check_config(
-        config_dict=query_marker_config,
-        config_name="query_markers",
-        key_name=['n_per_utility', 'n_processors'],
-        log=log)
-
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir, suffix='.h5'))
 
@@ -227,7 +171,7 @@ def _run_mapping(config, tmp_dir, log):
                   duration=time.time()-t0)
 
     # ========= type assignment =========
-    type_assignment_config = config["type_assignment"]
+
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
     result = run_type_assignment_on_h5ad(
@@ -243,6 +187,106 @@ def _run_mapping(config, tmp_dir, log):
         normalization=type_assignment_config['normalization'])
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
+
+    return result
+
+
+def _validate_config(
+        config,
+        tmp_dir,
+        log):
+
+    result = dict()
+
+    if "query_path" not in config:
+        log.error("'query_path' not in config")
+
+    if "precomputed_stats" not in config:
+        log.error("'precomputed_stats' not in config")
+
+    if "reference_markers" not in config:
+        log.error("'reference_markers' not in config")
+
+    if "query_markers" not in config:
+        log.error("'query_markers' not in config")
+
+    if "type_assignment" not in config:
+        log.error("'type_assignment' not in config")
+
+    _check_config(
+        config_dict=config["type_assignment"],
+        config_name="type_assignment",
+        key_name=['n_processors',
+                  'chunk_size',
+                  'bootstrap_factor',
+                  'bootstrap_iteration',
+                  'rng_seed',
+                  'normalization'],
+        log=log)
+
+    (query_tmp,
+     query_is_valid) = _copy_over_file(
+         file_path=config["query_path"],
+         tmp_dir=tmp_dir,
+         log=log)
+
+    if not query_is_valid:
+        log.error(
+            f"{config['query_path']} is not a valid file")
+
+    result['query_tmp'] = query_tmp
+
+    reference_marker_config = config["reference_markers"]
+
+    precomputed_config = config["precomputed_stats"]
+    lookup = _make_temp_path(
+        config_dict=precomputed_config,
+        tmp_dir=tmp_dir,
+        log=log,
+        suffix=".h5")
+
+    precomputed_path = lookup["path"]
+    precomputed_tmp = lookup["tmp"]
+    precomputed_is_valid = lookup["is_valid"]
+
+    result['precomputed_path'] = precomputed_path
+    result['precomputed_tmp'] = precomputed_tmp
+    result['precomputed_is_valid'] = precomputed_is_valid
+
+    if not precomputed_is_valid:
+        _check_config(
+            config_dict=precomputed_config,
+            config_name='precomputed_config',
+            key_name=['column_hierarchy', 'reference_path', 'normalization'],
+            log=log)
+
+    reference_marker_config = config["reference_markers"]
+    lookup = _make_temp_path(
+        config_dict=reference_marker_config,
+        tmp_dir=tmp_dir,
+        log=log,
+        suffix=".h5")
+
+    reference_marker_path = lookup["path"]
+    reference_marker_tmp = lookup["tmp"]
+    reference_marker_is_valid = lookup["is_valid"]
+    result['reference_marker_path'] = reference_marker_path
+    result['reference_marker_tmp'] = reference_marker_tmp
+    result['reference_marker_is_valid'] = reference_marker_is_valid
+
+    if not reference_marker_is_valid:
+        _check_config(
+            config_dict=reference_marker_config,
+            config_name='reference_markers',
+            key_name=['n_processors', 'max_bytes'],
+            log=log)
+
+    query_marker_config = config["query_markers"]
+    _check_config(
+        config_dict=query_marker_config,
+        config_name="query_markers",
+        key_name=['n_per_utility', 'n_processors'],
+        log=log)
 
     return result
 
