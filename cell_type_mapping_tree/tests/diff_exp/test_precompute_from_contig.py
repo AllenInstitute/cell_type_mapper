@@ -9,6 +9,9 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import zarr
 
+from hierarchical_mapping.utils.taxonomy_utils import (
+    get_taxonomy_tree)
+
 from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
@@ -22,7 +25,8 @@ from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    json_clean_dict)
 
 
 @pytest.fixture
@@ -276,6 +280,15 @@ def test_precompute_from_data(
             output_path=stats_file,
             rows_at_a_time=13,
             normalization=normalization)
+
+        expected_tree = get_taxonomy_tree(
+            obs_records=records_fixture,
+            column_hierarchy=hierarchy)
+        expected_tree = json_clean_dict(expected_tree)
+        with h5py.File(stats_file, 'r') as in_file:
+            actual_tree = json.loads(
+                in_file['taxonomy_tree'][()].decode('utf-8'))
+        assert expected_tree == actual_tree
 
 
     assert stats_file.is_file()

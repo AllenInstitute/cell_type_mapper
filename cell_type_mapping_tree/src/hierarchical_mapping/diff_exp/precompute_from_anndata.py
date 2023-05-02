@@ -1,12 +1,14 @@
 from typing import Union, List, Optional
 import anndata
+import json
 import numpy as np
 import h5py
 import pathlib
 import time
 
 from hierarchical_mapping.utils.utils import (
-    print_timing)
+    print_timing,
+    json_clean_dict)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     get_taxonomy_tree)
@@ -207,6 +209,9 @@ def precompute_summary_stats_from_h5ad_and_tree(
         col_names=col_names)
 
     with h5py.File(output_path, 'a') as out_file:
+        out_file.create_dataset(
+            'taxonomy_tree',
+            data=json.dumps(json_clean_dict(taxonomy_tree)).encode('utf-8'))
         for k in buffer_dict.keys():
             if k == 'n_cells':
                 out_file[k][:] = buffer_dict[k]
