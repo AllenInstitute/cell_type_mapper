@@ -11,6 +11,9 @@ import multiprocessing
 from hierarchical_mapping.utils.utils import (
     print_timing)
 
+from hierarchical_mapping.utils.multiprocessing_utils import (
+    winnow_process_list)
+
 from hierarchical_mapping.utils.sparse_utils import (
     _load_disjoint_csr)
 
@@ -157,8 +160,8 @@ def precompute_summary_stats(
         p.start()
         process_list.append(p)
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
 
 def _create_empty_stats_file(

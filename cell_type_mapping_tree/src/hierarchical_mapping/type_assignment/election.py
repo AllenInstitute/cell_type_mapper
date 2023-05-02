@@ -161,8 +161,8 @@ def run_type_assignment_on_h5ad(
                     tot_chunks=tot_rows,
                     unit='hr')
     print("final join of worker processes")
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     output_list = list(output_list)
     return output_list

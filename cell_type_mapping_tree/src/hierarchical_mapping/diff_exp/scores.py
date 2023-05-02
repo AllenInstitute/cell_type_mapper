@@ -12,7 +12,8 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    DummyLock)
+    DummyLock,
+    winnow_process_list)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
@@ -205,8 +206,8 @@ def score_all_taxonomy_pairs(
     del this_idx_to_pair
     del this_tree_as_leaves
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     _clean_up(tmp_dir)
     duration = time.time()-t0

@@ -120,8 +120,8 @@ def create_marker_gene_cache(
                     i_chunk=ct,
                     unit='hr')
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     # list the set of genes we actually need to keep
     # from the query set for all comparisons

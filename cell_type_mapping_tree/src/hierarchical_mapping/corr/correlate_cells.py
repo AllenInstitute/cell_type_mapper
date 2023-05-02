@@ -118,8 +118,8 @@ def correlate_cells(
                     tot_chunks=n_query_rows,
                     unit='hr')
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     duration = (time.time()-global_t0)/3600.0
     print(f"all done -- correlation took {duration:.2e} hrs")
