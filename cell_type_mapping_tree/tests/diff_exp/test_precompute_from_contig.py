@@ -272,6 +272,7 @@ def test_precompute_from_data(
         precompute_summary_stats_from_h5ad(
             data_path=h5ad_path,
             column_hierarchy=hierarchy,
+            taxonomy_tree=None,
             output_path=stats_file,
             rows_at_a_time=13,
             normalization=normalization)

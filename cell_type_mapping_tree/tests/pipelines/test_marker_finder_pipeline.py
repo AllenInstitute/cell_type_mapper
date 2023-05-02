@@ -70,6 +70,7 @@ def test_marker_finding_pipeline(
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,
         column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
         rows_at_a_time=1000)
 
@@ -208,6 +209,7 @@ def test_select_marker_genes_v2(
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,
         column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
         rows_at_a_time=1000)
 

@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Optional
 import anndata
 import numpy as np
 import h5py
@@ -23,7 +23,8 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 
 def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
-        column_hierarchy: List[str],
+        column_hierarchy: Optional[List[str]],
+        taxonomy_tree: Optional[dict],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
         normalization="log2CPM"):
@@ -38,6 +39,9 @@ def precompute_summary_stats_from_h5ad(
     column_hierarcy:
         The list of columns denoting taxonomic classes,
         ordered from highest (parent) to lowest (child).
+
+    taxonomy_tree:
+        A dict encoding the cell type taxonomy
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -55,9 +59,14 @@ def precompute_summary_stats_from_h5ad(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
-    taxonomy_tree = get_taxonomy_tree_from_h5ad(
-        h5ad_path=data_path,
-        column_hierarchy=column_hierarchy)
+    if taxonomy_tree is not None and column_hierarchy is not None:
+        raise RuntimeError(
+            "Cannot specify taxonomy_tree and column_hierarchy")
+
+    if taxonomy_tree is None:
+        taxonomy_tree = get_taxonomy_tree_from_h5ad(
+            h5ad_path=data_path,
+            column_hierarchy=column_hierarchy)
 
     precompute_summary_stats_from_h5ad_and_tree(
         data_path=data_path,
@@ -162,7 +171,11 @@ def precompute_summary_stats_from_h5ad_and_tree(
         for unq_cluster in np.unique(cluster_chunk):
             valid = np.where(cluster_chunk == unq_cluster)[0]
             valid = np.sort(valid)
-            this_cluster = chunk[0][valid, :].toarray()
+            this_cluster = chunk[0][valid, :]
+
+            if not isinstance(this_cluster, np.ndarray):
+                this_cluster = this_cluster.toarray()
+
             this_cluster = CellByGeneMatrix(
                 data=this_cluster,
                 gene_identifiers=gene_names,

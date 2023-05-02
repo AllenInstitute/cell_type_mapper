@@ -53,6 +53,7 @@ def test_all_of_it(
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,
         column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precomputed_path,
         rows_at_a_time=10)
 
