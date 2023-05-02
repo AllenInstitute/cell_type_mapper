@@ -1,4 +1,5 @@
 import anndata
+import argparse
 import h5py
 import json
 import numpy as np
@@ -407,3 +408,23 @@ def _get_query_gene_names(query_gene_path):
     a_data = anndata.read_h5ad(query_gene_path, backed='r')
     gene_names = list(a_data.var_names)
     return gene_names
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_path', type=str, default=None)
+    parser.add_argument('--result_path', type=str, default=None)
+    parser.add_argument('--log_path', type=str, default=None)
+    args = parser.parse_args()
+
+    with open(args.config_path, 'rb') as in_file:
+        config = json.load(in_file)
+
+    run_mapping(
+        config=config,
+        output_path=args.result_path,
+        log_path=args.log_path)
+
+
+if __name__ == "__main__":
+    main()
