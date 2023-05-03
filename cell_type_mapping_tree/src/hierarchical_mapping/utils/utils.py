@@ -126,7 +126,7 @@ def mkstemp_clean(
     Because this calls tempfile mkstemp, the file will be created,
     though it will be empty. This wrapper is needed because
     mkstemp automatically returns an open file descriptor, which was
-    causing some of our unit tests to overwhelm the OS's limit
+    been causing some of our unit tests to overwhelm the OS's limit
     on the number of open files.
     """
     (descriptor,
