@@ -163,13 +163,23 @@ def validate_taxonomy_tree(
     for level in hierarchy:
         child_to_parent[level] = dict()
 
+    for this_level in taxonomy_tree.keys():
+        if this_level == 'hierarchy':
+            continue
+        for this_node in taxonomy_tree[this_level].keys():
+            if not isinstance(this_node, str):
+                raise RuntimeError(
+                    f"level {this_level}: node {this_node} is not a str\n"
+                    "(this requirement makes serialization/deserialization "
+                    "with JSON more straightforward)")
+
     for parent_level, child_level in zip(hierarchy[:-1],
                                          hierarchy[1:]):
         child_set = taxonomy_tree[child_level].keys()
         for this_parent in taxonomy_tree[parent_level].keys():
             for this_child in taxonomy_tree[parent_level][this_parent]:
                 if this_child not in child_set:
-                    msg = f"{this_child} "
+                    msg = f"node {this_child} "
                     msg += f"(child of {parent_level}:{this_parent} -- "
                     msg += f"type {type(this_child)}) "
                     msg += f"is not present in the keys at level {child_level}"

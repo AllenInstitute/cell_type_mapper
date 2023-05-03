@@ -584,8 +584,44 @@ def test_validate_taxonomy_tree():
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
-            'aa': ['1', '2'],
-            'bb': ['3']
+            'aa': [1, 2],
+            'bb': [3]
+        },
+        'b': {
+            '1': [1, 2, 3, 4],
+            '2': [5, 6, 7],
+            '3': [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="not present in the keys"):
+        validate_taxonomy_tree(tree)
+
+    # misaligned types
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': [1, 2],
+            'bb': [3]
+        },
+        'b': {
+            '1': [1, 2, 3, 4],
+            '2': [5, 6, 7],
+            '3': [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="not present in the keys"):
+        validate_taxonomy_tree(tree)
+
+    # keys that are not strings
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': [1, 2],
+            'bb': [3]
         },
         'b': {
             1: [1, 2, 3, 4],
@@ -595,5 +631,5 @@ def test_validate_taxonomy_tree():
     }
 
     with pytest.raises(RuntimeError,
-                       match="not present in the keys"):
+                       match="not a str"):
         validate_taxonomy_tree(tree)
