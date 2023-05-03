@@ -89,6 +89,8 @@ def json_clean_dict(input_dict):
             new_val = [
                 int(ii) if isinstance(ii, np.int64) else ii
                 for ii in val]
+            if isinstance(val, set):
+                new_val.sort()
             output_dict[k] = new_val
         elif isinstance(val, np.int64):
             output_dict[k] = int(val)

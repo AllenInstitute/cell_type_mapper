@@ -11,7 +11,10 @@ import scipy.sparse as scipy_sparse
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
@@ -86,7 +89,8 @@ def test_marker_cache_pipeline(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree_dict = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     assert not score_path.is_file()
 
@@ -127,8 +131,8 @@ def test_marker_cache_pipeline(
     assert marker_cache_path.is_file()
 
     parent_node_list = [None]
-    for level in taxonomy_tree['hierarchy'][:-1]:
-        k_list = list(taxonomy_tree[level].keys())
+    for level in taxonomy_tree_dict['hierarchy'][:-1]:
+        k_list = list(taxonomy_tree_dict[level].keys())
         k_list.sort()
         for k in k_list:
             parent_node_list.append((level, k))
@@ -151,7 +155,7 @@ def test_marker_cache_pipeline(
         assert "all_reference_markers" in actual_file.keys()
         for parent_node in parent_node_list:
             leaf_pair_list = get_all_leaf_pairs(
-                taxonomy_tree=taxonomy_tree,
+                taxonomy_tree=taxonomy_tree_dict,
                 parent_node=parent_node)
 
             if len(leaf_pair_list) > 0:

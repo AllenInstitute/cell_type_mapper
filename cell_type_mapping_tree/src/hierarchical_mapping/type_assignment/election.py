@@ -55,7 +55,9 @@ def run_type_assignment_on_h5ad(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        Dict encoding the cell type taxonomy we are matching to
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     n_processors:
         Number of independent worker processes to spin up
@@ -227,7 +229,9 @@ def run_type_assignment(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        Dict encoding the cell type taxonomy we are matching to
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     bootstrap_factor:
         Fraction (<=1.0) by which to sampel the marker gene set
@@ -261,7 +265,7 @@ def run_type_assignment(
     # create effectively empty list of dicts to
     # store the hierarchical classification of
     # each cell in full_query_gene_data
-    hierarchy = taxonomy_tree['hierarchy']
+    hierarchy = taxonomy_tree.hierarchy
     result = []
     for i_cell in range(full_query_gene_data.n_cells):
         this = dict()
@@ -284,7 +288,7 @@ def run_type_assignment(
         if parent_level is None:
             parent_node_list = [None]
         else:
-            k_list = list(taxonomy_tree[parent_level].keys())
+            k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
             parent_node_list = []
             for k in k_list:
@@ -316,10 +320,11 @@ def run_type_assignment(
             # see how many children this parent node has;
             # if == 1, assignment is trivial
             if parent_level is not None:
-                possible_children = taxonomy_tree[parent_level][parent_node[1]]
+                possible_children = taxonomy_tree.children(
+                    level=parent_level,
+                    node=parent_node[1])
             else:
-                possible_children = list(taxonomy_tree[
-                        taxonomy_tree['hierarchy'][0]].keys())
+                possible_children = taxonomy_tree.children(None, None)
 
             if len(possible_children) > 1:
                 (assignment,
@@ -401,7 +406,9 @@ def _run_type_assignment(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        A dict that encodes our cell types taxonomy
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     parent_node:
         Tuple of the form (level, cell_type) that encodes

@@ -9,6 +9,9 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
@@ -48,7 +51,7 @@ def taxonomy_tree_fixture():
         'bb': ['3', '4', '5'],
         'cc': ['6'],
         'dd': ['7', '8']}
-    tree['cluster'] = {str(ii): ii*10 for ii in range(9)}
+    tree['cluster'] = {str(ii): [ii*10] for ii in range(9)}
 
     return tree
 
@@ -197,18 +200,22 @@ def test_recalculate_utilty_array(
 def test_get_taxonomy_idx(
         taxonomy_tree_fixture,
         backed_array_fixture):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_fixture)
+
     arr = MarkerGeneArray.from_cache_path(
         cache_path=backed_array_fixture)
     np.testing.assert_array_equal(
         _get_taxonomy_idx(
-            taxonomy_tree=taxonomy_tree_fixture,
+            taxonomy_tree=taxonomy_tree,
             parent_node=('level1', 'b'),
             marker_gene_array=arr),
         np.array([28, 29]))
 
     np.testing.assert_array_equal(
         _get_taxonomy_idx(
-            taxonomy_tree=taxonomy_tree_fixture,
+            taxonomy_tree=taxonomy_tree,
             parent_node=('level2', 'aa'),
             marker_gene_array=arr),
         np.array([0,]))

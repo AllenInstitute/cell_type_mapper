@@ -1,18 +1,15 @@
 from typing import Union, List, Optional
 import anndata
-import json
 import numpy as np
 import h5py
 import pathlib
 import time
 
 from hierarchical_mapping.utils.utils import (
-    print_timing,
-    json_clean_dict)
+    print_timing)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_taxonomy_tree,
-    validate_taxonomy_tree)
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
@@ -27,7 +24,7 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
         column_hierarchy: Optional[List[str]],
-        taxonomy_tree: Optional[dict],
+        taxonomy_tree: Optional[TaxonomyTree],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
         normalization="log2CPM"):
@@ -44,7 +41,9 @@ def precompute_summary_stats_from_h5ad(
         ordered from highest (parent) to lowest (child).
 
     taxonomy_tree:
-        A dict encoding the cell type taxonomy
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -67,7 +66,7 @@ def precompute_summary_stats_from_h5ad(
             "Cannot specify taxonomy_tree and column_hierarchy")
 
     if taxonomy_tree is None:
-        taxonomy_tree = get_taxonomy_tree_from_h5ad(
+        taxonomy_tree = TaxonomyTree.from_h5ad(
             h5ad_path=data_path,
             column_hierarchy=column_hierarchy)
 
@@ -79,22 +78,9 @@ def precompute_summary_stats_from_h5ad(
         normalization=normalization)
 
 
-def get_taxonomy_tree_from_h5ad(
-        h5ad_path,
-        column_hierarchy):
-    """
-    Get taxonomy tree from an h5ad file
-    """
-    a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    taxonomy_tree = get_taxonomy_tree(
-        obs_records=a_data.obs.to_dict(orient='records'),
-        column_hierarchy=column_hierarchy)
-    return taxonomy_tree
-
-
 def precompute_summary_stats_from_h5ad_and_tree(
         data_path: Union[str, pathlib.Path],
-        taxonomy_tree: dict,
+        taxonomy_tree: TaxonomyTree,
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
         normalization='log2CPM'):
@@ -106,8 +92,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
     data_path:
         Path to the h5ad file containing the cell x gene matrix
 
-    taxonomy_tree: dict
-        dict encoding the cell type taxonomy
+    taxonomy_tree:
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -125,13 +113,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
-    validate_taxonomy_tree(taxonomy_tree)
-
     a_data = anndata.read_h5ad(data_path, backed='r')
     gene_names = a_data.var_names
 
-    column_hierarchy = taxonomy_tree['hierarchy']
-    cluster_to_input_row = taxonomy_tree[column_hierarchy[-1]]
+    cluster_to_input_row = taxonomy_tree.leaf_to_rows
 
     cluster_list = list(cluster_to_input_row)
     cluster_to_output_row = {c: int(ii)
@@ -214,7 +199,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
             'taxonomy_tree',
-            data=json.dumps(json_clean_dict(taxonomy_tree)).encode('utf-8'))
+            data=taxonomy_tree.to_str().encode('utf-8'))
         for k in buffer_dict.keys():
             if k == 'n_cells':
                 out_file[k][:] = buffer_dict[k]

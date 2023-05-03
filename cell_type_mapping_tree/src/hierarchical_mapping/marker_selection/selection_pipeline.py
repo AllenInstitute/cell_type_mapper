@@ -1,8 +1,5 @@
 import multiprocessing
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_all_leaf_pairs)
-
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_dict)
 
@@ -32,7 +29,9 @@ def select_all_markers(
     query_gene_names:
         List of gene names from the query dataset
     taxonomy_tree:
-        Dict representing the taxonomy tree.
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
     n_per_utility:
         How many genes to select per (taxon_pair, sign)
         combination
@@ -49,20 +48,14 @@ def select_all_markers(
     """
 
     parent_to_leaves = dict()
-    parent_list = [None]
-
-    for level in taxonomy_tree['hierarchy'][:-1]:
-        for node in taxonomy_tree[level]:
-            parent = (level, node)
-            parent_list.append(parent)
+    parent_list = taxonomy_tree.all_parents
 
     # want to make sure that the memory hogs are not
     # all running at once
     behemoth_parents = []
     smaller_parents = []
     for parent in parent_list:
-        leaves = get_all_leaf_pairs(
-            taxonomy_tree=taxonomy_tree,
+        leaves = taxonomy_tree.leaves_to_compare(
             parent_node=parent)
         parent_to_leaves[parent] = leaves
         n_leaves = len(leaves)
@@ -157,9 +150,8 @@ def _marker_selection_worker(
         output_dict,
         stdout_lock):
 
-    leaf_pair_list = get_all_leaf_pairs(
-            taxonomy_tree=taxonomy_tree,
-            parent_node=parent_node)
+    leaf_pair_list = taxonomy_tree.leaves_to_compare(
+        parent_node=parent_node)
 
     # this could happen if a parent node has only one
     # immediate descendant

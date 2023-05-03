@@ -11,7 +11,7 @@ import tempfile
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     get_all_leaf_pairs)
 
 from hierarchical_mapping.marker_selection.utils import (

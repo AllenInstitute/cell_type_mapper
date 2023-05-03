@@ -12,7 +12,10 @@ from hierarchical_mapping.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
@@ -77,7 +80,7 @@ def test_marker_finding_pipeline(
     with h5py.File(precompute_path, 'r') as in_file:
         assert len(in_file['n_cells'][()]) > 0
 
-    taxonomy_tree = tree_fixture
+    taxonomy_tree = TaxonomyTree(data=tree_fixture)
 
     # make sure flush_every is not an integer
     # divisor of the number of sibling pairs
@@ -107,7 +110,7 @@ def test_marker_finding_pipeline(
 
     # check that we get the expected result
     precomputed_stats = read_precomputed_stats(precompute_path)
-    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
+    tree_as_leaves = convert_tree_to_leaves(tree_fixture)
 
     markers = BackedBinarizedBooleanArray(
         h5_path=marker_path,
@@ -213,7 +216,7 @@ def test_select_marker_genes_v2(
         output_path=precompute_path,
         rows_at_a_time=1000)
 
-    taxonomy_tree = tree_fixture
+    taxonomy_tree = TaxonomyTree(data=tree_fixture)
 
     # make sure flush_every is not an integer
     # divisor of the number of sibling pairs
@@ -236,7 +239,7 @@ def test_select_marker_genes_v2(
     result = select_marker_genes_v2(
         marker_gene_array=marker_array,
         query_gene_names=query_gene_names,
-        taxonomy_tree=tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         parent_node=None,
         n_per_utility=15)
 

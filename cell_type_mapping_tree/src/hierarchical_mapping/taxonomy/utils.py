@@ -1,3 +1,4 @@
+import anndata
 import copy
 import itertools
 import numbers
@@ -142,6 +143,19 @@ def get_taxonomy_tree(
 
     validate_taxonomy_tree(tree)
     return tree
+
+
+def get_taxonomy_tree_from_h5ad(
+        h5ad_path,
+        column_hierarchy):
+    """
+    Get taxonomy tree from an h5ad file
+    """
+    a_data = anndata.read_h5ad(h5ad_path, backed='r')
+    taxonomy_tree = get_taxonomy_tree(
+        obs_records=a_data.obs.to_dict(orient='records'),
+        column_hierarchy=column_hierarchy)
+    return taxonomy_tree
 
 
 def validate_taxonomy_tree(

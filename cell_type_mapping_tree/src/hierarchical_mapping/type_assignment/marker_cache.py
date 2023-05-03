@@ -10,9 +10,6 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_all_leaf_pairs)
-
 from hierarchical_mapping.marker_selection.utils import (
     select_marker_genes)
 
@@ -37,7 +34,9 @@ def create_marker_gene_cache(
     query_gene_names:
         list of gene names in the query dataset
     taxonomy_tree:
-        Dict encoding the cell type taxonomy
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
     marker_genes_per_pair:
         Ideal number of marker genes to choose per leaf pair
     """
@@ -45,12 +44,12 @@ def create_marker_gene_cache(
     t0 = time.time()
 
     parent_node_list = [None]
-    hierarchy = taxonomy_tree['hierarchy']
+    hierarchy = taxonomy_tree.hierarchy
     with h5py.File(cache_path, 'w') as out_file:
         out_file.create_group('None')
         for level in hierarchy[:-1]:
             out_file.create_group(level)
-            these_parents = list(taxonomy_tree[level].keys())
+            these_parents = taxonomy_tree.nodes_at_level(level)
             these_parents.sort()
             for parent in these_parents:
                 parent_node_list.append((level, parent))
@@ -157,9 +156,7 @@ def _marker_gene_worker(
 
     grp_to_results = dict()
     for parent_node in parent_node_list:
-        leaf_pair_list = get_all_leaf_pairs(
-            taxonomy_tree=taxonomy_tree,
-            parent_node=parent_node)
+        leaf_pair_list = taxonomy_tree.leaves_to_compare(parent_node)
 
         if len(leaf_pair_list) > 0:
             marker_genes = select_marker_genes(

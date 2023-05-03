@@ -14,7 +14,10 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.multiprocessing_utils import (
     DummyLock)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_all_leaf_pairs)
 
 from hierarchical_mapping.binary_array.binary_array import (
@@ -253,7 +256,7 @@ def test_selecting_from_blank_markers(
     marker_genes = select_marker_genes_v2(
         marker_gene_array=marker_array,
         query_gene_names=gene_names_fixture,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
         parent_node=None,
         n_per_utility=5)
 
@@ -273,7 +276,7 @@ def test_selecting_from_no_matched_genes(
         select_marker_genes_v2(
             marker_gene_array=marker_array,
             query_gene_names=['nope_1', 'nope_2'],
-            taxonomy_tree=taxonomy_tree_fixture,
+            taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
             parent_node=None,
             n_per_utility=5)
 
@@ -301,7 +304,7 @@ def test_selection_worker_smoke(
         _marker_selection_worker(
             marker_gene_array=marker_gene_array,
             query_gene_names=query_gene_names,
-            taxonomy_tree=taxonomy_tree_fixture,
+            taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
             parent_node=parent,
             n_per_utility=5,
             output_dict=output_dict,
@@ -352,7 +355,7 @@ def test_full_marker_selection_smoke(
     result = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
         n_per_utility=7,
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
@@ -389,6 +392,8 @@ def test_full_marker_cache_creation_smoke(
     Run a smoketest of create_marker_gene_cache_v2
     """
 
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
     # select a behemoth cut-off that puts several
     # parents on either side of the divide
     n_list = []
@@ -422,7 +427,7 @@ def test_full_marker_cache_creation_smoke(
     expected = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         n_per_utility=7,
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
@@ -431,7 +436,7 @@ def test_full_marker_cache_creation_smoke(
         output_cache_path=output_path,
         input_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         n_per_utility=7,
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)

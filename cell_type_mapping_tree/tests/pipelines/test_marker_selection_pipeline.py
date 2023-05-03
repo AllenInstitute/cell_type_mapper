@@ -11,7 +11,10 @@ import scipy.sparse as scipy_sparse
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
@@ -86,7 +89,8 @@ def test_marker_selection_pipeline(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree_dict = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     assert not score_path.is_file()
 
@@ -113,13 +117,13 @@ def test_marker_selection_pipeline(
     if from_root:
         parent_node = None
     else:
-        level = taxonomy_tree['hierarchy'][1]
-        k_list = list(taxonomy_tree[level].keys())
+        level = taxonomy_tree_dict['hierarchy'][1]
+        k_list = list(taxonomy_tree_dict[level].keys())
         k_list.sort()
         parent_node = (level, k_list[0])
 
     leaf_pair_list = get_all_leaf_pairs(
-            taxonomy_tree=taxonomy_tree,
+            taxonomy_tree=taxonomy_tree_dict,
             parent_node=parent_node)
 
     marker_genes = select_marker_genes(
@@ -138,7 +142,7 @@ def test_marker_selection_pipeline(
     assert len(marker_genes['reference']) == len(marker_genes['query'])
     for ii in range(len(marker_genes['reference'])):
         rr = marker_genes['reference'][ii]
-        qq =marker_genes['query'][ii]
+        qq = marker_genes['query'][ii]
         assert gene_names[rr] == query_genes[qq]
 
     _clean_up(tmp_dir)

@@ -10,11 +10,14 @@ from hierarchical_mapping.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     convert_tree_to_leaves)
 
 from hierarchical_mapping.type_assignment.matching import (
     assemble_query_data)
+
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
@@ -201,7 +204,7 @@ def test_assemble_query_data(
     actual = assemble_query_data(
             full_query_data=query_cell_by_gene,
             mean_profile_matrix=mean_matrix_fixture,
-            taxonomy_tree=tree_fixture,
+            taxonomy_tree=TaxonomyTree(data=tree_fixture),
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
@@ -282,7 +285,7 @@ def test_assemble_query_data_errors(
         assemble_query_data(
             full_query_data=query_cell_by_gene,
             mean_profile_matrix=mean_matrix_fixture,
-            taxonomy_tree=tree_fixture,
+            taxonomy_tree=TaxonomyTree(data=tree_fixture),
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
@@ -299,6 +302,6 @@ def test_assemble_query_data_errors(
         assemble_query_data(
             full_query_data=query_cell_by_gene,
             mean_profile_matrix=raw_mean_matrix_fixture,
-            taxonomy_tree=tree_fixture,
+            taxonomy_tree=TaxonomyTree(data=tree_fixture),
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)

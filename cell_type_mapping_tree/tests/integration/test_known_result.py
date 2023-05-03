@@ -18,6 +18,9 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
@@ -48,7 +51,7 @@ def n_reference_cells():
     return 100000
 
 @pytest.fixture
-def taxonomy_tree(n_reference_cells):
+def taxonomy_tree_dict(n_reference_cells):
     rng = np.random.default_rng(223112)
     hierarchy = ['class', 'subclass', 'cluster']
     tree = dict()
@@ -89,19 +92,19 @@ def taxonomy_tree(n_reference_cells):
     return tree
 
 @pytest.fixture
-def obs_records_fixture(taxonomy_tree):
+def obs_records_fixture(taxonomy_tree_dict):
     cluster_to_subclass = dict()
-    for subclass in taxonomy_tree['subclass']:
-        for cl in taxonomy_tree['subclass'][subclass]:
+    for subclass in taxonomy_tree_dict['subclass']:
+        for cl in taxonomy_tree_dict['subclass'][subclass]:
             cluster_to_subclass[cl] = subclass
     subclass_to_class = dict()
-    for class_name in taxonomy_tree['class']:
-        for subclass in taxonomy_tree['class'][class_name]:
+    for class_name in taxonomy_tree_dict['class']:
+        for subclass in taxonomy_tree_dict['class'][class_name]:
             subclass_to_class[subclass] = class_name
 
     row_to_cluster = dict()
-    for cluster in taxonomy_tree['cluster']:
-        for idx in taxonomy_tree['cluster'][cluster]:
+    for cluster in taxonomy_tree_dict['cluster']:
+        for idx in taxonomy_tree_dict['cluster'][cluster]:
             row_to_cluster[idx] = cluster
     cell_id_list = list(row_to_cluster.keys())
     cell_id_list.sort()
@@ -120,8 +123,8 @@ def obs_records_fixture(taxonomy_tree):
 
 @pytest.fixture
 def gene_names(
-        taxonomy_tree):
-    n_clusters = len(taxonomy_tree['cluster'])
+        taxonomy_tree_dict):
+    n_clusters = len(taxonomy_tree_dict['cluster'])
     n_reference_genes = 12*n_clusters
     reference_gene_names = [f"gene_{ii}"
                             for ii in range(n_reference_genes)]
@@ -157,12 +160,12 @@ def marker_gene_names(gene_names):
 
 @pytest.fixture
 def cluster_to_signal(
-        taxonomy_tree,
+        taxonomy_tree_dict,
         marker_gene_names):
 
     result = dict()
     rng = np.random.default_rng(66713)
-    for ii, cl in enumerate(taxonomy_tree['cluster']):
+    for ii, cl in enumerate(taxonomy_tree_dict['cluster']):
         genes = marker_gene_names[ii*7:(ii+1)*7]
         assert len(genes) == 7
         signal = np.power(8, rng.integers(2, 7, len(genes)))
@@ -173,16 +176,16 @@ def cluster_to_signal(
 @pytest.fixture
 def raw_reference_cell_x_gene(
         n_reference_cells,
-        taxonomy_tree,
+        taxonomy_tree_dict,
         cluster_to_signal,
         reference_gene_names):
     rng = np.random.default_rng(22312)
     n_genes = len(reference_gene_names)
     x_data = np.zeros((n_reference_cells, n_genes),
                       dtype=float)
-    for cl in taxonomy_tree['cluster']:
+    for cl in taxonomy_tree_dict['cluster']:
         signal_lookup = cluster_to_signal[cl]
-        for i_cell in taxonomy_tree['cluster'][cl]:
+        for i_cell in taxonomy_tree_dict['cluster'][cl]:
             noise = rng.random(n_genes)
             noise_amp = 0.1*rng.random()
             signal_amp = (2.0+rng.random())
@@ -224,9 +227,9 @@ def raw_reference_h5ad_fixture(
 
 @pytest.fixture
 def expected_cluster_fixture(
-        taxonomy_tree):
+        taxonomy_tree_dict):
     n_query_cells = 5555
-    cluster_list = list(taxonomy_tree['cluster'].keys())
+    cluster_list = list(taxonomy_tree_dict['cluster'].keys())
     rng = np.random.default_rng(87123)
     chosen_clusters = rng.choice(
         cluster_list,
@@ -285,9 +288,12 @@ def test_raw_pipeline(
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
-        taxonomy_tree,
+        taxonomy_tree_dict,
         query_gene_names,
         tmp_dir_fixture):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
 
     precomputed_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -359,9 +365,9 @@ def test_raw_pipeline(
         expected_cluster = expected_cluster_fixture[cell_id]
         assert actual_cluster == expected_cluster
         actual_sub = cell['subclass']['assignment']
-        assert actual_cluster in taxonomy_tree['subclass'][actual_sub]
+        assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
         actual_class = cell['class']['assignment']
-        assert actual_sub in taxonomy_tree['class'][actual_class]
+        assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
 
 @pytest.mark.parametrize('use_tree', [True, False])
@@ -369,7 +375,7 @@ def test_cli_pipeline(
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
-        taxonomy_tree,
+        taxonomy_tree_dict,
         query_gene_names,
         tmp_dir_fixture,
         use_tree):
@@ -397,10 +403,10 @@ def test_cli_pipeline(
     if use_tree:
         tree_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.json')
         with open(tree_path, 'w') as out_file:
-            out_file.write(json.dumps(taxonomy_tree))
+            out_file.write(json.dumps(taxonomy_tree_dict))
         config['precomputed_stats']['taxonomy_tree'] = tree_path
     else:
-        config['precomputed_stats']['column_hierarchy'] = taxonomy_tree['hierarchy']
+        config['precomputed_stats']['column_hierarchy'] = taxonomy_tree_dict['hierarchy']
 
     config['reference_markers'] = {
         'n_processors': 3,
@@ -468,9 +474,9 @@ def test_cli_pipeline(
         expected_cluster = expected_cluster_fixture[cell_id]
         assert actual_cluster == expected_cluster
         actual_sub = cell['subclass']['assignment']
-        assert actual_cluster in taxonomy_tree['subclass'][actual_sub]
+        assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
         actual_class = cell['class']['assignment']
-        assert actual_sub in taxonomy_tree['class'][actual_class]
+        assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
     # ======== now run it, reusing the precomputed files =========
     config.pop('precomputed_stats')
@@ -523,6 +529,6 @@ def test_cli_pipeline(
         expected_cluster = expected_cluster_fixture[cell_id]
         assert actual_cluster == expected_cluster
         actual_sub = cell['subclass']['assignment']
-        assert actual_cluster in taxonomy_tree['subclass'][actual_sub]
+        assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
         actual_class = cell['class']['assignment']
-        assert actual_sub in taxonomy_tree['class'][actual_class]
+        assert actual_sub in taxonomy_tree_dict['class'][actual_class]

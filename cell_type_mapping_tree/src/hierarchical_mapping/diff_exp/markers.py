@@ -14,10 +14,6 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_dict)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    convert_tree_to_leaves,
-    get_all_pairs)
-
 from hierarchical_mapping.diff_exp.scores import (
     read_precomputed_stats,
     _get_this_cluster_stats,
@@ -58,8 +54,9 @@ def find_markers_for_all_taxonomy_pairs(
         Path to HDF5 file containing precomputed stats for leaf nodes
 
     taxonomy_tree:
-        Dict encoding the taxonomy tree (created when we create the
-        contiguous zarr file and stored in that file's metadata.json)
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file where results will be stored
@@ -111,7 +108,7 @@ def find_markers_for_all_taxonomy_pairs(
             prefix='unthinned_',
             suffix='.h5'))
 
-    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
+    tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
@@ -357,8 +354,9 @@ def _prep_output_file(
     output_path:
         Path to the HDF5 file
     taxonomy_tree:
-        Dict encoding the taxonomy tree (created when we create the
-        contiguous zarr file and stored in that file's metadata.json)
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
     gene_names:
         Ordered list of gene names for entire dataset
 
@@ -374,7 +372,7 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-    siblings = get_all_pairs(taxonomy_tree)
+    siblings = taxonomy_tree.siblings
     n_sibling_pairs = len(siblings)
     print(f"{n_sibling_pairs:.2e} sibling pairs")
 

@@ -9,7 +9,7 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import zarr
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree)
 
 from hierarchical_mapping.cell_by_gene.utils import (

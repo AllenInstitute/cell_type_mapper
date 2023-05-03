@@ -11,7 +11,10 @@ import scipy.sparse as scipy_sparse
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs)
@@ -175,7 +178,7 @@ def test_scoring_pipeline(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=metadata["taxonomy_tree"])
 
     assert not score_path.is_file()
 

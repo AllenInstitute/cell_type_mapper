@@ -6,7 +6,7 @@ import itertools
 
 from hierarchical_mapping.utils.utils import json_clean_dict
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     compute_row_order,

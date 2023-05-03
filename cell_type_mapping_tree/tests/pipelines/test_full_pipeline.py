@@ -10,7 +10,10 @@ from hierarchical_mapping.utils.utils import (
     _clean_up,
     json_clean_dict)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree)
 
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
@@ -66,9 +69,11 @@ def test_all_of_it(
         prefix='reference_markers_',
         suffix='.h5')
 
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
     find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path=precomputed_path,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
         max_bytes=6*1024**2)
@@ -90,7 +95,7 @@ def test_all_of_it(
         output_cache_path=marker_cache_path,
         input_cache_path=ref_marker_path,
         query_gene_names=query_gene_names,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         n_per_utility=7,
         n_processors=3,
         behemoth_cutoff=1000000)
@@ -102,7 +107,7 @@ def test_all_of_it(
         query_h5ad_path=query_h5ad_path_fixture,
         precomputed_stats_path=precomputed_path,
         marker_gene_cache_path=marker_cache_path,
-        taxonomy_tree=taxonomy_tree_fixture,
+        taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
         bootstrap_factor=0.9,

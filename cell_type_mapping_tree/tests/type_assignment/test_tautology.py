@@ -16,6 +16,9 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
@@ -39,7 +42,7 @@ def gene_names(n_genes):
 
 
 @pytest.fixture
-def taxonomy_fixture():
+def taxonomy_dict_fixture():
     taxonomy = dict()
     taxonomy['hierarchy'] = ['level_1', 'level_2', 'cluster']
     taxonomy['level_1'] = {
@@ -63,10 +66,10 @@ def taxonomy_fixture():
 @pytest.fixture
 def mean_profile_fixture(
        n_genes,
-       taxonomy_fixture):
+       taxonomy_dict_fixture):
     result = dict()
     tt = np.linspace(0, 1, n_genes)
-    for ii, cl in enumerate(taxonomy_fixture['cluster'].keys()):
+    for ii, cl in enumerate(taxonomy_dict_fixture['cluster'].keys()):
         profile = np.sin(2.0*np.pi*tt*(ii+1)/15.0)
         result[cl] = profile
     return result
@@ -140,7 +143,7 @@ def query_fixture(
 def marker_fixture(
         n_genes,
         gene_names,
-        taxonomy_fixture,
+        taxonomy_dict_fixture,
         tmp_dir_fixture):
     marker_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -148,8 +151,8 @@ def marker_fixture(
         suffix='.h5')
 
     parents = ['None']
-    for level in taxonomy_fixture['hierarchy'][:-1]:
-        for node in taxonomy_fixture[level].keys():
+    for level in taxonomy_dict_fixture['hierarchy'][:-1]:
+        for node in taxonomy_dict_fixture[level].keys():
             parents.append(f'{level}/{node}')
 
     all_markers = set()
@@ -182,30 +185,32 @@ def test_tautological_assignment(
         marker_fixture,
         query_fixture,
         precomputed_fixture,
-        taxonomy_fixture):
+        taxonomy_dict_fixture):
     """
     Test that if the query data *is* the mean gene expression profiles,
     we get the exact assignments out that we expected
     """
 
+    taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_fixture,
         precomputed_stats_path=precomputed_fixture,
         marker_gene_cache_path=marker_fixture,
-        taxonomy_tree=taxonomy_fixture,
+        taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=50,
         bootstrap_factor=0.9,
         bootstrap_iteration=100,
         rng=np.random.default_rng(887123))
-    assert len(result) == len(taxonomy_fixture['cluster'])
+    assert len(result) == len(taxonomy_dict_fixture['cluster'])
     for el in result:
         assert el['cluster']['assignment'] == el['cell_id']
         cl = el['cluster']['assignment']
         l1 = el['level_1']['assignment']
         l2 = el['level_2']['assignment']
-        assert cl in taxonomy_fixture['level_2'][l2]
-        assert l2 in taxonomy_fixture['level_1'][l1]
+        assert cl in taxonomy_dict_fixture['level_2'][l2]
+        assert l2 in taxonomy_dict_fixture['level_1'][l1]
         for k in ('cluster', 'level_1', 'level_2'):
             np.testing.assert_allclose(
                 el[k]['confidence'],
