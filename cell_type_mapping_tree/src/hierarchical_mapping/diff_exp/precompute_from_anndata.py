@@ -11,7 +11,8 @@ from hierarchical_mapping.utils.utils import (
     json_clean_dict)
 
 from hierarchical_mapping.utils.taxonomy_utils import (
-    get_taxonomy_tree)
+    get_taxonomy_tree,
+    validate_taxonomy_tree)
 
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
@@ -124,6 +125,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
+    validate_taxonomy_tree(taxonomy_tree)
+
     a_data = anndata.read_h5ad(data_path, backed='r')
     gene_names = a_data.var_names
 

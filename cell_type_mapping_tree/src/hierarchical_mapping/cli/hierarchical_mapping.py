@@ -16,6 +16,9 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
+from hierarchical_mapping.utils.taxonomy_utils import (
+    validate_taxonomy_tree)
+
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
@@ -132,6 +135,8 @@ def _run_mapping(config, tmp_dir, log):
     with h5py.File(precomputed_tmp, "r") as in_file:
         taxonomy_tree = json.loads(
             in_file["taxonomy_tree"][()].decode("utf-8"))
+
+    validate_taxonomy_tree(taxonomy_tree)
 
     # ========= reference marker cache =========
 
