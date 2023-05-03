@@ -633,3 +633,58 @@ def test_validate_taxonomy_tree():
     with pytest.raises(RuntimeError,
                        match="not a str"):
         validate_taxonomy_tree(tree)
+
+    # repeated rows
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            '1': [1, 2, 3, 4],
+            '2': [5, 6, 7, 4],
+            '3': [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="Some rows appear more than once"):
+        validate_taxonomy_tree(tree)
+
+
+    # non-integer rows
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            '1': [1, '2', 3, 4],
+            '2': [5, 6, 7],
+            '3': [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="is not an int"):
+        validate_taxonomy_tree(tree)
+
+    # non-integer rows
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            '1': [1, 2.0, 3, 4],
+            '2': [5, 6, 7, 2],
+            '3': [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="is not an int"):
+        validate_taxonomy_tree(tree)

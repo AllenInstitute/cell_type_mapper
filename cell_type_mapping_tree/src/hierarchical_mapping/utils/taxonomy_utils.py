@@ -1,5 +1,7 @@
 import copy
 import itertools
+import numbers
+import numpy as np
 
 
 def compute_row_order(
@@ -194,6 +196,26 @@ def validate_taxonomy_tree(
                         raise RuntimeError(msg)
                 else:
                     child_to_parent[child_level][this_child] = this_parent
+
+    # check that all rows are unique integers
+    leaf_level = taxonomy_tree['hierarchy'][-1]
+    all_rows = []
+    for leaf_node in taxonomy_tree[leaf_level].keys():
+        all_rows += list(taxonomy_tree[leaf_level][leaf_node])
+
+    for value in all_rows:
+        if not isinstance(value, numbers.Integral):
+            raise RuntimeError(
+                f"row {value} is not an int "
+                f"(it is a {type(value)}")
+
+    unq_values, unq_ct = np.unique(all_rows, return_counts=True)
+    if unq_ct.max() > 1:
+        msg = f"Some rows appear more than once at level {leaf_level}:\n"
+        invalid = (unq_ct > 1)
+        for v, c in zip(unq_values[invalid], unq_ct[invalid]):
+            msg += f"row: {v} count: {c}\n"
+        raise RuntimeError(msg)
 
 
 def convert_tree_to_leaves(
