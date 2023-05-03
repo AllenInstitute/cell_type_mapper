@@ -171,7 +171,9 @@ def _run_mapping(config, tmp_dir, log):
     # ========= query marker cache =========
 
     query_marker_tmp = pathlib.Path(
-        mkstemp_clean(dir=tmp_dir, suffix='.h5'))
+        mkstemp_clean(dir=tmp_dir,
+                      prefix='query_marker_',
+                      suffix='.h5'))
 
     t0 = time.time()
     create_marker_gene_cache_v2(
@@ -258,6 +260,7 @@ def _validate_config(
         config_dict=precomputed_config,
         tmp_dir=tmp_dir,
         log=log,
+        prefix="precomputed_stats_",
         suffix=".h5")
 
     precomputed_path = lookup["path"]
@@ -293,6 +296,7 @@ def _validate_config(
         config_dict=reference_marker_config,
         tmp_dir=tmp_dir,
         log=log,
+        prefix="reference_markers_",
         suffix=".h5")
 
     reference_marker_path = lookup["path"]
@@ -344,7 +348,10 @@ def _copy_over_file(file_path, tmp_dir, log):
     """
     file_path = pathlib.Path(file_path)
     tmp_dir = pathlib.Path(tmp_dir)
-    new_path = mkstemp_clean(dir=tmp_dir, suffix=file_path.suffix)
+    new_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix=f"{file_path.name.replace(file_path.suffix, '')}_",
+            suffix=file_path.suffix)
 
     is_valid = False
     if file_path.exists():
@@ -367,7 +374,8 @@ def _make_temp_path(
         config_dict,
         tmp_dir,
         log,
-        suffix):
+        suffix,
+        prefix):
     """
     Create a temp path for an actual file.
 
@@ -388,7 +396,10 @@ def _make_temp_path(
                  log=log)
     else:
         tmp_path = pathlib.Path(
-            mkstemp_clean(dir=tmp_dir, suffix=suffix))
+            mkstemp_clean(
+                dir=tmp_dir,
+                prefix=prefix,
+                suffix=suffix))
         is_valid = False
         file_path = None
 
