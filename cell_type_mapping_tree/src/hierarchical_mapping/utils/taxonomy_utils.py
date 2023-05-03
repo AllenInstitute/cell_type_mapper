@@ -153,8 +153,15 @@ def validate_taxonomy_tree(
         child_to_parent[level] = dict()
     for parent_level, child_level in zip(hierarchy[:-1],
                                          hierarchy[1:]):
+        child_set = taxonomy_tree[child_level].keys()
         for this_parent in taxonomy_tree[parent_level].keys():
             for this_child in taxonomy_tree[parent_level][this_parent]:
+                if this_child not in child_set:
+                    msg = f"{this_child} "
+                    msg += f"(child of {parent_level}:{this_parent}) "
+                    msg += f"is not present in the keys at level {child_level}"
+                    raise RuntimeError(msg)
+
                 if this_child in child_to_parent[child_level]:
                     if child_to_parent[child_level][this_child] != this_parent:
                         msg = f"at level {child_level}, node {this_child} "

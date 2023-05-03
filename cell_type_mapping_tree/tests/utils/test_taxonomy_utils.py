@@ -14,7 +14,8 @@ from hierarchical_mapping.utils.taxonomy_utils import (
     convert_tree_to_leaves,
     get_siblings,
     get_all_pairs,
-    get_all_leaf_pairs)
+    get_all_leaf_pairs,
+    validate_taxonomy_tree)
 
 
 @pytest.fixture
@@ -491,3 +492,36 @@ def test_get_taxonomy_tree_errors():
         get_taxonomy_tree(
             obs_records=obs_records,
             column_hierarchy=['l1', 'l2', 'l3'])
+
+
+def test_validate_taxonomy_tree():
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['aaa', 'bbb'],
+            'bb': ['ccc', 'ddd']
+        },
+        'b': {
+            'aaa': [1, 2, 3, 4]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="not present in the keys"):
+        validate_taxonomy_tree(tree)
+
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['aaa', 'bbb'],
+            'bb': ['bbb']
+        },
+        'b': {
+            'aaa': [1, 2, 3, 4],
+            'bbb': [7, 8, 9]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="at least two parents"):
+        validate_taxonomy_tree(tree)
