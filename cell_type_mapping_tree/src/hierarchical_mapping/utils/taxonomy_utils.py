@@ -148,9 +148,21 @@ def validate_taxonomy_tree(
     Make sure taxonomy_tree is a strict tree
     """
     child_to_parent = dict()
+    if "hierarchy" not in taxonomy_tree.keys():
+        raise RuntimeError(
+            "tree has no 'hierarchy'")
     hierarchy = taxonomy_tree['hierarchy']
+
+    expected_keys = set(hierarchy)
+    expected_keys.add('hierarchy')
+    if set(taxonomy_tree.keys()) != expected_keys:
+        msg = f"Expect tree to have keys\n {expected_keys}\n"
+        msg += f"this has {taxonomy_tree.keys()}"
+        raise RuntimeError(msg)
+
     for level in hierarchy:
         child_to_parent[level] = dict()
+
     for parent_level, child_level in zip(hierarchy[:-1],
                                          hierarchy[1:]):
         child_set = taxonomy_tree[child_level].keys()
@@ -158,7 +170,8 @@ def validate_taxonomy_tree(
             for this_child in taxonomy_tree[parent_level][this_parent]:
                 if this_child not in child_set:
                     msg = f"{this_child} "
-                    msg += f"(child of {parent_level}:{this_parent}) "
+                    msg += f"(child of {parent_level}:{this_parent} -- "
+                    msg += f"type {type(this_child)}) "
                     msg += f"is not present in the keys at level {child_level}"
                     raise RuntimeError(msg)
 

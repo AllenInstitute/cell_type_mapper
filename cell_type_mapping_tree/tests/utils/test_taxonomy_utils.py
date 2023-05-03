@@ -525,3 +525,50 @@ def test_validate_taxonomy_tree():
     with pytest.raises(RuntimeError,
                        match="at least two parents"):
         validate_taxonomy_tree(tree)
+
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['aaa', 'bbb'],
+            'bb': ['ccc']
+        },
+        'b': {
+            'aaa': [1, 2, 3, 4],
+            'bbb': [7, 8, 9],
+            'ccc': [11, 12, 13]
+        },
+        'c': 'hello'
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="Expect tree to have keys"):
+        validate_taxonomy_tree(tree)
+
+
+    tree = {
+        'a': {
+            'aa': ['aaa', 'bbb'],
+            'bb': ['ccc']
+        },
+        'b': {
+            'aaa': [1, 2, 3, 4],
+            'bbb': [7, 8, 9],
+            'ccc': [11, 12, 13]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="tree has no 'hierarchy'"):
+        validate_taxonomy_tree(tree)
+
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['aaa', 'bbb'],
+            'bb': ['ccc']
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="Expect tree to have keys"):
+        validate_taxonomy_tree(tree)
