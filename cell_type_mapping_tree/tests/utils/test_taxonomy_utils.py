@@ -495,6 +495,8 @@ def test_get_taxonomy_tree_errors():
 
 
 def test_validate_taxonomy_tree():
+
+    # missing taxons
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
@@ -510,6 +512,7 @@ def test_validate_taxonomy_tree():
                        match="not present in the keys"):
         validate_taxonomy_tree(tree)
 
+    # multiple parents
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
@@ -526,6 +529,7 @@ def test_validate_taxonomy_tree():
                        match="at least two parents"):
         validate_taxonomy_tree(tree)
 
+    # extra key
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
@@ -545,6 +549,7 @@ def test_validate_taxonomy_tree():
         validate_taxonomy_tree(tree)
 
 
+    # missing 'hierarchy' key
     tree = {
         'a': {
             'aa': ['aaa', 'bbb'],
@@ -561,6 +566,7 @@ def test_validate_taxonomy_tree():
                        match="tree has no 'hierarchy'"):
         validate_taxonomy_tree(tree)
 
+    # missing level key
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
@@ -571,4 +577,23 @@ def test_validate_taxonomy_tree():
 
     with pytest.raises(RuntimeError,
                        match="Expect tree to have keys"):
+        validate_taxonomy_tree(tree)
+
+
+    # case of misaligned types
+    tree = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            1: [1, 2, 3, 4],
+            2: [5, 6, 7],
+            3: [8, 9, 10]
+        }
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="not present in the keys"):
         validate_taxonomy_tree(tree)
