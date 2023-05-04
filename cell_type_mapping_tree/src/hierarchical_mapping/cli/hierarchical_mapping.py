@@ -96,7 +96,9 @@ def _run_mapping(config, tmp_dir, log):
             precomputed_config['reference_path'])
 
         ref_tmp = pathlib.Path(
-            tempfile.mkdtemp(dir=tmp_dir))
+            tempfile.mkdtemp(
+                prefix='reference_data_',
+                dir=tmp_dir))
 
         (reference_path,
          _) = _copy_over_file(file_path=reference_path,
@@ -143,7 +145,9 @@ def _run_mapping(config, tmp_dir, log):
     else:
         log.info("creating reference marker file")
 
-        marker_tmp = tempfile.mkdtemp(dir=tmp_dir)
+        marker_tmp = tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='reference_marker_')
 
         t0 = time.time()
         find_markers_for_all_taxonomy_pairs(
