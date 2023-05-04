@@ -1,5 +1,8 @@
+import anndata
 import copy
 import itertools
+import numbers
+import numpy as np
 
 
 def compute_row_order(
@@ -142,19 +145,62 @@ def get_taxonomy_tree(
     return tree
 
 
+def get_taxonomy_tree_from_h5ad(
+        h5ad_path,
+        column_hierarchy):
+    """
+    Get taxonomy tree from an h5ad file
+    """
+    a_data = anndata.read_h5ad(h5ad_path, backed='r')
+    taxonomy_tree = get_taxonomy_tree(
+        obs_records=a_data.obs.to_dict(orient='records'),
+        column_hierarchy=column_hierarchy)
+    return taxonomy_tree
+
+
 def validate_taxonomy_tree(
         taxonomy_tree):
     """
     Make sure taxonomy_tree is a strict tree
     """
     child_to_parent = dict()
+    if "hierarchy" not in taxonomy_tree.keys():
+        raise RuntimeError(
+            "tree has no 'hierarchy'")
     hierarchy = taxonomy_tree['hierarchy']
+
+    expected_keys = set(hierarchy)
+    expected_keys.add('hierarchy')
+    if set(taxonomy_tree.keys()) != expected_keys:
+        msg = f"Expect tree to have keys\n {expected_keys}\n"
+        msg += f"this has {taxonomy_tree.keys()}"
+        raise RuntimeError(msg)
+
     for level in hierarchy:
         child_to_parent[level] = dict()
+
+    for this_level in taxonomy_tree.keys():
+        if this_level == 'hierarchy':
+            continue
+        for this_node in taxonomy_tree[this_level].keys():
+            if not isinstance(this_node, str):
+                raise RuntimeError(
+                    f"level {this_level}: node {this_node} is not a str\n"
+                    "(this requirement makes serialization/deserialization "
+                    "with JSON more straightforward)")
+
     for parent_level, child_level in zip(hierarchy[:-1],
                                          hierarchy[1:]):
+        child_set = taxonomy_tree[child_level].keys()
         for this_parent in taxonomy_tree[parent_level].keys():
             for this_child in taxonomy_tree[parent_level][this_parent]:
+                if this_child not in child_set:
+                    msg = f"node {this_child} "
+                    msg += f"(child of {parent_level}:{this_parent} -- "
+                    msg += f"type {type(this_child)}) "
+                    msg += f"is not present in the keys at level {child_level}"
+                    raise RuntimeError(msg)
+
                 if this_child in child_to_parent[child_level]:
                     if child_to_parent[child_level][this_child] != this_parent:
                         msg = f"at level {child_level}, node {this_child} "
@@ -164,6 +210,26 @@ def validate_taxonomy_tree(
                         raise RuntimeError(msg)
                 else:
                     child_to_parent[child_level][this_child] = this_parent
+
+    # check that all rows are unique integers
+    leaf_level = taxonomy_tree['hierarchy'][-1]
+    all_rows = []
+    for leaf_node in taxonomy_tree[leaf_level].keys():
+        all_rows += list(taxonomy_tree[leaf_level][leaf_node])
+
+    for value in all_rows:
+        if not isinstance(value, numbers.Integral):
+            raise RuntimeError(
+                f"row {value} is not an int "
+                f"(it is a {type(value)}")
+
+    unq_values, unq_ct = np.unique(all_rows, return_counts=True)
+    if unq_ct.max() > 1:
+        msg = f"Some rows appear more than once at level {leaf_level}:\n"
+        invalid = (unq_ct > 1)
+        for v, c in zip(unq_values[invalid], unq_ct[invalid]):
+            msg += f"row: {v} count: {c}\n"
+        raise RuntimeError(msg)
 
 
 def convert_tree_to_leaves(

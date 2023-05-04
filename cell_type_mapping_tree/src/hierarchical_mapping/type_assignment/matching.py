@@ -6,9 +6,6 @@ from hierarchical_mapping.diff_exp.scores import (
     aggregate_stats,
     read_precomputed_stats)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    convert_tree_to_leaves)
-
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
@@ -27,11 +24,14 @@ def assemble_query_data(
     ----------
     full_query_data:
         A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
     mean_profile_matrix:
         A CellByGeneMatrix containing the mean gene expression profiles
         for each cell cluster in the reference taxonomy.
     taxonomy_tree:
-        A dict representing the reference taxonomy.
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
     marker_cache_path:
         Path to the HDF5 file recording the marker genes to be used
         for this (reference data, query data) pair
@@ -54,20 +54,21 @@ def assemble_query_data(
         'reference_data's rows)
     """
 
-    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
-    hierarchy = taxonomy_tree['hierarchy']
+    tree_as_leaves = taxonomy_tree.as_leaves
+    hierarchy = taxonomy_tree.hierarchy
     level_to_idx = {level: idx for idx, level in enumerate(hierarchy)}
 
     if parent_node is None:
         parent_grp = 'None'
-        immediate_children = list(taxonomy_tree[hierarchy[0]].keys())
+        immediate_children = taxonomy_tree.nodes_at_level(hierarchy[0])
         child_level = hierarchy[0]
 
     else:
         parent_grp = f"{parent_node[0]}/{parent_node[1]}"
 
-        immediate_children = list(
-            taxonomy_tree[parent_node[0]][parent_node[1]])
+        immediate_children = taxonomy_tree.children(
+               level=parent_node[0],
+               node=parent_node[1])
 
         child_level = hierarchy[level_to_idx[parent_node[0]]+1]
 
@@ -116,12 +117,13 @@ def assemble_query_data(
 
     if query_data.normalization != "log2CPM":
         raise RuntimeError(
-            f"query data normalization is {query_data.normalization}\n"
+            f"query data normalization is '{query_data.normalization}'\n"
             "should be 'log2CPM'")
 
     if reference_data.normalization != "log2CPM":
         raise RuntimeError(
-            f"reference data normalization is {query_data.normalization}\n"
+            "reference data normalization is "
+            f"'{reference_data.normalization}'\n"
             "should be 'log2CPM'")
 
     return {'query_data': query_data,
@@ -138,9 +140,7 @@ def get_leaf_means(
     the mean gene expression profile of the cluster.
     """
     precomputed_stats = read_precomputed_stats(precompute_path)
-    hierarchy = taxonomy_tree['hierarchy']
-    leaf_level = hierarchy[-1]
-    leaf_names = list(taxonomy_tree[leaf_level].keys())
+    leaf_names = taxonomy_tree.all_leaves
     leaf_names.sort()
     result = dict()
 

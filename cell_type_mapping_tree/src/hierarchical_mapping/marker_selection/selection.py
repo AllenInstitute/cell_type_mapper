@@ -4,9 +4,6 @@ import time
 from hierarchical_mapping.utils.multiprocessing_utils import (
     DummyLock)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_all_leaf_pairs)
-
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
@@ -47,7 +44,9 @@ def select_marker_genes_v2(
         List of gene names in a query set
 
     taxonomy_tree:
-        dict encoding the taxonomy we are mapping to
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
 
     parent_node:
         (level, node) tuple indicating the parent for whose
@@ -529,8 +528,7 @@ def _get_taxonomy_idx(
     that need to be compared given the taxonomy tree
     and the specified parent node
     """
-    leaf_pairs = get_all_leaf_pairs(
-        taxonomy_tree=taxonomy_tree,
+    leaf_pairs = taxonomy_tree.leaves_to_compare(
         parent_node=parent_node)
 
     taxonomy_idx_array = [

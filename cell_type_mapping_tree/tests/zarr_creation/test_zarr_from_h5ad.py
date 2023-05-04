@@ -11,7 +11,7 @@ import zarr
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     compute_row_order)
 
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (

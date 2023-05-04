@@ -89,6 +89,8 @@ def json_clean_dict(input_dict):
             new_val = [
                 int(ii) if isinstance(ii, np.int64) else ii
                 for ii in val]
+            if isinstance(val, set):
+                new_val.sort()
             output_dict[k] = new_val
         elif isinstance(val, np.int64):
             output_dict[k] = int(val)
@@ -126,7 +128,7 @@ def mkstemp_clean(
     Because this calls tempfile mkstemp, the file will be created,
     though it will be empty. This wrapper is needed because
     mkstemp automatically returns an open file descriptor, which was
-    causing some of our unit tests to overwhelm the OS's limit
+    been causing some of our unit tests to overwhelm the OS's limit
     on the number of open files.
     """
     (descriptor,

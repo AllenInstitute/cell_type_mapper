@@ -31,7 +31,8 @@ def run_type_assignment_on_h5ad(
         chunk_size,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        normalization='log2CPM'):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -54,7 +55,9 @@ def run_type_assignment_on_h5ad(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        Dict encoding the cell type taxonomy we are matching to
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     n_processors:
         Number of independent worker processes to spin up
@@ -72,6 +75,10 @@ def run_type_assignment_on_h5ad(
 
     rng:
         A random number generator
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
 
     Returns
     -------
@@ -120,7 +127,10 @@ def run_type_assignment_on_h5ad(
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
-            normalization="log2CPM")
+            normalization=normalization)
+
+        if data.normalization != 'log2CPM':
+            data.to_log2CPM_in_place()
 
         # downsample to just include marker genes
         # to limit memory footprint
@@ -153,8 +163,8 @@ def run_type_assignment_on_h5ad(
                     tot_chunks=tot_rows,
                     unit='hr')
     print("final join of worker processes")
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     output_list = list(output_list)
     return output_list
@@ -204,6 +214,7 @@ def run_type_assignment(
     ----------
     full_query_gene_data:
         A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
 
     precomputed_stats_path:
         Path to the HDF5 file where precomputed stats on the
@@ -218,7 +229,9 @@ def run_type_assignment(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        Dict encoding the cell type taxonomy we are matching to
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     bootstrap_factor:
         Fraction (<=1.0) by which to sampel the marker gene set
@@ -252,7 +265,7 @@ def run_type_assignment(
     # create effectively empty list of dicts to
     # store the hierarchical classification of
     # each cell in full_query_gene_data
-    hierarchy = taxonomy_tree['hierarchy']
+    hierarchy = taxonomy_tree.hierarchy
     result = []
     for i_cell in range(full_query_gene_data.n_cells):
         this = dict()
@@ -275,7 +288,7 @@ def run_type_assignment(
         if parent_level is None:
             parent_node_list = [None]
         else:
-            k_list = list(taxonomy_tree[parent_level].keys())
+            k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
             parent_node_list = []
             for k in k_list:
@@ -307,10 +320,11 @@ def run_type_assignment(
             # see how many children this parent node has;
             # if == 1, assignment is trivial
             if parent_level is not None:
-                possible_children = taxonomy_tree[parent_level][parent_node[1]]
+                possible_children = taxonomy_tree.children(
+                    level=parent_level,
+                    node=parent_node[1])
             else:
-                possible_children = list(taxonomy_tree[
-                        taxonomy_tree['hierarchy'][0]].keys())
+                possible_children = taxonomy_tree.children(None, None)
 
             if len(possible_children) > 1:
                 (assignment,
@@ -376,7 +390,8 @@ def _run_type_assignment(
     Parameters
     ----------
     full_query_gene_data:
-        A CellByGeneMatrix containing the query data
+        A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'
 
     leaf_node_matrix:
         A CellByGeneMatrix containing the mean gene expression
@@ -391,7 +406,9 @@ def _run_type_assignment(
         of taxonomy/reference set and query data set.
 
     taxonomy_tree:
-        A dict that encodes our cell types taxonomy
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     parent_node:
         Tuple of the form (level, cell_type) that encodes

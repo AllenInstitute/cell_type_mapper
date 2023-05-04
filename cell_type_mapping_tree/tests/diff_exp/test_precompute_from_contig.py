@@ -9,6 +9,12 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import zarr
 
+from hierarchical_mapping.taxonomy.utils import (
+    get_taxonomy_tree)
+
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
 from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
     contiguous_zarr_from_h5ad)
 
@@ -19,7 +25,8 @@ from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    json_clean_dict)
 
 
 @pytest.fixture
@@ -132,18 +139,22 @@ def obs_fixture(records_fixture):
 def nrows(records_fixture):
     return len(records_fixture)
 
-
 @pytest.fixture
-def x_fixture(records_fixture, ncols, nrows):
+def raw_x_fixture(ncols, nrows):
     rng = np.random.default_rng(66213)
-
     data = np.zeros(nrows*ncols, dtype=np.float64)
     chosen_dex = rng.choice(np.arange(nrows*ncols, dtype=int),
                             nrows*ncols//7,
                             replace=False)
-    data[chosen_dex] = rng.random(len(chosen_dex))
+    data[chosen_dex] = rng.random(len(chosen_dex))*10000.0
     data = data.reshape((nrows, ncols))
     return data
+
+
+@pytest.fixture
+def x_fixture(raw_x_fixture):
+    cpm_data = convert_to_cpm(raw_x_fixture)
+    return np.log2(cpm_data+1.0)
 
 
 @pytest.fixture
@@ -155,6 +166,24 @@ def h5ad_path_fixture(
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
                              obs=obs_fixture,
                              dtype=x_fixture.dtype)
+    h5ad_path = tmp_dir / 'h5ad_file.h5ad'
+    a_data.write_h5ad(h5ad_path)
+    import h5py
+    with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
+        d = in_file['X']['data']
+    yield h5ad_path
+    _clean_up(tmp_dir)
+
+
+@pytest.fixture
+def raw_h5ad_path_fixture(
+        obs_fixture,
+        raw_x_fixture,
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('anndata'))
+    a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(raw_x_fixture),
+                             obs=obs_fixture,
+                             dtype=raw_x_fixture.dtype)
     h5ad_path = tmp_dir / 'h5ad_file.h5ad'
     a_data.write_h5ad(h5ad_path)
     import h5py
@@ -191,19 +220,30 @@ def baseline_stats_fixture(
     return results
 
 
-@pytest.mark.parametrize('via_zarr', [True, False])
+@pytest.mark.parametrize(
+        'via_zarr, use_raw',
+        [(True, False), (False, False), (False, True)])
 def test_precompute_from_data(
         h5ad_path_fixture,
+        raw_h5ad_path_fixture,
         records_fixture,
         baseline_stats_fixture,
         tmp_path_factory,
-        via_zarr):
+        via_zarr,
+        use_raw):
     """
     Test the generation of precomputed stats file either from a contiguous
     zarr file or directly from the h5ad file (parametrized with 'via_zarr').
 
     The test checks results against known answers.
     """
+
+    if use_raw:
+        h5ad_path = raw_h5ad_path_fixture
+        normalization = 'raw'
+    else:
+        h5ad_path = h5ad_path_fixture
+        normalization = 'log2CPM'
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp("stats_from_contig"))
     zarr_path = tmp_dir / "contig_zarr.zarr"
@@ -217,7 +257,7 @@ def test_precompute_from_data(
 
     if via_zarr:
         contiguous_zarr_from_h5ad(
-            h5ad_path=h5ad_path_fixture,
+            h5ad_path=h5ad_path,
             zarr_path=zarr_path,
             taxonomy_hierarchy=hierarchy,
             zarr_chunks=1000,
@@ -234,10 +274,21 @@ def test_precompute_from_data(
             n_processors=3)
     else:
         precompute_summary_stats_from_h5ad(
-            data_path=h5ad_path_fixture,
+            data_path=h5ad_path,
             column_hierarchy=hierarchy,
+            taxonomy_tree=None,
             output_path=stats_file,
-            rows_at_a_time=13)
+            rows_at_a_time=13,
+            normalization=normalization)
+
+        expected_tree = get_taxonomy_tree(
+            obs_records=records_fixture,
+            column_hierarchy=hierarchy)
+        expected_tree = json_clean_dict(expected_tree)
+        with h5py.File(stats_file, 'r') as in_file:
+            actual_tree = json.loads(
+                in_file['taxonomy_tree'][()].decode('utf-8'))
+        assert expected_tree == actual_tree
 
 
     assert stats_file.is_file()

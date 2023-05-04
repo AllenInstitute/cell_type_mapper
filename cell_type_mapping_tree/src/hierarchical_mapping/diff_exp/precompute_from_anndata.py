@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Optional
 import anndata
 import numpy as np
 import h5py
@@ -8,8 +8,8 @@ import time
 from hierarchical_mapping.utils.utils import (
     print_timing)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
-    get_taxonomy_tree)
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 from hierarchical_mapping.utils.stats_utils import (
     summary_stats_for_chunk)
@@ -23,9 +23,11 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 
 def precompute_summary_stats_from_h5ad(
         data_path: Union[str, pathlib.Path],
-        column_hierarchy: List[str],
+        column_hierarchy: Optional[List[str]],
+        taxonomy_tree: Optional[TaxonomyTree],
         output_path: Union[str, pathlib.Path],
-        rows_at_a_time: int = 10000):
+        rows_at_a_time: int = 10000,
+        normalization="log2CPM"):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -38,6 +40,11 @@ def precompute_summary_stats_from_h5ad(
         The list of columns denoting taxonomic classes,
         ordered from highest (parent) to lowest (child).
 
+    taxonomy_tree:
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
+
     output_path:
         Path to the HDF5 file that will contain the lookup
         information for the clusters
@@ -49,36 +56,34 @@ def precompute_summary_stats_from_h5ad(
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
         matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
     """
-    taxonomy_tree = get_taxonomy_tree_from_h5ad(
-        h5ad_path=data_path,
-        column_hierarchy=column_hierarchy)
+    if taxonomy_tree is not None and column_hierarchy is not None:
+        raise RuntimeError(
+            "Cannot specify taxonomy_tree and column_hierarchy")
+
+    if taxonomy_tree is None:
+        taxonomy_tree = TaxonomyTree.from_h5ad(
+            h5ad_path=data_path,
+            column_hierarchy=column_hierarchy)
 
     precompute_summary_stats_from_h5ad_and_tree(
         data_path=data_path,
         taxonomy_tree=taxonomy_tree,
         output_path=output_path,
-        rows_at_a_time=rows_at_a_time)
-
-
-def get_taxonomy_tree_from_h5ad(
-        h5ad_path,
-        column_hierarchy):
-    """
-    Get taxonomy tree from an h5ad file
-    """
-    a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    taxonomy_tree = get_taxonomy_tree(
-        obs_records=a_data.obs.to_dict(orient='records'),
-        column_hierarchy=column_hierarchy)
-    return taxonomy_tree
+        rows_at_a_time=rows_at_a_time,
+        normalization=normalization)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
         data_path: Union[str, pathlib.Path],
-        taxonomy_tree: dict,
+        taxonomy_tree: TaxonomyTree,
         output_path: Union[str, pathlib.Path],
-        rows_at_a_time: int = 10000):
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM'):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -87,8 +92,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
     data_path:
         Path to the h5ad file containing the cell x gene matrix
 
-    taxonomy_tree: dict
-        dict encoding the cell type taxonomy
+    taxonomy_tree:
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -101,12 +108,15 @@ def precompute_summary_stats_from_h5ad_and_tree(
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
         matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
     """
     a_data = anndata.read_h5ad(data_path, backed='r')
     gene_names = a_data.var_names
 
-    column_hierarchy = taxonomy_tree['hierarchy']
-    cluster_to_input_row = taxonomy_tree[column_hierarchy[-1]]
+    cluster_to_input_row = taxonomy_tree.leaf_to_rows
 
     cluster_list = list(cluster_to_input_row)
     cluster_to_output_row = {c: int(ii)
@@ -151,11 +161,18 @@ def precompute_summary_stats_from_h5ad_and_tree(
         for unq_cluster in np.unique(cluster_chunk):
             valid = np.where(cluster_chunk == unq_cluster)[0]
             valid = np.sort(valid)
-            this_cluster = chunk[0][valid, :].toarray()
+            this_cluster = chunk[0][valid, :]
+
+            if not isinstance(this_cluster, np.ndarray):
+                this_cluster = this_cluster.toarray()
+
             this_cluster = CellByGeneMatrix(
                 data=this_cluster,
                 gene_identifiers=gene_names,
-                normalization='log2CPM')
+                normalization=normalization)
+
+            if this_cluster.normalization != 'log2CPM':
+                this_cluster.to_log2CPM_in_place()
 
             summary_chunk = summary_stats_for_chunk(this_cluster)
 
@@ -180,6 +197,9 @@ def precompute_summary_stats_from_h5ad_and_tree(
         col_names=col_names)
 
     with h5py.File(output_path, 'a') as out_file:
+        out_file.create_dataset(
+            'taxonomy_tree',
+            data=taxonomy_tree.to_str().encode('utf-8'))
         for k in buffer_dict.keys():
             if k == 'n_cells':
                 out_file[k][:] = buffer_dict[k]

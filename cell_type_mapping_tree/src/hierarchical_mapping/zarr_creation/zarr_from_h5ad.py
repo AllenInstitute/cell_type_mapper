@@ -7,7 +7,7 @@ from hierarchical_mapping.utils.utils import (
     _clean_up,
     json_clean_dict)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.utils import (
     compute_row_order)
 
 from hierarchical_mapping.utils.h5ad_remapper import (

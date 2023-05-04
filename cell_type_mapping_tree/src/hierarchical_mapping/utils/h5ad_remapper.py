@@ -106,8 +106,8 @@ def rearrange_sparse_h5ad_hunter_gather(
 
             process_dict = winnow_process_dict(process_dict)
 
-        for k in process_dict.keys():
-            process_dict[k].join()
+        while len(process_dict) > 0:
+            process_dict = winnow_process_dict(process_dict)
 
     print("collecting temp files together")
     with zarr.open(output_path, 'a') as zarr_handle:

@@ -12,11 +12,8 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
-    DummyLock)
-
-from hierarchical_mapping.utils.taxonomy_utils import (
-    convert_tree_to_leaves,
-    get_all_pairs)
+    DummyLock,
+    winnow_process_list)
 
 from hierarchical_mapping.utils.stats_utils import (
     welch_t_test,
@@ -49,8 +46,9 @@ def score_all_taxonomy_pairs(
         Path to HDF5 file containing precomputed stats for leaf nodes
 
     taxonomy_tree:
-        Dict encoding the taxonomy tree (created when we create the
-        contiguous zarr file and stored in that file's metadata.json)
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file where results will be stored
@@ -111,7 +109,7 @@ def score_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_dir = pathlib.Path(tmp_dir)
 
-    tree_as_leaves = convert_tree_to_leaves(taxonomy_tree)
+    tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
            precomputed_stats_path)
@@ -205,8 +203,8 @@ def score_all_taxonomy_pairs(
     del this_idx_to_pair
     del this_tree_as_leaves
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     _clean_up(tmp_dir)
     duration = time.time()-t0
@@ -266,8 +264,9 @@ def _prep_output_file(
     output_path:
         Path to the HDF5 file
     taxonomy_tree:
-        Dict encoding the taxonomy tree (created when we create the
-        contiguous zarr file and stored in that file's metadata.json)
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
     n_genes:
         Total number of genes in the data set
     n_genes_to_keep:
@@ -294,7 +293,7 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-    siblings = get_all_pairs(taxonomy_tree)
+    siblings = taxonomy_tree.siblings
     n_sibling_pairs = len(siblings)
     print(f"{n_sibling_pairs:.2e} sibling pairs")
 

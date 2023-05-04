@@ -130,8 +130,9 @@ def select_marker_genes(
                 break
             row0 = leaf_pair_idx_arr[next_rows.min()]
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
+
     k_list = list(output_dict.keys())
     for k in k_list:
         marker_set = marker_set.union(

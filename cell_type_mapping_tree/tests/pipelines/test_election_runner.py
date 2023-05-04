@@ -1,6 +1,7 @@
 import pytest
 
 import anndata
+import copy
 import pandas as pd
 import numpy as np
 import h5py
@@ -12,7 +13,10 @@ import scipy.sparse as scipy_sparse
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.taxonomy_utils import (
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
@@ -101,7 +105,7 @@ def test_running_single_election(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=metadata["taxonomy_tree"])
 
     assert not score_path.is_file()
 
@@ -239,7 +243,8 @@ def test_running_full_election(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree_dict = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=metadata["taxonomy_tree"])
 
     assert not score_path.is_file()
 
@@ -307,21 +312,21 @@ def test_running_full_election(
 
     assert len(result) == n_query_cells
     for i_cell in range(n_query_cells):
-        for level in taxonomy_tree['hierarchy']:
+        for level in taxonomy_tree_dict['hierarchy']:
             assert result[i_cell][level] is not None
 
     # check that every cell is assigned to a
     # taxonomically consistent set of types
-    hierarchy = taxonomy_tree['hierarchy']
+    hierarchy = taxonomy_tree_dict['hierarchy']
     for i_cell in range(n_query_cells):
         this_cell = result[i_cell]
         for level in hierarchy:
             assert level in this_cell
         for k in this_cell:
             assert this_cell[k] is not None
-        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree[hierarchy[0]].keys()
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level]['assignment'] in taxonomy_tree[parent_level][this_cell[parent_level]['assignment']]
+            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
 
     _clean_up(tmp_dir)
 
@@ -387,6 +392,9 @@ def test_running_flat_election(
     taxonomy_tree[leaf_level] = raw_tree[leaf_level]
     valid_types = set(taxonomy_tree[leaf_level].keys())
 
+    taxonomy_tree_dict = copy.deepcopy(taxonomy_tree)
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree)
+
     assert not score_path.is_file()
 
     # make sure flush_every is not an integer
@@ -454,7 +462,7 @@ def test_running_flat_election(
 
     assert len(result) == n_query_cells
     for i_cell in range(n_query_cells):
-        for level in taxonomy_tree['hierarchy']:
+        for level in taxonomy_tree_dict['hierarchy']:
             assert result[i_cell][level] is not None
             assert result[i_cell][level]['assignment'] in valid_types
 
@@ -505,7 +513,8 @@ def test_running_h5ad_election(
 
     metadata = json.load(
             open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = metadata["taxonomy_tree"]
+    taxonomy_tree_dict = metadata["taxonomy_tree"]
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     assert not score_path.is_file()
 
@@ -592,12 +601,12 @@ def test_running_h5ad_election(
 
     assert len(result) == n_query_cells
     for i_cell in range(n_query_cells):
-        for level in taxonomy_tree['hierarchy']:
+        for level in taxonomy_tree_dict['hierarchy']:
             assert result[i_cell][level] is not None
 
     # check that every cell is assigned to a
     # taxonomically consistent set of types
-    hierarchy = taxonomy_tree['hierarchy']
+    hierarchy = taxonomy_tree_dict['hierarchy']
     name_set = set()
     for i_cell in range(n_query_cells):
         this_cell = result[i_cell]
@@ -606,9 +615,9 @@ def test_running_h5ad_election(
         for k in this_cell:
             assert this_cell[k] is not None
         name_set.add(this_cell['cell_id'])
-        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree[hierarchy[0]].keys()
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level]['assignment'] in taxonomy_tree[parent_level][this_cell[parent_level]['assignment']]
+            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
 
     # make sure all cell_ids were transcribed
     assert len(name_set) == len(result)

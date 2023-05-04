@@ -12,7 +12,20 @@ import scipy.sparse as scipy_sparse
 import tempfile
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
+
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
+
+@pytest.fixture
+def tmp_dir_fixture(
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('pipeline_data'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
 
 
 @pytest.fixture
@@ -247,12 +260,11 @@ def h5ad_path_fixture(
         cell_x_gene_fixture,
         records_fixture,
         gene_names,
-        tmp_path_factory):
+        tmp_dir_fixture):
 
-    tmp_dir = pathlib.Path(
-                tmp_path_factory.mktemp('pipeline_anndata'))
+    tmp_dir = tmp_dir_fixture
 
-    a_data_path = tmp_dir / 'test_cell_x_gene.h5ad'
+    a_data_path = mkstemp_clean(dir=tmp_dir, suffix='.h5ad')
 
     obs = pd.DataFrame(records_fixture)
 
@@ -269,24 +281,13 @@ def h5ad_path_fixture(
                              dtype=csr.dtype)
     a_data.write_h5ad(a_data_path)
 
-    yield a_data_path
-
-    _clean_up(tmp_dir)
+    return a_data_path
 
 
 @pytest.fixture
-def query_h5ad_path_fixture(
+def query_genes_fixture(
         gene_names,
-        tmp_path_factory,
         l1_to_l2_fixture):
-    """
-    Returns a path to an H5ad file that can be queried
-    against the clusters in h5ad_fixture_path
-    """
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('query_data'))
-    h5ad_path = tempfile.mkstemp(dir=tmp_dir, suffix='.h5ad')
-    os.close(h5ad_path[0])
-    h5ad_path = pathlib.Path(h5ad_path[1])
 
     rng = np.random.default_rng(99887766)
     tot_genes = len(gene_names)
@@ -302,16 +303,40 @@ def query_h5ad_path_fixture(
     query_genes = list(set(query_genes))
     query_genes.sort()
     rng.shuffle(query_genes)
+    return query_genes
 
-    n_query_genes = len(query_genes)
+@pytest.fixture
+def query_log2_cell_x_gene_fixture(
+        query_genes_fixture):
+    rng = np.random.default_rng(76213)
     n_query_cells = 5555
-
+    n_query_genes = len(query_genes_fixture)
     x_data = np.zeros(n_query_genes*n_query_cells, dtype=float)
     chosen_dex = rng.choice(np.arange(n_query_cells*n_query_genes),
                             2*n_query_cells*n_query_genes//3,
                             replace=False)
     x_data[chosen_dex] = rng.random(len(chosen_dex))
     x_data = x_data.reshape((n_query_cells, n_query_genes))
+    return x_data
+
+
+@pytest.fixture
+def query_h5ad_path_fixture(
+        query_genes_fixture,
+        query_log2_cell_x_gene_fixture,
+        tmp_dir_fixture,
+        l1_to_l2_fixture):
+    """
+    Returns a path to an H5ad file that can be queried
+    against the clusters in h5ad_fixture_path
+    """
+    tmp_dir = tmp_dir_fixture
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir, suffix='.h5ad'))
+
+    query_genes = query_genes_fixture
+
+    x_data = query_log2_cell_x_gene_fixture
     x_data = scipy_sparse.csr_matrix(x_data)
 
     var_data = [{'gene_name': g}
@@ -325,6 +350,4 @@ def query_h5ad_path_fixture(
     a_data.write_h5ad(h5ad_path)
     del a_data
 
-    yield h5ad_path
-
-    _clean_up(tmp_dir)
+    return h5ad_path
