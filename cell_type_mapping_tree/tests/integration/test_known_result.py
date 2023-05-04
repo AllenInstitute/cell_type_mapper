@@ -532,3 +532,84 @@ def test_cli_pipeline(
         assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
         actual_class = cell['class']['assignment']
         assert actual_sub in taxonomy_tree_dict['class'][actual_class]
+
+
+def test_cli_error_log(
+        raw_reference_h5ad_fixture,
+        raw_query_h5ad_fixture,
+        expected_cluster_fixture,
+        taxonomy_tree_dict,
+        query_gene_names,
+        tmp_dir_fixture):
+    """
+    Same as test_cli_pipeline except configured to fail so that we can
+    check the log and make sure the error was captured
+    """
+    tmp_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture)
+
+    to_store = pathlib.Path(
+        tempfile.mkdtemp(
+            dir=tmp_dir_fixture))
+
+    ref_marker_out = to_store / 'ref_markers.h5'
+
+
+    # this will be a bad path
+    precompute_out = '/nonexsistent/directory/precomputed.h5'
+
+    config = dict()
+    config['tmp_dir'] = tmp_dir
+    config['query_path'] = str(
+        raw_query_h5ad_fixture.resolve().absolute())
+
+    config['precomputed_stats'] = {
+        'reference_path': str(raw_reference_h5ad_fixture.resolve().absolute()),
+        'path': precompute_out,
+        'normalization': 'raw'}
+
+    tree_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.json')
+    with open(tree_path, 'w') as out_file:
+            out_file.write(json.dumps(taxonomy_tree_dict))
+    config['precomputed_stats']['taxonomy_tree'] = tree_path
+
+    config['reference_markers'] = {
+        'n_processors': 3,
+        'max_bytes': 6*1024**2,
+        'path': str(ref_marker_out)}
+
+    config["query_markers"] = {
+        'n_per_utility': 5,
+        'n_processors': 3}
+
+    config["type_assignment"] = {
+        'n_processors': 3,
+        'bootstrap_factor': 0.9,
+        'bootstrap_iteration': 27,
+        'rng_seed': 66234,
+        'chunk_size': 1000,
+        'normalization': 'raw'}
+
+    log_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
+
+    output_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'))
+
+    run_mapping(
+        config,
+        output_path=output_path,
+        log_path=log_path)
+
+    log = json.load(open(log_path, 'rb'))
+
+    found_error = False
+    for line in log:
+        if 'an ERROR occurred ====' in line:
+            found_error = True
+            break
+    assert found_error

@@ -8,9 +8,12 @@ class CommandLog(object):
         self.t0 = time.time()
         self._log = []
 
+    def add_msg(self, msg):
+        self._log.append(self._prepend_time(msg))
+
     def _prepend_time(self, msg):
         timestamp = time.time()-self.t0
-        full_msg = f"{timestamp:.5e} seconds: {str(msg)}"
+        full_msg = f"{timestamp:.5e} seconds == {str(msg)}"
         return full_msg
 
     def info(self, msg):
@@ -24,8 +27,7 @@ class CommandLog(object):
         self.info(new_msg)
 
     def error(self, msg):
-        full_msg = self._prepend_time(msg)
-        raise RuntimeError(full_msg)
+        raise RuntimeError(msg)
 
     @property
     def log(self):

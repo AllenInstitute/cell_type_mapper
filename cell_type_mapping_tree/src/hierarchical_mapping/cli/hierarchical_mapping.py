@@ -8,6 +8,7 @@ import pathlib
 import shutil
 import tempfile
 import time
+import traceback
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -67,6 +68,10 @@ def run_mapping(config, output_path, log_path=None):
             log=log)
         log.info("RAN SUCCESSFULLY")
         output["results"] = type_assignment
+    except Exception:
+        traceback_msg = "an ERROR occurred ===="
+        traceback_msg += f"\n{traceback.format_exc()}\n"
+        log.add_msg(traceback_msg)
     finally:
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
