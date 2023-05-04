@@ -6,6 +6,82 @@ import numpy as np
 import warnings
 
 
+class MarkerSummary(object):
+    """"
+    Class to contain the sparse summary of the marker array
+
+    Parameters
+    ----------
+    gene_idx:
+        List of integers denoting marker genes
+    pair_idx:
+        Integers denoting where in gene_idx each
+        taxon pair begins, i.e.
+        gene_idx[pair_idx[1]:pair_idx[2]]
+        are the marker genes for taxon_pair[1]
+    """
+    def __init__(
+           self,
+           gene_idx,
+           pair_idx):
+        self.gene_idx = np.array(gene_idx)
+        self.pair_idx = np.hstack([pair_idx[:len(gene_idx)], [len(gene_idx)]])
+
+    def keep_only_pairs(self, pairs_to_keep):
+        if not np.array_equal(pairs_to_keep, np.sort(pairs_to_keep)):
+            raise RuntimeError("pairs to keep must be sorted")
+        new_gene_idx = []
+        new_pair_idx = []
+        ct = 0
+        for i_pair in pairs_to_keep:
+            new_pair_idx.append(ct)
+
+            chunk = self.gene_idx[
+                self.pair_idx[i_pair]:self.pair_idx[i_pair+1]]
+
+            ct += len(chunk)
+
+            new_gene_idx.append(chunk)
+
+        self.gene_idx = np.hstack(new_gene_idx)
+        self.pair_idx = np.hstack([new_pair_idx, [len(self.gene_idx)]])
+
+    def keep_only_genes(self, genes_to_keep):
+        if not np.array_equal(genes_to_keep, np.sort(genes_to_keep)):
+            raise RuntimeError("genes to keep must be sorted")
+
+        gene_mask = np.zeros(len(self.gene_idx), dtype=bool)
+
+        for gene_value in genes_to_keep:
+            valid = (self.gene_idx == gene_value)
+            gene_mask[valid] = True
+
+        new_gene_idx = self.gene_idx[gene_mask]
+        self.gene_idx = new_gene_idx
+        for new_val, old_val in enumerate(genes_to_keep):
+            valid = (self.gene_idx == old_val)
+            self.gene_idx[valid] = new_val
+
+        new_pair_idx = np.zeros(len(self.pair_idx), dtype=int)
+
+        ct = 0
+        for i_pair in range(len(self.pair_idx)-1):
+            new_pair_idx[i_pair] = ct
+            chunk = gene_mask[self.pair_idx[i_pair]:self.pair_idx[i_pair+1]]
+            ct += chunk.sum()
+        print(new_gene_idx)
+        print(new_pair_idx)
+        self.pair_idx = new_pair_idx
+
+    def get_genes_for_pair(self, pair_idx):
+        if pair_idx >= len(self.pair_idx)-1:
+            raise RuntimeError(
+                f"{pair_idx} is an invalid pair_idx; "
+                f"len(self.pair_idx) = {len(self.pair_idx)}")
+        return np.copy(self.gene_idx[
+                        self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
+
+
 def summarize_from_arrays(
         marker_array,
         up_array,
