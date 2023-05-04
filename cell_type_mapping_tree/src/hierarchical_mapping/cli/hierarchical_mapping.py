@@ -43,6 +43,23 @@ def run_mapping(config, output_path, log_path=None):
 
     output = dict()
 
+    output_path = pathlib.Path(output_path)
+    if log_path is not None:
+        log_path = pathlib.Path(log_path)
+
+    # check validity of output_path and log_path
+    for pth in (output_path, log_path):
+        if pth is not None:
+            if not pth.exists():
+                try:
+                    with open(pth, 'w') as out_file:
+                        out_file.write('junk')
+                    pth.unlink()
+                except FileNotFoundError:
+                    raise RuntimeError(
+                        "unable to write to "
+                        f"{pth.resolve().absolute()}")
+
     try:
         type_assignment = _run_mapping(
             config=config,
@@ -368,6 +385,16 @@ def _copy_over_file(file_path, tmp_dir, log):
             log.info(f"copied {file_path} to {new_path} "
                      f"in {duration:.4e} seconds")
             is_valid = True
+    else:
+        # check that we can write the specified file
+        try:
+            with open(file_path, 'w') as out_file:
+                out_file.write("junk")
+            file_path.unlink()
+        except FileNotFoundError:
+            raise RuntimeError(
+                "could not write to "
+                f"{file_path.resolve().absolute()}")
 
     return new_path, is_valid
 
