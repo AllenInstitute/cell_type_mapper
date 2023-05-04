@@ -209,6 +209,30 @@ class MarkerGeneArray(object):
         up_mask = self.up_regulated.get_col(i_col=pair_idx)
         return (marker_mask, up_mask)
 
+    def up_mask_from_pair_idx(
+            self,
+            pair_idx):
+        """
+        Return (n_genes,) boolean array indicating all genes that
+        are up_regulated markers for the pair
+        """
+        (marker_mask,
+         up_mask) = self.marker_mask_from_pair_idx(
+                         pair_idx=pair_idx)
+        return np.logical_and(marker_mask, up_mask)
+
+    def down_mask_from_pair_idx(
+            self,
+            pair_idx):
+        """
+        Return (n_genes,) boolean array indicating all genes that
+        are wown_regulated markers for the pair
+        """
+        (marker_mask,
+         up_mask) = self.marker_mask_from_pair_idx(
+                         pair_idx=pair_idx)
+        return np.logical_and(marker_mask, np.logical_not(up_mask))
+
 
 def _create_new_pair_lookup(only_keep_pairs):
     """

@@ -573,14 +573,12 @@ def recalculate_utility_array(
             f"Unclear how to interpret sign = {sign}\n"
             "must be one of (-1, +1)")
 
-    (marker_mask,
-     up_mask) = marker_gene_array.marker_mask_from_pair_idx(
-                 pair_idx=pair_idx)
-
     if sign > 0:
-        full_mask = np.logical_and(marker_mask, up_mask)
+        full_mask = marker_gene_array.up_mask_from_pair_idx(
+                            pair_idx=pair_idx)
     else:
-        full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
+        full_mask = marker_gene_array.down_mask_from_pair_idx(
+                            pair_idx=pair_idx)
     utility_array[full_mask] -= 1
     return utility_array
 
