@@ -172,6 +172,40 @@ def test_marker_mask_from_gene_idx(
             actual_up,
             up_reg_fixture[i_gene, :])
 
+@pytest.mark.parametrize('downsample_pairs', [True, False])
+def test_use_summary(
+       backed_array_fixture,
+       backed_array_fixture_with_summary,
+       downsample_pairs):
+
+    if downsample_pairs:
+        pairs_to_keep = [('level2', 'e', 'g'), ('level1', 'dd', 'ff'),
+                         ('level2', 'a', 'c')]
+    else:
+        pairs_to_keep = None
+
+    base = MarkerGeneArray.from_cache_path(
+            cache_path=backed_array_fixture,
+            only_keep_pairs=pairs_to_keep)
+    test = MarkerGeneArray.from_cache_path(
+            cache_path=backed_array_fixture_with_summary,
+            only_keep_pairs=pairs_to_keep)
+
+    for i_pair in range(base.n_pairs):
+        np.testing.assert_array_equal(
+            base._up_mask_from_pair_idx_use_full(i_pair),
+            test._up_mask_from_pair_idx_use_summary(i_pair))
+        np.testing.assert_array_equal(
+            base._down_mask_from_pair_idx_use_full(i_pair),
+            test._down_mask_from_pair_idx_use_summary(i_pair))
+
+        np.testing.assert_array_equal(
+            base.up_mask_from_pair_idx(i_pair),
+            test.up_mask_from_pair_idx(i_pair))
+        np.testing.assert_array_equal(
+            base.down_mask_from_pair_idx(i_pair),
+            test.down_mask_from_pair_idx(i_pair))
+
 
 @pytest.mark.parametrize('use_summary', [True, False])
 def test_marker_mask_from_pair_idx(

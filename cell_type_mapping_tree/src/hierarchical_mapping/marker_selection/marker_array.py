@@ -286,6 +286,14 @@ class MarkerGeneArray(object):
                          pair_idx=pair_idx)
         return np.logical_and(marker_mask, up_mask)
 
+    def _up_mask_from_pair_idx_use_summary(
+            self,
+            pair_idx):
+        idx = self._up_marker_summary.get_genes_for_pair(pair_idx)
+        mask = np.zeros(self.n_genes, dtype=bool)
+        mask[idx] = True
+        return mask
+
     def up_mask_from_pair_idx(
             self,
             pair_idx):
@@ -293,6 +301,8 @@ class MarkerGeneArray(object):
         Return (n_genes,) boolean array indicating all genes that
         are up_regulated markers for the pair
         """
+        if self._up_marker_summary is not None:
+            return self._up_mask_from_pair_idx_use_summary(pair_idx)
         return self._up_mask_from_pair_idx_use_full(pair_idx)
 
     def _down_mask_from_pair_idx_use_full(
@@ -309,6 +319,14 @@ class MarkerGeneArray(object):
                          pair_idx=pair_idx)
         return np.logical_and(marker_mask, np.logical_not(up_mask))
 
+    def _down_mask_from_pair_idx_use_summary(
+            self,
+            pair_idx):
+        idx = self._down_marker_summary.get_genes_for_pair(pair_idx)
+        mask = np.zeros(self.n_genes, dtype=bool)
+        mask[idx] = True
+        return mask
+
     def down_mask_from_pair_idx(
             self,
             pair_idx):
@@ -316,6 +334,8 @@ class MarkerGeneArray(object):
         Return (n_genes,) boolean array indicating all genes that
         are wown_regulated markers for the pair
         """
+        if self._down_marker_summary is not None:
+            return self._down_mask_from_pair_idx_use_summary(pair_idx)
         return self._down_mask_from_pair_idx_use_full(pair_idx)
 
 
