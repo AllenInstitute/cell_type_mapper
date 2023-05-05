@@ -193,6 +193,7 @@ def test_summary_class_downsample_columns(
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
+    rng.shuffle(columns_to_keep)
     n_rows = 2**(n_bits-1)
     n_cols = 112
     up_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
@@ -246,6 +247,7 @@ def test_summary_class_downsample_rows(
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
+    rng.shuffle(rows_to_keep)
     n_rows = 2**(n_bits-1)
     n_cols = 112
     up_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)

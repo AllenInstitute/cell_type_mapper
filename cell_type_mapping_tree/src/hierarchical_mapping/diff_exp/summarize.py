@@ -29,11 +29,9 @@ class MarkerSummary(object):
            gene_idx,
            pair_idx):
         self.gene_idx = np.array(gene_idx)
-        self.pair_idx = np.hstack([pair_idx[:len(gene_idx)], [len(gene_idx)]])
+        self.pair_idx = np.array(pair_idx)
 
     def keep_only_pairs(self, pairs_to_keep):
-        if not np.array_equal(pairs_to_keep, np.sort(pairs_to_keep)):
-            raise RuntimeError("pairs to keep must be sorted")
         new_gene_idx = []
         new_pair_idx = []
         ct = 0
@@ -51,8 +49,6 @@ class MarkerSummary(object):
         self.pair_idx = np.hstack([new_pair_idx, [len(self.gene_idx)]])
 
     def keep_only_genes(self, genes_to_keep):
-        if not np.array_equal(genes_to_keep, np.sort(genes_to_keep)):
-            raise RuntimeError("genes to keep must be sorted")
 
         gene_mask = np.zeros(len(self.gene_idx), dtype=bool)
 
@@ -60,12 +56,12 @@ class MarkerSummary(object):
             valid = (self.gene_idx == gene_value)
             gene_mask[valid] = True
 
-        new_gene_idx = self.gene_idx[gene_mask]
-        self.gene_idx = new_gene_idx
+        self.gene_idx = self.gene_idx[gene_mask]
+        new_gene_idx = np.copy(self.gene_idx)
         for new_val, old_val in enumerate(genes_to_keep):
             valid = (self.gene_idx == old_val)
-            self.gene_idx[valid] = new_val
-
+            new_gene_idx[valid] = new_val
+        self.gene_idx = new_gene_idx
         new_pair_idx = np.zeros(len(self.pair_idx), dtype=int)
 
         ct = 0
@@ -73,9 +69,13 @@ class MarkerSummary(object):
             new_pair_idx[i_pair] = ct
             chunk = gene_mask[self.pair_idx[i_pair]:self.pair_idx[i_pair+1]]
             ct += chunk.sum()
-        print(new_gene_idx)
-        print(new_pair_idx)
+        new_pair_idx[-1] = len(self.gene_idx)
         self.pair_idx = new_pair_idx
+
+        for ii, i0 in enumerate(self.pair_idx[:-1]):
+            i1 = self.pair_idx[ii+1]
+            chunk = self.gene_idx[i0:i1]
+            self.gene_idx[i0:i1] = np.sort(chunk)
 
     def get_genes_for_pair(self, pair_idx):
         if pair_idx >= len(self.pair_idx)-1:
