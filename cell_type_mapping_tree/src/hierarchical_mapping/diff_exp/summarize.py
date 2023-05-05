@@ -2,8 +2,12 @@
 Utility for summarizing which genes are up- and down-
 regulated for which taxon pairs in a sparse matrix manner
 """
+import h5py
 import numpy as np
 import warnings
+
+from hierarchical_mapping.binary_array.binary_array import (
+    BinarizedBooleanArray)
 
 
 class MarkerSummary(object):
@@ -80,6 +84,40 @@ class MarkerSummary(object):
                 f"len(self.pair_idx) = {len(self.pair_idx)}")
         return np.copy(self.gene_idx[
                         self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
+
+
+def add_summary_to_h5(
+        marker_h5_path):
+    """
+    If possible, add the marker summary to the HDF5 file at the specified path
+    """
+    with h5py.File(marker_h5_path, 'r') as in_file:
+        n_cols = in_file['n_pairs'][()]
+        marker_array = BinarizedBooleanArray.from_data_array(
+            n_cols=n_cols,
+            data_array=in_file['markers/data'][()])
+        up_array = BinarizedBooleanArray.from_data_array(
+            n_cols=n_cols,
+            data_array=in_file['up_regulated/data'][()])
+
+    summary = summarize_from_arrays(
+        marker_array=marker_array,
+        up_array=up_array,
+        gb_cutoff=20)
+
+    if summary is None:
+        return
+
+    with h5py.File(marker_h5_path, 'a') as out_file:
+        grp = out_file.create_group('summary')
+        grp.create_dataset(
+            'up_gene_idx', data=summary['up_values'])
+        grp.create_dataset(
+            'up_pair_idx', data=summary['up_idx'])
+        grp.create_dataset(
+            'down_gene_idx', data=summary['down_values'])
+        grp.create_dataset(
+            'down_pair_idx', data=summary['down_idx'])
 
 
 def summarize_from_arrays(

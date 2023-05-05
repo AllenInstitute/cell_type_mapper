@@ -446,6 +446,15 @@ def test_cli_pipeline(
     assert precompute_out.is_file()
     assert ref_marker_out.is_file()
 
+    # check for existence of marker summary
+    with h5py.File(ref_marker_out, 'r') as in_file:
+        for k in ('summary/up_gene_idx',
+                  'summary/up_pair_idx',
+                  'summary/down_gene_idx',
+                  'summary/down_pair_idx'):
+            assert k in in_file
+            assert len(in_file[k][()]) > 0
+
     log = json.load(open(log_path, 'rb'))
     assert isinstance(log, list)
     assert len(log) > 0
