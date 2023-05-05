@@ -5,6 +5,7 @@ regulated for which taxon pairs in a sparse matrix manner
 import h5py
 import numpy as np
 import warnings
+import time
 
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
@@ -91,6 +92,7 @@ def add_summary_to_h5(
     """
     If possible, add the marker summary to the HDF5 file at the specified path
     """
+    t0 = time.time()
     with h5py.File(marker_h5_path, 'r') as in_file:
         n_cols = in_file['n_pairs'][()]
         marker_array = BinarizedBooleanArray.from_data_array(
@@ -118,6 +120,9 @@ def add_summary_to_h5(
             'down_gene_idx', data=summary['down_values'])
         grp.create_dataset(
             'down_pair_idx', data=summary['down_idx'])
+    duration = time.time()-t0
+    print(f"adding summary to {marker_h5_path} took "
+          f"{duration:.2e} seconds")
 
 
 def summarize_from_arrays(
