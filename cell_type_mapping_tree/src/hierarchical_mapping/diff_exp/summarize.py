@@ -31,60 +31,54 @@ class MarkerSummary(object):
            pair_idx):
         self.gene_idx = np.array(gene_idx)
         self.pair_idx = np.array(pair_idx)
+        self._pair_map = None
+        self._gene_map = None
+        self.dtype = self.gene_idx.dtype
 
     def keep_only_pairs(self, pairs_to_keep):
-        new_gene_idx = []
-        new_pair_idx = []
-        ct = 0
-        for i_pair in pairs_to_keep:
-            new_pair_idx.append(ct)
+        """
+        This will work by creating a map between old pair idx and
+        new pair idx. This is done because downsampling the sparse
+        matrix is too expensive.
+        """
+        if self._pair_map is not None:
+            raise RuntimeError(
+                "Have already downsampled this MarkerSummary "
+                "along the 'pairs' axis")
 
-            chunk = self.gene_idx[
-                self.pair_idx[i_pair]:self.pair_idx[i_pair+1]]
-
-            ct += len(chunk)
-
-            new_gene_idx.append(chunk)
-
-        self.gene_idx = np.hstack(new_gene_idx)
-        self.pair_idx = np.hstack([new_pair_idx, [len(self.gene_idx)]])
+        self._pair_map = {
+           ii: nn for ii, nn in enumerate(pairs_to_keep)}
 
     def keep_only_genes(self, genes_to_keep):
+        """
+        This will work by creating a map between old gene idx and
+        new gene idx. This is done because downsampling the sparse
+        matrix is too expensive.
+        """
+        if self._gene_map is not None:
+            raise RuntimeError(
+                "Have already downsampled this MarkerSummary "
+                "along the 'genes' axis")
+        self._gene_map = {
+            nn: ii for ii, nn in enumerate(genes_to_keep)}
 
-        gene_mask = np.zeros(len(self.gene_idx), dtype=bool)
-
-        for gene_value in genes_to_keep:
-            valid = (self.gene_idx == gene_value)
-            gene_mask[valid] = True
-
-        self.gene_idx = self.gene_idx[gene_mask]
-        new_gene_idx = np.copy(self.gene_idx)
-        for new_val, old_val in enumerate(genes_to_keep):
-            valid = (self.gene_idx == old_val)
-            new_gene_idx[valid] = new_val
-        self.gene_idx = new_gene_idx
-        new_pair_idx = np.zeros(len(self.pair_idx), dtype=int)
-
-        ct = 0
-        for i_pair in range(len(self.pair_idx)-1):
-            new_pair_idx[i_pair] = ct
-            chunk = gene_mask[self.pair_idx[i_pair]:self.pair_idx[i_pair+1]]
-            ct += chunk.sum()
-        new_pair_idx[-1] = len(self.gene_idx)
-        self.pair_idx = new_pair_idx
-
-        for ii, i0 in enumerate(self.pair_idx[:-1]):
-            i1 = self.pair_idx[ii+1]
-            chunk = self.gene_idx[i0:i1]
-            self.gene_idx[i0:i1] = np.sort(chunk)
-
-    def get_genes_for_pair(self, pair_idx):
+    def _get_genes_for_pair_raw(self, pair_idx):
         if pair_idx >= len(self.pair_idx)-1:
             raise RuntimeError(
                 f"{pair_idx} is an invalid pair_idx; "
                 f"len(self.pair_idx) = {len(self.pair_idx)}")
-        return np.copy(self.gene_idx[
-                        self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
+        return self.gene_idx[
+                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]]
+
+    def get_genes_for_pair(self, pair_idx):
+        if self._pair_map is not None:
+            pair_idx = self._pair_map[pair_idx]
+        raw = self._get_genes_for_pair_raw(pair_idx)
+        if self._gene_map is None:
+            return np.copy(raw)
+        return np.sort(np.array([self._gene_map[old]
+                                 for old in raw
+                                 if old in self._gene_map])).astype(self.dtype)
 
 
 def add_summary_to_h5(
