@@ -218,6 +218,7 @@ class MarkerGeneArray(object):
         """
         Downselect to just the specified genes
         """
+        print("downsampling genes")
         self.is_marker.downsample_rows(gene_idx_array)
         self.up_regulated.downsample_rows(gene_idx_array)
         self._gene_names = [
@@ -227,6 +228,7 @@ class MarkerGeneArray(object):
         if self._up_marker_summary is not None:
             self._up_marker_summary.keep_only_genes(gene_idx_array)
             self._down_marker_summary.keep_only_genes(gene_idx_array)
+        print("done downsampling genes")
 
     @property
     def gene_names(self):
