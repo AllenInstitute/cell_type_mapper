@@ -393,12 +393,15 @@ def test_downsampling_by_taxon_pairs(
                         pair[0], pair[1], pair[2])
 
 
-@pytest.mark.parametrize('use_summary', [True, False])
+@pytest.mark.parametrize(
+    'use_summary, copy_summary',
+    [(True, True), (True, False), (False, False)])
 def test_downsampling_by_taxon_pairs_other(
        backed_array_fixture,
        backed_array_fixture_with_summary,
        pair_to_idx_fixture,
-       use_summary):
+       use_summary,
+       copy_summary):
 
     if use_summary:
         pth = backed_array_fixture_with_summary
@@ -410,18 +413,22 @@ def test_downsampling_by_taxon_pairs_other(
     pairs_to_keep = [('level2', 'e', 'g'), ('level1', 'dd', 'ff'),
                      ('level2', 'a', 'c')]
     test_array = base_array.downsample_pairs_to_other(
-        only_keep_pairs=pairs_to_keep)
+        only_keep_pairs=pairs_to_keep,
+        copy_summary=copy_summary)
 
     if use_summary:
-        assert test_array._up_marker_summary is not None
-        assert test_array._down_marker_summary is not None
         assert base_array._up_marker_summary is not None
         assert base_array._down_marker_summary is not None
     else:
-        assert test_array._up_marker_summary is None
-        assert test_array._down_marker_summary is None
         assert base_array._up_marker_summary is None
         assert base_array._down_marker_summary is None
+
+    if use_summary and copy_summary:
+        assert test_array._up_marker_summary is not None
+        assert test_array._down_marker_summary is not None
+    else:
+        assert test_array._up_marker_summary is None
+        assert test_array._down_marker_summary is None
 
     assert test_array is not base_array
 

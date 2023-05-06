@@ -168,10 +168,16 @@ class MarkerGeneArray(object):
             up_marker_summary=up_marker_summary,
             down_marker_summary=down_marker_summary)
 
-    def downsample_pairs_to_other(self, only_keep_pairs):
+    def downsample_pairs_to_other(
+            self,
+            only_keep_pairs,
+            copy_summary=False):
         """
         Create and return a new MarkerGeneArray, only keeping
         the specified taxonomy pairs.
+
+        If copy_summary is not True, the new MarkerGeneArray will not
+        have any summary attributes.
         """
         col_idx = np.array(
             [_idx_of_pair(
@@ -190,7 +196,7 @@ class MarkerGeneArray(object):
         new_up = self.up_regulated.downsample_columns_to_other(
             col_idx_array=col_idx)
 
-        if self._up_marker_summary is not None:
+        if self._up_marker_summary is not None and copy_summary:
             new_up_s = copy.deepcopy(self._up_marker_summary)
             new_up_s.keep_only_pairs(col_idx)
             new_down_s = copy.deepcopy(self._down_marker_summary)

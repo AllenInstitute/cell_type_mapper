@@ -110,7 +110,8 @@ def select_all_markers(
                 else:
                     marker_gene_array = \
                         parent_marker_cache.downsample_pairs_to_other(
-                            only_keep_pairs=leaves)
+                            only_keep_pairs=leaves,
+                            copy_summary=False)
 
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
