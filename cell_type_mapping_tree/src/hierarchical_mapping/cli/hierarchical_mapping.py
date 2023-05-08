@@ -61,6 +61,7 @@ def run_mapping(config, output_path, log_path=None):
                         "unable to write to "
                         f"{pth.resolve().absolute()}")
 
+    traceback_msg = None
     try:
         type_assignment = _run_mapping(
             config=config,
@@ -81,6 +82,9 @@ def run_mapping(config, output_path, log_path=None):
         output["log"] = log.log
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
+
+    if traceback_msg is not None:
+        raise RuntimeError(traceback_msg)
 
 
 def _run_mapping(config, tmp_dir, log):

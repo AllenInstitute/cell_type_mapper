@@ -609,16 +609,20 @@ def test_cli_error_log(
                 dir=tmp_dir_fixture,
                 suffix='.json'))
 
-    run_mapping(
-        config,
-        output_path=output_path,
-        log_path=log_path)
+    with pytest.raises(RuntimeError):
+        run_mapping(
+            config,
+            output_path=output_path,
+            log_path=log_path)
 
     log = json.load(open(log_path, 'rb'))
 
     found_error = False
+    found_clean = False
     for line in log:
         if 'an ERROR occurred ====' in line:
             found_error = True
-            break
+        if 'CLEANING UP' in line:
+            found_clean = True
     assert found_error
+    assert found_clean
