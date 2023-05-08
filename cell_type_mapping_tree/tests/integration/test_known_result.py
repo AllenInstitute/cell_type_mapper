@@ -542,6 +542,16 @@ def test_cli_pipeline(
         actual_class = cell['class']['assignment']
         assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
+    # test existence of marker gene lookup
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+    assert len(results["marker_genes"]) == len(taxonomy_tree.all_parents)
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+        assert len(results["marker_genes"][parent_key]) > 0
+
 
 def test_cli_error_log(
         raw_reference_h5ad_fixture,
