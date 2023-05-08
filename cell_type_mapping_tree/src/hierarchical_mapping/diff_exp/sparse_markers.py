@@ -11,7 +11,7 @@ from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
 
-class MarkerSummary(object):
+class SparseMarkers(object):
     """"
     Class to contain the sparse summary of the marker array
 
@@ -81,7 +81,7 @@ class MarkerSummary(object):
                                  if old in self._gene_map])).astype(self.dtype)
 
 
-def add_summary_to_h5(
+def add_sparse_markers_to_h5(
         marker_h5_path):
     """
     If possible, add the marker summary to the HDF5 file at the specified path
@@ -96,7 +96,7 @@ def add_summary_to_h5(
             n_cols=n_cols,
             data_array=in_file['up_regulated/data'][()])
 
-    summary = summarize_from_arrays(
+    summary = sparse_markers_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=20)
@@ -105,7 +105,7 @@ def add_summary_to_h5(
         return
 
     with h5py.File(marker_h5_path, 'a') as out_file:
-        grp = out_file.create_group('summary')
+        grp = out_file.create_group('sparse')
         grp.create_dataset(
             'up_gene_idx', data=summary['up_values'])
         grp.create_dataset(
@@ -119,7 +119,7 @@ def add_summary_to_h5(
           f"{duration:.2e} seconds")
 
 
-def summarize_from_arrays(
+def sparse_markers_from_arrays(
         marker_array,
         up_array,
         gb_cutoff=15):
@@ -160,7 +160,7 @@ def summarize_from_arrays(
             f"marker: ({marker_array.n_rows}, {marker_array.n_cols})\n"
             f"up: ({up_array.n_rows}, {up_array.n_cols})\n")
 
-    summary_specs = can_we_summarize(
+    summary_specs = can_we_make_sparse(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=gb_cutoff)
@@ -209,7 +209,7 @@ def summarize_from_arrays(
         'down_idx': down_start_idx}
 
 
-def can_we_summarize(
+def can_we_make_sparse(
         marker_array,
         up_array,
         gb_cutoff=15):

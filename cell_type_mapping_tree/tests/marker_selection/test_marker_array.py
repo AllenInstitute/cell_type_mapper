@@ -17,8 +17,8 @@ from hierarchical_mapping.binary_array.binary_array import (
 from hierarchical_mapping.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.diff_exp.summarize import (
-    add_summary_to_h5)
+from hierarchical_mapping.diff_exp.sparse_markers import (
+    add_sparse_markers_to_h5)
 
 
 @pytest.fixture
@@ -109,20 +109,20 @@ def backed_array_fixture(
 
 
 @pytest.fixture
-def backed_array_fixture_with_summary(
+def backed_array_fixture_with_sparse(
         tmp_dir_fixture,
         backed_array_fixture):
 
     h5_path = mkstemp_clean(
         dir=tmp_dir_fixture,
-        prefix='markers_with_summary_',
+        prefix='markers_with_sparse_',
         suffix='.h5')
 
     shutil.copy(
         src=backed_array_fixture,
         dst=h5_path)
 
-    add_summary_to_h5(h5_path)
+    add_sparse_markers_to_h5(h5_path)
     return h5_path
 
 
@@ -173,9 +173,9 @@ def test_marker_mask_from_gene_idx(
             up_reg_fixture[i_gene, :])
 
 @pytest.mark.parametrize('downsample_pairs', [True, False])
-def test_use_summary(
+def test_use_sparse(
        backed_array_fixture,
-       backed_array_fixture_with_summary,
+       backed_array_fixture_with_sparse,
        downsample_pairs):
 
     if downsample_pairs:
@@ -188,16 +188,16 @@ def test_use_summary(
             cache_path=backed_array_fixture,
             only_keep_pairs=pairs_to_keep)
     test = MarkerGeneArray.from_cache_path(
-            cache_path=backed_array_fixture_with_summary,
+            cache_path=backed_array_fixture_with_sparse,
             only_keep_pairs=pairs_to_keep)
 
     for i_pair in range(base.n_pairs):
         np.testing.assert_array_equal(
             base._up_mask_from_pair_idx_use_full(i_pair),
-            test._up_mask_from_pair_idx_use_summary(i_pair))
+            test._up_mask_from_pair_idx_use_sparse(i_pair))
         np.testing.assert_array_equal(
             base._down_mask_from_pair_idx_use_full(i_pair),
-            test._down_mask_from_pair_idx_use_summary(i_pair))
+            test._down_mask_from_pair_idx_use_sparse(i_pair))
 
         np.testing.assert_array_equal(
             base.up_mask_from_pair_idx(i_pair),
@@ -207,28 +207,28 @@ def test_use_summary(
             test.down_mask_from_pair_idx(i_pair))
 
 
-@pytest.mark.parametrize('use_summary', [True, False])
+@pytest.mark.parametrize('use_sparse', [True, False])
 def test_marker_mask_from_pair_idx(
         backed_array_fixture,
-        backed_array_fixture_with_summary,
+        backed_array_fixture_with_sparse,
         is_marker_fixture,
         up_reg_fixture,
         n_cols,
-        use_summary):
+        use_sparse):
 
-    if use_summary:
-        pth = backed_array_fixture_with_summary
+    if use_sparse:
+        pth = backed_array_fixture_with_sparse
     else:
         pth = backed_array_fixture
 
     arr = MarkerGeneArray.from_cache_path(cache_path=pth)
 
-    if use_summary:
-        arr._up_marker_summary is not None
-        arr._down_marker_summary is not None
+    if use_sparse:
+        arr._up_marker_sparse is not None
+        arr._down_marker_sparse is not None
     else:
-        arr._up_marker_summary is None
-        arr._down_marker_summary is None
+        arr._up_marker_sparse is None
+        arr._down_marker_sparse is None
 
     for i_col in range(n_cols):
         (actual_marker,
@@ -253,30 +253,30 @@ def test_marker_mask_from_pair_idx(
             arr.down_mask_from_pair_idx(pair_idx=i_col),
             np.logical_and(expected_marker, ~expected_up))
 
-@pytest.mark.parametrize('use_summary', [True, False])
+@pytest.mark.parametrize('use_sparse', [True, False])
 def test_marker_downsample_genes(
         backed_array_fixture,
-        backed_array_fixture_with_summary,
+        backed_array_fixture_with_sparse,
         is_marker_fixture,
         up_reg_fixture,
         n_cols,
         n_genes,
         gene_names_fixture,
-        use_summary):
+        use_sparse):
 
-    if use_summary:
-        pth = backed_array_fixture_with_summary
+    if use_sparse:
+        pth = backed_array_fixture_with_sparse
     else:
         pth = backed_array_fixture
 
     arr = MarkerGeneArray.from_cache_path(cache_path=pth)
 
-    if use_summary:
-        arr._up_marker_summary is not None
-        arr._down_marker_summary is not None
+    if use_sparse:
+        arr._up_marker_sparse is not None
+        arr._down_marker_sparse is not None
     else:
-        arr._up_marker_summary is None
-        arr._down_marker_summary is None
+        arr._up_marker_sparse is None
+        arr._down_marker_sparse is None
 
     assert arr.n_genes == n_genes
     assert arr.n_pairs == n_cols
@@ -326,15 +326,15 @@ def test_marker_downsample_genes(
             np.logical_and(expected_marker, ~expected_up))
 
 
-@pytest.mark.parametrize('use_summary', [True, False])
+@pytest.mark.parametrize('use_sparse', [True, False])
 def test_downsampling_by_taxon_pairs(
        backed_array_fixture,
-       backed_array_fixture_with_summary,
+       backed_array_fixture_with_sparse,
        pair_to_idx_fixture,
-       use_summary):
+       use_sparse):
 
-    if use_summary:
-        test_path = backed_array_fixture_with_summary
+    if use_sparse:
+        test_path = backed_array_fixture_with_sparse
     else:
         test_path = backed_array_fixture
 
@@ -346,12 +346,12 @@ def test_downsampling_by_taxon_pairs(
             cache_path=test_path,
             only_keep_pairs=pairs_to_keep)
 
-    if use_summary:
-        test_array._up_marker_summary is not None
-        test_array._down_marker_summary is not None
+    if use_sparse:
+        test_array._up_marker_sparse is not None
+        test_array._down_marker_sparse is not None
     else:
-        test_array._up_marker_summary is None
-        test_array._down_marker_summary is None
+        test_array._up_marker_sparse is None
+        test_array._down_marker_sparse is None
 
     assert test_array.n_genes == base_array.n_genes
     assert test_array.n_pairs == len(pairs_to_keep)
@@ -394,17 +394,17 @@ def test_downsampling_by_taxon_pairs(
 
 
 @pytest.mark.parametrize(
-    'use_summary, copy_summary',
+    'use_sparse, copy_sparse',
     [(True, True), (True, False), (False, False)])
 def test_downsampling_by_taxon_pairs_other(
        backed_array_fixture,
-       backed_array_fixture_with_summary,
+       backed_array_fixture_with_sparse,
        pair_to_idx_fixture,
-       use_summary,
-       copy_summary):
+       use_sparse,
+       copy_sparse):
 
-    if use_summary:
-        pth = backed_array_fixture_with_summary
+    if use_sparse:
+        pth = backed_array_fixture_with_sparse
     else:
         pth = backed_array_fixture
 
@@ -414,21 +414,21 @@ def test_downsampling_by_taxon_pairs_other(
                      ('level2', 'a', 'c')]
     test_array = base_array.downsample_pairs_to_other(
         only_keep_pairs=pairs_to_keep,
-        copy_summary=copy_summary)
+        copy_sparse=copy_sparse)
 
-    if use_summary:
-        assert base_array._up_marker_summary is not None
-        assert base_array._down_marker_summary is not None
+    if use_sparse:
+        assert base_array._up_marker_sparse is not None
+        assert base_array._down_marker_sparse is not None
     else:
-        assert base_array._up_marker_summary is None
-        assert base_array._down_marker_summary is None
+        assert base_array._up_marker_sparse is None
+        assert base_array._down_marker_sparse is None
 
-    if use_summary and copy_summary:
-        assert test_array._up_marker_summary is not None
-        assert test_array._down_marker_summary is not None
+    if use_sparse and copy_sparse:
+        assert test_array._up_marker_sparse is not None
+        assert test_array._down_marker_sparse is not None
     else:
-        assert test_array._up_marker_summary is None
-        assert test_array._down_marker_summary is None
+        assert test_array._up_marker_sparse is None
+        assert test_array._down_marker_sparse is None
 
     assert test_array is not base_array
 
@@ -499,21 +499,21 @@ def test_downsampling_by_taxon_pairs_other(
             test_array.up_regulated.data,
             expected_up)
 
-    if use_summary:
-        with h5py.File(backed_array_fixture_with_summary, 'r') as expected:
+    if use_sparse:
+        with h5py.File(backed_array_fixture_with_sparse, 'r') as expected:
             np.testing.assert_array_equal(
-                expected['summary/up_gene_idx'][()],
-                base_array._up_marker_summary.gene_idx)
+                expected['sparse/up_gene_idx'][()],
+                base_array._up_marker_sparse.gene_idx)
             np.testing.assert_array_equal(
-                expected['summary/up_pair_idx'][()],
-                base_array._up_marker_summary.pair_idx)
+                expected['sparse/up_pair_idx'][()],
+                base_array._up_marker_sparse.pair_idx)
             np.testing.assert_array_equal(
-                expected['summary/down_gene_idx'][()],
-                base_array._down_marker_summary.gene_idx)
+                expected['sparse/down_gene_idx'][()],
+                base_array._down_marker_sparse.gene_idx)
             np.testing.assert_array_equal(
-                expected['summary/down_pair_idx'][()],
-                base_array._down_marker_summary.pair_idx)
-            for summary in (base_array._down_marker_summary,
-                            base_array._up_marker_summary):
-                assert len(summary.pair_idx) == base_array.n_pairs+1
-                assert summary.pair_idx[-1] == len(summary.gene_idx)
+                expected['sparse/down_pair_idx'][()],
+                base_array._down_marker_sparse.pair_idx)
+            for sparse in (base_array._down_marker_sparse,
+                            base_array._up_marker_sparse):
+                assert len(sparse.pair_idx) == base_array.n_pairs+1
+                assert sparse.pair_idx[-1] == len(sparse.gene_idx)

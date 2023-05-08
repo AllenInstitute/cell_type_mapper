@@ -5,13 +5,13 @@ import numpy as np
 from hierarchical_mapping.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from hierarchical_mapping.diff_exp.summarize import (
-    can_we_summarize,
-    summarize_from_arrays,
-    MarkerSummary)
+from hierarchical_mapping.diff_exp.sparse_markers import (
+    can_we_make_sparse,
+    sparse_markers_from_arrays,
+    SparseMarkers)
 
 
-def test_can_we_summarize_no():
+def test_can_we_make_sparse_no():
 
     rng = np.random.default_rng(88123)
 
@@ -28,7 +28,7 @@ def test_can_we_summarize_no():
         n_cols=n_cols,
         data_array=rng.integers(0, 255, (n_rows, n_int), dtype=np.uint8))
 
-    actual = can_we_summarize(
+    actual = can_we_make_sparse(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=bad_gb)
@@ -38,7 +38,7 @@ def test_can_we_summarize_no():
 
 @pytest.mark.parametrize(
     'expected_dtype', [np.uint8, np.uint16])
-def test_can_we_summarize_yes(expected_dtype):
+def test_can_we_make_sparse_yes(expected_dtype):
 
     rng = np.random.default_rng(22314)
 
@@ -65,7 +65,7 @@ def test_can_we_summarize_yes(expected_dtype):
 
     gb_good = 1.01*(16*marker_truth.sum()/(8*1024**3))
 
-    actual = can_we_summarize(
+    actual = can_we_make_sparse(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=gb_good)
@@ -80,7 +80,7 @@ def test_can_we_summarize_yes(expected_dtype):
         assert actual['down_col_sum'][i_col] == (marker_col*(~up_col)).sum()
 
 
-def test_summarize():
+def test_make_sparse():
     n_bits = 8
     rng = np.random.default_rng(118231)
     n_rows = 2**(n_bits-1)
@@ -101,17 +101,17 @@ def test_summarize():
 
     gb_estimate = 1.001*(n_bits*marker_truth.sum()/(8*1024**3))
 
-    summary = summarize_from_arrays(
+    sparse = sparse_markers_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=gb_estimate)
 
-    assert summary is not None
+    assert sparse is not None
 
-    up_v = summary['up_values']
-    up_idx = summary['up_idx']
-    down_v = summary['down_values']
-    down_idx = summary['down_idx']
+    up_v = sparse['up_values']
+    up_idx = sparse['up_idx']
+    down_v = sparse['down_values']
+    down_idx = sparse['down_idx']
 
     for i_col in range(n_cols):
         marker_col = marker_truth[:, i_col]
@@ -124,7 +124,7 @@ def test_summarize():
             i1 = up_idx[i_col+1]
         else:
             i1 = n_cols
-        actual = summary['up_values'][i0:i1]
+        actual = sparse['up_values'][i0:i1]
         np.testing.assert_array_equal(actual, up_values)
 
         down_values = np.where(
@@ -134,11 +134,11 @@ def test_summarize():
             i1 = down_idx[i_col+1]
         else:
             i1 = n_cols
-        actual = summary['down_values'][i0:i1]
+        actual = sparse['down_values'][i0:i1]
         np.testing.assert_array_equal(actual, down_values)
 
 
-def test_summary_class():
+def test_sparse_class():
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
@@ -158,18 +158,18 @@ def test_summary_class():
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    summary = summarize_from_arrays(
+    sparse = sparse_markers_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_summary = MarkerSummary(
-        gene_idx=summary['up_values'],
-        pair_idx=summary['up_idx'])
+    marker_sparse = SparseMarkers(
+        gene_idx=sparse['up_values'],
+        pair_idx=sparse['up_idx'])
 
     ct = 0
     for i_col in range(n_cols):
-        actual = marker_summary.get_genes_for_pair(i_col)
+        actual = marker_sparse.get_genes_for_pair(i_col)
         expected = np.where(
             np.logical_and(
                 marker_truth[:, i_col],
@@ -188,7 +188,7 @@ def test_summary_class():
      np.array([11, 17, 45, 66, 111]),
      np.array([0, 17, 44, 53, 111])
     ])
-def test_summary_class_downsample_columns(
+def test_sparse_class_downsample_columns(
         columns_to_keep):
     n_bits = 8
     expected_dtype = np.uint8
@@ -210,20 +210,20 @@ def test_summary_class_downsample_columns(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    summary = summarize_from_arrays(
+    sparse = sparse_markers_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_summary = MarkerSummary(
-        gene_idx=summary['up_values'],
-        pair_idx=summary['up_idx'])
+    marker_sparse = SparseMarkers(
+        gene_idx=sparse['up_values'],
+        pair_idx=sparse['up_idx'])
 
-    marker_summary.keep_only_pairs(columns_to_keep)
+    marker_sparse.keep_only_pairs(columns_to_keep)
 
     ct = 0
     for i_new, i_old in enumerate(columns_to_keep):
-        actual = marker_summary.get_genes_for_pair(i_new)
+        actual = marker_sparse.get_genes_for_pair(i_new)
         expected = np.where(
             np.logical_and(
                 marker_truth[:, i_old],
@@ -242,7 +242,7 @@ def test_summary_class_downsample_columns(
      np.array([11, 17, 45, 66, 111, 127], dtype=np.int64),
      np.array([0, 17, 44, 53, 111, 127], dtype=np.int64)
     ])
-def test_summary_class_downsample_rows(
+def test_sparse_class_downsample_rows(
         rows_to_keep):
     n_bits = 8
     expected_dtype = np.uint8
@@ -264,20 +264,20 @@ def test_summary_class_downsample_rows(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    summary = summarize_from_arrays(
+    sparse = sparse_markers_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_summary = MarkerSummary(
-        gene_idx=summary['up_values'],
-        pair_idx=summary['up_idx'])
+    marker_sparse = SparseMarkers(
+        gene_idx=sparse['up_values'],
+        pair_idx=sparse['up_idx'])
 
-    marker_summary.keep_only_genes(rows_to_keep)
+    marker_sparse.keep_only_genes(rows_to_keep)
 
     ct = 0
     for i_col in range(n_cols):
-        actual = marker_summary.get_genes_for_pair(i_col)
+        actual = marker_sparse.get_genes_for_pair(i_col)
         expected = np.where(
             np.logical_and(
                 marker_truth[:, i_col][rows_to_keep],

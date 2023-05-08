@@ -9,8 +9,8 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.diff_exp.summarize import (
-    add_summary_to_h5)
+from hierarchical_mapping.diff_exp.sparse_markers import (
+    add_sparse_markers_to_h5)
 
 
 def thin_marker_file(
@@ -118,7 +118,7 @@ def thin_marker_file(
                     chunk = chunk[these_rows_to_keep, :]
                     dst[k][map_to, :] = chunk
 
-    add_summary_to_h5(tmp_thinned_path)
+    add_sparse_markers_to_h5(tmp_thinned_path)
 
     if tmp_thinned_path != thinned_marker_file_path:
         print(f"moving {tmp_thinned_path} to {thinned_marker_file_path}")

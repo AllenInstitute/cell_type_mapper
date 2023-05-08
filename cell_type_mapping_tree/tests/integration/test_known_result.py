@@ -448,10 +448,10 @@ def test_cli_pipeline(
 
     # check for existence of marker summary
     with h5py.File(ref_marker_out, 'r') as in_file:
-        for k in ('summary/up_gene_idx',
-                  'summary/up_pair_idx',
-                  'summary/down_gene_idx',
-                  'summary/down_pair_idx'):
+        for k in ('sparse/up_gene_idx',
+                  'sparse/up_pair_idx',
+                  'sparse/down_gene_idx',
+                  'sparse/down_pair_idx'):
             assert k in in_file
             assert len(in_file[k][()]) > 0
 
