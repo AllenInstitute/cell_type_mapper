@@ -67,7 +67,7 @@ def baseline_marker_fixture(
                              for ii in range(n_genes)]).encode('utf-8'))
 
         out_file.create_dataset(
-            'n_pairs', data=n_pairs)
+            'n_pairs', data=n_pairs*8)
         out_file.create_dataset(
             'pair_to_idx', data=json.dumps('abcdefg').encode('utf-8'))
         out_file.create_dataset(

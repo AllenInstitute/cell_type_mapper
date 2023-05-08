@@ -634,7 +634,7 @@ def score_differential_genes(
     up_mask:
         Array of unsigned integers that is (n_genes,) in size.
         Will be 0 for genes that are more prevalent in leaf_population_1
-        and 1 for genes that are mre prevalent in leaf_population_1
+        and 1 for genes that are mre prevalent in leaf_population_2
 
     Notes
     -----
@@ -694,7 +694,7 @@ def score_differential_genes(
                 fold_valid)))
 
     up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
-    up_mask[pij_2 > pij_1] = 1
+    up_mask[stats_2["mean"] > stats_1["mean"]] = 1
 
     return -1.0*np.log(pvalues), validity_mask, up_mask
 

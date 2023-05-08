@@ -446,6 +446,15 @@ def test_cli_pipeline(
     assert precompute_out.is_file()
     assert ref_marker_out.is_file()
 
+    # check for existence of marker summary
+    with h5py.File(ref_marker_out, 'r') as in_file:
+        for k in ('sparse/up_gene_idx',
+                  'sparse/up_pair_idx',
+                  'sparse/down_gene_idx',
+                  'sparse/down_pair_idx'):
+            assert k in in_file
+            assert len(in_file[k][()]) > 0
+
     log = json.load(open(log_path, 'rb'))
     assert isinstance(log, list)
     assert len(log) > 0
@@ -533,6 +542,16 @@ def test_cli_pipeline(
         actual_class = cell['class']['assignment']
         assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
+    # test existence of marker gene lookup
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+    assert len(results["marker_genes"]) == len(taxonomy_tree.all_parents)
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+        assert len(results["marker_genes"][parent_key]) > 0
+
 
 def test_cli_error_log(
         raw_reference_h5ad_fixture,
@@ -600,16 +619,20 @@ def test_cli_error_log(
                 dir=tmp_dir_fixture,
                 suffix='.json'))
 
-    run_mapping(
-        config,
-        output_path=output_path,
-        log_path=log_path)
+    with pytest.raises(Exception):
+        run_mapping(
+            config,
+            output_path=output_path,
+            log_path=log_path)
 
     log = json.load(open(log_path, 'rb'))
 
     found_error = False
+    found_clean = False
     for line in log:
         if 'an ERROR occurred ====' in line:
             found_error = True
-            break
+        if 'CLEANING UP' in line:
+            found_clean = True
     assert found_error
+    assert found_clean

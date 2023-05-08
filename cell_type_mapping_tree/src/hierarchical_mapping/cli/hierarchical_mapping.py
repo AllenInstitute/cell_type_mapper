@@ -66,12 +66,14 @@ def run_mapping(config, output_path, log_path=None):
             config=config,
             tmp_dir=tmp_dir,
             log=log)
+        output["results"] = type_assignment["assignments"]
+        output["marker_genes"] = type_assignment["marker_genes"]
         log.info("RAN SUCCESSFULLY")
-        output["results"] = type_assignment
     except Exception:
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"
         log.add_msg(traceback_msg)
+        raise
     finally:
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
@@ -229,7 +231,25 @@ def _run_mapping(config, tmp_dir, log):
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 
-    return result
+    # ========= copy marker gene lookup over to output file =========
+    log.info("Writing marker genes to output file")
+    marker_gene_lookup = dict()
+    with h5py.File(query_marker_tmp, "r") as src:
+        reference_gene_names = json.loads(
+            src['reference_gene_names'][()].decode('utf-8'))
+        for level in taxonomy_tree.hierarchy[:-1]:
+            for node in taxonomy_tree.nodes_at_level(level):
+                grp_key = f"{level}/{node}"
+                ref_idx = src[grp_key]['reference'][()]
+                marker_gene_lookup[grp_key] = [
+                    str(reference_gene_names[ii]) for ii in ref_idx]
+
+        grp_key = "None"
+        ref_idx = src[grp_key]['reference'][()]
+        marker_gene_lookup[grp_key] = [
+            str(reference_gene_names[ii]) for ii in ref_idx]
+
+    return {'assignments': result, 'marker_genes': marker_gene_lookup}
 
 
 def _validate_config(
