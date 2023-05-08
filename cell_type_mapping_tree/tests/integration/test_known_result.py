@@ -609,7 +609,7 @@ def test_cli_error_log(
                 dir=tmp_dir_fixture,
                 suffix='.json'))
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(Exception):
         run_mapping(
             config,
             output_path=output_path,

@@ -61,18 +61,18 @@ def run_mapping(config, output_path, log_path=None):
                         "unable to write to "
                         f"{pth.resolve().absolute()}")
 
-    traceback_msg = None
     try:
         type_assignment = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             log=log)
-        log.info("RAN SUCCESSFULLY")
         output["results"] = type_assignment
+        log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"
         log.add_msg(traceback_msg)
+        raise
     finally:
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
@@ -82,9 +82,6 @@ def run_mapping(config, output_path, log_path=None):
         output["log"] = log.log
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
-
-    if traceback_msg is not None:
-        raise RuntimeError(traceback_msg)
 
 
 def _run_mapping(config, tmp_dir, log):
