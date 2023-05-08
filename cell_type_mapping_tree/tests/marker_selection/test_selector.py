@@ -450,6 +450,14 @@ def test_full_marker_cache_creation_smoke(
             src['full_gene_names'][()].decode('utf-8'))
 
     with h5py.File(output_path, 'r') as actual:
+
+        ref_names = json.loads(
+            actual['reference_gene_names'][()].decode('utf-8'))
+        assert ref_names == full_gene_names
+        query_names = json.loads(
+            actual['query_gene_names'][()].decode('utf-8'))
+        assert query_names == query_gene_names
+
         actual_all_ref_idx = actual['all_reference_markers'][()]
         actual_all_query_idx = actual['all_query_markers'][()]
         all_ref_idx = set()
@@ -472,10 +480,3 @@ def test_full_marker_cache_creation_smoke(
             assert set(actual_reference) == set(expected[parent])
         assert all_ref_idx == set(actual_all_ref_idx)
         assert all_query_idx == set(actual_all_query_idx)
-
-        ref_names = json.loads(
-            actual['reference_gene_names'][()].decode('utf-8'))
-        assert ref_names == full_gene_names
-        query_names = json.loads(
-            actual['query_gene_names'][()].decode('utf-8'))
-        assert query_names == query_gene_names
