@@ -44,7 +44,8 @@ def plot_confusion_matrix(
         label_order,
         normalize_by='truth',
         fontsize=20,
-        title=None):
+        title=None,
+        is_log=False):
 
     img = np.zeros((len(label_order), len(label_order)), dtype=int)
     label_to_idx = {
@@ -72,16 +73,20 @@ def plot_confusion_matrix(
         raise RuntimeError(
             f"normalize_by {normalize_by} makes no sense")
 
-    with np.errstate(divide='ignore'):
-        valid = (img>0.0)
-        min_val = np.log10(np.min(img[valid]))
-        img = np.where(img>0.0, np.log10(img), min_val-2)
+    if is_log:
+        cax_title = 'log10(normalized count)'
+        with np.errstate(divide='ignore'):
+            valid = (img>0.0)
+            min_val = np.log10(np.min(img[valid]))
+            img = np.where(img>0.0, np.log10(img), min_val-2)
+    else:
+        cax_title = 'normalized count'
 
     display_img = axis.imshow(img)
     divider = make_axes_locatable(axis)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cb = figure.colorbar(display_img, ax=axis, cax=cax,
-        label="log10(normalized count)")
+        label=cax_title)
 
     for s in ('top', 'right', 'left', 'bottom'):
         axis.spines[s].set_visible(False)
@@ -99,6 +104,7 @@ def main():
     parser.add_argument('--classification_path', type=str, default=None)
     parser.add_argument('--ground_truth_column', type=str, default=None)
     parser.add_argument('--output_path', type=str, default=None)
+    parser.add_argument('--log10', default=False, action='store_true')
     args = parser.parse_args()
 
     results = json.load(open(args.classification_path, 'rb'))
@@ -163,7 +169,8 @@ def main():
                 normalize_by='truth',
                 fontsize=20,
                 title=f"{level} normalized by true label "
-               "(thinned)")
+               "(thinned)",
+                is_log=args.log10)
 
             plot_confusion_matrix(
                 figure=fig,
