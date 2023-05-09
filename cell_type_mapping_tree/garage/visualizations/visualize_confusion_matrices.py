@@ -8,8 +8,8 @@ import json
 import numpy as np
 import re
 
-from hieararchical_mapping.taxonomy.taxonomy_tree import (
-    taxonomy_tree)
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 
 def invert_tree(taxonomy_tree_path):
@@ -24,6 +24,18 @@ def invert_tree(taxonomy_tree_path):
     return tree, inverse_lookup
 
 
+def thin_img(img):
+    n_el = img.shape[0]
+    to_keep = []
+    for ii in range(n_el):
+        if img[ii, :].sum() > 0 or img[:, ii].sum() > 0:
+            to_keep.append(ii)
+    to_keep = np.array(to_keep)
+    img = img[to_keep, :]
+    img = img[:, to_keep]
+    return img
+
+
 def plot_confusion_matrix(
         figure,
         axis,
@@ -34,7 +46,7 @@ def plot_confusion_matrix(
         fontsize=20,
         title=None):
 
-    img = np.zeros((len(label_order), len(label_order)), dtype=float)
+    img = np.zeros((len(label_order), len(label_order)), dtype=int)
     label_to_idx = {
         l:ii for ii,l in enumerate(label_order)}
 
@@ -42,6 +54,11 @@ def plot_confusion_matrix(
         true_idx = label_to_idx[truth]
         experiment_idx = label_to_idx[experiment]
         img[true_idx, experiment_idx] += 1
+
+    s0 = img.sum()
+    img = thin_img(img)
+    assert img.sum() == s0
+    img = img.astype(float)
 
     if normalize_by == 'truth':
         for ii in range(img.shape[0]):
@@ -55,34 +72,42 @@ def plot_confusion_matrix(
         raise RuntimeError(
             f"normalize_by {normalize_by} makes no sense")
 
-    axis = axis.imshow(img)
-    divider = make_axes_locatable(ax)
+    with np.errstate(divide='ignore'):
+        valid = (img>0.0)
+        min_val = np.log10(np.min(img[valid]))
+        img = np.where(img>0.0, np.log10(img), min_val-2)
+
+    display_img = axis.imshow(img)
+    divider = make_axes_locatable(axis)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    cb = fig.colorbar(img, ax=ax, cax=cax)
+    cb = figure.colorbar(display_img, ax=axis, cax=cax,
+        label="log10(normalized count)")
 
     for s in ('top', 'right', 'left', 'bottom'):
-        ax.spines[s].set_visible(False)
+        axis.spines[s].set_visible(False)
 
-    ax.set_xlabel('found label', fontsize=fontsize)
-    ax.set_ylabel('true label', fontsize=fontsize)
+    axis.set_xlabel('test label', fontsize=fontsize)
+    axis.set_ylabel('true label', fontsize=fontsize)
     if title is not None:
-        ax.set_title(title, fontsize=fontsize)
+        axis.set_title(title, fontsize=fontsize)
 
+    axis.tick_params(axis='both', which='both', size=0,
+                     labelsize=0)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--classification_path', type=str, default=None)
     parser.add_argument('--ground_truth_column', type=str, default=None)
-    parser.add_argumetn('--output_path', type=str, default=None)
+    parser.add_argument('--output_path', type=str, default=None)
     args = parser.parse_args()
 
     results = json.load(open(args.classification_path, 'rb'))
 
-    result_lookup = {
+    results_lookup = {
         cell['cell_id']: cell for cell in results["results"]}
 
     tree_path = results['config']['precomputed_stats']['taxonomy_tree']
-    query_path = results['query_path']
+    query_path = results['config']['query_path']
 
     query_data = anndata.read_h5ad(query_path, backed='r')
     assert args.ground_truth_column in query_data.obs.columns
@@ -90,7 +115,7 @@ def main():
     (taxonomy_tree,
      inverted_tree) = invert_tree(tree_path)
 
-    leaf_list = taxonomy_tree.nodes_at_level(taxonomy_tree.leaf)
+    leaf_list = taxonomy_tree.all_leaves
     leaf_names = []
     leaf_idx = []
     int_pattern = re.compile('[0-9]+')
@@ -108,39 +133,53 @@ def main():
 
     with PdfPages(args.output_path, 'w') as pdf:
         for level in taxonomy_tree.hierarchy:
-            if level == taxonomy_tree.leaf:
+            if level == taxonomy_tree.leaf_level:
                 label_order = leaf_order
             else:
                 label_order = []
-                for leaf in label_order:
-                    this = inverse_tree[level][leaf]
+                for leaf in leaf_order:
+                    this = inverted_tree[level][leaf]
                     if this not in label_order:
                         label_order.append(this)
 
 
-        these_experiments = []
-        these_truth = []
-        for cell_id, ground_truth in zip(obs.index.values,
+            these_experiments = []
+            these_truth = []
+            for cell_id, ground_truth in zip(obs.index.values,
                                          obs[args.ground_truth_column].values):
-            these_experiments.append(
-                results_lookup[cell_id][level]['assignment'])
-            these_truth.append(
-                inverse_tree[level][ground_truth])
+                these_experiments.append(
+                    results_lookup[cell_id][level]['assignment'])
+                these_truth.append(
+                    inverted_tree[level][f"cl.{ground_truth}"])
 
-        fig = mfig.Figure(figsize=(10, 10), dpi=500)
-        axis = fig.add_subplot(1,1,1)
-        plot_confusion_matrix(
-            figure=fig,
-            axis=axis,
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by='truth',
-            fontsize=20,
-            title=f"{level} normalized by true label")
+            fig = mfig.Figure(figsize=(20, 10), dpi=500)
+            axis_list = [fig.add_subplot(1,2,ii+1) for ii in range(2)]
+            plot_confusion_matrix(
+                figure=fig,
+                axis=axis_list[0],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='truth',
+                fontsize=20,
+                title=f"{level} normalized by true label "
+               "(thinned)")
 
-        fig.tight_layout()
-        pdf.savefig(fig)
+            plot_confusion_matrix(
+                figure=fig,
+                axis=axis_list[1],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='experiment',
+                fontsize=20,
+                title=f"{level} normalized by test label "
+               "(thinned)")
+
+ 
+
+            fig.tight_layout()
+            pdf.savefig(fig)
 
 
 if __name__ == "__main__":
