@@ -370,7 +370,10 @@ def test_raw_pipeline(
         assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
 
-@pytest.mark.parametrize('use_tree', [True, False])
+@pytest.mark.parametrize(
+        'use_tree, check_markers',
+        [(True, True),
+         (False, False)])
 def test_cli_pipeline(
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
@@ -378,7 +381,8 @@ def test_cli_pipeline(
         taxonomy_tree_dict,
         query_gene_names,
         tmp_dir_fixture,
-        use_tree):
+        use_tree,
+        check_markers):
 
     tmp_dir = tempfile.mkdtemp(
         dir=tmp_dir_fixture)
@@ -551,6 +555,42 @@ def test_cli_pipeline(
         else:
             parent_key = f'{parent[0]}/{parent[1]}'
         assert len(results["marker_genes"][parent_key]) > 0
+
+    # check that marker genes were correctly recorded
+    # in the JSONized output
+    if check_markers:
+
+        query_marker_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5')
+
+        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_dict)
+
+        create_marker_gene_cache_v2(
+            output_cache_path=query_marker_path,
+            input_cache_path=ref_marker_out,
+            query_gene_names=query_gene_names,
+            taxonomy_tree=taxonomy_tree,
+            n_per_utility=config['query_markers']['n_per_utility'],
+            n_processors=3,
+            behemoth_cutoff=5000000)
+
+        ct = 0
+        with h5py.File(query_marker_path, 'r') as baseline:
+            full_gene_names = json.loads(
+                baseline['reference_gene_names'][()].decode('utf-8'))
+            for key in results["marker_genes"]:
+                expected = [full_gene_names[ii]
+                            for ii in baseline[key]["reference"][()]]
+                assert set(expected) == set(results["marker_genes"][key])
+                ct += 1
+        assert ct == len(taxonomy_tree.all_parents)
+        for parent in taxonomy_tree.all_parents:
+            if parent is None:
+                parent_k = 'None'
+            else:
+                parent_k = f'{parent[0]}/{parent[1]}'
+            assert parent_k in results["marker_genes"]
 
 
 def test_cli_error_log(
