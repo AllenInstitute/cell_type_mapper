@@ -495,9 +495,14 @@ def main():
     if args.local_tmp:
         config['tmp_dir'] = os.environ['TMPDIR']
 
+    if args.result_path is None:
+        result_path = config['result_path']
+    else:
+        result_path = args.result_path
+
     run_mapping(
         config=config,
-        output_path=args.result_path,
+        output_path=result_path,
         log_path=args.log_path)
 
 
