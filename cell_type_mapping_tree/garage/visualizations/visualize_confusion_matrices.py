@@ -8,6 +8,7 @@ import anndata
 import argparse
 import json
 import numpy as np
+import pathlib
 import re
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
@@ -26,7 +27,7 @@ def invert_tree(taxonomy_tree_path):
     return tree, inverse_lookup
 
 
-def thin_img(img):
+def thin_img(img, label_list):
     n_el = img.shape[0]
     to_keep = []
     for ii in range(n_el):
@@ -35,7 +36,7 @@ def thin_img(img):
     to_keep = np.array(to_keep)
     img = img[to_keep, :]
     img = img[:, to_keep]
-    return img
+    return img, np.array(label_list)[to_keep]
 
 
 def plot_confusion_matrix(
@@ -59,7 +60,7 @@ def plot_confusion_matrix(
         img[true_idx, experiment_idx] += 1
 
     s0 = img.sum()
-    img = thin_img(img)
+    img, thinned_labels = thin_img(img, label_list=label_order)
     assert img.sum() == s0
 
     img = np.ma.masked_array(
@@ -102,27 +103,32 @@ def plot_confusion_matrix(
     if title is not None:
         axis.set_title(title, fontsize=fontsize)
 
-    axis.tick_params(axis='both', which='both', size=0,
-                     labelsize=0)
+    tick_values = [ii for ii in range(len(thinned_labels))]
+    axis.set_xticks(tick_values)
+    axis.set_xticklabels(thinned_labels, fontsize=7, rotation='vertical')
+    axis.set_yticks(tick_values)
+    axis.set_yticklabels(thinned_labels, fontsize=7, rotation='horizontal')
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--classification_path', type=str, default=None)
-    parser.add_argument('--ground_truth_column', type=str, default=None)
-    parser.add_argument('--output_path', type=str, default=None)
-    parser.add_argument('--log10', default=False, action='store_true')
-    args = parser.parse_args()
 
-    results = json.load(open(args.classification_path, 'rb'))
+
+def summary_plots(
+        classification_path,
+        ground_truth_column,
+        pdf_handle,
+        is_log10):
+
+    classification_path = pathlib.Path(classification_path)
+    print(classification_path.name)
+    results = json.load(open(classification_path, 'rb'))
 
     results_lookup = {
         cell['cell_id']: cell for cell in results["results"]}
 
     tree_path = results['config']['precomputed_stats']['taxonomy_tree']
-    query_path = results['config']['query_path']
+    query_path = pathlib.Path(results['config']['query_path'])
 
     query_data = anndata.read_h5ad(query_path, backed='r')
-    assert args.ground_truth_column in query_data.obs.columns
+    assert ground_truth_column in query_data.obs.columns
 
     (taxonomy_tree,
      inverted_tree) = invert_tree(tree_path)
@@ -143,84 +149,111 @@ def main():
 
     obs = query_data.obs
 
-    with PdfPages(args.output_path, 'w') as pdf:
-        for level in taxonomy_tree.hierarchy:
-            if level == taxonomy_tree.leaf_level:
-                label_order = leaf_order
+    for level in taxonomy_tree.hierarchy:
+        if level == taxonomy_tree.leaf_level:
+            label_order = leaf_order
+        else:
+            label_order = []
+            for leaf in leaf_order:
+                this = inverted_tree[level][leaf]
+                if this not in label_order:
+                    label_order.append(this)
+
+
+        these_experiments = []
+        these_truth = []
+        for cell_id, ground_truth in zip(obs.index.values,
+                                     obs[ground_truth_column].values):
+            these_experiments.append(
+                results_lookup[cell_id][level]['assignment'])
+            these_truth.append(
+                inverted_tree[level][f"cl.{ground_truth}"])
+
+        fig = mfig.Figure(figsize=(25, 10), dpi=300)
+        grid = gridspec.GridSpec(nrows=20, ncols=60)
+        grid.update(bottom=0.1, top=0.99, left=0.01, right=0.99,
+            wspace=0.1, hspace=0.01)
+        axis_list = [
+            fig.add_subplot(grid[0:20, 0:10]),
+            fig.add_subplot(grid[0:20, 14:34]),
+            fig.add_subplot(grid[0:20, 38:58])]
+
+        good = 0
+        bad = 0
+        for truth, experiment in zip(these_truth, these_experiments):
+            if truth == experiment:
+                good += 1
             else:
-                label_order = []
-                for leaf in leaf_order:
-                    this = inverted_tree[level][leaf]
-                    if this not in label_order:
-                        label_order.append(this)
+                bad += 1
 
+        #msg = f"{classification_path.name}\n"
+        summary_name = f"{query_path.parent.name}/{query_path.name}"
+        msg = f"{summary_name}\n"
+        msg += f"{level}\n"
+        msg += f"=========\n"
+        msg += f"correctly mapped: {good}\n"
+        msg += f"incorrectly mapped: {bad}\n"
+        msg += f"fraction correct: {good/float(good+bad):.3e}"
 
-            these_experiments = []
-            these_truth = []
-            for cell_id, ground_truth in zip(obs.index.values,
-                                         obs[args.ground_truth_column].values):
-                these_experiments.append(
-                    results_lookup[cell_id][level]['assignment'])
-                these_truth.append(
-                    inverted_tree[level][f"cl.{ground_truth}"])
+        axis_list[0].text(
+            5,
+            50,
+            msg,
+            fontsize=15)
+        axis_list[0].set_xlim((0, 100))
+        axis_list[0].set_ylim((0, 100))
+        for s in ('top', 'left', 'bottom', 'right'):
+            axis_list[0].spines[s].set_visible(False)
+        axis_list[0].tick_params(
+            axis='both', which='both', size=0, labelsize=0)
 
-            fig = mfig.Figure(figsize=(25, 10), dpi=500)
-            grid = gridspec.GridSpec(nrows=20, ncols=60)
-            grid.update(bottom=0.1, top=0.99, left=0.01, right=0.99,
-                wspace=0.1, hspace=0.01)
-            axis_list = [
-                fig.add_subplot(grid[0:20, 0:10]),
-                fig.add_subplot(grid[0:20, 14:34]),
-                fig.add_subplot(grid[0:20, 38:58])]
+        plot_confusion_matrix(
+            figure=fig,
+            axis=axis_list[1],
+            true_labels=these_truth,
+            experimental_labels=these_experiments,
+            label_order=label_order,
+            normalize_by='truth',
+            fontsize=20,
+            title=f"{level} normalized by true label",
+            is_log=is_log10)
 
-            good = 0
-            bad = 0
-            for truth, experiment in zip(these_truth, these_experiments):
-                if truth == experiment:
-                    good += 1
-                else:
-                    bad += 1
+        plot_confusion_matrix(
+            figure=fig,
+            axis=axis_list[2],
+            true_labels=these_truth,
+            experimental_labels=these_experiments,
+            label_order=label_order,
+            normalize_by='experiment',
+            fontsize=20,
+            title=f"{level} normalized by mapped label",
+            is_log=is_log10)
 
-            msg = f"correctly mapped: {good}\n"
-            msg += f"incorrectly mapped: {bad}\n"
-            msg += f"fraction correct: {good/float(good+bad):.3e}"
+        pdf_handle.savefig(fig)
 
-            axis_list[0].text(
-                5,
-                50,
-                msg,
-                fontsize=20)
-            axis_list[0].set_xlim((0, 100))
-            axis_list[0].set_ylim((0, 100))
-            for s in ('top', 'left', 'bottom', 'right'):
-                axis_list[0].spines[s].set_visible(False)
-            axis_list[0].tick_params(
-                axis='both', which='both', size=0, labelsize=0)
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--classification_dir', type=str, default=None)
+    parser.add_argument('--ground_truth_column', type=str, default=None)
+    parser.add_argument('--output_path', type=str, default=None)
+    parser.add_argument('--log10', default=False, action='store_true')
+    args = parser.parse_args()
 
-            plot_confusion_matrix(
-                figure=fig,
-                axis=axis_list[1],
-                true_labels=these_truth,
-                experimental_labels=these_experiments,
-                label_order=label_order,
-                normalize_by='truth',
-                fontsize=20,
-                title=f"{level} normalized by true label",
-                is_log=args.log10)
+    input_dir = pathlib.Path(args.classification_dir)
+    input_path_list = [n for n in input_dir.iterdir() if n.name.endswith('result.json')]
+    input_path_list.sort()
 
-            plot_confusion_matrix(
-                figure=fig,
-                axis=axis_list[2],
-                true_labels=these_truth,
-                experimental_labels=these_experiments,
-                label_order=label_order,
-                normalize_by='experiment',
-                fontsize=20,
-                title=f"{level} normalized by mapped label",
-                is_log=args.log10)
-
-            pdf.savefig(fig)
-
+    with PdfPages(args.output_path) as pdf_handle:
+        for pth in input_path_list:
+            if 'in_platform' in pth.name:
+                ground_truth_column = 'cl'
+            else:
+                ground_truth_column = 'gt_cl'
+            summary_plots(
+                classification_path=pth,
+                ground_truth_column=ground_truth_column,
+                pdf_handle=pdf_handle,
+                is_log10=args.log10)
 
 if __name__ == "__main__":
     main()
