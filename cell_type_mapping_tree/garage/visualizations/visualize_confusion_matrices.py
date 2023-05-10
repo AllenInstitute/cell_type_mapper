@@ -1,4 +1,6 @@
 import matplotlib.figure as mfig
+import matplotlib.gridspec as gridspec
+import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -162,8 +164,14 @@ def main():
                 these_truth.append(
                     inverted_tree[level][f"cl.{ground_truth}"])
 
-            fig = mfig.Figure(figsize=(30, 10), dpi=500)
-            axis_list = [fig.add_subplot(1,3,ii+1) for ii in range(3)]
+            fig = mfig.Figure(figsize=(25, 10), dpi=500)
+            grid = gridspec.GridSpec(nrows=20, ncols=60)
+            grid.update(bottom=0.1, top=0.99, left=0.01, right=0.99,
+                wspace=0.1, hspace=0.01)
+            axis_list = [
+                fig.add_subplot(grid[0:20, 0:10]),
+                fig.add_subplot(grid[0:20, 14:34]),
+                fig.add_subplot(grid[0:20, 38:58])]
 
             good = 0
             bad = 0
@@ -175,10 +183,10 @@ def main():
 
             msg = f"correctly mapped: {good}\n"
             msg += f"incorrectly mapped: {bad}\n"
-            msg += f"fraction correct: {good/float(good+bad)}"
+            msg += f"fraction correct: {good/float(good+bad):.3e}"
 
             axis_list[0].text(
-                0,
+                5,
                 50,
                 msg,
                 fontsize=20)
@@ -211,9 +219,6 @@ def main():
                 title=f"{level} normalized by mapped label",
                 is_log=args.log10)
 
- 
-
-            fig.tight_layout()
             pdf.savefig(fig)
 
 
