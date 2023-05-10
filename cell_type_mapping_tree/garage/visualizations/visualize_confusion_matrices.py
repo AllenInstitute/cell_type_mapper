@@ -59,6 +59,10 @@ def plot_confusion_matrix(
     s0 = img.sum()
     img = thin_img(img)
     assert img.sum() == s0
+
+    img = np.ma.masked_array(
+        img, mask=(img==0))
+
     img = img.astype(float)
 
     if normalize_by == 'truth':
@@ -82,7 +86,7 @@ def plot_confusion_matrix(
     else:
         cax_title = 'normalized count'
 
-    display_img = axis.imshow(img)
+    display_img = axis.imshow(img, cmap='cool')
     divider = make_axes_locatable(axis)
     cax = divider.append_axes("right", size="5%", pad=0.05)
     cb = figure.colorbar(display_img, ax=axis, cax=cax,
