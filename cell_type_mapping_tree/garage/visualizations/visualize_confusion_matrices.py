@@ -6,13 +6,10 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 import anndata
 import argparse
-import h5py
 import json
 import numpy as np
 import pathlib
 import re
-
-from anndata._io.specs import read_elem
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -128,28 +125,18 @@ def summary_plots(
         cell['cell_id']: cell for cell in results["results"]}
 
     tree_path = results['config']['precomputed_stats']['taxonomy_tree']
-
-    (taxonomy_tree,
-     inverted_tree) = invert_tree(tree_path)
-
     query_path = pathlib.Path(results['config']['query_path'])
 
-    with h5py.File(query_path, 'r') as in_file:
-        query_obs = read_elem(in_file['obs'])
-
-    print(query_path) 
-    #query_data = anndata.read_h5ad(query_path, backed='r')
-    #query_obs = query_data.obs
-    print(set(query_obs['Supertype'].values))
-    #exit() 
-    print(ground_truth_column_list)
-    print(query_obs.columns)
+    query_data = anndata.read_h5ad(query_path, backed='r')
     for g in ground_truth_column_list:
-        if g in query_obs.columns:
+        if g in query_data.obs.columns:
             ground_truth_column = g
             break
     print(f"using ground truth {ground_truth_column}")
-    assert ground_truth_column in query_obs.columns
+    assert ground_truth_column in query_data.obs.columns
+
+    (taxonomy_tree,
+     inverted_tree) = invert_tree(tree_path)
 
     leaf_list = taxonomy_tree.all_leaves
     leaf_names = []
@@ -157,17 +144,15 @@ def summary_plots(
     int_pattern = re.compile('[0-9]+')
     for n in leaf_list:
         leaf_names.append(n)
-        #ii = int(int_pattern.findall(n)[0])
-        #assert ii not in leaf_idx
-        #leaf_idx.append(ii)
-    #leaf_idx = np.array(leaf_idx)
-    #leaf_names = np.array(leaf_names)
-    #sorted_dex = np.argsort(leaf_idx)
-    #leaf_order = leaf_names[sorted_dex]
-    leaf_names.sort()
-    leaf_order = leaf_names
+        ii = int(int_pattern.findall(n)[0])
+        assert ii not in leaf_idx
+        leaf_idx.append(ii)
+    leaf_idx = np.array(leaf_idx)
+    leaf_names = np.array(leaf_names)
+    sorted_dex = np.argsort(leaf_idx)
+    leaf_order = leaf_names[sorted_dex]
 
-    obs = query_obs
+    obs = query_data.obs
 
     for level in taxonomy_tree.hierarchy:
         if level == taxonomy_tree.leaf_level:
@@ -179,18 +164,15 @@ def summary_plots(
                 if this not in label_order:
                     label_order.append(this)
 
+
         these_experiments = []
         these_truth = []
         for cell_id, ground_truth in zip(obs.index.values,
-                                         obs[ground_truth_column].values):
-
-            k = f"{ground_truth}"
-            if k not in inverted_tree[level]:
-                continue
+                                     obs[ground_truth_column].values):
             these_experiments.append(
                 results_lookup[cell_id][level]['assignment'])
             these_truth.append(
-                    inverted_tree[level][f"{ground_truth}"])
+                inverted_tree[level][f"cl.{ground_truth}"])
 
         fig = mfig.Figure(figsize=(25, 10), dpi=300)
         grid = gridspec.GridSpec(nrows=20, ncols=60)
