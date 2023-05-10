@@ -188,7 +188,7 @@ def _run_mapping(config, tmp_dir, log):
         _clean_up(marker_tmp)
         if reference_marker_path is not None:
             log.info(f"copying reference markers from "
-                     "{reference_marker_tmp} to "
+                     f"{reference_marker_tmp} to "
                      f"{reference_marker_path}")
             shutil.copy(
                 src=reference_marker_tmp,
