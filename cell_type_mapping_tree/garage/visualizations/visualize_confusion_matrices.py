@@ -113,7 +113,7 @@ def plot_confusion_matrix(
 
 def summary_plots(
         classification_path,
-        ground_truth_column,
+        ground_truth_column_list,
         pdf_handle,
         is_log10):
 
@@ -128,6 +128,11 @@ def summary_plots(
     query_path = pathlib.Path(results['config']['query_path'])
 
     query_data = anndata.read_h5ad(query_path, backed='r')
+    for g in ground_truth_column_list:
+        if g in query_data.obs.columns:
+            ground_truth_column = g
+            break
+    print(f"using ground truth {ground_truth_column}")
     assert ground_truth_column in query_data.obs.columns
 
     (taxonomy_tree,
@@ -234,7 +239,7 @@ def summary_plots(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--classification_dir', type=str, default=None)
-    parser.add_argument('--ground_truth_column', type=str, default=None)
+    parser.add_argument('--ground_truth_column', type=str, default=None, nargs='+')
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--log10', default=False, action='store_true')
     args = parser.parse_args()
@@ -242,6 +247,11 @@ def main():
     input_dir = pathlib.Path(args.classification_dir)
     input_path_list = [n for n in input_dir.iterdir() if n.name.endswith('result.json')]
     input_path_list.sort()
+
+    if not isinstance(args.ground_truth_column, list):
+        ground_truth_column_list = [args.ground_truth_column]
+    else:
+        ground_truth_column_list = args.ground_truth_column
 
     with PdfPages(args.output_path) as pdf_handle:
         for pth in input_path_list:
@@ -251,7 +261,7 @@ def main():
                 ground_truth_column = 'gt_cl'
             summary_plots(
                 classification_path=pth,
-                ground_truth_column=ground_truth_column,
+                ground_truth_column_list=ground_truth_column_list,
                 pdf_handle=pdf_handle,
                 is_log10=args.log10)
 
