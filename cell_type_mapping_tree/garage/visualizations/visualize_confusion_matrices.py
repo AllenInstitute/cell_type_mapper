@@ -95,7 +95,7 @@ def plot_confusion_matrix(
     for s in ('top', 'right', 'left', 'bottom'):
         axis.spines[s].set_visible(False)
 
-    axis.set_xlabel('test label', fontsize=fontsize)
+    axis.set_xlabel('mapped label', fontsize=fontsize)
     axis.set_ylabel('true label', fontsize=fontsize)
     if title is not None:
         axis.set_title(title, fontsize=fontsize)
@@ -162,19 +162,32 @@ def main():
                 these_truth.append(
                     inverted_tree[level][f"cl.{ground_truth}"])
 
-            fig = mfig.Figure(figsize=(20, 10), dpi=500)
-            axis_list = [fig.add_subplot(1,2,ii+1) for ii in range(2)]
-            plot_confusion_matrix(
-                figure=fig,
-                axis=axis_list[0],
-                true_labels=these_truth,
-                experimental_labels=these_experiments,
-                label_order=label_order,
-                normalize_by='truth',
-                fontsize=20,
-                title=f"{level} normalized by true label "
-               "(thinned)",
-                is_log=args.log10)
+            fig = mfig.Figure(figsize=(30, 10), dpi=500)
+            axis_list = [fig.add_subplot(1,3,ii+1) for ii in range(3)]
+
+            good = 0
+            bad = 0
+            for truth, experiment in zip(these_truth, these_experiments):
+                if truth == experiment:
+                    good += 1
+                else:
+                    bad += 1
+
+            msg = f"correctly mapped: {good}\n"
+            msg += f"incorrectly mapped: {bad}\n"
+            msg += f"fraction correct: {good/float(good+bad)}"
+
+            axis_list[0].text(
+                0,
+                50,
+                msg,
+                fontsize=20)
+            axis_list[0].set_xlim((0, 100))
+            axis_list[0].set_ylim((0, 100))
+            for s in ('top', 'left', 'bottom', 'right'):
+                axis_list[0].spines[s].set_visible(False)
+            axis_list[0].tick_params(
+                axis='both', which='both', size=0, labelsize=0)
 
             plot_confusion_matrix(
                 figure=fig,
@@ -182,10 +195,21 @@ def main():
                 true_labels=these_truth,
                 experimental_labels=these_experiments,
                 label_order=label_order,
+                normalize_by='truth',
+                fontsize=20,
+                title=f"{level} normalized by true label",
+                is_log=args.log10)
+
+            plot_confusion_matrix(
+                figure=fig,
+                axis=axis_list[2],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
                 normalize_by='experiment',
                 fontsize=20,
-                title=f"{level} normalized by test label "
-               "(thinned)")
+                title=f"{level} normalized by mapped label",
+                is_log=args.log10)
 
  
 
