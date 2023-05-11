@@ -109,6 +109,7 @@ def write_query_markers_to_h5(
     """
 
     parent_node_list = list(marker_lookup.keys())
+    parent_node_list.sort()
     with h5py.File(output_cache_path, 'w') as out_file:
         out_file.create_dataset(
             'parent_node_list',
@@ -150,6 +151,13 @@ def write_query_markers_to_h5(
             for gene in marker_lookup[parent_grp]:
                 these_reference.append(reference_name_to_int[gene])
                 these_query.append(query_name_to_int[gene])
+            if len(these_reference) > 0:
+                these_reference = np.array(these_reference)
+                these_query = np.array(these_query)
+                sorted_dex = np.argsort(these_reference)
+                these_reference = these_reference[sorted_dex]
+                these_query = these_query[sorted_dex]
+
             out_grp.create_dataset(
                 'reference',
                 data=np.array(these_reference))

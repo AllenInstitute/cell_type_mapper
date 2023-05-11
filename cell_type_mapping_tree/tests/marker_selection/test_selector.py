@@ -35,7 +35,8 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
-    serialize_markers)
+    serialize_markers,
+    write_query_markers_to_h5)
 
 
 @pytest.fixture
@@ -555,3 +556,119 @@ def test_marker_serialization(
             ct += 1
     assert ct > 0
     assert ct_genes > 0
+
+
+def get_all_datasets(h5_handle, current_grp=None):
+    """
+    return a list of all datasets in an h5ad
+    """
+    result = []
+    for k in h5_handle.keys():
+        if isinstance(h5_handle[k], h5py.Dataset):
+            if current_grp is not None:
+                final_k = f'{current_grp}/{k}'
+            else:
+                final_k = k
+            result.append(final_k)
+        else:
+            if current_grp is None:
+                next_grp = k
+            else:
+                next_grp = f'{current_grp}/{k}'
+            result += get_all_datasets(
+                    h5_handle[k],
+                    current_grp=next_grp)
+    return result
+
+
+@pytest.mark.parametrize("n_clip", [0, 5, 15])
+def test_marker_serialization_roundtrip(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip):
+    """
+    Test that we get the same result back when writing a
+    marker cache from the serialized dict
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    behemoth_cutoff = 1000000
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(311723)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    create_marker_cache_from_reference_markers(
+        output_cache_path=baseline_path,
+        input_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    baseline_serialization = serialize_markers(
+        marker_cache_path=baseline_path,
+        taxonomy_tree=taxonomy_tree)
+
+    as_str = json.dumps(baseline_serialization)
+    src_serialization = json.loads(as_str)
+
+    shuffled_serialization = dict()
+    ct_markers = 0
+    for k in src_serialization:
+        markers = src_serialization[k]
+        rng.shuffle(markers)
+        shuffled_serialization[k] = markers
+        ct_markers += len(markers)
+        if len(markers) > 0:
+            assert markers != baseline_serialization[k]
+        assert set(markers) == set(baseline_serialization[k])
+
+    assert ct_markers > 0
+
+    with h5py.File(marker_cache_fixture, 'r') as src:
+        reference_gene_names = json.loads(
+            src['full_gene_names'][()].decode('utf-8'))
+
+    round_trip_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+    write_query_markers_to_h5(
+        marker_lookup=shuffled_serialization,
+        query_gene_names=query_gene_names,
+        reference_gene_names=reference_gene_names,
+        output_cache_path=round_trip_path)
+
+    with h5py.File(baseline_path, 'r') as src:
+        baseline_dataset_list = get_all_datasets(src)
+    with h5py.File(round_trip_path, 'r') as src:
+        round_trip_dataset_list = get_all_datasets(src)
+    assert len(baseline_dataset_list) > 0
+    assert len(baseline_dataset_list) == len(round_trip_dataset_list)
+    assert set(baseline_dataset_list) == set(round_trip_dataset_list)
+
+    with h5py.File(baseline_path, 'r') as baseline:
+       with h5py.File(round_trip_path, 'r') as round_trip:
+           for dataset in baseline_dataset_list:
+               expected = baseline[dataset][()]
+               actual = round_trip[dataset][()]
+               np.testing.assert_array_equal(expected, actual)
