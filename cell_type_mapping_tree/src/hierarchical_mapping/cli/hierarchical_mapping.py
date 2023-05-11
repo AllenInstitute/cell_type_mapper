@@ -27,7 +27,7 @@ from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_gene_cache_v2)
+    create_marker_cache_from_reference_markers)
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
@@ -202,7 +202,7 @@ def _run_mapping(config, tmp_dir, log):
                       suffix='.h5'))
 
     t0 = time.time()
-    create_marker_gene_cache_v2(
+    create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_tmp,
         input_cache_path=reference_marker_tmp,
         query_gene_names=_get_query_gene_names(query_tmp),

@@ -34,7 +34,7 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
     select_all_markers)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_gene_cache_v2)
+    create_marker_cache_from_reference_markers)
 
 
 @pytest.fixture
@@ -389,7 +389,7 @@ def test_full_marker_cache_creation_smoke(
          tmp_dir_fixture,
          n_clip):
     """
-    Run a smoketest of create_marker_gene_cache_v2
+    Run a smoketest of create_marker_cache_from_reference_markers
     """
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
@@ -432,7 +432,7 @@ def test_full_marker_cache_creation_smoke(
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
 
-    create_marker_gene_cache_v2(
+    create_marker_cache_from_reference_markers(
         output_cache_path=output_path,
         input_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,

@@ -7,7 +7,7 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
     select_all_markers)
 
 
-def create_marker_gene_cache_v2(
+def create_marker_cache_from_reference_markers(
         output_cache_path,
         input_cache_path,
         query_gene_names,
