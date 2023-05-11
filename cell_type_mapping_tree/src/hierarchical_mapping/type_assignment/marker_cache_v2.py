@@ -52,15 +52,46 @@ def create_marker_cache_from_reference_markers(
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff)
 
+    with h5py.File(input_cache_path, 'r') as in_file:
+        reference_gene_names = json.loads(
+            in_file['full_gene_names'][()].decode('utf-8'))
+
+    write_query_markers_to_h5(
+        marker_lookup=marker_lookup,
+        reference_gene_names=reference_gene_names,
+        query_gene_names=query_gene_names,
+        output_cache_path=output_cache_path)
+
+    duration = (time.time()-t0)/3600.0
+    print(f"created {output_cache_path} in {duration:.2e} hours")
+
+
+def write_query_markers_to_h5(
+        marker_lookup,
+        reference_gene_names,
+        query_gene_names,
+        output_cache_path):
+    """
+    Write marker genes to HDF5 file
+
+    Parameters
+    ----------
+    marker_lookup:
+        Dict mapping parent node as tuple to list of marker
+        gene names
+    reference_gene_names:
+        Ordered list of genes in reference dataset
+    query_gene_names:
+        Ordered list of genes in query dataset
+    output_cache_path:
+        Path to HDF5 file that will be written
+    """
+
     parent_node_list = list(marker_lookup.keys())
     with h5py.File(output_cache_path, 'w') as out_file:
         out_file.create_dataset(
             'parent_node_list',
             data=json.dumps(parent_node_list).encode('utf-8'))
-
-    with h5py.File(input_cache_path, 'r') as in_file:
-        reference_gene_names = json.loads(
-            in_file['full_gene_names'][()].decode('utf-8'))
 
     query_name_to_int = {
         n: ii for ii, n in enumerate(query_gene_names)}
@@ -130,5 +161,3 @@ def create_marker_cache_from_reference_markers(
             out_grp.create_dataset(
                 'query',
                 data=np.array(these_query))
-    duration = (time.time()-t0)/3600.0
-    print(f"created {output_cache_path} in {duration:.2e} hours")
