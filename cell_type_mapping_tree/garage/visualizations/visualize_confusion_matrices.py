@@ -4,8 +4,9 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.backends.backend_pdf import PdfPages
 
-import anndata
+from anndata._io.specs import read_elem
 import argparse
+import h5py
 import json
 import numpy as np
 import pathlib
@@ -127,13 +128,14 @@ def summary_plots(
     tree_path = results['config']['precomputed_stats']['taxonomy_tree']
     query_path = pathlib.Path(results['config']['query_path'])
 
-    query_data = anndata.read_h5ad(query_path, backed='r')
+    with h5py.File(query_path, 'r') as src:
+        query_obs = read_elem(src['obs'])
     for g in ground_truth_column_list:
-        if g in query_data.obs.columns:
+        if g in query_obs.columns:
             ground_truth_column = g
             break
     print(f"using ground truth {ground_truth_column}")
-    assert ground_truth_column in query_data.obs.columns
+    assert ground_truth_column in query_obs.columns
 
     (taxonomy_tree,
      inverted_tree) = invert_tree(tree_path)
@@ -152,7 +154,7 @@ def summary_plots(
     sorted_dex = np.argsort(leaf_idx)
     leaf_order = leaf_names[sorted_dex]
 
-    obs = query_data.obs
+    obs = query_obs
 
     for level in taxonomy_tree.hierarchy:
         if level == taxonomy_tree.leaf_level:
