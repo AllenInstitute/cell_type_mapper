@@ -166,15 +166,16 @@ def summary_plots(
                 if this not in label_order:
                     label_order.append(this)
 
-
         these_experiments = []
         these_truth = []
         for cell_id, ground_truth in zip(obs.index.values,
                                      obs[ground_truth_column].values):
-            these_experiments.append(
-                results_lookup[cell_id][level]['assignment'])
-            these_truth.append(
-                inverted_tree[level][f"cl.{ground_truth}"])
+            gt_key = f"cl.{ground_truth}"
+            if gt_key in inverted_tree[level]:
+                these_experiments.append(
+                    results_lookup[cell_id][level]['assignment'])
+                these_truth.append(
+                    inverted_tree[level][f"cl.{ground_truth}"])
 
         fig = mfig.Figure(figsize=(25, 10), dpi=300)
         grid = gridspec.GridSpec(nrows=20, ncols=60)
