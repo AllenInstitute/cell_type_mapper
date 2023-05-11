@@ -102,7 +102,12 @@ def create_marker_cache_from_reference_markers(
                 node = parent[1]
                 parent_grp = f'{parent[0]}/{parent[1]}'
 
-            assert parent_grp not in created_groups
+            if parent_grp in created_groups:
+                raise RuntimeError(
+                    "tried to create query marker group\n"
+                    f"{parent_grp}\n"
+                    "more than once")
+
             created_groups.add(parent_grp)
 
             if level is not None:
