@@ -156,3 +156,40 @@ def write_query_markers_to_h5(
             out_grp.create_dataset(
                 'query',
                 data=np.array(these_query))
+
+
+def serialize_markers(
+        marker_cache_path,
+        taxonomy_tree):
+    """
+    Take a path to a marker gene cache and return a dict of marker
+    genes suitable for serialization to the final output
+
+    Parameters
+    ----------
+    marker_cache_path:
+        Path to HDF5 file written by create_maker_cache_... method
+    taxonomy_tree:
+        TaxonomyTree defining the taxonomy
+
+    Returns
+    -------
+    Dict mapping strings representing 'level/node' parents to lists
+    of marker genes.
+    """
+    marker_gene_lookup = dict()
+    with h5py.File(marker_cache_path, "r") as src:
+        reference_gene_names = json.loads(
+            src['reference_gene_names'][()].decode('utf-8'))
+        for level in taxonomy_tree.hierarchy[:-1]:
+            for node in taxonomy_tree.nodes_at_level(level):
+                grp_key = f"{level}/{node}"
+                ref_idx = src[grp_key]['reference'][()]
+                marker_gene_lookup[grp_key] = [
+                    str(reference_gene_names[ii]) for ii in ref_idx]
+
+        grp_key = "None"
+        ref_idx = src[grp_key]['reference'][()]
+        marker_gene_lookup[grp_key] = [
+            str(reference_gene_names[ii]) for ii in ref_idx]
+    return marker_gene_lookup

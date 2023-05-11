@@ -27,7 +27,8 @@ from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_cache_from_reference_markers)
+    create_marker_cache_from_reference_markers,
+    serialize_markers)
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
@@ -233,22 +234,9 @@ def _run_mapping(config, tmp_dir, log):
 
     # ========= copy marker gene lookup over to output file =========
     log.info("Writing marker genes to output file")
-    marker_gene_lookup = dict()
-    with h5py.File(query_marker_tmp, "r") as src:
-        reference_gene_names = json.loads(
-            src['reference_gene_names'][()].decode('utf-8'))
-        for level in taxonomy_tree.hierarchy[:-1]:
-            for node in taxonomy_tree.nodes_at_level(level):
-                grp_key = f"{level}/{node}"
-                ref_idx = src[grp_key]['reference'][()]
-                marker_gene_lookup[grp_key] = [
-                    str(reference_gene_names[ii]) for ii in ref_idx]
-
-        grp_key = "None"
-        ref_idx = src[grp_key]['reference'][()]
-        marker_gene_lookup[grp_key] = [
-            str(reference_gene_names[ii]) for ii in ref_idx]
-
+    marker_gene_lookup = serialize_markers(
+        marker_cache_path=query_marker_tmp,
+        taxonomy_tree=taxonomy_tree)
     return {'assignments': result, 'marker_genes': marker_gene_lookup}
 
 
