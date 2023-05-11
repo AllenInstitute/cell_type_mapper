@@ -56,8 +56,29 @@ def create_marker_cache_from_reference_markers(
         reference_gene_names = json.loads(
             in_file['full_gene_names'][()].decode('utf-8'))
 
+    # reformat marker lookup so the keys are the
+    # 'parent/level' groups that will actually be
+    # stored in the final HDF5 file
+    created_groups = set()
+    reformatted_lookup = dict()
+    parent_list = list(marker_lookup.keys())
+    for parent in parent_list:
+        if parent is None:
+            parent_grp = 'None'
+        else:
+            parent_grp = f'{parent[0]}/{parent[1]}'
+
+        if parent_grp in created_groups:
+            raise RuntimeError(
+                "tried to create query marker group\n"
+                f"{parent_grp}\n"
+                "more than once")
+
+        created_groups.add(parent_grp)
+        reformatted_lookup[parent_grp] = marker_lookup.pop(parent)
+
     write_query_markers_to_h5(
-        marker_lookup=marker_lookup,
+        marker_lookup=reformatted_lookup,
         reference_gene_names=reference_gene_names,
         query_gene_names=query_gene_names,
         output_cache_path=output_cache_path)
@@ -77,8 +98,8 @@ def write_query_markers_to_h5(
     Parameters
     ----------
     marker_lookup:
-        Dict mapping parent node as tuple to list of marker
-        gene names
+        Dict mapping the parent/level groups as they will
+        appear in the HDF5 file to lists of marker genes
     reference_gene_names:
         Ordered list of genes in reference dataset
     query_gene_names:
@@ -108,7 +129,6 @@ def write_query_markers_to_h5(
     query_genes = np.sort(np.array(list(query_genes)))
     reference_genes = np.sort(np.array(list(reference_genes)))
 
-    created_groups = set()
     with h5py.File(output_cache_path, "a") as cache_file:
         cache_file.create_dataset(
             "all_query_markers",
@@ -123,36 +143,11 @@ def write_query_markers_to_h5(
             "reference_gene_names",
             data=json.dumps(reference_gene_names).encode('utf-8'))
 
-        for parent in marker_lookup:
-            if parent is None:
-                level = None
-                node = 'None'
-                parent_grp = 'None'
-            else:
-                level = parent[0]
-                node = parent[1]
-                parent_grp = f'{parent[0]}/{parent[1]}'
-
-            if parent_grp in created_groups:
-                raise RuntimeError(
-                    "tried to create query marker group\n"
-                    f"{parent_grp}\n"
-                    "more than once")
-
-            created_groups.add(parent_grp)
-
-            if level is not None:
-                if level not in cache_file:
-                    level_grp = cache_file.create_group(level)
-                else:
-                    level_grp = cache_file[level]
-                out_grp = level_grp.create_group(node)
-            else:
-                out_grp = cache_file.create_group(node)
-
+        for parent_grp in marker_lookup:
+            out_grp = cache_file.create_group(parent_grp)
             these_reference = []
             these_query = []
-            for gene in marker_lookup[parent]:
+            for gene in marker_lookup[parent_grp]:
                 these_reference.append(reference_name_to_int[gene])
                 these_query.append(query_name_to_int[gene])
             out_grp.create_dataset(
