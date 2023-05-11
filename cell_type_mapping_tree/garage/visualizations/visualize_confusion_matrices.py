@@ -49,7 +49,8 @@ def plot_confusion_matrix(
         normalize_by='truth',
         fontsize=20,
         title=None,
-        is_log=False):
+        is_log=False,
+        munge_ints=True):
 
     img = np.zeros((len(label_order), len(label_order)), dtype=int)
     label_to_idx = {
@@ -116,7 +117,8 @@ def summary_plots(
         classification_path,
         ground_truth_column_list,
         pdf_handle,
-        is_log10):
+        is_log10,
+        munge_ints):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -141,18 +143,24 @@ def summary_plots(
      inverted_tree) = invert_tree(tree_path)
 
     leaf_list = taxonomy_tree.all_leaves
-    leaf_names = []
-    leaf_idx = []
-    int_pattern = re.compile('[0-9]+')
-    for n in leaf_list:
-        leaf_names.append(n)
-        ii = int(int_pattern.findall(n)[0])
-        assert ii not in leaf_idx
-        leaf_idx.append(ii)
-    leaf_idx = np.array(leaf_idx)
-    leaf_names = np.array(leaf_names)
-    sorted_dex = np.argsort(leaf_idx)
-    leaf_order = leaf_names[sorted_dex]
+    if munge_ints:
+        leaf_names = []
+        leaf_idx = []
+        int_pattern = re.compile('[0-9]+')
+        for n in leaf_list:
+            leaf_names.append(n)
+            ii = int(int_pattern.findall(n)[0])
+            assert ii not in leaf_idx
+            leaf_idx.append(ii)
+        leaf_idx = np.array(leaf_idx)
+        leaf_names = np.array(leaf_names)
+        sorted_dex = np.argsort(leaf_idx)
+        leaf_order = leaf_names[sorted_dex]
+    else:
+        leaf_order = []
+        for n in leaf_list:
+            leaf_order.append(n)
+        leaf_order.sort()
 
     obs = query_obs
 
@@ -169,13 +177,17 @@ def summary_plots(
         these_experiments = []
         these_truth = []
         for cell_id, ground_truth in zip(obs.index.values,
-                                     obs[ground_truth_column].values):
-            gt_key = f"cl.{ground_truth}"
+                                         obs[ground_truth_column].values):
+            if munge_ints:
+                gt_key = f"cl.{ground_truth}"
+            else:
+                gt_key = f"{ground_truth}"
+
             if gt_key in inverted_tree[level]:
                 these_experiments.append(
                     results_lookup[cell_id][level]['assignment'])
                 these_truth.append(
-                    inverted_tree[level][f"cl.{ground_truth}"])
+                    inverted_tree[level][gt_key])
 
         fig = mfig.Figure(figsize=(25, 10), dpi=300)
         grid = gridspec.GridSpec(nrows=20, ncols=60)
@@ -245,6 +257,7 @@ def main():
     parser.add_argument('--ground_truth_column', type=str, default=None, nargs='+')
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--log10', default=False, action='store_true')
+    parser.add_argument('--munge_ints', default=False, action='store_true')
     args = parser.parse_args()
 
     input_dir = pathlib.Path(args.classification_dir)
@@ -266,7 +279,8 @@ def main():
                 classification_path=pth,
                 ground_truth_column_list=ground_truth_column_list,
                 pdf_handle=pdf_handle,
-                is_log10=args.log10)
+                is_log10=args.log10,
+                munge_ints=args.munge_ints)
 
 if __name__ == "__main__":
     main()
