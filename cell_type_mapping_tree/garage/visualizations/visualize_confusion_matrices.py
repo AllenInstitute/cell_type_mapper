@@ -271,10 +271,6 @@ def main():
 
     with PdfPages(args.output_path) as pdf_handle:
         for pth in input_path_list:
-            if 'in_platform' in pth.name:
-                ground_truth_column = 'cl'
-            else:
-                ground_truth_column = 'gt_cl'
             summary_plots(
                 classification_path=pth,
                 ground_truth_column_list=ground_truth_column_list,
