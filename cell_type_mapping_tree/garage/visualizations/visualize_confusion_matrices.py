@@ -215,6 +215,8 @@ def summary_plots(
         msg += f"incorrectly mapped: {bad}\n"
         msg += f"fraction correct: {good/float(good+bad):.3e}"
 
+        print(f"{msg}\n")
+
         axis_list[0].text(
             5,
             50,
