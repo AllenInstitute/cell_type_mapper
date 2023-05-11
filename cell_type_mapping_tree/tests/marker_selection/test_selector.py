@@ -34,7 +34,8 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
     select_all_markers)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_cache_from_reference_markers)
+    create_marker_cache_from_reference_markers,
+    serialize_markers)
 
 
 @pytest.fixture
@@ -480,3 +481,77 @@ def test_full_marker_cache_creation_smoke(
             assert set(actual_reference) == set(expected[parent])
         assert all_ref_idx == set(actual_all_ref_idx)
         assert all_query_idx == set(actual_all_query_idx)
+
+
+@pytest.mark.parametrize("n_clip", [0, 5, 15])
+def test_marker_serialization(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip):
+    """
+    Test method that converts marker genes into a serializable
+    dict.
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    behemoth_cutoff = 1000000
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(141414)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    create_marker_cache_from_reference_markers(
+        output_cache_path=output_path,
+        input_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    actual = serialize_markers(
+        marker_cache_path=output_path,
+        taxonomy_tree=taxonomy_tree)
+
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+        assert parent_key in actual
+
+    ct = 0
+    ct_genes = 0
+    with h5py.File(output_path, "r") as in_file:
+        reference_names = json.loads(
+            in_file["reference_gene_names"][()].decode("utf-8"))
+        for k in actual:
+            actual_markers = actual[k]
+            expected_markers = [
+                reference_names[ii] for ii in in_file[k]['reference'][()]]
+            assert set(actual_markers) == set(expected_markers)
+            assert len(actual_markers) == len(expected_markers)
+            ct_genes += len(actual_markers)
+            ct += 1
+    assert ct > 0
+    assert ct_genes > 0
