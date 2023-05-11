@@ -2,6 +2,7 @@ import h5py
 import json
 import numpy as np
 import time
+import warnings
 
 from hierarchical_mapping.marker_selection.selection_pipeline import (
     select_all_markers)
@@ -82,6 +83,72 @@ def create_marker_cache_from_reference_markers(
         reference_gene_names=reference_gene_names,
         query_gene_names=query_gene_names,
         output_cache_path=output_cache_path)
+
+    duration = (time.time()-t0)/3600.0
+    print(f"created {output_cache_path} in {duration:.2e} hours")
+
+
+def create_marker_cache_from_specified_markers(
+        marker_lookup,
+        reference_gene_names,
+        query_gene_names,
+        output_cache_path):
+    """
+    Write marker genes to HDF5 file
+
+    Parameters
+    ----------
+    marker_lookup:
+        Dict mapping the parent/level groups as they will
+        appear in the HDF5 file to lists of marker genes
+    reference_gene_names:
+        Ordered list of genes in reference dataset
+    query_gene_names:
+        Ordered list of genes in query dataset
+    output_cache_path:
+        Path to HDF5 file that will be written
+
+    Notes
+    -----
+    If there are marker genes missing from query_gene_names,
+    those markers will just be dropped and a warning issued
+    """
+    print(f"creating marker gene cache in {output_cache_path}")
+    t0 = time.time()
+    query_gene_set = set(query_gene_names)
+    reference_gene_set = set(reference_gene_names)
+    final_marker_lookup = dict()
+    missing_query_markers = set()
+    missing_reference_markers = set()
+    for k in marker_lookup:
+        marker_set = set(marker_lookup[k])
+        final_marker_lookup[k] = list(marker_set.intersection(query_gene_set))
+        missing_query_markers = missing_query_markers.union(
+            marker_set-query_gene_set)
+        missing_reference_markers = missing_reference_markers.union(
+            marker_set-reference_gene_set)
+
+    if len(missing_reference_markers) > 0:
+        missing_reference_markers = list(missing_reference_markers)
+        missing_reference_markers.sort()
+        msg = "The following marker genes are not "
+        msg += "in the reference dataset\n"
+        msg += f"{missing_reference_markers}\n"
+        raise RuntimeError(msg)
+
+    write_query_markers_to_h5(
+        marker_lookup=final_marker_lookup,
+        reference_gene_names=reference_gene_names,
+        query_gene_names=query_gene_names,
+        output_cache_path=output_cache_path)
+
+    if len(missing_query_markers) > 0:
+        missing_query_markers = list(missing_query_markers)
+        missing_query_markers.sort()
+        msg = "The following marker genes were not present "
+        msg += f"in the query dataset\n{missing_query_markers}\n"
+        msg += "They have been ignored"
+        warnings.warn(msg)
 
     duration = (time.time()-t0)/3600.0
     print(f"created {output_cache_path} in {duration:.2e} hours")

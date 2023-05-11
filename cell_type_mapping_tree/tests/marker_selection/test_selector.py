@@ -35,6 +35,7 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
+    create_marker_cache_from_specified_markers,
     serialize_markers,
     write_query_markers_to_h5)
 
@@ -581,16 +582,26 @@ def get_all_datasets(h5_handle, current_grp=None):
     return result
 
 
-@pytest.mark.parametrize("n_clip", [0, 5, 15])
+@pytest.mark.parametrize(
+    "n_clip, provoke_warning",
+    [(0, True),
+     (0, False),
+     (7, True),
+     (7, False)])
 def test_marker_serialization_roundtrip(
          marker_cache_fixture,
          gene_names_fixture,
          taxonomy_tree_fixture,
          tmp_dir_fixture,
-         n_clip):
+         n_clip,
+         provoke_warning):
     """
     Test that we get the same result back when writing a
-    marker cache from the serialized dict
+    marker cache from specified markers.
+
+    if provoke_warning, add genes that we know are not
+    in the query set, so we can test that a warning
+    is issued.
     """
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
@@ -636,14 +647,20 @@ def test_marker_serialization_roundtrip(
 
     shuffled_serialization = dict()
     ct_markers = 0
+    ct_nonsense = 0
+    extra_genes = []
     for k in src_serialization:
         markers = src_serialization[k]
+        if provoke_warning:
+            for ii in range(3):
+                new_name = f'so_much_garbage_{ct_nonsense}'
+                ct_nonsense += 1
+                markers.append(new_name)
+                extra_genes.append(new_name)
+
         rng.shuffle(markers)
         shuffled_serialization[k] = markers
         ct_markers += len(markers)
-        if len(markers) > 0:
-            assert markers != baseline_serialization[k]
-        assert set(markers) == set(baseline_serialization[k])
 
     assert ct_markers > 0
 
@@ -651,12 +668,26 @@ def test_marker_serialization_roundtrip(
         reference_gene_names = json.loads(
             src['full_gene_names'][()].decode('utf-8'))
 
+    for n in extra_genes:
+        reference_gene_names.append(n)
+
     round_trip_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
-    write_query_markers_to_h5(
-        marker_lookup=shuffled_serialization,
-        query_gene_names=query_gene_names,
-        reference_gene_names=reference_gene_names,
-        output_cache_path=round_trip_path)
+
+    if provoke_warning:
+        with pytest.warns(UserWarning,
+                          match="not present in the query dataset"):
+
+            create_marker_cache_from_specified_markers(
+                marker_lookup=shuffled_serialization,
+                query_gene_names=query_gene_names,
+                reference_gene_names=reference_gene_names,
+                output_cache_path=round_trip_path)
+    else:
+        create_marker_cache_from_specified_markers(
+            marker_lookup=shuffled_serialization,
+            query_gene_names=query_gene_names,
+            reference_gene_names=reference_gene_names,
+            output_cache_path=round_trip_path)
 
     with h5py.File(baseline_path, 'r') as src:
         baseline_dataset_list = get_all_datasets(src)
@@ -669,6 +700,29 @@ def test_marker_serialization_roundtrip(
     with h5py.File(baseline_path, 'r') as baseline:
        with h5py.File(round_trip_path, 'r') as round_trip:
            for dataset in baseline_dataset_list:
+               if provoke_warning and dataset == 'reference_gene_names':
+                   continue
                expected = baseline[dataset][()]
                actual = round_trip[dataset][()]
                np.testing.assert_array_equal(expected, actual)
+
+
+def test_specified_marker_failure():
+    """
+    Test that if the reference set is missing marker genes,
+    marker cache creation fails.
+    """
+
+    marker_lookup = dict()
+    marker_lookup['None'] = ['a', 'b', 'c']
+    marker_lookup['class/ClassA'] = ['d', 'e' ,'f']
+
+    query_gene_names = [n for n in 'abcdefghij']
+    reference_gene_names = [n for n in 'abcdfg']
+
+    with pytest.raises(RuntimeError, match='not in the reference'):
+        create_marker_cache_from_specified_markers(
+            marker_lookup=marker_lookup,
+            query_gene_names=query_gene_names,
+            reference_gene_names=reference_gene_names,
+            output_cache_path='garbage')
