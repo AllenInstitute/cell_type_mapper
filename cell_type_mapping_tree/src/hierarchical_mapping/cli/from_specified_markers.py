@@ -28,12 +28,9 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from hierarchical_mapping.diff_exp.markers import (
-    find_markers_for_all_taxonomy_pairs)
-
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_cache_from_reference_markers,
-    serialize_markers)
+    serialize_markers,
+    create_marker_cache_from_specified_markers)
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
@@ -103,13 +100,9 @@ def _run_mapping(config, tmp_dir, log):
     precomputed_path = validation_result['precomputed_path']
     precomputed_tmp = validation_result['precomputed_tmp']
     precomputed_is_valid = validation_result['precomputed_is_valid']
-    reference_marker_path = validation_result['reference_marker_path']
-    reference_marker_tmp = validation_result['reference_marker_tmp']
-    reference_marker_is_valid = validation_result['reference_marker_is_valid']
+    marker_lookup_path = validation_result['marker_lookup']
 
-    reference_marker_config = config["reference_markers"]
     precomputed_config = config["precomputed_stats"]
-    query_marker_config = config["query_markers"]
     type_assignment_config = config["type_assignment"]
 
     log.benchmark(msg="validating config and copying data",
@@ -167,38 +160,8 @@ def _run_mapping(config, tmp_dir, log):
     with h5py.File(precomputed_tmp, "r") as in_file:
         taxonomy_tree = TaxonomyTree.from_str(
             serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
-
-    # ========= reference marker cache =========
-
-    if reference_marker_is_valid:
-        log.info(f"using {reference_marker_tmp} for reference markers")
-    else:
-        log.info("creating reference marker file")
-
-        marker_tmp = tempfile.mkdtemp(
-            dir=tmp_dir,
-            prefix='reference_marker_')
-
-        t0 = time.time()
-        find_markers_for_all_taxonomy_pairs(
-            precomputed_stats_path=precomputed_tmp,
-            taxonomy_tree=taxonomy_tree,
-            output_path=reference_marker_tmp,
-            tmp_dir=marker_tmp,
-            n_processors=reference_marker_config['n_processors'],
-            max_bytes=reference_marker_config['max_bytes'])
-
-        log.benchmark(msg="finding reference markers",
-                      duration=time.time()-t0)
-
-        _clean_up(marker_tmp)
-        if reference_marker_path is not None:
-            log.info(f"copying reference markers from "
-                     f"{reference_marker_tmp} to "
-                     f"{reference_marker_path}")
-            shutil.copy(
-                src=reference_marker_tmp,
-                dst=reference_marker_path)
+        reference_gene_names = json.loads(
+            in_file["col_names"][()].decode("utf-8"))
 
     # ========= query marker cache =========
 
@@ -208,14 +171,17 @@ def _run_mapping(config, tmp_dir, log):
                       suffix='.h5'))
 
     t0 = time.time()
-    create_marker_cache_from_reference_markers(
-        output_cache_path=query_marker_tmp,
-        input_cache_path=reference_marker_tmp,
-        query_gene_names=_get_query_gene_names(query_tmp),
-        taxonomy_tree=taxonomy_tree,
-        n_per_utility=query_marker_config['n_per_utility'],
-        n_processors=query_marker_config['n_processors'],
-        behemoth_cutoff=5000000)
+
+    marker_lookup = json.load(open(marker_lookup_path, 'rb'))
+
+    query_gene_names = _get_query_gene_names(query_tmp)
+
+    create_marker_cache_from_specified_markers(
+        marker_lookup=marker_lookup,
+        reference_gene_names=reference_gene_names,
+        query_gene_names=query_gene_names,
+        output_cache_path=query_marker_tmp)
+
     log.benchmark(msg="creating query marker cache",
                   duration=time.time()-t0)
 
@@ -258,9 +224,6 @@ def _validate_config(
     if "precomputed_stats" not in config:
         log.error("'precomputed_stats' not in config")
 
-    if "reference_markers" not in config:
-        log.error("'reference_markers' not in config")
-
     if "query_markers" not in config:
         log.error("'query_markers' not in config")
 
@@ -289,8 +252,6 @@ def _validate_config(
             f"{config['query_path']} is not a valid file")
 
     result['query_tmp'] = query_tmp
-
-    reference_marker_config = config["reference_markers"]
 
     precomputed_config = config["precomputed_stats"]
     lookup = _make_temp_path(
@@ -328,34 +289,23 @@ def _validate_config(
                 "Must specify one of column_hierarchy or "
                 "taxonomy_tree in precomputed_config")
 
-    reference_marker_config = config["reference_markers"]
-    lookup = _make_temp_path(
-        config_dict=reference_marker_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        prefix="reference_markers_",
-        suffix=".h5")
-
-    reference_marker_path = lookup["path"]
-    reference_marker_tmp = lookup["tmp"]
-    reference_marker_is_valid = lookup["is_valid"]
-    result['reference_marker_path'] = reference_marker_path
-    result['reference_marker_tmp'] = reference_marker_tmp
-    result['reference_marker_is_valid'] = reference_marker_is_valid
-
-    if not reference_marker_is_valid:
-        _check_config(
-            config_dict=reference_marker_config,
-            config_name='reference_markers',
-            key_name=['n_processors', 'max_bytes'],
-            log=log)
-
     query_marker_config = config["query_markers"]
     _check_config(
         config_dict=query_marker_config,
         config_name="query_markers",
-        key_name=['n_per_utility', 'n_processors'],
+        key_name=['serialized_lookup'],
         log=log)
+
+    serialized_lookup_path = pathlib.Path(
+        query_marker_config['serialized_lookup'])
+
+    if not serialized_lookup_path.is_file():
+        log.error(
+            "serialized marker lookup\n"
+            f"{serialized_lookup_path.resolve().absolute()}\n"
+            "is not a file")
+
+    result["marker_lookup"] = serialized_lookup_path
 
     return result
 

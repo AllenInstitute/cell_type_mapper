@@ -34,7 +34,10 @@ from hierarchical_mapping.marker_selection.selection_pipeline import (
     select_all_markers)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_gene_cache_v2)
+    create_marker_cache_from_reference_markers,
+    create_marker_cache_from_specified_markers,
+    serialize_markers,
+    write_query_markers_to_h5)
 
 
 @pytest.fixture
@@ -389,7 +392,7 @@ def test_full_marker_cache_creation_smoke(
          tmp_dir_fixture,
          n_clip):
     """
-    Run a smoketest of create_marker_gene_cache_v2
+    Run a smoketest of create_marker_cache_from_reference_markers
     """
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
@@ -432,7 +435,7 @@ def test_full_marker_cache_creation_smoke(
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
 
-    create_marker_gene_cache_v2(
+    create_marker_cache_from_reference_markers(
         output_cache_path=output_path,
         input_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
@@ -480,3 +483,246 @@ def test_full_marker_cache_creation_smoke(
             assert set(actual_reference) == set(expected[parent])
         assert all_ref_idx == set(actual_all_ref_idx)
         assert all_query_idx == set(actual_all_query_idx)
+
+
+@pytest.mark.parametrize("n_clip", [0, 5, 15])
+def test_marker_serialization(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip):
+    """
+    Test method that converts marker genes into a serializable
+    dict.
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    behemoth_cutoff = 1000000
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(141414)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    create_marker_cache_from_reference_markers(
+        output_cache_path=output_path,
+        input_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    actual = serialize_markers(
+        marker_cache_path=output_path,
+        taxonomy_tree=taxonomy_tree)
+
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+        assert parent_key in actual
+
+    ct = 0
+    ct_genes = 0
+    with h5py.File(output_path, "r") as in_file:
+        reference_names = json.loads(
+            in_file["reference_gene_names"][()].decode("utf-8"))
+        for k in actual:
+            actual_markers = actual[k]
+            expected_markers = [
+                reference_names[ii] for ii in in_file[k]['reference'][()]]
+            assert set(actual_markers) == set(expected_markers)
+            assert len(actual_markers) == len(expected_markers)
+            ct_genes += len(actual_markers)
+            ct += 1
+    assert ct > 0
+    assert ct_genes > 0
+
+
+def get_all_datasets(h5_handle, current_grp=None):
+    """
+    return a list of all datasets in an h5ad
+    """
+    result = []
+    for k in h5_handle.keys():
+        if isinstance(h5_handle[k], h5py.Dataset):
+            if current_grp is not None:
+                final_k = f'{current_grp}/{k}'
+            else:
+                final_k = k
+            result.append(final_k)
+        else:
+            if current_grp is None:
+                next_grp = k
+            else:
+                next_grp = f'{current_grp}/{k}'
+            result += get_all_datasets(
+                    h5_handle[k],
+                    current_grp=next_grp)
+    return result
+
+
+@pytest.mark.parametrize(
+    "n_clip, provoke_warning",
+    [(0, True),
+     (0, False),
+     (7, True),
+     (7, False)])
+def test_marker_serialization_roundtrip(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip,
+         provoke_warning):
+    """
+    Test that we get the same result back when writing a
+    marker cache from specified markers.
+
+    if provoke_warning, add genes that we know are not
+    in the query set, so we can test that a warning
+    is issued.
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    behemoth_cutoff = 1000000
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(311723)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    create_marker_cache_from_reference_markers(
+        output_cache_path=baseline_path,
+        input_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    baseline_serialization = serialize_markers(
+        marker_cache_path=baseline_path,
+        taxonomy_tree=taxonomy_tree)
+
+    as_str = json.dumps(baseline_serialization)
+    src_serialization = json.loads(as_str)
+
+    shuffled_serialization = dict()
+    ct_markers = 0
+    ct_nonsense = 0
+    extra_genes = []
+    for k in src_serialization:
+        markers = src_serialization[k]
+        if provoke_warning:
+            for ii in range(3):
+                new_name = f'so_much_garbage_{ct_nonsense}'
+                ct_nonsense += 1
+                markers.append(new_name)
+                extra_genes.append(new_name)
+
+        rng.shuffle(markers)
+        shuffled_serialization[k] = markers
+        ct_markers += len(markers)
+
+    assert ct_markers > 0
+
+    with h5py.File(marker_cache_fixture, 'r') as src:
+        reference_gene_names = json.loads(
+            src['full_gene_names'][()].decode('utf-8'))
+
+    for n in extra_genes:
+        reference_gene_names.append(n)
+
+    round_trip_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+
+    if provoke_warning:
+        with pytest.warns(UserWarning,
+                          match="not present in the query dataset"):
+
+            create_marker_cache_from_specified_markers(
+                marker_lookup=shuffled_serialization,
+                query_gene_names=query_gene_names,
+                reference_gene_names=reference_gene_names,
+                output_cache_path=round_trip_path)
+    else:
+        create_marker_cache_from_specified_markers(
+            marker_lookup=shuffled_serialization,
+            query_gene_names=query_gene_names,
+            reference_gene_names=reference_gene_names,
+            output_cache_path=round_trip_path)
+
+    with h5py.File(baseline_path, 'r') as src:
+        baseline_dataset_list = get_all_datasets(src)
+    with h5py.File(round_trip_path, 'r') as src:
+        round_trip_dataset_list = get_all_datasets(src)
+    assert len(baseline_dataset_list) > 0
+    assert len(baseline_dataset_list) == len(round_trip_dataset_list)
+    assert set(baseline_dataset_list) == set(round_trip_dataset_list)
+
+    with h5py.File(baseline_path, 'r') as baseline:
+       with h5py.File(round_trip_path, 'r') as round_trip:
+           for dataset in baseline_dataset_list:
+               if provoke_warning and dataset == 'reference_gene_names':
+                   continue
+               expected = baseline[dataset][()]
+               actual = round_trip[dataset][()]
+               np.testing.assert_array_equal(expected, actual)
+
+
+def test_specified_marker_failure():
+    """
+    Test that if the reference set is missing marker genes,
+    marker cache creation fails.
+    """
+
+    marker_lookup = dict()
+    marker_lookup['None'] = ['a', 'b', 'c']
+    marker_lookup['class/ClassA'] = ['d', 'e' ,'f']
+
+    query_gene_names = [n for n in 'abcdefghij']
+    reference_gene_names = [n for n in 'abcdfg']
+
+    with pytest.raises(RuntimeError, match='not in the reference'):
+        create_marker_cache_from_specified_markers(
+            marker_lookup=marker_lookup,
+            query_gene_names=query_gene_names,
+            reference_gene_names=reference_gene_names,
+            output_cache_path='garbage')

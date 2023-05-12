@@ -50,7 +50,9 @@ def plot_confusion_matrix(
         fontsize=20,
         title=None,
         is_log=False,
-        munge_ints=True):
+        munge_ints=True,
+        label_x_axis=True,
+        label_y_axis=True):
 
     img = np.zeros((len(label_order), len(label_order)), dtype=int)
     label_to_idx = {
@@ -100,16 +102,19 @@ def plot_confusion_matrix(
     for s in ('top', 'right', 'left', 'bottom'):
         axis.spines[s].set_visible(False)
 
-    axis.set_xlabel('mapped label', fontsize=fontsize)
-    axis.set_ylabel('true label', fontsize=fontsize)
+    if label_x_axis:
+        axis.set_xlabel('mapped label', fontsize=fontsize)
+    if label_y_axis:
+        axis.set_ylabel('true label', fontsize=fontsize)
+
     if title is not None:
         axis.set_title(title, fontsize=fontsize)
 
     tick_values = [ii for ii in range(len(thinned_labels))]
     axis.set_xticks(tick_values)
-    axis.set_xticklabels(thinned_labels, fontsize=7, rotation='vertical')
+    axis.set_xticklabels(thinned_labels, fontsize=15, rotation='vertical')
     axis.set_yticks(tick_values)
-    axis.set_yticklabels(thinned_labels, fontsize=7, rotation='horizontal')
+    axis.set_yticklabels(thinned_labels, fontsize=15, rotation='horizontal')
 
 
 
@@ -123,6 +128,18 @@ def summary_plots(
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
     results = json.load(open(classification_path, 'rb'))
+
+    n_cells = len(results['results'])
+    query_path = pathlib.Path(results['config']['query_path'])
+    query_path_str = f"{query_path.parent.name}/{query_path.name}"
+    reference_path = pathlib.Path(results['config']['precomputed_stats']['reference_path'])
+    reference_path_str = f"{reference_path.parent.name}/{reference_path.name}"
+
+    log = results['log']
+    timing_statements = []
+    for line in log:
+        if "RAN" in line or "BENCHMARK" in line:
+            timing_statements.append(line)
 
     results_lookup = {
         cell['cell_id']: cell for cell in results["results"]}
@@ -164,7 +181,47 @@ def summary_plots(
 
     obs = query_obs
 
-    for level in taxonomy_tree.hierarchy:
+    n_levels = len(taxonomy_tree.hierarchy)
+
+    grid_gap = 5
+    grid_height = 20
+    grid_width = 20
+    msg_width = 20
+
+    full_width = msg_width+2*(grid_height+grid_gap)+1
+    full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1
+    grid = gridspec.GridSpec(nrows=full_height, ncols=full_width)
+
+    grid.update(bottom=0.1, top=0.99, left=0.01, right=0.99,
+        wspace=0.1, hspace=0.01)
+
+    fig_width = np.ceil(full_width*0.5).astype(int)
+    fig_height = np.ceil(full_height*0.5).astype(int)
+    fig = mfig.Figure(figsize=(fig_width, fig_height), dpi=300)
+
+    axis_list = [
+        fig.add_subplot(grid[0:full_height, 0:msg_width])]
+
+    sub_axis_lists = []
+    for i_row in range(n_levels):
+        this_sub_list = []
+        r0 = i_row*grid_gap+i_row*grid_height
+        r1 = r0 + grid_height
+        assert r1 < full_height
+        for i_col in range(2):
+            c0 = msg_width+(i_col+1)*grid_gap+i_col*grid_width
+            c1 = c0 + grid_width
+            assert c1 < full_width
+            print(r0,r1,c0,c1)
+            this_axis = fig.add_subplot(grid[r0:r1, c0:c1])
+            this_sub_list.append(this_axis)
+            axis_list.append(this_axis)
+        sub_axis_lists.append(this_sub_list)
+
+    accuracy_statements = []
+    for i_level, level in enumerate(taxonomy_tree.hierarchy):
+
+        this_axis_list = sub_axis_lists[i_level]
         if level == taxonomy_tree.leaf_level:
             label_order = leaf_order
         else:
@@ -189,15 +246,6 @@ def summary_plots(
                 these_truth.append(
                     inverted_tree[level][gt_key])
 
-        fig = mfig.Figure(figsize=(25, 10), dpi=300)
-        grid = gridspec.GridSpec(nrows=20, ncols=60)
-        grid.update(bottom=0.1, top=0.99, left=0.01, right=0.99,
-            wspace=0.1, hspace=0.01)
-        axis_list = [
-            fig.add_subplot(grid[0:20, 0:10]),
-            fig.add_subplot(grid[0:20, 14:34]),
-            fig.add_subplot(grid[0:20, 38:58])]
-
         good = 0
         bad = 0
         for truth, experiment in zip(these_truth, these_experiments):
@@ -206,52 +254,67 @@ def summary_plots(
             else:
                 bad += 1
 
-        #msg = f"{classification_path.name}\n"
-        summary_name = f"{query_path.parent.name}/{query_path.name}"
-        msg = f"{summary_name}\n"
-        msg += f"{level}\n"
-        msg += f"=========\n"
-        msg += f"correctly mapped: {good}\n"
-        msg += f"incorrectly mapped: {bad}\n"
-        msg += f"fraction correct: {good/float(good+bad):.3e}"
+        msg = f"{level} correctly mapped: {good} -- {good/float(good+bad):.3e}"
+        accuracy_statements.append(f"{msg}\n")
+        print(msg)
 
-        print(f"{msg}\n")
-
-        axis_list[0].text(
-            5,
-            50,
-            msg,
-            fontsize=15)
-        axis_list[0].set_xlim((0, 100))
-        axis_list[0].set_ylim((0, 100))
-        for s in ('top', 'left', 'bottom', 'right'):
-            axis_list[0].spines[s].set_visible(False)
-        axis_list[0].tick_params(
-            axis='both', which='both', size=0, labelsize=0)
+        if i_level == (n_levels-1):
+            label_x_axis = True
+        else:
+            label_x_axis = False
 
         plot_confusion_matrix(
             figure=fig,
-            axis=axis_list[1],
+            axis=this_axis_list[0],
             true_labels=these_truth,
             experimental_labels=these_experiments,
             label_order=label_order,
             normalize_by='truth',
             fontsize=20,
             title=f"{level} normalized by true label",
-            is_log=is_log10)
+            is_log=is_log10,
+            label_x_axis=label_x_axis,
+            label_y_axis=True)
 
         plot_confusion_matrix(
             figure=fig,
-            axis=axis_list[2],
+            axis=this_axis_list[1],
             true_labels=these_truth,
             experimental_labels=these_experiments,
             label_order=label_order,
             normalize_by='experiment',
             fontsize=20,
             title=f"{level} normalized by mapped label",
-            is_log=is_log10)
+            is_log=is_log10,
+            label_x_axis=label_x_axis,
+            label_y_axis=False,)
 
-        pdf_handle.savefig(fig)
+    msg = f"query set: {query_path_str}\n"
+    msg += f"reference set: {reference_path_str}\n"
+    msg += f"{n_cells} query cells\n"
+    msg += "\naccuracy\n=========\n"
+    for line in accuracy_statements:
+        msg += line
+    msg += "\ntiming\n=========\n"
+    bmark_pattern = re.compile("BENCHMARK")
+    for line in timing_statements:
+        if "BENCHMARK" in line:
+            position = bmark_pattern.search(line)
+            line = line[position.start()+11:]
+        msg += line+"\n"
+
+    print(msg)
+    axis_list[0].text(
+       5, 100, msg, fontsize=20,
+       verticalalignment='top')
+    axis_list[0].set_ylim(0,110)
+    axis_list[0].set_xlim(0,100)
+    for s in ('top', 'left', 'bottom', 'right'):
+        axis_list[0].spines[s].set_visible(False)
+    axis_list[0].tick_params(
+        axis='both', which='both', size=0, labelsize=0)
+
+    pdf_handle.savefig(fig)
 
 def main():
     parser = argparse.ArgumentParser()

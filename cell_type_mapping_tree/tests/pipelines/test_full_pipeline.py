@@ -23,7 +23,7 @@ from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    create_marker_gene_cache_v2)
+    create_marker_cache_from_reference_markers)
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
@@ -91,7 +91,7 @@ def test_all_of_it(
         prefix='ref_and_query_markers_',
         suffix='.h5')
 
-    create_marker_gene_cache_v2(
+    create_marker_cache_from_reference_markers(
         output_cache_path=marker_cache_path,
         input_cache_path=ref_marker_path,
         query_gene_names=query_gene_names,
