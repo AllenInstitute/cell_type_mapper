@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.distance import cdist as scipy_cdist
 
 from hierarchical_mapping.utils.distance_utils import (
     correlation_distance,
@@ -41,6 +42,13 @@ def test_correlation_distance():
                 arr1=data1)
 
     assert actual.shape == (n0, n1)
+
+    scipy_expected = scipy_cdist(data0, data1, metric='correlation')
+    np.testing.assert_allclose(
+        actual,
+        scipy_expected,
+        atol=0.0,
+        rtol=1.0e-6)
 
     expected = np.zeros((n0, n1), dtype=float)
     for i0 in range(n0):
