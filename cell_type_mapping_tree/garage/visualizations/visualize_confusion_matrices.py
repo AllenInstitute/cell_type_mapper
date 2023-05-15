@@ -326,7 +326,9 @@ def main():
     args = parser.parse_args()
 
     input_dir = pathlib.Path(args.classification_dir)
-    input_path_list = [n for n in input_dir.iterdir() if n.name.endswith('result.json')]
+    input_path_list = [n for n in input_dir.iterdir()
+                       if n.name.endswith('result.json')
+                       or n.name.endswith('results.json')]
     input_path_list.sort()
 
     if not isinstance(args.ground_truth_column, list):
