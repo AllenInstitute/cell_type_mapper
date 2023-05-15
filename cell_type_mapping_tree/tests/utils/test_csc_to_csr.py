@@ -67,9 +67,9 @@ def test_csc_to_csr_on_disk(
         csc_fixture):
 
     csr_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
-    with h5py.File(csc_fixture, 'r') as src:
+    with h5py.File(csc_fixture, 'r') as original:
         csc_to_csr_on_disk(
-            csc_group=src['X'],
+            csc_group=original['X'],
             csr_path=csr_path,
             array_shape=x_array_fixture.shape,
             load_chunk_size=10000)

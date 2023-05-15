@@ -36,12 +36,12 @@ def csc_to_csr_on_disk(
             'data',
             shape=n_non_zero,
             dtype=csc_group['data'].dtype,
-            chunks=(min(n_non_zero, array_shape[1])))
+            chunks=(min(n_non_zero, array_shape[1]),))
         dst.create_dataset(
             'indices',
             shape=n_non_zero,
             dtype=index_dtype,
-            chunks=(min(n_non_zero, array_shape[1])))
+            chunks=(min(n_non_zero, array_shape[1]),))
 
     print(f"created empty csr matrix at {csr_path}")
 

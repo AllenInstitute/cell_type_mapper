@@ -9,8 +9,11 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.utils.csc_to_csr import (
+    csc_to_csr_on_disk)
+
 from hierarchical_mapping.utils.sparse_utils import (
-    load_csc)
+    load_csr)
 
 
 class AnnDataRowIterator(object):
@@ -91,7 +94,6 @@ class AnnDataRowIterator(object):
         else:
             with h5py.File(h5ad_path, 'r') as src:
                 attrs = dict(src['X'].attrs)
-                csc_dtype = src['X/data'].dtype
 
             if 'shape' not in attrs:
                 self._initialize_anndata_iterator(
@@ -108,61 +110,42 @@ class AnnDataRowIterator(object):
 
             t0 = time.time()
             print(f"transcribing {h5ad_path} to {self.tmp_path} "
-                  "as a dense array")
+                  "as a csr array")
 
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
-            one_mb = 1024**2
-            one_gb = 1024**3
-            rows_per_chunk = np.ceil(5*one_mb/(4*array_shape[1])).astype(int)
-            rows_per_chunk = max(1, rows_per_chunk)
-            cols_per_chunk = np.ceil(20*one_gb/(4*array_shape[0])).astype(int)
-            cols_per_chunk = max(1, cols_per_chunk)
+            with h5py.File(h5ad_path, 'r') as src:
+                csc_to_csr_on_disk(
+                    csc_group=src['X'],
+                    csr_path=self.tmp_path,
+                    array_shape=array_shape,
+                    load_chunk_size=2*1024**3)
 
-            rows_per_chunk = min(array_shape[0], rows_per_chunk)
-            cols_per_chunk = min(array_shape[1], cols_per_chunk)
-
-            print(f"rows_per_chunk {rows_per_chunk} cols {cols_per_chunk}")
-
-            with h5py.File(self.tmp_path, 'w') as dst:
-                dst_data = dst.create_dataset(
-                                'data',
-                                dtype=csc_dtype,
-                                shape=array_shape,
-                                chunks=(rows_per_chunk,
-                                        array_shape[1]))
-
-                print("created empty dataset")
-                with h5py.File(h5ad_path, 'r') as src:
-                    for c0 in range(0, array_shape[1], cols_per_chunk):
-                        c1 = min(array_shape[1], c0+cols_per_chunk)
-                        print(f"    col {c0}:{c1}")
-                        chunk = load_csc(
-                            col_spec=(c0, c1),
-                            n_rows=array_shape[0],
-                            data=src['X/data'],
-                            indices=src['X/indices'],
-                            indptr=src['X/indptr'])
-                        dst_data[:, c0:c1] = chunk
-
-            self._iterator_type = 'dense'
-            self._chunk_iterator = DenseIterator(
+            self._iterator_type = 'CSRRow'
+            self._chunk_iterator = CSRRowIterator(
                 h5_path=self.tmp_path,
-                row_chunk_size=row_chunk_size)
+                row_chunk_size=row_chunk_size,
+                array_shape=array_shape)
 
             duration = time.time()-t0
             print(f"transcription took {duration:.2e} seconds")
 
 
-class DenseIterator(object):
+class CSRRowIterator(object):
 
-    def __init__(self, h5_path, row_chunk_size):
+    def __init__(self, h5_path, row_chunk_size, array_shape):
         self.h5_path = h5_path
         self.h5_handle = None
         self.row_chunk_size = row_chunk_size
         self.r0 = 0
+        self.n_rows = array_shape[0]
+        self.n_cols = array_shape[1]
         self.h5_handle = h5py.File(h5_path, 'r', swmr=True)
-        self.n_rows = self.h5_handle['data'].shape[0]
+
+    def __del__(self):
+        if self.h5_handle is not None:
+            self.h5_handle.close()
+            self.h5_handle = None
 
     def __next__(self):
         if self.r0 >= self.n_rows:
@@ -171,12 +154,14 @@ class DenseIterator(object):
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
-        chunk = self.h5_handle['data'][self.r0:r1, :]
+
+        chunk = load_csr(
+            row_spec=(self.r0, r1),
+            n_cols=self.n_cols,
+            data=self.h5_handle['data'],
+            indices=self.h5_handle['indices'],
+            indptr=self.h5_handle['indptr'])
+
         old_r0 = self.r0
         self.r0 = r1
         return (chunk, old_r0, r1)
-
-    def __del__(self):
-        if self.h5_handle is not None:
-            self.h5_handle.close()
-            self.h5_handle = None
