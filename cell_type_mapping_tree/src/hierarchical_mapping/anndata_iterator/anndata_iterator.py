@@ -113,13 +113,16 @@ class AnnDataRowIterator(object):
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
             one_mb = 1024**2
+            one_gb = 1024**3
             rows_per_chunk = np.ceil(5*one_mb/(4*array_shape[1])).astype(int)
             rows_per_chunk = max(1, rows_per_chunk)
-            cols_per_chunk = np.ceil(50*one_mb/(4*array_shape[0])).astype(int)
+            cols_per_chunk = np.ceil(20*one_gb/(4*array_shape[0])).astype(int)
             cols_per_chunk = max(1, cols_per_chunk)
 
             rows_per_chunk = min(array_shape[0], rows_per_chunk)
             cols_per_chunk = min(array_shape[1], cols_per_chunk)
+
+            print(f"rows_per_chunk {rows_per_chunk} cols {cols_per_chunk}")
 
             with h5py.File(self.tmp_path, 'w') as dst:
                 dst_data = dst.create_dataset(
@@ -129,9 +132,11 @@ class AnnDataRowIterator(object):
                                 chunks=(rows_per_chunk,
                                         array_shape[1]))
 
+                print("created empty dataset")
                 with h5py.File(h5ad_path, 'r') as src:
                     for c0 in range(0, array_shape[1], cols_per_chunk):
                         c1 = min(array_shape[1], c0+cols_per_chunk)
+                        print(f"    col {c0}:{c1}")
                         chunk = load_csc(
                             col_spec=(c0, c1),
                             n_rows=array_shape[0],
