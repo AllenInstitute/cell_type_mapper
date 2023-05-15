@@ -1,0 +1,139 @@
+import pytest
+
+import anndata
+import h5py
+import numpy as np
+import pathlib
+import scipy.sparse as scipy_sparse
+
+from hierarchical_mapping.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
+
+from hierarchical_mapping.anndata_iterator.anndata_iterator import (
+    AnnDataIterator)
+
+
+@pytest.fixture
+def tmp_dir_fixture(
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('anndata_iterator'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
+
+
+@pytest.fixture
+def x_array_fixture():
+    rng = np.random.default_rng(88123)
+    n_rows = 1123
+    n_cols = 432
+    data = np.zeros(n_rows*n_cols, dtype=np.float32)
+    chosen = rng.choice(
+        np.arange(len(data)),
+        len(data)//3,
+        replace=False)
+    data[chosen] = rng.random(len(chosen))
+    data = data.reshape((n_rows, n_cols))
+    return data
+
+
+@pytest.fixture
+def csr_fixture(
+        tmp_dir_fixture,
+        x_array_fixture):
+
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='csr_',
+            suffix='.h5ad'))
+
+    a = anndata.AnnData(
+            X=scipy_sparse.csr_matrix(x_array_fixture))
+    a.write_h5ad(h5ad_path)
+    with h5py.File(h5ad_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+    assert attrs['encoding-type'] == 'csr_matrix'
+    return h5ad_path
+
+
+@pytest.fixture
+def csc_fixture(
+        tmp_dir_fixture,
+        x_array_fixture):
+
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='csr_',
+            suffix='.h5ad'))
+
+    a = anndata.AnnData(
+            X=scipy_sparse.csc_matrix(x_array_fixture))
+    a.write_h5ad(h5ad_path)
+    with h5py.File(h5ad_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+    assert attrs['encoding-type'] == 'csc_matrix'
+    return h5ad_path
+
+
+@pytest.fixture
+def dense_fixture(
+        tmp_dir_fixture,
+        x_array_fixture):
+
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='csr_',
+            suffix='.h5ad'))
+
+    a = anndata.AnnData(
+            X=x_array_fixture)
+    a.write_h5ad(h5ad_path)
+
+    with h5py.File(h5ad_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+    assert attrs['encoding-type'] == 'array'
+    return h5ad_path
+
+
+@pytest.mark.parametrize(
+    'use', ['csr', 'csc', 'dense'])
+def test_anndata_iterator(
+        x_array_fixture,
+        csr_fixture,
+        csc_fixture,
+        dense_fixture,
+        use):
+    if use == 'csr':
+        fpath = csr_fixture
+        tmp_dir = None
+    elif use == 'csc':
+        fpath = csc_fixture
+        tmp_dir = None
+    elif use == 'dense':
+        fpath = dense_fixture
+        tmp_dir = None
+    else:
+        raise RuntimeError(
+            f"use={use} makese no sense")
+
+    chunk_size = 123
+
+    iterator = AnnDataIterator(
+        h5ad_path=fpath,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
+
+    n_rows = x_array_fixture.shape[0]
+    for i0, chunk in zip(range(0, n_rows, chunk_size),
+                         iterator):
+        i1 = min(n_rows, i0+chunk_size)
+        np.testing.assert_allclose(
+            chunk,
+            x_array_fixture[i0:i1, :],
+            atol=0.0,
+            rtol=1.0e-7)
+        
