@@ -136,11 +136,14 @@ def test_anndata_row_iterator(
         tmp_dir=tmp_dir)
 
     n_rows = x_array_fixture.shape[0]
+    assert iterator.n_rows == n_rows
     for i0, chunk in zip(range(0, n_rows, chunk_size),
                          iterator):
         i1 = min(n_rows, i0+chunk_size)
+        assert chunk[1] == i0
+        assert chunk[2] == i1
         np.testing.assert_allclose(
-            chunk,
+            chunk[0],
             x_array_fixture[i0:i1, :],
             atol=0.0,
             rtol=1.0e-7)

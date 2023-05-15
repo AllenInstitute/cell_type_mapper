@@ -62,14 +62,18 @@ class AnnDataRowIterator(object):
     def __next__(self):
         result = next(self._chunk_iterator)
         if self._iterator_type == 'anndata':
+            r0 = result[1]
+            r1 = result[2]
             result = result[0]
             if not isinstance(result, np.ndarray):
                 result = result.toarray()
+            result = (result, r0, r1)
         return result
 
     def _initialize_anndata_iterator(self, h5ad_path, row_chunk_size):
         self._iterator_type = 'anndata'
         data = anndata.read_h5ad(h5ad_path, backed='r')
+        self.n_rows = data.X.shape[0]
         self._chunk_iterator = data.chunked_X(
             chunk_size=row_chunk_size)
 
@@ -105,6 +109,7 @@ class AnnDataRowIterator(object):
                   "as a dense array")
 
             array_shape = attrs['shape']
+            self.n_rows = array_shape[0]
             one_mb = 1024**2
             rows_per_chunk = np.ceil(5*one_mb/(4*array_shape[1])).astype(int)
             rows_per_chunk = max(1, rows_per_chunk)
@@ -122,7 +127,7 @@ class AnnDataRowIterator(object):
                                 chunks=(rows_per_chunk,
                                         array_shape[1]))
 
-                with h5py.File(h5ad_path, 'r', swmr=True) as src:
+                with h5py.File(h5ad_path, 'r') as src:
                     for c0 in range(0, array_shape[1], cols_per_chunk):
                         c1 = min(array_shape[1], c0+cols_per_chunk)
                         chunk = load_csc(
@@ -157,8 +162,9 @@ class DenseIterator(object):
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
         chunk = self.h5_handle['data'][self.r0:r1, :]
+        old_r0 = self.r0
         self.r0 = r1
-        return chunk
+        return (chunk, old_r0, r1)
 
     def __del__(self):
         if self.h5_handle is not None:

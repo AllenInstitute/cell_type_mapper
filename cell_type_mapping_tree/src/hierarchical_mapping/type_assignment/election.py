@@ -1,4 +1,4 @@
-import anndata
+from anndata._io.specs import read_elem
 import h5py
 import json
 import multiprocessing
@@ -21,6 +21,9 @@ from hierarchical_mapping.type_assignment.matching import (
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
+from hierarchical_mapping.anndata_iterator.anndata_iterator import (
+    AnnDataRowIterator)
+
 
 def run_type_assignment_on_h5ad(
         query_h5ad_path,
@@ -32,7 +35,8 @@ def run_type_assignment_on_h5ad(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        tmp_dir=None):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -80,6 +84,11 @@ def run_type_assignment_on_h5ad(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
 
+    tmp_dir:
+       Optional directory where query data will be rewritten
+       for faster row iteration (if query data is in the form
+       of a CSC matrix)
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -102,16 +111,22 @@ def run_type_assignment_on_h5ad(
             all_query_identifiers[ii]
             for ii in in_file["all_query_markers"][()]]
 
-    a_data = anndata.read_h5ad(query_h5ad_path, backed='r')
-    query_cell_names = list(a_data.obs_names)
-    chunk_iterator = a_data.chunked_X(chunk_size=chunk_size)
+    with h5py.File(query_h5ad_path, 'r') as src:
+        obs = read_elem(src['obs'])
+        query_cell_names = list(obs.index.values)
+        del obs
+
+    chunk_iterator = AnnDataRowIterator(
+        h5ad_path=query_h5ad_path,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
 
     process_list = []
     mgr = multiprocessing.Manager()
     output_list = mgr.list()
     output_lock = mgr.Lock()
 
-    tot_rows = a_data.X.shape[0]
+    tot_rows = chunk_iterator.n_rows
     row_ct = 0
     t0 = time.time()
 
@@ -120,10 +135,9 @@ def run_type_assignment_on_h5ad(
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
-        if isinstance(chunk[0], np.ndarray):
-            data = chunk[0]
-        else:
-            data = chunk[0].toarray()
+
+        data = chunk[0]
+
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
