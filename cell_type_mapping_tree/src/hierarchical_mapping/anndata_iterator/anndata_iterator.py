@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 import pathlib
 import tempfile
+import time
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -105,6 +106,7 @@ class AnnDataRowIterator(object):
                     prefix=f"{h5ad_path.name}_as_dense_",
                     suffix=".h5"))
 
+            t0 = time.time()
             print(f"transcribing {h5ad_path} to {self.tmp_path} "
                   "as a dense array")
 
@@ -142,6 +144,9 @@ class AnnDataRowIterator(object):
             self._chunk_iterator = DenseIterator(
                 h5_path=self.tmp_path,
                 row_chunk_size=row_chunk_size)
+
+            duration = time.time()-t0
+            print(f"transcription took {duration:.2e} seconds")
 
 
 class DenseIterator(object):
