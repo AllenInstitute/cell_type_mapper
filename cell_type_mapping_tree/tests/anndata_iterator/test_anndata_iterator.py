@@ -11,7 +11,7 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.anndata_iterator.anndata_iterator import (
-    AnnDataIterator)
+    AnnDataRowIterator)
 
 
 @pytest.fixture
@@ -100,29 +100,37 @@ def dense_fixture(
 
 
 @pytest.mark.parametrize(
-    'use', ['csr', 'csc', 'dense'])
-def test_anndata_iterator(
+    'use, with_tmp',
+    [('csr', False),
+     ('csc', False),
+     ('csc', True),
+     ('dense', False)])
+def test_anndata_row_iterator(
         x_array_fixture,
         csr_fixture,
         csc_fixture,
         dense_fixture,
-        use):
+        tmp_dir_fixture,
+        use,
+        with_tmp):
     if use == 'csr':
         fpath = csr_fixture
-        tmp_dir = None
     elif use == 'csc':
         fpath = csc_fixture
-        tmp_dir = None
     elif use == 'dense':
         fpath = dense_fixture
-        tmp_dir = None
     else:
         raise RuntimeError(
             f"use={use} makese no sense")
 
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
     chunk_size = 123
 
-    iterator = AnnDataIterator(
+    iterator = AnnDataRowIterator(
         h5ad_path=fpath,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir)
