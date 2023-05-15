@@ -591,7 +591,7 @@ def _stats_from_marker_counts(
     max_genes = genes_per_pair.max()
     n_zero = (genes_per_pair == 0).sum()
     lt_5 = (genes_per_pair < 5).sum()
-    lt_15 = (genes_per_pair < 10).sum()
+    lt_15 = (genes_per_pair < 15).sum()
     lt_30 = (genes_per_pair < 30).sum()
     msg = f"genes per pair {min_genes} {med_genes} {max_genes} "
     msg += f"n_zero {n_zero:.2e} n_lt_5 {lt_5:.2e} "
