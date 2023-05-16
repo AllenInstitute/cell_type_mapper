@@ -50,23 +50,30 @@ class AnnDataRowIterator(object):
 
         with h5py.File(h5ad_path, 'r') as in_file:
             attrs = dict(in_file['X'].attrs)
-        if attrs['encoding-type'].startswith('csr'):
-            self._initialize_anndata_iterator(
-                h5ad_path=h5ad_path,
-                row_chunk_size=row_chunk_size)
-        elif attrs['encoding-type'].startswith('array'):
-            self._initialize_anndata_iterator(
-                h5ad_path=h5ad_path,
-                row_chunk_size=row_chunk_size)
-        elif attrs['encoding-type'].startswith('csc'):
+            array_shape = None
+            encoding_type = ''
+            if 'shape' in attrs:
+                array_shape = attrs['shape']
+            if 'encoding-type' in attrs:
+                encoding_type = attrs['encoding-type']
+
+        if encoding_type.startswith('csr') and array_shape is not None:
+            self._iterator_type = 'CSRRow'
+            self.n_rows = array_shape[0]
+            self._chunk_iterator = CSRRowIterator(
+                h5_path=h5ad_path,
+                row_chunk_size=row_chunk_size,
+                array_shape=array_shape,
+                h5_group='X')
+        elif encoding_type.startswith('csc'):
             self._initialize_as_csc(
                 h5ad_path=h5ad_path,
                 row_chunk_size=row_chunk_size,
                 tmp_dir=tmp_dir)
         else:
-            raise RuntimeError(
-                "AnnDataRowIterator cannot handle encoding\n"
-                f"{attrs}")
+            self._initialize_anndata_iterator(
+                h5ad_path=h5ad_path,
+                row_chunk_size=row_chunk_size)
 
     def __del__(self):
         if self.tmp_dir is not None:
@@ -196,13 +203,17 @@ class CSRRowIterator(object):
         Number of rows to return with each chunk
     array_shape:
         Shape of the array we are iterating over
+    h5_group:
+        Optional group in the HDF5 file where you will find
+        'data', 'indices' and 'indptr'
     """
 
     def __init__(
             self,
             h5_path,
             row_chunk_size,
-            array_shape):
+            array_shape,
+            h5_group=None):
 
         self.h5_path = h5_path
         self.h5_handle = None
@@ -210,7 +221,16 @@ class CSRRowIterator(object):
         self.r0 = 0
         self.n_rows = array_shape[0]
         self.n_cols = array_shape[1]
-        self.h5_handle = h5py.File(h5_path, 'r', swmr=True)
+        self.h5_handle = h5py.File(h5_path, 'r')
+
+        if h5_group is None:
+            self.data_key = 'data'
+            self.indices_key = 'indices'
+            self.indptr_key = 'indptr'
+        else:
+            self.data_key = f'{h5_group}/data'
+            self.indices_key = f'{h5_group}/indices'
+            self.indptr_key = f'{h5_group}/indptr'
 
     def __del__(self):
         if self.h5_handle is not None:
@@ -236,9 +256,9 @@ class CSRRowIterator(object):
         chunk = load_csr(
             row_spec=(self.r0, r1),
             n_cols=self.n_cols,
-            data=self.h5_handle['data'],
-            indices=self.h5_handle['indices'],
-            indptr=self.h5_handle['indptr'])
+            data=self.h5_handle[self.data_key],
+            indices=self.h5_handle[self.indices_key],
+            indptr=self.h5_handle[self.indptr_key])
 
         old_r0 = self.r0
         self.r0 = r1
