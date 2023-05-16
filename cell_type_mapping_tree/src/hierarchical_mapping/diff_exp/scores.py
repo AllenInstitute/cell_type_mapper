@@ -140,7 +140,6 @@ def score_all_taxonomy_pairs(
             gene_names=gene_names,
             rank_dtype=rank_dtype)
 
-    print("starting to score")
     t0 = time.time()
 
     idx_values = list(idx_to_pair.keys())
@@ -673,14 +672,11 @@ def score_differential_genes(
     pij_1 = stats_1['gt1']/max(1, stats_1['n_cells'])
     pij_2 = stats_2['gt1']/max(1, stats_2['n_cells'])
 
-    q1_valid = np.logical_or(
-        (pij_1 > q1_th),
-        (pij_2 > q1_th))
-
-    denom = np.where(pij_1 > pij_2, pij_1, pij_2)
-    denom = np.where(denom > 0.0, denom, 1.0)
-    qdiff_score = np.abs(pij_1-pij_2)/denom
-    qdiff_valid = (qdiff_score > qdiff_th)
+    penetrance_mask = penetrance_tests(
+        pij_1=pij_1,
+        pij_2=pij_2,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th)
 
     log2_fold = np.log2(fold_change)
     fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
@@ -688,10 +684,8 @@ def score_differential_genes(
     validity_mask = np.logical_and(
         pvalue_valid,
         np.logical_and(
-            q1_valid,
-            np.logical_and(
-                qdiff_valid,
-                fold_valid)))
+            penetrance_mask,
+            fold_valid))
 
     up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
     up_mask[stats_2["mean"] > stats_1["mean"]] = 1
@@ -738,6 +732,44 @@ def diffexp_p_values(
 
     pvalues = correct_ttest(pvalues)
     return pvalues
+
+
+def penetrance_tests(
+        pij_1,
+        pij_2,
+        q1_th,
+        qdiff_th):
+    """
+    Perform penetrance test on marker genes
+
+    Parameters
+    ----------
+    pij_1:
+        (n_genes,) array representing what fraction of
+        cells in cluster one are expressed > 1 for the gene
+    pij_2:
+        ditto for cluster 2
+    q1_th:
+        At least one cluster must have a penetrance
+        greater than this to pass
+    qdiff_th:
+        differential penetrance must be greater than
+        this to pass
+
+    Returns
+    -------
+    penentrance_mask:
+        (n_genes,) array of booleans that pass both tests
+    """
+    q1_valid = np.logical_or(
+        (pij_1 > q1_th),
+        (pij_2 > q1_th))
+
+    denom = np.where(pij_1 > pij_2, pij_1, pij_2)
+    denom = np.where(denom > 0.0, denom, 1.0)
+    qdiff_score = np.abs(pij_1-pij_2)/denom
+    qdiff_valid = (qdiff_score > qdiff_th)
+    return np.logical_and(qdiff_valid, q1_valid)
 
 
 def diffexp_score(
