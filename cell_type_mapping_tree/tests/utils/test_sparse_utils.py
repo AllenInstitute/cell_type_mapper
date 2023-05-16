@@ -14,6 +14,7 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.utils.sparse_utils import(
     load_csr,
+    load_csc,
     load_csr_chunk,
     merge_csr,
     _load_disjoint_csr,
@@ -65,6 +66,54 @@ def test_load_csr():
             np.testing.assert_array_equal(
                 subset,
                 data[r0:r1, :])
+
+    _clean_up(tmp_path)
+
+
+def test_load_csc():
+    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+
+    rng = np.random.default_rng(5656213)
+
+    data = np.zeros(60000, dtype=int)
+    chosen_dex = rng.choice(np.arange(len(data)),
+                            len(data)//4,
+                            replace=False)
+
+    data[chosen_dex] = rng.integers(2, 1000, len(chosen_dex))
+    data = data.reshape((200, 300))
+
+    csc = scipy_sparse.csc_matrix(data)
+    ann = anndata.AnnData(csc, dtype=int)
+    ann.write_zarr(tmp_path)
+
+    with zarr.open(tmp_path, 'r') as written_zarr:
+        for c0 in range(0, 250, 47):
+            c1 = min(300, c0+47)
+            subset = load_csc(
+                        col_spec=(c0, c1),
+                        n_rows=data.shape[0],
+                        data=written_zarr.X.data,
+                        indices=written_zarr.X.indices,
+                        indptr=written_zarr.X.indptr)
+            np.testing.assert_array_equal(
+                subset,
+                data[:, c0:c1])
+
+        for ii in range(10):
+            c0 = rng.integers(3, 50)
+            c1 = min(data.shape[1], c0+rng.integers(17, 81))
+
+            subset = load_csc(
+                col_spec=(c0, c1),
+                n_rows=data.shape[0],
+                data=written_zarr.X.data,
+                indices=written_zarr.X.indices,
+                indptr=written_zarr.X.indptr)
+
+            np.testing.assert_array_equal(
+                subset,
+                data[:, c0:c1])
 
     _clean_up(tmp_path)
 

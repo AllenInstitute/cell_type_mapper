@@ -19,8 +19,8 @@ def load_csr(
 
     (data,
      indices,
-     indptr) = _load_csr(
-                    row_spec=row_spec,
+     indptr) = _load_sparse(
+                    indptr_spec=row_spec,
                     data=data,
                     indices=indices,
                     indptr=indptr)
@@ -31,6 +31,32 @@ def load_csr(
                 indptr=indptr,
                 n_rows=row_spec[1]-row_spec[0],
                 n_cols=n_cols)
+
+
+def load_csc(
+        col_spec,
+        n_rows,
+        data,
+        indices,
+        indptr):
+    """
+    Return a dense matrix from a subset of csc columns
+    """
+
+    (data,
+     indices,
+     indptr) = _load_sparse(
+                    indptr_spec=col_spec,
+                    data=data,
+                    indices=indices,
+                    indptr=indptr)
+
+    return _csc_to_dense(
+                data=data,
+                indices=indices,
+                indptr=indptr,
+                n_cols=col_spec[1]-col_spec[0],
+                n_rows=n_rows)
 
 
 def load_csr_chunk(
@@ -44,8 +70,8 @@ def load_csr_chunk(
     """
     (data,
      indices,
-     indptr) = _load_csr(
-                    row_spec=row_spec,
+     indptr) = _load_sparse(
+                    indptr_spec=row_spec,
                     data=data,
                     indices=indices,
                     indptr=indptr)
@@ -90,8 +116,8 @@ def _load_disjoint_csr(
         t0 = time.time()
         (this_data,
          this_indices,
-         this_indptr) = _load_csr(
-                             row_spec=row_chunk,
+         this_indptr) = _load_sparse(
+                             indptr_spec=row_chunk,
                              data=data,
                              indices=indices,
                              indptr=indptr)
@@ -128,19 +154,21 @@ def _load_disjoint_csr(
     return final_data, final_indices, final_indptr
 
 
-def _load_csr(
-        row_spec,
+def _load_sparse(
+        indptr_spec,
         data,
         indices,
         indptr):
     """
-    Load a subset of rows from a matrix stored as a
-    csr matrix (probably in zarr format).
+    Load a subset of rows/columns from a sparse matrix
+    (probably in zarr format).
 
     Parameters
     ----------
-    row_spec:
-        A tuple of the form (row_min, row_max)
+    indptr_spec:
+        A tuple of the form (indptr_min, indptr_max).
+        For a CSR matrix, indptr_min/max will be rows.
+        For a CSC matrix, indptr_min/max will be columns.
 
     data:
         The data matrix (as in scipy.sparse.csr_matrix().data)
@@ -155,7 +183,7 @@ def _load_csr(
     -------
     The appropriate slices of data, indices, indptr
     """
-    these_ptrs = indptr[row_spec[0]:row_spec[1]+1]
+    these_ptrs = indptr[indptr_spec[0]:indptr_spec[1]+1]
     index0 = these_ptrs[0]
     index1 = these_ptrs[-1]
     these_indices = indices[index0:index1]
@@ -199,6 +227,46 @@ def _csr_to_dense(
         n_cols = len(these_cols)
         result[iptr, these_cols] = data[data_idx:data_idx+n_cols]
         data_idx += n_cols
+
+    return result
+
+
+def _csc_to_dense(
+        data,
+        indices,
+        indptr,
+        n_rows,
+        n_cols):
+    """
+    Return a dense matrix from a csc sparse matrix specification
+
+    Parameters
+    ----------
+    data:
+        The data matrix (as in scipy.sparse.csc_matrix().data)
+
+    indices:
+        The indices matrix (as in scipy.sparse.csc_matrix().indices)
+
+    indptr:
+        The indptr matrix (as in scipy.sparse.csc_matrix().indptr)
+
+    n_rows:
+        Number of rows in the dense matrix
+
+    n_cols:
+        Number of columns in the dense matrix
+    """
+
+    result = np.zeros((n_rows, n_cols),
+                      dtype=data.dtype)
+
+    data_idx = 0
+    for iptr in range(len(indptr)-1):
+        these_rows = indices[indptr[iptr]:indptr[iptr+1]]
+        n_rows = len(these_rows)
+        result[these_rows, iptr] = data[data_idx:data_idx+n_rows]
+        data_idx += n_rows
 
     return result
 

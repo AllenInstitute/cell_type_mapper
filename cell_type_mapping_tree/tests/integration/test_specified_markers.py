@@ -170,8 +170,10 @@ def test_mapping_from_markers(
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
-    # surprised this works for results; not sure we can count on the
-    # order to be the same...
-    for k in ('results', 'marker_genes'):
-        assert actual[k] == expected[k]
+    assert actual['marker_genes'] == expected['marker_genes']
+    actual_lookup = {
+        cell['cell_id']:cell for cell in actual['results']}
+    for cell in expected['results']:
+        assert cell == actual_lookup[cell['cell_id']]
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
+    assert len(actual['results']) == len(expected['results'])
