@@ -1,9 +1,11 @@
-from anndata._io.specs import read_elem
 import h5py
 import json
 import multiprocessing
 import numpy as np
 import time
+
+from hierarchical_mapping.utils.anndata_utils import (
+    read_df_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
@@ -111,10 +113,9 @@ def run_type_assignment_on_h5ad(
             all_query_identifiers[ii]
             for ii in in_file["all_query_markers"][()]]
 
-    with h5py.File(query_h5ad_path, 'r') as src:
-        obs = read_elem(src['obs'])
-        query_cell_names = list(obs.index.values)
-        del obs
+    obs = read_df_from_h5ad(query_h5ad_path, 'obs')
+    query_cell_names = list(obs.index.values)
+    del obs
 
     chunk_iterator = AnnDataRowIterator(
         h5ad_path=query_h5ad_path,
