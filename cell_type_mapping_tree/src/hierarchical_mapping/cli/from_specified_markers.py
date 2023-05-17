@@ -180,7 +180,8 @@ def _run_mapping(config, tmp_dir, log):
         marker_lookup=marker_lookup,
         reference_gene_names=reference_gene_names,
         query_gene_names=query_gene_names,
-        output_cache_path=query_marker_tmp)
+        output_cache_path=query_marker_tmp,
+        log=log)
 
     log.benchmark(msg="creating query marker cache",
                   duration=time.time()-t0)

@@ -39,6 +39,8 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     serialize_markers,
     write_query_markers_to_h5)
 
+from hierarchical_mapping.cli.cli_log import CommandLog
+
 
 @pytest.fixture
 def tmp_dir_fixture(
@@ -583,18 +585,20 @@ def get_all_datasets(h5_handle, current_grp=None):
 
 
 @pytest.mark.parametrize(
-    "n_clip, provoke_warning",
-    [(0, True),
-     (0, False),
-     (7, True),
-     (7, False)])
+    "n_clip, provoke_warning, use_log",
+    [(0, True, False),
+     (0, False, False),
+     (7, True, False),
+     (7, False, False),
+     (0, True, True)])
 def test_marker_serialization_roundtrip(
          marker_cache_fixture,
          gene_names_fixture,
          taxonomy_tree_fixture,
          tmp_dir_fixture,
          n_clip,
-         provoke_warning):
+         provoke_warning,
+         use_log):
     """
     Test that we get the same result back when writing a
     marker cache from specified markers.
@@ -673,6 +677,11 @@ def test_marker_serialization_roundtrip(
 
     round_trip_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
 
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
+
     if provoke_warning:
         with pytest.warns(UserWarning,
                           match="not present in the query dataset"):
@@ -681,7 +690,14 @@ def test_marker_serialization_roundtrip(
                 marker_lookup=shuffled_serialization,
                 query_gene_names=query_gene_names,
                 reference_gene_names=reference_gene_names,
-                output_cache_path=round_trip_path)
+                output_cache_path=round_trip_path,
+                log=log)
+        if use_log:
+            found_warning = False
+            for l in log._log:
+                if "not present in the query dataset" in l:
+                    found_warning = True
+            assert found_warning
     else:
         create_marker_cache_from_specified_markers(
             marker_lookup=shuffled_serialization,

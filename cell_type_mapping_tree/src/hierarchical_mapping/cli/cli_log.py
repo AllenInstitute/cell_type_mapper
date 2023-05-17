@@ -1,5 +1,6 @@
 import json
 import time
+import warnings
 
 
 class CommandLog(object):
@@ -19,6 +20,12 @@ class CommandLog(object):
     def info(self, msg):
         full_msg = self._prepend_time(msg)
         print(msg)
+        self._log.append(full_msg)
+
+    def warn(self, msg):
+        warnings.warn(msg)
+        msg = f"WARNING: {msg}"
+        full_msg = self._prepend_time(msg)
         self._log.append(full_msg)
 
     def benchmark(self, msg, duration):

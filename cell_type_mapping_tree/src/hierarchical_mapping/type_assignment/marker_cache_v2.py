@@ -92,7 +92,8 @@ def create_marker_cache_from_specified_markers(
         marker_lookup,
         reference_gene_names,
         query_gene_names,
-        output_cache_path):
+        output_cache_path,
+        log=None):
     """
     Write marker genes to HDF5 file
 
@@ -107,6 +108,8 @@ def create_marker_cache_from_specified_markers(
         Ordered list of genes in query dataset
     output_cache_path:
         Path to HDF5 file that will be written
+    log:
+        Optional object to log messages/warnings for CLI
 
     Notes
     -----
@@ -134,7 +137,10 @@ def create_marker_cache_from_specified_markers(
         msg = "The following marker genes are not "
         msg += "in the reference dataset\n"
         msg += f"{missing_reference_markers}\n"
-        raise RuntimeError(msg)
+        if log is None:
+            raise RuntimeError(msg)
+        else:
+            log.error(msg)
 
     write_query_markers_to_h5(
         marker_lookup=final_marker_lookup,
@@ -148,7 +154,10 @@ def create_marker_cache_from_specified_markers(
         msg = "The following marker genes were not present "
         msg += f"in the query dataset\n{missing_query_markers}\n"
         msg += "They have been ignored"
-        warnings.warn(msg)
+        if log is None:
+            warnings.warn(msg)
+        else:
+            log.warn(msg)
 
     duration = (time.time()-t0)/3600.0
     print(f"created {output_cache_path} in {duration:.2e} hours")
