@@ -70,6 +70,8 @@ def run_type_assignment_on_h5ad(
 
     chunk_size:
         Number of rows (cells) to process at a time.
+        Note: if this is larger than n_rows/n_processors,
+        then this will get changed to n_rows/n_processors
 
     bootstrap_factor:
         Fraction (<=1.0) by which to sampel the marker gene set
@@ -106,16 +108,19 @@ def run_type_assignment_on_h5ad(
          ...}
     """
 
+    obs = read_df_from_h5ad(query_h5ad_path, 'obs')
+    query_cell_names = list(obs.index.values)
+    n_rows = len(obs)
+    max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
+    chunk_size = min(max_chunk_size, chunk_size)
+    del obs
+
     with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
         all_query_identifiers = json.loads(
             in_file["query_gene_names"][()].decode("utf-8"))
         all_query_markers = [
             all_query_identifiers[ii]
             for ii in in_file["all_query_markers"][()]]
-
-    obs = read_df_from_h5ad(query_h5ad_path, 'obs')
-    query_cell_names = list(obs.index.values)
-    del obs
 
     chunk_iterator = AnnDataRowIterator(
         h5ad_path=query_h5ad_path,
