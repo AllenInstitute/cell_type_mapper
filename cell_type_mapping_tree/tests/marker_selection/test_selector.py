@@ -655,6 +655,9 @@ def test_marker_serialization_roundtrip(
     extra_genes = []
     for k in src_serialization:
         markers = src_serialization[k]
+        if len(markers) == 0:
+            shuffled_serialization[k] = markers
+            continue
         if provoke_warning:
             for ii in range(3):
                 new_name = f'so_much_garbage_{ct_nonsense}'
@@ -667,6 +670,8 @@ def test_marker_serialization_roundtrip(
         ct_markers += len(markers)
 
     assert ct_markers > 0
+    if provoke_warning:
+        assert ct_nonsense > 0
 
     with h5py.File(marker_cache_fixture, 'r') as src:
         reference_gene_names = json.loads(
@@ -742,3 +747,76 @@ def test_specified_marker_failure():
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
             output_cache_path='garbage')
+
+
+@pytest.mark.parametrize('use_log', [True, False])
+def test_specified_marker_empty_parent(
+        use_log,
+        tmp_dir_fixture):
+    """
+    Test that, when all of the markers for a given parent are missing
+    from the query set, a warning is emitted and all of the query
+    genes are used.
+    """
+    tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+    reference_gene_names = ['a', 'b', 'c', 'd', 'e']
+    query_gene_names = ['e', 'a', 'b']
+    marker_lookup = {
+        'pa': ['a', 'b'],
+        'pb': ['b', 'c', 'e'],
+        'pc': ['c', 'd']}
+
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
+
+    with pytest.warns(UserWarning, match='No markers at parent node'):
+        create_marker_cache_from_specified_markers(
+            marker_lookup=marker_lookup,
+            reference_gene_names=reference_gene_names,
+            query_gene_names=query_gene_names,
+            output_cache_path=tmp_path,
+            log=log)
+        if log is not None:
+            found_warning = False
+            for l in log._log:
+                if 'No markers at parent node' in l:
+                    found_warning = True
+            assert found_warning
+
+            # check for the final warning summarizing all the
+            # missing marker genes
+            found_warning = False
+            for l in log._log:
+                if 'The following marker genes' in l:
+                    found_warning = True
+            assert found_warning
+
+    with h5py.File(tmp_path, 'r') as src:
+        np.testing.assert_array_equal(
+            src['pa/reference'][()],
+            np.array([0, 1]))
+
+        np.testing.assert_array_equal(
+            src['pa/query'][()],
+            np.array([1, 2]))
+
+        np.testing.assert_array_equal(
+            src['pb/reference'][()],
+            np.array([1, 4]))
+
+        np.testing.assert_array_equal(
+            src['pb/query'][()],
+            np.array([2, 0]))
+
+        # all the query genes, since the markers
+        # specified for this parent are not
+        # in the query set
+        np.testing.assert_array_equal(
+            src['pc/reference'][()],
+            np.array([0, 1, 4]))
+
+        np.testing.assert_array_equal(
+            src['pc/query'][()],
+            np.array([1, 2, 0]))

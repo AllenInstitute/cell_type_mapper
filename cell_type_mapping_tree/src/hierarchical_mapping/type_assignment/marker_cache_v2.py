@@ -123,9 +123,21 @@ def create_marker_cache_from_specified_markers(
     final_marker_lookup = dict()
     missing_query_markers = set()
     missing_reference_markers = set()
-    for k in marker_lookup:
-        marker_set = set(marker_lookup[k])
-        final_marker_lookup[k] = list(marker_set.intersection(query_gene_set))
+    for parent_node in marker_lookup:
+        marker_set = set(marker_lookup[parent_node])
+        these_markers = list(marker_set.intersection(query_gene_set))
+
+        if len(these_markers) == 0 and len(marker_set) > 0:
+            these_markers = list(query_gene_set)
+            msg = f"No markers at parent node '{parent_node}' were present "
+            msg += f"in query set. Using all {len(query_gene_set)} "
+            msg += "query genes at this node"
+            if log is None:
+                warnings.warn(msg)
+            else:
+                log.warn(msg)
+
+        final_marker_lookup[parent_node] = these_markers
         missing_query_markers = missing_query_markers.union(
             marker_set-query_gene_set)
         missing_reference_markers = missing_reference_markers.union(
