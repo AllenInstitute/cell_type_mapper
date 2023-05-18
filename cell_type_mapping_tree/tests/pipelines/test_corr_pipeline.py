@@ -18,11 +18,8 @@ from hierarchical_mapping.taxonomy.utils import (
 from hierarchical_mapping.corr.correlate_cells import (
     correlate_cells)
 
-from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
-    contiguous_zarr_from_h5ad)
-
-from hierarchical_mapping.diff_exp.precompute import (
-    precompute_summary_stats_from_contiguous_zarr)
+from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
 
 
 def test_correlation_pipeline_smoketest(
@@ -33,24 +30,18 @@ def test_correlation_pipeline_smoketest(
 
     tmp_dir = pathlib.Path(
             tmp_path_factory.mktemp('corr_pipeline'))
-    zarr_path = tmp_dir / 'as_zarr.zarr'
     precompute_path = tmp_dir / 'precomputed.h5'
     corr_path = tmp_dir / 'corr.h5'
 
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=column_hierarchy,
-        zarr_chunks=100000,
-        n_processors=3)
-
     assert not precompute_path.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
-        rows_at_a_time=1000,
-        n_processors=3)
+        rows_at_a_time=1000)
+
 
     assert precompute_path.is_file()
     assert not corr_path.is_file()
