@@ -1,19 +1,6 @@
 import json
 import h5py
-import multiprocessing
 import numpy as np
-import os
-import pathlib
-import tempfile
-import time
-
-from hierarchical_mapping.utils.utils import (
-    print_timing,
-    _clean_up)
-
-from hierarchical_mapping.utils.multiprocessing_utils import (
-    DummyLock,
-    winnow_process_list)
 
 from hierarchical_mapping.utils.stats_utils import (
     welch_t_test,

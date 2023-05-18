@@ -1,14 +1,5 @@
-import h5py
-import json
 import numpy as np
-import multiprocessing
 
-from hierarchical_mapping.utils.multiprocessing_utils import (
-    winnow_process_list,
-    DummyLock)
-
-from hierarchical_mapping.corr.utils import (
-    match_genes)
 
 def create_utility_array(
         marker_gene_array,
