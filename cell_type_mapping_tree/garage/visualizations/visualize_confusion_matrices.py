@@ -188,7 +188,7 @@ def summary_plots(
     grid_width = 20
     msg_width = 20
 
-    full_width = msg_width+2*(grid_height+grid_gap)+1
+    full_width = msg_width+3*(grid_height+grid_gap)+1
     full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1
     grid = gridspec.GridSpec(nrows=full_height, ncols=full_width)
 
@@ -218,6 +218,14 @@ def summary_plots(
             axis_list.append(this_axis)
         sub_axis_lists.append(this_sub_list)
 
+    c0 = msg_width+3*grid_gap+2*grid_width
+    c1 = c0 + grid_width
+    histogram_axis = fig.add_subplot(
+        grid[0:grid_height, c0:c1])
+
+    good_confidence = []
+    bad_confidence = []
+
     accuracy_statements = []
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
 
@@ -233,6 +241,7 @@ def summary_plots(
 
         these_experiments = []
         these_truth = []
+        these_cells = []
         for cell_id, ground_truth in zip(obs.index.values,
                                          obs[ground_truth_column].values):
             if munge_ints:
@@ -241,6 +250,7 @@ def summary_plots(
                 gt_key = f"{ground_truth}"
 
             if gt_key in inverted_tree[level]:
+                these_cells.append(cell_id)
                 these_experiments.append(
                     results_lookup[cell_id][level]['assignment'])
                 these_truth.append(
@@ -248,11 +258,22 @@ def summary_plots(
 
         good = 0
         bad = 0
-        for truth, experiment in zip(these_truth, these_experiments):
+        for cell_id, truth, experiment in zip(these_cells,
+                                              these_truth,
+                                              these_experiments):
+            if level == taxonomy_tree.leaf_level:
+                cell = results_lookup[cell_id]
+                confidence = 1.0
+                for l in taxonomy_tree.hierarchy:
+                    confidence *= cell[l]['confidence']
             if truth == experiment:
                 good += 1
+                if level == taxonomy_tree.leaf_level:
+                    good_confidence.append(confidence)
             else:
                 bad += 1
+                if level == taxonomy_tree.leaf_level:
+                    bad_confidence.append(confidence)
 
         msg = f"{level} correctly mapped: {good} -- {good/float(good+bad):.3e}"
         accuracy_statements.append(f"{msg}\n")
@@ -313,6 +334,16 @@ def summary_plots(
         axis_list[0].spines[s].set_visible(False)
     axis_list[0].tick_params(
         axis='both', which='both', size=0, labelsize=0)
+
+    print(
+        f"good_confidence {np.mean(good_confidence)} +/- {np.std(good_confidence)}")
+    print(
+        f"bad_confidence {np.mean(bad_confidence)} +/- {np.std(bad_confidence)}")
+    histogram_axis.hist(good_confidence, bins=100, density=True,
+                        zorder=0, color='b', label='correct')
+    histogram_axis.hist(bad_confidence, bins=100, density=True,
+                        zorder=1, alpha=0.7, color='r', label='incorrect')
+    histogram_axis.legend(loc=0, fontsize=20)
 
     pdf_handle.savefig(fig)
 
