@@ -16,6 +16,9 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
+
 from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
@@ -23,21 +26,13 @@ from hierarchical_mapping.taxonomy.utils import (
     get_all_leaf_pairs)
 
 from hierarchical_mapping.diff_exp.scores import (
-    diffexp_score,
-    score_all_taxonomy_pairs,
-    rank_genes)
+    diffexp_score)
 
-from hierarchical_mapping.zarr_creation.zarr_from_h5ad import (
-    contiguous_zarr_from_h5ad)
+from hierarchical_mapping.diff_exp.markers import (
+    find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.diff_exp.precompute import (
-    precompute_summary_stats_from_contiguous_zarr)
-
-from hierarchical_mapping.marker_selection.utils import (
-    select_marker_genes)
-
-from hierarchical_mapping.type_assignment.marker_cache import (
-    create_marker_gene_cache)
+from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+    create_marker_cache_from_reference_markers)
 
 from hierarchical_mapping.type_assignment.matching import (
     get_leaf_means,
@@ -79,33 +74,27 @@ def test_running_single_election(
         genes_to_keep = None
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    zarr_path = tmp_dir / 'zarr.zarr'
     hdf5_tmp = tmp_dir / 'hdf5'
     hdf5_tmp.mkdir()
     score_path = tmp_dir / 'score_results.h5'
     marker_cache_path = tmp_dir / 'marker_cache.h5'
 
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=column_hierarchy,
-        zarr_chunks=100000,
-        n_processors=3)
-
     precompute_path = tmp_dir / 'precomputed.h5'
     assert not precompute_path.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
-        rows_at_a_time=1000,
-        n_processors=3)
+        rows_at_a_time=10000,
+        normalization="log2CPM")
 
     assert precompute_path.is_file()
 
-    metadata = json.load(
-            open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree = TaxonomyTree(data=metadata["taxonomy_tree"])
+    with h5py.File(precompute_path, 'r') as src:
+        taxonomy_tree = TaxonomyTree.from_str(
+            src['taxonomy_tree'][()].decode('utf-8'))
 
     assert not score_path.is_file()
 
@@ -114,14 +103,13 @@ def test_running_single_election(
     flush_every = 11
     n_processors = 3
 
-    score_all_taxonomy_pairs(
-            precomputed_stats_path=precompute_path,
-            taxonomy_tree=taxonomy_tree,
-            output_path=score_path,
-            flush_every=flush_every,
-            n_processors=n_processors,
-            keep_all_stats=keep_all_stats,
-            genes_to_keep=genes_to_keep)
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
+        output_path=score_path,
+        flush_every=flush_every,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir)
 
     assert score_path.is_file()
 
@@ -139,12 +127,12 @@ def test_running_single_election(
 
     genes_per_pair = 7
 
-    create_marker_gene_cache(
-        cache_path=marker_cache_path,
-        score_path=score_path,
+    create_marker_cache_from_reference_markers(
+        output_cache_path=marker_cache_path,
+        input_cache_path=score_path,
         query_gene_names=query_genes,
         taxonomy_tree=taxonomy_tree,
-        marker_genes_per_pair=genes_per_pair,
+        n_per_utility=genes_per_pair,
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
@@ -222,29 +210,22 @@ def test_running_full_election(
     hdf5_tmp.mkdir()
     score_path = tmp_dir / 'score_results.h5'
     marker_cache_path = tmp_dir / 'marker_cache.h5'
-
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=column_hierarchy,
-        zarr_chunks=100000,
-        n_processors=3)
-
     precompute_path = tmp_dir / 'precomputed.h5'
-    assert not precompute_path.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
-        rows_at_a_time=1000,
-        n_processors=3)
+        rows_at_a_time=10000,
+        normalization="log2CPM")
 
     assert precompute_path.is_file()
 
-    metadata = json.load(
-            open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree_dict = metadata["taxonomy_tree"]
-    taxonomy_tree = TaxonomyTree(data=metadata["taxonomy_tree"])
+    with h5py.File(precompute_path, 'r') as src:
+        taxonomy_tree_dict = json.loads(
+            src['taxonomy_tree'][()].decode('utf-8'))
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     assert not score_path.is_file()
 
@@ -253,14 +234,13 @@ def test_running_full_election(
     flush_every = 11
     n_processors = 3
 
-    score_all_taxonomy_pairs(
-            precomputed_stats_path=precompute_path,
-            taxonomy_tree=taxonomy_tree,
-            output_path=score_path,
-            flush_every=flush_every,
-            n_processors=n_processors,
-            keep_all_stats=keep_all_stats,
-            genes_to_keep=genes_to_keep)
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
+        output_path=score_path,
+        flush_every=flush_every,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir)
 
     assert score_path.is_file()
 
@@ -278,12 +258,12 @@ def test_running_full_election(
 
     genes_per_pair = 7
 
-    create_marker_gene_cache(
-        cache_path=marker_cache_path,
-        score_path=score_path,
+    create_marker_cache_from_reference_markers(
+        output_cache_path=marker_cache_path,
+        input_cache_path=score_path,
         query_gene_names=query_genes,
         taxonomy_tree=taxonomy_tree,
-        marker_genes_per_pair=genes_per_pair,
+        n_per_utility=genes_per_pair,
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
@@ -358,33 +338,25 @@ def test_running_flat_election(
         genes_to_keep = None
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    zarr_path = tmp_dir / 'zarr.zarr'
     hdf5_tmp = tmp_dir / 'hdf5'
     hdf5_tmp.mkdir()
     score_path = tmp_dir / 'score_results.h5'
     marker_cache_path = tmp_dir / 'marker_cache.h5'
-
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=column_hierarchy,
-        zarr_chunks=100000,
-        n_processors=3)
-
     precompute_path = tmp_dir / 'precomputed.h5'
     assert not precompute_path.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
-        rows_at_a_time=1000,
-        n_processors=3)
+        rows_at_a_time=10000,
+        normalization="log2CPM")
 
     assert precompute_path.is_file()
 
-    metadata = json.load(
-            open(zarr_path / 'metadata.json', 'rb'))
-    raw_tree = metadata["taxonomy_tree"]
+    with h5py.File(precompute_path, 'r') as src:
+        raw_tree = json.loads(src['taxonomy_tree'][()].decode('utf-8'))
 
     taxonomy_tree = dict()
     leaf_level = raw_tree['hierarchy'][-1]
@@ -402,14 +374,13 @@ def test_running_flat_election(
     flush_every = 11
     n_processors = 3
 
-    score_all_taxonomy_pairs(
-            precomputed_stats_path=precompute_path,
-            taxonomy_tree=taxonomy_tree,
-            output_path=score_path,
-            flush_every=flush_every,
-            n_processors=n_processors,
-            keep_all_stats=keep_all_stats,
-            genes_to_keep=genes_to_keep)
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
+        output_path=score_path,
+        flush_every=flush_every,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir)
 
     assert score_path.is_file()
 
@@ -427,12 +398,12 @@ def test_running_flat_election(
 
     genes_per_pair = 7
 
-    create_marker_gene_cache(
-        cache_path=marker_cache_path,
-        score_path=score_path,
+    create_marker_cache_from_reference_markers(
+        output_cache_path=marker_cache_path,
+        input_cache_path=score_path,
         query_gene_names=query_genes,
         taxonomy_tree=taxonomy_tree,
-        marker_genes_per_pair=genes_per_pair,
+        n_per_utility=genes_per_pair,
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
@@ -487,34 +458,29 @@ def test_running_h5ad_election(
     n_selection_processors = 4
 
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    zarr_path = tmp_dir / 'zarr.zarr'
     hdf5_tmp = tmp_dir / 'hdf5'
     hdf5_tmp.mkdir()
     score_path = tmp_dir / 'score_results.h5'
     marker_cache_path = tmp_dir / 'marker_cache.h5'
 
-    contiguous_zarr_from_h5ad(
-        h5ad_path=h5ad_path_fixture,
-        zarr_path=zarr_path,
-        taxonomy_hierarchy=column_hierarchy,
-        zarr_chunks=100000,
-        n_processors=3)
 
     precompute_path = tmp_dir / 'precomputed.h5'
     assert not precompute_path.is_file()
 
-    precompute_summary_stats_from_contiguous_zarr(
-        zarr_path=zarr_path,
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
         output_path=precompute_path,
-        rows_at_a_time=1000,
-        n_processors=3)
+        rows_at_a_time=10000,
+        normalization="log2CPM")
 
     assert precompute_path.is_file()
 
-    metadata = json.load(
-            open(zarr_path / 'metadata.json', 'rb'))
-    taxonomy_tree_dict = metadata["taxonomy_tree"]
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+    with h5py.File(precompute_path, 'r') as src:
+        taxonomy_tree_dict = json.loads(
+            src['taxonomy_tree'][()].decode('utf-8'))
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     assert not score_path.is_file()
 
@@ -523,14 +489,13 @@ def test_running_h5ad_election(
     flush_every = 11
     n_processors = 3
 
-    score_all_taxonomy_pairs(
-            precomputed_stats_path=precompute_path,
-            taxonomy_tree=taxonomy_tree,
-            output_path=score_path,
-            flush_every=flush_every,
-            n_processors=n_processors,
-            keep_all_stats=False,
-            genes_to_keep=genes_to_keep)
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
+        output_path=score_path,
+        flush_every=flush_every,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir)
 
     assert score_path.is_file()
 
@@ -559,12 +524,12 @@ def test_running_h5ad_election(
 
     genes_per_pair = 7
 
-    create_marker_gene_cache(
-        cache_path=marker_cache_path,
-        score_path=score_path,
+    create_marker_cache_from_reference_markers(
+        output_cache_path=marker_cache_path,
+        input_cache_path=score_path,
         query_gene_names=query_genes,
         taxonomy_tree=taxonomy_tree,
-        marker_genes_per_pair=genes_per_pair,
+        n_per_utility=genes_per_pair,
         n_processors=n_selection_processors)
 
     assert marker_cache_path.is_file()
