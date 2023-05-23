@@ -150,6 +150,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
     buffer_dict['sumsq'] = np.zeros((n_clusters, n_genes), dtype=float)
     buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
     buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
+    buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
 
     t0 = time.time()
     print(f"chunking through {data_path}")

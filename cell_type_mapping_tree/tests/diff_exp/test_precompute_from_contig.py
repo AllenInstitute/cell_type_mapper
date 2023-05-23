@@ -141,6 +141,10 @@ def raw_x_fixture(ncols, nrows):
                             replace=False)
     data[chosen_dex] = rng.random(len(chosen_dex))*10000.0
     data = data.reshape((nrows, ncols))
+    # set one row to have a CPM = 1 gene
+    data[5, : ] =0
+    data[5, 16] = 999999
+    data[5, 12] = 1
     return data
 
 
@@ -201,7 +205,8 @@ def baseline_stats_fixture(
                 "sum": np.zeros(ncols, dtype=float),
                 "sumsq": np.zeros(ncols, dtype=float),
                 "gt0": np.zeros(ncols, dtype=int),
-                "gt1": np.zeros(ncols, dtype=int)}
+                "gt1": np.zeros(ncols, dtype=int),
+                "ge1": np.zeros(ncols, dtype=int)}
         results[cluster]["n_cells"] += 1
         results[cluster]["sum"] += x_fixture[i_row, :]
         results[cluster]["sumsq"] += x_fixture[i_row, :]**2
@@ -210,6 +215,8 @@ def baseline_stats_fixture(
                 results[cluster]["gt0"][i_col] += 1
                 if x_fixture[i_row, i_col] > 1:
                     results[cluster]["gt1"][i_col] += 1
+                if x_fixture[i_row, i_col] >= 1:
+                    results[cluster]["ge1"][i_col] += 1
     return results
 
 
@@ -270,7 +277,9 @@ def test_precompute_from_data(
         sumsq_data = in_file["sumsq"][()]
         gt0 = in_file["gt0"][()]
         gt1 = in_file["gt1"][()]
+        ge1 = in_file["ge1"][()]
 
+    assert not np.array_equal(gt1, ge1)
     assert len(cluster_to_row) == len(baseline_stats_fixture)
     for cluster in cluster_to_row:
         idx = cluster_to_row[cluster]
@@ -292,6 +301,10 @@ def test_precompute_from_data(
         np.testing.assert_array_equal(
             gt1[idx, :],
             baseline_stats_fixture[cluster]["gt1"])
+
+        np.testing.assert_array_equal(
+            ge1[idx, :],
+            baseline_stats_fixture[cluster]["ge1"])
 
         assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
 

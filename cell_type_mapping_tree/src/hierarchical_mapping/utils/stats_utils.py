@@ -27,6 +27,8 @@ def summary_stats_for_chunk(
               how many cells have expression > 0 CPM
         'gt1' is a (n_genes,) array indicating
               how many cells have expression > 1 CPM
+        'ge1' is a (n_genes,) array indicating
+              how many cells have expression >= 1 CPM
     """
     if not cell_x_gene.normalization == 'log2CPM':
         raise RuntimeError(
@@ -35,6 +37,7 @@ def summary_stats_for_chunk(
 
     zero_cutoff = 0.0  # log2(CPM+1) with CPM=0
     one_cutoff = 1.0  # log2(CPM+1) with CPM=1
+    eps = 1.0e-6  # for float comparisons
 
     result = dict()
     data = cell_x_gene.data
@@ -43,6 +46,7 @@ def summary_stats_for_chunk(
     result['sumsq'] = (data**2).sum(axis=0)
     result['gt0'] = (data > zero_cutoff).sum(axis=0)
     result['gt1'] = (data > one_cutoff).sum(axis=0)
+    result['ge1'] = (data > one_cutoff-eps).sum(axis=0)
     return result
 
 
