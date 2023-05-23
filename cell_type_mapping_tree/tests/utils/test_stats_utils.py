@@ -54,12 +54,12 @@ def test_summary_stats_for_chunk():
     assert actual['gt0'].shape == (ncols,)
     assert actual['gt0'].sum() > 0
     assert actual['gt0'].sum() < nrows*ncols
-    np.testing.assert_array_equal(actual['gt0'], (cpm_data>0).sum(axis=0))
+    np.testing.assert_array_equal(actual['gt0'], (raw_data>0).sum(axis=0))
 
     assert actual['gt1'].shape == (ncols,)
     assert actual['gt1'].sum() > 0
     assert actual['gt1'].sum() < nrows*ncols
-    np.testing.assert_array_equal(actual['gt1'], (cpm_data>1).sum(axis=0))
+    np.testing.assert_array_equal(actual['gt1'], (raw_data>1).sum(axis=0))
 
 
 def test_welch_t_test():
