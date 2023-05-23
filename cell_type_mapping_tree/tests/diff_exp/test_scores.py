@@ -35,6 +35,9 @@ def data_fixture(leaf_node_fixture, n_genes):
         data = 2.0*rng.random((n_cells, n_genes))
         zeroed_out = (rng.random((n_cells, n_genes))>0.85)
         data[zeroed_out] = 0.0
+        data[
+            rng.integers(0, n_cells),
+            rng.integers(0, n_genes)] = 1.0
         result[node] = data
     return result
 
@@ -61,6 +64,7 @@ def precomputed_stats_fixture(
         these_stats['sumsq'] = (data**2).sum(axis=0)
         these_stats['gt0'] = (data>0).sum(axis=0)
         these_stats['gt1'] = (data>1).sum(axis=0)
+        these_stats['ge1'] = (data>=1).sum(axis=0)
         these_stats['n_cells'] = n_cells
         these_stats['data'] = data
         result[node] = these_stats
@@ -95,9 +99,12 @@ def test_aggregate_stats(
 
     expected_gt0 = (data_arr>0).sum(axis=0)
     expected_gt1 = (data_arr>1).sum(axis=0)
+    expected_ge1 = (data_arr>=1).sum(axis=0)
 
     np.testing.assert_array_equal(actual['gt0'], expected_gt0)
     np.testing.assert_array_equal(actual['gt1'], expected_gt1)
+    np.testing.assert_array_equal(actual['ge1'], expected_ge1)
+    assert not np.array_equal(expected_gt1, expected_ge1)
 
 
 def test_score_diff_smoke(

@@ -78,13 +78,15 @@ def summary_stats_fixture(
             'sum': n_a*a_mean,
             'sumsq': np.zeros(n_genes),
             'gt1': np.zeros(n_genes, dtype=int),
-            'gt0': np.zeros(n_genes, dtype=int)},
+            'gt0': np.zeros(n_genes, dtype=int),
+            'ge1': np.zeros(n_genes, dtype=int)},
         'b':{
             'n_cells': n_b,
             'sum': n_b*b_mean,
             'sumsq': np.zeros(n_genes),
             'gt1': np.zeros(n_genes, dtype=int),
-            'gt0': np.zeros(n_genes, dtype=int)}}
+            'gt0': np.zeros(n_genes, dtype=int),
+            'ge1': np.zeros(n_genes, dtype=int)}}
     return result
 
 
