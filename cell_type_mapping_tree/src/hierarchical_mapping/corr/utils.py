@@ -3,7 +3,8 @@ import numpy as np
 
 def match_genes(
         reference_gene_names,
-        query_gene_names):
+        query_gene_names,
+        marker_gene_names=None):
     """
     Find the genes that overlap between a baseline dataset
     and a query data set.
@@ -15,6 +16,9 @@ def match_genes(
 
     query_gene_names:
         List of gene names from the query data set
+
+    marker_gene_names:
+        If not None, only match genes that are in this list
 
     Returns
     -------
@@ -29,7 +33,13 @@ def match_genes(
     """
     reference_set = set(reference_gene_names)
     query_set = set(query_gene_names)
-    shared_set = list(reference_set.intersection(query_set))
+    shared_set = reference_set.intersection(query_set)
+
+    if marker_gene_names is not None:
+        shared_set = shared_set.intersection(set(marker_gene_names))
+
+    shared_set = list(shared_set)
+
     shared_set.sort()
 
     result = {

@@ -36,3 +36,29 @@ def test_match_genes(
     else:
         assert len(actual['reference']) == 0
         assert len(actual['query']) == 0
+
+
+def test_match_genes_with_markers():
+    result = match_genes(
+        reference_gene_names=['a', 'e', 'b', 'c', 'd', 'f'],
+        query_gene_names=['b', 'f', 'e', 'h', 'i', 'c'],
+        marker_gene_names=['e', 'c'])
+
+    np.testing.assert_array_equal(
+        result['reference'],
+        np.array([3, 1]))
+    np.testing.assert_array_equal(
+        result['query'],
+        np.array([5, 2]))
+
+    result = match_genes(
+        reference_gene_names=['a', 'e', 'b', 'c', 'd', 'f'],
+        query_gene_names=['b', 'f', 'e', 'h', 'i', 'c'],
+        marker_gene_names=['x', 'y'])
+
+    np.testing.assert_array_equal(
+        result['reference'],
+        np.array([]))
+    np.testing.assert_array_equal(
+        result['query'],
+        np.array([]))

@@ -47,27 +47,26 @@ def correlate_cells(
 
     if marker_gene_list is not None:
         marker_gene_set = set(marker_gene_list)
-        query_genes = [q
-                       for q in query_genes
-                       if q in marker_gene_set]
+        query_gene_set = set(query_genes)
 
-        if len(query_genes) == 0:
+        if len(query_gene_set.intersection(marker_gene_set)) == 0:
             raise RuntimeError(
                 f"No marker genes appeared in query file {query_path}")
-
-    row_iterator = AnnDataRowIterator(
-        h5ad_path=query_path,
-        row_chunk_size=rows_at_a_time,
-        tmp_dir=tmp_dir)
-
-    n_query_rows = row_iterator.n_rows
 
     with h5py.File(precomputed_path, 'r') as reference_file:
         reference_genes = json.loads(
             reference_file['col_names'][()].decode('utf-8'))
+
+        if marker_gene_list is not None:
+            if len(set(reference_genes).intersection(marker_gene_set)) == 0:
+                raise RuntimeError(
+                    "No marker genes in reference genes\n"
+                    f"precomputed file path: {precomputed_path}")
+
         gene_idx = match_genes(
                         reference_gene_names=reference_genes,
-                        query_gene_names=query_genes)
+                        query_gene_names=query_genes,
+                        marker_gene_names=marker_gene_list)
 
         if len(gene_idx['reference']) == 0:
             raise RuntimeError(
@@ -80,18 +79,26 @@ def correlate_cells(
         reference_profiles = reference_profiles.transpose()
 
         n_clusters = reference_profiles.shape[0]
+        cluster_to_row_data = reference_file['cluster_to_row'][()]
 
-        with h5py.File(output_path, 'w') as out_file:
-            out_file.create_dataset(
-                'cluster_to_col',
-                data=reference_file['cluster_to_row'][()])
+    row_iterator = AnnDataRowIterator(
+        h5ad_path=query_path,
+        row_chunk_size=rows_at_a_time,
+        tmp_dir=tmp_dir)
 
-            out_file.create_dataset(
-                output_key,
-                shape=(n_query_rows, n_clusters),
-                dtype=float,
-                chunks=(min(1000, n_query_rows),
-                        min(1000, n_clusters)))
+    n_query_rows = row_iterator.n_rows
+
+    with h5py.File(output_path, 'w') as out_file:
+        out_file.create_dataset(
+            'cluster_to_col',
+            data=cluster_to_row_data)
+
+        out_file.create_dataset(
+            output_key,
+            shape=(n_query_rows, n_clusters),
+            dtype=float,
+            chunks=(min(1000, n_query_rows),
+                    min(1000, n_clusters)))
 
     print("starting correlation")
     t0 = time.time()
