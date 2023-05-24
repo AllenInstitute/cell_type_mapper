@@ -9,6 +9,9 @@ from hierarchical_mapping.utils.anndata_utils import (
 from hierarchical_mapping.utils.utils import (
     print_timing)
 
+from hierarchical_mapping.anndata_iterator.anndata_iterator import (
+    AnnDataRowIterator)
+
 from hierarchical_mapping.utils.distance_utils import (
     correlation_dot)
 
@@ -18,16 +21,14 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
-from hierarchical_mapping.utils.sparse_utils import (
-    load_csr)
-
 
 def correlate_cells(
         query_path,
         precomputed_path,
         output_path,
         rows_at_a_time=100000,
-        n_processors=4):
+        n_processors=4,
+        tmp_dir=None):
     """
     query_path is the path to the h5ad file containing the query cells
 
@@ -41,11 +42,12 @@ def correlate_cells(
 
     query_genes = _get_query_genes(query_path)
 
-    with h5py.File(query_path, 'r') as query_file:
+    row_iterator = AnnDataRowIterator(
+        h5ad_path=query_path,
+        row_chunk_size=rows_at_a_time,
+        tmp_dir=tmp_dir)
 
-        query_indptr = query_file['X/indptr'][()]
-        n_query_rows = len(query_indptr)-1
-        n_query_cols = len(query_genes)
+    n_query_rows = row_iterator.n_rows
 
     with h5py.File(precomputed_path, 'r') as reference_file:
         reference_genes = json.loads(
@@ -86,15 +88,11 @@ def correlate_cells(
     mgr = multiprocessing.Manager()
     output_lock = mgr.Lock()
 
-    for r0 in range(0, n_query_rows, rows_at_a_time):
-        r1 = min(n_query_rows, r0+rows_at_a_time)
-        with h5py.File(query_path, 'r') as query_file:
-            query_chunk = load_csr(
-                    row_spec=(r0, r1),
-                    n_cols=n_query_cols,
-                    data=query_file['X/data'],
-                    indices=query_file['X/indices'],
-                    indptr=query_indptr)
+    for query_chunk_meta in row_iterator:
+
+        query_chunk = query_chunk_meta[0]
+        r0 = query_chunk_meta[1]
+        r1 = query_chunk_meta[2]
 
         query_chunk = query_chunk[:, gene_idx['query']]
 
