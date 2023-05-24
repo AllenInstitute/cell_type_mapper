@@ -26,6 +26,7 @@ def correlate_cells(
         query_path,
         precomputed_path,
         output_path,
+        marker_gene_list=None,
         rows_at_a_time=100000,
         n_processors=4,
         tmp_dir=None):
@@ -34,6 +35,8 @@ def correlate_cells(
 
     precomputed_path is the path to the precomputed stats file
 
+    marker_gene_list is an optional list of marker gene identifiers
+
     output_path is the path to the HDF5 file that will be written
     correlating cells with clusters
     """
@@ -41,6 +44,16 @@ def correlate_cells(
     output_key = 'correlation'
 
     query_genes = _get_query_genes(query_path)
+
+    if marker_gene_list is not None:
+        marker_gene_set = set(marker_gene_list)
+        query_genes = [q
+                       for q in query_genes
+                       if q in marker_gene_set]
+
+        if len(query_genes) == 0:
+            raise RuntimeError(
+                f"No marker genes appeared in query file {query_path}")
 
     row_iterator = AnnDataRowIterator(
         h5ad_path=query_path,

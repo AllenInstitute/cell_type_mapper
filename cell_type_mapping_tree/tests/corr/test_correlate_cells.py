@@ -187,6 +187,21 @@ def expected_corr_fixture(
     assert valid > 0
     return expected
 
+def test_correlate_cells_no_markers(
+        h5ad_fixture,
+        precomputed_fixture,
+        expected_corr_fixture,
+        tmp_path_factory):
+
+    with pytest.raises(RuntimeError, match="No marker genes appeared"):
+        correlate_cells(
+            query_path=h5ad_fixture,
+            precomputed_path=precomputed_fixture,
+            output_path='junk.h5',
+            rows_at_a_time=51,
+            n_processors=3,
+            marker_gene_list=['nope_1', 'nada_2', 'zilch_9'])
+
 
 def test_correlate_cells_function(
         h5ad_fixture,
