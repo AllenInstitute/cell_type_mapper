@@ -1,8 +1,10 @@
-import anndata
 import h5py
 import json
 import multiprocessing
 import time
+
+from hierarchical_mapping.utils.anndata_utils import (
+    read_df_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
@@ -172,6 +174,5 @@ def _correlate_chunk(
 
 
 def _get_query_genes(query_path):
-    a_data = anndata.read_h5ad(query_path, backed='r')
-    n = list(a_data.var_names)
-    return n
+    var = read_df_from_h5ad(query_path, 'var')
+    return list(var.index.values)
