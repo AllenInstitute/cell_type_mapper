@@ -13,13 +13,74 @@ from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 from hierarchical_mapping.utils.distance_utils import (
-    correlation_dot)
+    correlation_dot,
+    correlation_nearest_neighbors)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from hierarchical_mapping.corr.utils import (
     match_genes)
+
+
+def flatmap_cells(
+        query_path,
+        precomputed_path,
+        marker_gene_list=None,
+        rows_at_a_time=100000,
+        n_processors=4,
+        tmp_dir=None):
+    """
+    query_path is the path to the h5ad file containing the query cells
+
+    precomputed_path is the path to the precomputed stats file
+
+    marker_gene_list is an optional list of marker gene identifiers
+
+    Returns list of dicts like
+        {'assignment': cluster_name,
+         'confidence': confidence_value,
+         'cell_id': cell_id}
+    """
+
+    (reference_profiles,
+     cluster_to_row_lookup,
+     gene_idx,
+     cell_id_list,
+     row_iterator) = _prep_data(
+                         query_path=query_path,
+                         precomputed_path=precomputed_path,
+                         marker_gene_list=marker_gene_list,
+                         rows_at_a_time=rows_at_a_time,
+                         tmp_dir=tmp_dir)
+
+    row_to_cluster_lookup = {
+        cluster_to_row_lookup[n]: n
+        for n in cluster_to_row_lookup.keys()}
+
+    result = []
+
+    for query_chunk_meta in row_iterator:
+
+        query_chunk = query_chunk_meta[0]
+        r0 = query_chunk_meta[1]
+        r1 = query_chunk_meta[2]
+
+        query_chunk = query_chunk[:, gene_idx['query']]
+
+        (cluster_idx,
+         correlation_values) = correlation_nearest_neighbors(
+                 baseline_array=reference_profiles,
+                 query_array=query_chunk,
+                 return_correlation=True)
+        for idx, corr, cell_id in zip(cluster_idx,
+                                      correlation_values,
+                                      cell_id_list[r0:r1]):
+            this = {'cell_id': cell_id,
+                    'assignment': row_to_cluster_lookup[idx],
+                    'confidence': corr}
+            result.append(this)
+    return result
 
 
 def correlate_cells(
@@ -46,6 +107,7 @@ def correlate_cells(
     (reference_profiles,
      cluster_to_row_lookup,
      gene_idx,
+     _,
      row_iterator) = _prep_data(
                          query_path=query_path,
                          precomputed_path=precomputed_path,
@@ -164,6 +226,11 @@ def _get_query_genes(query_path):
     return list(var.index.values)
 
 
+def _get_query_cell_id(query_path):
+    obs = read_df_from_h5ad(query_path, 'obs')
+    return list(obs.index.values)
+
+
 def _prep_data(
         precomputed_path,
         query_path,
@@ -193,6 +260,8 @@ def _prep_data(
         an (n_clusters, n_genes) array
     cluster_to_row_lookup
         dict mapping cluster name to row index
+    cell_id:
+        list of cell ids
     gene_idx
         dict
 
@@ -236,6 +305,8 @@ def _prep_data(
 
     reference_profiles = reference_profiles[:, gene_idx['reference']]
 
+    cell_id_list = _get_query_cell_id(query_path)
+
     row_iterator = AnnDataRowIterator(
         h5ad_path=query_path,
         row_chunk_size=rows_at_a_time,
@@ -244,6 +315,7 @@ def _prep_data(
     return (reference_profiles,
             cluster_to_row_lookup,
             gene_idx,
+            cell_id_list,
             row_iterator)
 
 

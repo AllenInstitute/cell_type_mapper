@@ -17,7 +17,8 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.corr.correlate_cells import (
-    correlate_cells)
+    correlate_cells,
+    flatmap_cells)
 
 @pytest.fixture
 def cluster_names_fixture():
@@ -238,3 +239,35 @@ def test_correlate_cells_function(
             atol=1.0e-6)
 
     _clean_up(tmp_dir)
+
+
+def test_flatmap_cells_function(
+        h5ad_fixture,
+        precomputed_fixture,
+        expected_corr_fixture):
+
+    a_data = anndata.read_h5ad(h5ad_fixture, backed='r')
+    cell_id_list = a_data.obs_names
+
+    results = flatmap_cells(
+           query_path=h5ad_fixture,
+           precomputed_path=precomputed_fixture,
+           rows_at_a_time=51,
+           n_processors=3)
+
+    with h5py.File(precomputed_fixture, 'r') as in_file:
+        cluster_to_row = json.loads(in_file['cluster_to_row'][()].decode('utf-8'))
+    row_to_cluster = {cluster_to_row[n]: n for n in cluster_to_row}
+
+    assert len(results) == len(cell_id_list)
+    for i_query in range(len(cell_id_list)):
+        idx = np.argmax(expected_corr_fixture[i_query, :])
+        cluster = row_to_cluster[idx]
+        assert results[i_query]['assignment'] == cluster
+        corr = expected_corr_fixture[i_query, idx]
+        assert np.isclose(
+            results[i_query]['confidence'],
+            corr,
+            atol=0.0,
+            rtol=1.0e-6)
+        assert results[i_query]['cell_id'] == cell_id_list[i_query]

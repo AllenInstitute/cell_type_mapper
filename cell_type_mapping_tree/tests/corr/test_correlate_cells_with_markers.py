@@ -12,7 +12,8 @@ from hierarchical_mapping.utils.utils import (
    mkstemp_clean)
 
 from hierarchical_mapping.corr.correlate_cells import (
-    correlate_cells)
+    correlate_cells,
+    flatmap_cells)
 
 
 @pytest.fixture
@@ -113,7 +114,7 @@ def query_h5ad_fixture(
     var = pd.DataFrame(var_data).set_index('gene_name')
 
     obs_data = [
-        {'cell_id': ii, 'garbage': ii**2}
+        {'cell_id': f'cell_{ii}', 'garbage': ii**2}
         for ii in range(query_x_fixture.shape[0])]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
 
@@ -125,30 +126,13 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-def test_correlate_cells_with_markers(
-        tmp_dir_fixture,
-        query_h5ad_fixture,
+@pytest.fixture
+def expected_corr(
         query_x_fixture,
-        precompute_fixture,
-        cluster_to_profile,
-        marker_gene_names):
+        cluster_to_profile):
 
     cluster_list = list(cluster_to_profile.keys())
     cluster_list.sort()
-
-    output_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix='output_',
-            suffix='.h5')
-
-    correlate_cells(
-        query_path=query_h5ad_fixture,
-        precomputed_path=precompute_fixture,
-        output_path=output_path,
-        rows_at_a_time=17,
-        n_processors=3,
-        marker_gene_list=marker_gene_names)
-
     expected_corr = np.zeros((query_x_fixture.shape[0], len(cluster_list)),
                              dtype=float)
 
@@ -166,6 +150,32 @@ def test_correlate_cells_with_markers(
             corr = np.mean((cluster_vec-cluster_mu)*(query_vec-query_mu))
             corr = corr / (query_std*cluster_std)
             expected_corr[i_query, i_cluster] = corr
+    return expected_corr
+
+def test_correlate_cells_with_markers(
+        tmp_dir_fixture,
+        query_h5ad_fixture,
+        query_x_fixture,
+        precompute_fixture,
+        cluster_to_profile,
+        marker_gene_names,
+        expected_corr):
+
+    cluster_list = list(cluster_to_profile.keys())
+    cluster_list.sort()
+
+    output_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='output_',
+            suffix='.h5')
+
+    correlate_cells(
+        query_path=query_h5ad_fixture,
+        precomputed_path=precompute_fixture,
+        output_path=output_path,
+        rows_at_a_time=17,
+        n_processors=3,
+        marker_gene_list=marker_gene_names)
 
     with h5py.File(output_path, 'r') as in_file:
         actual = in_file['correlation'][()]
@@ -174,5 +184,37 @@ def test_correlate_cells_with_markers(
         expected_corr,
         atol=0.0,
         rtol=1.0e-5)
-            
-    
+
+
+def test_flatmap_cells_with_markers(
+        tmp_dir_fixture,
+        query_h5ad_fixture,
+        query_x_fixture,
+        precompute_fixture,
+        cluster_to_profile,
+        marker_gene_names,
+        expected_corr):
+
+    cluster_list = list(cluster_to_profile.keys())
+    cluster_list.sort()
+
+    result = flatmap_cells(
+        query_path=query_h5ad_fixture,
+        precomputed_path=precompute_fixture,
+        rows_at_a_time=17,
+        n_processors=3,
+        marker_gene_list=marker_gene_names)
+
+    a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+    cell_id_list = a_data.obs_names
+
+    assert len(result) == query_x_fixture.shape[0]
+    for i_query in range(query_x_fixture.shape[0]):
+        max_cluster = np.argmax(expected_corr[i_query, :])
+        max_corr = expected_corr[i_query, max_cluster]
+        assert result[i_query]['assignment'] == cluster_list[max_cluster]
+        assert result[i_query]['cell_id'] == cell_id_list[i_query]
+        assert np.isclose(max_corr,
+                          result[i_query]['confidence'],
+                          atol=0.0,
+                          rtol=1.0e-6)
