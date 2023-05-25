@@ -30,6 +30,9 @@ def match_genes(
         "query":
             np.ndarray of ints; the indices of shared genes
             in the query data
+
+        "names':
+            List of the names of the chosen genes
     """
     reference_set = set(reference_gene_names)
     query_set = set(query_gene_names)
@@ -43,6 +46,7 @@ def match_genes(
     shared_set.sort()
 
     result = {
+        'names': shared_set,
         'reference': _gene_name_to_int(
                         ordered_gene_name=shared_set,
                         unordered_gene_name=reference_gene_names),

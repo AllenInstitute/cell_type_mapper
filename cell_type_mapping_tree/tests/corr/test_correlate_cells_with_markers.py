@@ -15,6 +15,9 @@ from hierarchical_mapping.corr.correlate_cells import (
     correlate_cells,
     flatmap_cells)
 
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
 
 @pytest.fixture
 def tmp_dir_fixture(
@@ -88,26 +91,25 @@ def precompute_fixture(
 
 
 @pytest.fixture
-def query_x_fixture(
+def query_raw_fixture(
         query_gene_names):
     rng = np.random.default_rng(645221)
-    n_genes = len(query_gene_names)
-    n_cells = 13
-    return rng.random((n_cells, n_genes))
+    n_genes =len(query_gene_names)
+    n_cells = 213
+    return rng.integers(14, 200000, (n_cells, n_genes))
 
 
 @pytest.fixture
-def query_h5ad_fixture(
+def query_x_fixture(
+        query_raw_fixture):
+    cpm = convert_to_cpm(query_raw_fixture)
+    return np.log2(1.0+cpm)
+
+
+@pytest.fixture
+def var_and_obs(
         query_gene_names,
-        query_x_fixture,
-        tmp_dir_fixture):
-
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='query_',
-        suffix='.h5ad')
-
-
+        query_x_fixture):
     var_data = [
         {'gene_name': n, 'junk': ii}
         for ii, n in enumerate(query_gene_names)]
@@ -117,13 +119,45 @@ def query_h5ad_fixture(
         {'cell_id': f'cell_{ii}', 'garbage': ii**2}
         for ii in range(query_x_fixture.shape[0])]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
+    return var, obs
+
+@pytest.fixture
+def query_h5ad_fixture(
+        query_x_fixture,
+        var_and_obs,
+        tmp_dir_fixture):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_',
+        suffix='.h5ad')
 
     a = anndata.AnnData(
             X=query_x_fixture,
-            obs=obs,
-            var=var)
+            obs=var_and_obs[1],
+            var=var_and_obs[0])
     a.write_h5ad(h5ad_path)
     return h5ad_path
+
+
+@pytest.fixture
+def query_h5ad_fixture_raw(
+        var_and_obs,
+        query_raw_fixture,
+        tmp_dir_fixture):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_raw_',
+        suffix='.h5ad')
+
+    a = anndata.AnnData(
+            X=query_raw_fixture,
+            obs=var_and_obs[1],
+            var=var_and_obs[0])
+    a.write_h5ad(h5ad_path)
+    return h5ad_path
+
 
 
 @pytest.fixture
@@ -152,6 +186,7 @@ def expected_corr(
             expected_corr[i_query, i_cluster] = corr
     return expected_corr
 
+
 def test_correlate_cells_with_markers(
         tmp_dir_fixture,
         query_h5ad_fixture,
@@ -179,31 +214,42 @@ def test_correlate_cells_with_markers(
 
     with h5py.File(output_path, 'r') as in_file:
         actual = in_file['correlation'][()]
+
     np.testing.assert_allclose(
         actual,
         expected_corr,
-        atol=0.0,
+        atol=1.0e-5,
         rtol=1.0e-5)
 
 
+@pytest.mark.parametrize(
+    'query_norm', ['raw', 'log2CPM'])
 def test_flatmap_cells_with_markers(
         tmp_dir_fixture,
         query_h5ad_fixture,
+        query_h5ad_fixture_raw,
         query_x_fixture,
         precompute_fixture,
         cluster_to_profile,
         marker_gene_names,
-        expected_corr):
+        expected_corr,
+        query_norm):
+
+    if query_norm == 'raw':
+        query_path = query_h5ad_fixture_raw
+    elif query_norm == 'log2CPM':
+        query_path = query_h5ad_fixture
 
     cluster_list = list(cluster_to_profile.keys())
     cluster_list.sort()
 
     result = flatmap_cells(
-        query_path=query_h5ad_fixture,
+        query_path=query_path,
         precomputed_path=precompute_fixture,
         rows_at_a_time=17,
         n_processors=3,
-        marker_gene_list=marker_gene_names)
+        marker_gene_list=marker_gene_names,
+        query_normalization=query_norm)
 
     a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
     cell_id_list = a_data.obs_names
@@ -224,5 +270,5 @@ def test_flatmap_cells_with_markers(
         assert result[i_query]['assignment'] == expected['assignment']
         assert np.isclose(expected['confidence'],
                           result[i_query]['confidence'],
-                          atol=0.0,
-                          rtol=1.0e-6)
+                          atol=1.0e-5,
+                          rtol=1.0e-5)

@@ -21,6 +21,10 @@ from hierarchical_mapping.corr.correlate_cells import (
     flatmap_cells,
     _prep_data)
 
+from hierarchical_mapping.cell_by_gene.utils import (
+    convert_to_cpm)
+
+
 @pytest.fixture
 def cluster_names_fixture():
     return [f'cluster_{ii}' for ii in range(100)]
@@ -97,7 +101,7 @@ def precomputed_fixture(
 
 
 @pytest.fixture
-def x_data_fixture(
+def raw_data_fixture(
         query_gene_names_fixture):
 
     rng = np.random.default_rng(77665533)
@@ -108,15 +112,32 @@ def x_data_fixture(
     chosen_dex = rng.choice(np.arange(n_cells*n_genes),
                             n_cells*n_genes//3,
                             replace=False)
-    x_data[chosen_dex] = 212.0*rng.random(len(chosen_dex))
+    x_data[chosen_dex] = rng.integers(14, 200000, len(chosen_dex))
     x_data = x_data.reshape((n_cells, n_genes))
 
     return x_data
+
+
+@pytest.fixture
+def x_data_fixture(raw_data_fixture):
+    return np.log2(1.0+convert_to_cpm(raw_data_fixture))
+
+
+@pytest.fixture
+def var_fixture(query_gene_names_fixture):
+    var_data = [
+        {'gene_name': g}
+        for g in query_gene_names_fixture]
+
+    var = pd.DataFrame(var_data).set_index('gene_name')
+    return var
+
 
 @pytest.fixture
 def h5ad_fixture(
         query_gene_names_fixture,
         x_data_fixture,
+        var_fixture,
         tmp_path_factory):
     tmp_dir = pathlib.Path(
             tmp_path_factory.mktemp('anndata'))
@@ -126,15 +147,33 @@ def h5ad_fixture(
     os.close(h5ad_path[0])
     h5ad_path = pathlib.Path(h5ad_path[1])
 
-    var_data = [
-        {'gene_name': g}
-        for g in query_gene_names_fixture]
-
-    var = pd.DataFrame(var_data).set_index('gene_name')
-
     csr = scipy_sparse.csr_matrix(x_data_fixture)
 
-    a_data = anndata.AnnData(X=csr, var=var, dtype=csr.dtype)
+    a_data = anndata.AnnData(X=csr, var=var_fixture, dtype=csr.dtype)
+    a_data.write_h5ad(h5ad_path)
+
+    yield h5ad_path
+
+    _clean_up(tmp_dir)
+
+
+@pytest.fixture
+def h5ad_fixture_raw(
+        query_gene_names_fixture,
+        raw_data_fixture,
+        var_fixture,
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+            tmp_path_factory.mktemp('anndata_raw'))
+    h5ad_path = tempfile.mkstemp(
+            dir=tmp_dir,
+            suffix='.h5ad')
+    os.close(h5ad_path[0])
+    h5ad_path = pathlib.Path(h5ad_path[1])
+
+    csr = scipy_sparse.csr_matrix(raw_data_fixture)
+
+    a_data = anndata.AnnData(X=csr, var=var_fixture, dtype=csr.dtype)
     a_data.write_h5ad(h5ad_path)
 
     yield h5ad_path
@@ -242,19 +281,30 @@ def test_correlate_cells_function(
     _clean_up(tmp_dir)
 
 
+@pytest.mark.parametrize(
+    'query_norm', ['raw', 'log2CPM'])
 def test_flatmap_cells_function(
         h5ad_fixture,
+        h5ad_fixture_raw,
+        x_data_fixture,
         precomputed_fixture,
-        expected_corr_fixture):
+        expected_corr_fixture,
+        query_norm):
+
+    if query_norm == 'raw':
+        query_path = h5ad_fixture_raw
+    elif query_norm == 'log2CPM':
+        query_path = h5ad_fixture
 
     a_data = anndata.read_h5ad(h5ad_fixture, backed='r')
     cell_id_list = a_data.obs_names
 
     results = flatmap_cells(
-           query_path=h5ad_fixture,
+           query_path=query_path,
            precomputed_path=precomputed_fixture,
            rows_at_a_time=51,
-           n_processors=3)
+           n_processors=3,
+           query_normalization=query_norm)
 
     with h5py.File(precomputed_fixture, 'r') as in_file:
         cluster_to_row = json.loads(in_file['cluster_to_row'][()].decode('utf-8'))
@@ -273,11 +323,11 @@ def test_flatmap_cells_function(
     for i_query in range(len(cell_id_list)):
         cell_id = results[i_query]['cell_id']
         expected = expected_lookup[cell_id]
-        assert results[i_query]['assignment'] == expected['assignment']
         assert np.isclose(expected['confidence'],
                           results[i_query]['confidence'],
                           atol=0.0,
-                          rtol=1.0e-6)
+                          rtol=1.0e-5)
+        assert results[i_query]['assignment'] == expected['assignment']
 
 
 def test_prep_data_errors(

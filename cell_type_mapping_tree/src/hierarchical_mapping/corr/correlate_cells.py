@@ -23,6 +23,9 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.corr.utils import (
     match_genes)
 
+from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
 
 def flatmap_cells(
         query_path,
@@ -30,7 +33,8 @@ def flatmap_cells(
         marker_gene_list=None,
         rows_at_a_time=100000,
         n_processors=4,
-        tmp_dir=None):
+        tmp_dir=None,
+        query_normalization='raw'):
     """
     query_path is the path to the h5ad file containing the query cells
 
@@ -43,6 +47,8 @@ def flatmap_cells(
          'confidence': confidence_value,
          'cell_id': cell_id}
     """
+
+    all_query_genes = _get_query_genes(query_path)
 
     (reference_profiles,
      cluster_to_row_lookup,
@@ -70,7 +76,20 @@ def flatmap_cells(
         r0 = query_chunk_meta[1]
         r1 = query_chunk_meta[2]
 
-        query_chunk = query_chunk[:, gene_idx['query']]
+        query_chunk = CellByGeneMatrix(
+            data=query_chunk,
+            gene_identifiers=all_query_genes,
+            normalization=query_normalization)
+
+        # must convert to log2CPM before downsampling by
+        # genes because downsampling the genes affects
+        # the converstion to CPM
+        if query_chunk.normalization != 'log2CPM':
+            query_chunk.to_log2CPM_in_place()
+
+        query_chunk.downsample_genes_in_place(
+            selected_genes=gene_idx['names'])
+
         cell_id_chunk = cell_id_list[r0:r1]
         p = multiprocessing.Process(
                 target=_flatmap_worker,
@@ -98,12 +117,13 @@ def _flatmap_worker(
         cell_id_chunk,
         output_list,
         output_lock):
+
     result = []
 
     (cluster_idx,
      correlation_values) = correlation_nearest_neighbors(
                  baseline_array=reference_profiles,
-                 query_array=query_chunk,
+                 query_array=query_chunk.data,
                  return_correlation=True)
     for idx, corr, cell_id in zip(cluster_idx,
                                   correlation_values,
@@ -305,6 +325,9 @@ def _prep_data(
         downsampled to these genes)
 
         'query' -> indices of query genes being used
+
+        'names' -> list of gene names
+
     row_iterator
         n iterator over chunks of query cells
     """
