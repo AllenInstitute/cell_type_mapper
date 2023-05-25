@@ -33,9 +33,16 @@ def test_match_genes(
                                       expected['reference'])
         np.testing.assert_array_equal(actual['query'],
                                       expected['query'])
+
+        q_names = [query[idx] for idx in actual['query']]
+        r_names = [reference_gene_names[idx] for idx in actual['reference']]
+        assert q_names == r_names
+        assert q_names == actual['names']
+
     else:
         assert len(actual['reference']) == 0
         assert len(actual['query']) == 0
+        assert len(actual['names']) == 0
 
 
 def test_match_genes_with_markers():
@@ -51,6 +58,23 @@ def test_match_genes_with_markers():
         result['query'],
         np.array([5, 2]))
 
+    assert result['names'] == ['c', 'e']
+
+    result = match_genes(
+        reference_gene_names=['a', 'e', 'b', 'c', 'd', 'f'],
+        query_gene_names=['b', 'f', 'e', 'h', 'i', 'c'],
+        marker_gene_names=['e', 'c', 'x'])
+
+    np.testing.assert_array_equal(
+        result['reference'],
+        np.array([3, 1]))
+    np.testing.assert_array_equal(
+        result['query'],
+        np.array([5, 2]))
+
+    assert result['names'] == ['c', 'e']
+
+
     result = match_genes(
         reference_gene_names=['a', 'e', 'b', 'c', 'd', 'f'],
         query_gene_names=['b', 'f', 'e', 'h', 'i', 'c'],
@@ -62,3 +86,4 @@ def test_match_genes_with_markers():
     np.testing.assert_array_equal(
         result['query'],
         np.array([]))
+    assert result['names'] == []
