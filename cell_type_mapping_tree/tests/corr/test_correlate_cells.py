@@ -18,7 +18,8 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.corr.correlate_cells import (
     correlate_cells,
-    flatmap_cells)
+    flatmap_cells,
+    _prep_data)
 
 @pytest.fixture
 def cluster_names_fixture():
@@ -277,3 +278,45 @@ def test_flatmap_cells_function(
                           results[i_query]['confidence'],
                           atol=0.0,
                           rtol=1.0e-6)
+
+
+def test_prep_data_errors(
+        h5ad_fixture,
+        precomputed_fixture):
+
+   # no markers in reference
+   with pytest.raises(RuntimeError, match="No marker genes in reference"):
+       _prep_data(
+           precomputed_path=precomputed_fixture,
+           query_path=h5ad_fixture,
+           marker_gene_list=['nonsense_1', 'nonsense_2'],
+           rows_at_a_time=5,
+           tmp_dir=None)
+
+
+   # no markers in query
+   with pytest.raises(RuntimeError, match="No marker genes appeared in query"):
+       _prep_data(
+           precomputed_path=precomputed_fixture,
+           query_path=h5ad_fixture,
+           marker_gene_list=['gene_2', 'gene_4'],
+           rows_at_a_time=5,
+           tmp_dir=None)
+
+   # markers missing from reference
+   with pytest.warns(UserWarning, match="not present in the reference"):
+       _prep_data(
+           precomputed_path=precomputed_fixture,
+           query_path=h5ad_fixture,
+           marker_gene_list=['nonsense_1', 'nonsense_2', 'gene_11', 'gene_8'],
+           rows_at_a_time=5,
+           tmp_dir=None)
+
+   # markers missing from query
+   with pytest.warns(UserWarning, match="not present in the query"):
+       _prep_data(
+           precomputed_path=precomputed_fixture,
+           query_path=h5ad_fixture,
+           marker_gene_list=['gene_2', 'gene_11', 'gene_8'],
+           rows_at_a_time=5,
+           tmp_dir=None)

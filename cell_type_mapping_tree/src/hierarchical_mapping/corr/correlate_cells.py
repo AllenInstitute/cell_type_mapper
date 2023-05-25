@@ -2,6 +2,7 @@ import h5py
 import json
 import multiprocessing
 import time
+import warnings
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -316,7 +317,7 @@ def _prep_data(
 
         if len(query_gene_set.intersection(marker_gene_set)) == 0:
             raise RuntimeError(
-                f"No marker genes appeared in query file {query_path}")
+                f"No marker genes appeared in query dataset {query_path}")
 
     (reference_profiles,
      reference_genes,
@@ -325,7 +326,7 @@ def _prep_data(
     if marker_gene_list is not None:
         if len(set(reference_genes).intersection(marker_gene_set)) == 0:
             raise RuntimeError(
-                "No marker genes in reference genes\n"
+                "No marker genes in reference dataset\n"
                 f"precomputed file path: {precomputed_path}")
 
     gene_idx = match_genes(
@@ -336,6 +337,26 @@ def _prep_data(
     if len(gene_idx['reference']) == 0:
         raise RuntimeError(
              "Cannot map celltypes; no gene overlaps")
+
+    if marker_gene_list is not None:
+        if len(gene_idx['reference']) < len(marker_gene_list):
+
+            reference_gene_set = set(reference_genes)
+            not_in_ref = marker_gene_set-reference_gene_set
+            not_in_query = marker_gene_set-query_gene_set
+
+            msg = "The following marker genes are being skipped.\n"
+            if len(not_in_query) > 0:
+                not_in_query = list(not_in_query)
+                not_in_query.sort()
+                msg += "These were not present in the query dataset:\n"
+                msg += f"{not_in_query}\n"
+            if len(not_in_ref) > 0:
+                not_in_ref = list(not_in_ref)
+                not_in_ref.sort()
+                msg += "These were not present in the reference dataset:\n"
+                msg += f"{not_in_ref}"
+            warnings.warn(msg)
 
     reference_profiles = reference_profiles[:, gene_idx['reference']]
 
