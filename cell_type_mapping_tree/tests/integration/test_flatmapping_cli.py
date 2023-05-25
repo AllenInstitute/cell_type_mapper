@@ -29,28 +29,19 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.hierarchical_mapping import (
-    run_mapping as ab_initio_mapping)
-
 from hierarchical_mapping.cli.flat_mapping import (
     run_mapping as flatmap_run_mapping)
 
 
-@pytest.fixture
-def ab_initio_assignment_fixture(
+def test_flatmapper(
+        tmp_dir_fixture,
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
+        raw_query_cell_x_gene_fixture,
         expected_cluster_fixture,
         taxonomy_tree_dict,
         query_gene_names,
-        tmp_dir_fixture):
-    """
-    Run the (tested) assignment pipeline.
-    Store its results.
-    Serialize its markers to a JSON file.
-    Will later test that we get back the same results
-    using the specified markers.
-    """
+        marker_gene_names):
 
     this_tmp_dir = pathlib.Path(
         tempfile.mkdtemp(
@@ -79,99 +70,36 @@ def ab_initio_assignment_fixture(
         'max_bytes': 6*1024**2,
         'path': str(ref_marker_out)}
 
+    marker_path = mkstemp_clean(dir=this_tmp_dir, suffix='.json')
+    marker_lookup = dict()
+    marker_lookup['a'] = marker_gene_names[:3]
+    marker_lookup['b'] = marker_gene_names[3:5]
+    marker_lookup['c'] = marker_gene_names[2:]
+    with open(marker_path, 'w') as out_file:
+        out_file.write(json.dumps(marker_lookup))
+
     config["query_markers"] = {
-        'n_per_utility': 5,
-        'n_processors': 3}
+        'serialized_lookup': marker_path}
 
     config["type_assignment"] = {
         'n_processors': 3,
         'chunk_size': 1000,
         'normalization': 'raw'}
 
-    assignment_path = pathlib.Path(
-            mkstemp_clean(
-                dir=tmp_dir_fixture,
-                suffix='.json'))
-
-    ab_initio_mapping(
-        config,
-        output_path=str(assignment_path),
-        log_path=None)
-
-    # create query marker cache to serialize
-
-    query_marker_path = mkstemp_clean(
-        dir=this_tmp_dir,
-        suffix='.h5')
-
-    taxonomy_tree=TaxonomyTree(data=taxonomy_tree_dict)
-
-    create_marker_cache_from_reference_markers(
-        output_cache_path=query_marker_path,
-        input_cache_path=ref_marker_out,
-        query_gene_names=query_gene_names,
-        taxonomy_tree=taxonomy_tree,
-        n_per_utility=config['query_markers']['n_per_utility'],
-        n_processors=3,
-        behemoth_cutoff=5000000)
-
-    marker_lookup = serialize_markers(
-        marker_cache_path=query_marker_path,
-        taxonomy_tree=taxonomy_tree)
-
-    marker_lookup_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.json'))
-
-    with open(marker_lookup_path, 'w') as out_file:
-        out_file.write(json.dumps(marker_lookup))
-
-    _clean_up(this_tmp_dir)
-
-    yield {'assignment': assignment_path,
-           'markers': str(marker_lookup_path.resolve().absolute()),
-           'ab_initio_config': config}
-
-    marker_lookup_path.unlink()
-    assignment_path.unlink()
-
-
-@pytest.mark.skip('not ready')
-def test_flatmapper(
-        ab_initio_assignment_fixture,
-        raw_query_cell_x_gene_fixture,
-        tmp_dir_fixture):
-
-    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
     result_path = mkstemp_clean(
-        dir=this_tmp,
+        dir=this_tmp_dir,
         suffix='.json')
 
-    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
-    config = dict()
-    config['tmp_dir'] = this_tmp
-    config['query_path'] = baseline_config['query_path']
-    config['precomputed_stats'] = copy.deepcopy(baseline_config['precomputed_stats'])
-    config['precomputed_stats'].pop('path')
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
-
-    config['query_markers'] = {
-        'serialized_lookup': ab_initio_assignment_fixture['markers']}
-
-    from_marker_run_mapping(
+    flatmap_run_mapping(
         output_path=result_path,
         config=config,
         log_path=None)
 
     actual = json.load(open(result_path, 'rb'))
-    expected = json.load(
-        open(ab_initio_assignment_fixture['assignment'], 'rb'))
-
-    assert actual['marker_genes'] == expected['marker_genes']
-    actual_lookup = {
-        cell['cell_id']:cell for cell in actual['results']}
-    for cell in expected['results']:
-        assert cell == actual_lookup[cell['cell_id']]
+    expected_markers = copy.deepcopy(marker_gene_names)
+    expected_markers.sort()
+    assert actual['marker_genes'] == expected_markers
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
-    assert len(actual['results']) == len(expected['results'])
+    cluster_name_set = set(taxonomy_tree_dict['cluster'])
+    for el in actual['results']:
+        el['assignment'] in cluster_name_set

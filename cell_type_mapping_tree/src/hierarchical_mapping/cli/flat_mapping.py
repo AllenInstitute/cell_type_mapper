@@ -1,7 +1,5 @@
 import argparse
-import h5py
 import json
-import numpy as np
 import os
 import pathlib
 import tempfile
@@ -9,7 +7,6 @@ import time
 import traceback
 
 from hierarchical_mapping.utils.utils import (
-    mkstemp_clean,
     _clean_up)
 
 from hierarchical_mapping.cli.cli_log import (
@@ -18,11 +15,7 @@ from hierarchical_mapping.cli.cli_log import (
 from hierarchical_mapping.cli.utils import (
     _copy_over_file,
     _make_temp_path,
-    _check_config,
-    _get_query_gene_names)
-
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
+    _check_config)
 
 from hierarchical_mapping.corr.correlate_cells import (
     flatmap_cells)
@@ -115,13 +108,6 @@ def _run_mapping(config, tmp_dir, log):
             log=log,
             tmp_dir=tmp_dir)
 
-    log.info(f"reading taxonomy_tree from {precomputed_tmp}")
-    with h5py.File(precomputed_tmp, "r") as in_file:
-        taxonomy_tree = TaxonomyTree.from_str(
-            serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
-        reference_gene_names = json.loads(
-            in_file["col_names"][()].decode("utf-8"))
-
     # ========= query marker cache =========
 
     # The marker genes will be stored as a dict mapping parent
@@ -132,9 +118,8 @@ def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
 
-    marker_lookup = json.load(open(marker_lookup_path, 'rb'))
     marker_gene_names = set()
-    marker_tree = json.loads(open(marker_lookup, 'rb'))
+    marker_tree = json.load(open(marker_lookup_path, 'rb'))
     for node in marker_tree:
         marker_gene_names = marker_gene_names.union(
             set(marker_tree[node]))
@@ -153,7 +138,8 @@ def _run_mapping(config, tmp_dir, log):
         marker_gene_list=marker_gene_names,
         rows_at_a_time=type_assignment_config['chunk_size'],
         n_processors=type_assignment_config['n_processors'],
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        query_normalization=type_assignment_config['normalization'])
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
@@ -188,9 +174,6 @@ def _validate_config(
         config_name="type_assignment",
         key_name=['n_processors',
                   'chunk_size',
-                  'bootstrap_factor',
-                  'bootstrap_iteration',
-                  'rng_seed',
                   'normalization'],
         log=log)
 
