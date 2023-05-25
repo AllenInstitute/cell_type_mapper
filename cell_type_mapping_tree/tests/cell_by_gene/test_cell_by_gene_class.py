@@ -376,3 +376,36 @@ def test_downsample_by_cell_id(
 
     with pytest.raises(IndexError):
         base.downsample_cells(selected_cells)
+
+
+
+def test_cpm_after_gene_ds(
+        raw_fixture,
+        gene_id_fixture):
+    """
+    Make sure that an exception is raised after you try to
+    convert a CellByGeneMatrix that has been downsampled in
+    gene space from 'raw' to 'log2CPM'
+    """
+
+    raw = CellByGeneMatrix(
+        data=raw_fixture,
+        gene_identifiers=gene_id_fixture,
+        normalization="raw")
+
+    ds1 = raw.downsample_genes(
+        selected_genes = [gene_id_fixture[1], gene_id_fixture[3]])
+    assert len(raw.gene_identifiers) == len(gene_id_fixture)
+    assert len(ds1.gene_identifiers) < len(gene_id_fixture)
+    with pytest.raises(RuntimeError, match="downsampled by genes"):
+        ds1.to_log2CPM_in_place()
+    with pytest.raises(RuntimeError, match="downsampled by genes"):
+        ds1.to_log2CPM()
+
+    raw.downsample_genes_in_place(
+        selected_genes = [gene_id_fixture[1], gene_id_fixture[3]])
+    assert len(raw.gene_identifiers) < len(gene_id_fixture)
+    with pytest.raises(RuntimeError, match="downsampled by genes"):
+        raw.to_log2CPM_in_place()
+    with pytest.raises(RuntimeError, match="downsampled by genes"):
+        raw.to_log2CPM()
