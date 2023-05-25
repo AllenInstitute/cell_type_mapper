@@ -8,7 +8,7 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean)
 
 
-def _copy_over_file(file_path, tmp_dir, log):
+def _copy_over_file(file_path, tmp_dir, log, copy=True):
     """
     If a file exists, copy it into the tmp_dir.
 
@@ -33,10 +33,13 @@ def _copy_over_file(file_path, tmp_dir, log):
     """
     file_path = pathlib.Path(file_path)
     tmp_dir = pathlib.Path(tmp_dir)
-    new_path = mkstemp_clean(
-            dir=tmp_dir,
-            prefix=f"{file_path.name.replace(file_path.suffix, '')}_",
-            suffix=file_path.suffix)
+    if copy:
+        new_path = mkstemp_clean(
+                dir=tmp_dir,
+                prefix=f"{file_path.name.replace(file_path.suffix, '')}_",
+                suffix=file_path.suffix)
+    else:
+        new_path = str(file_path)
 
     is_valid = False
     if file_path.exists():
@@ -44,12 +47,13 @@ def _copy_over_file(file_path, tmp_dir, log):
             log.error(
                 f"{file_path} exists but is not a file")
         else:
-            t0 = time.time()
-            log.info(f"copying {file_path}")
-            shutil.copy(src=file_path, dst=new_path)
-            duration = time.time()-t0
-            log.info(f"copied {file_path} to {new_path} "
-                     f"in {duration:.4e} seconds")
+            if copy:
+                t0 = time.time()
+                log.info(f"copying {file_path}")
+                shutil.copy(src=file_path, dst=new_path)
+                duration = time.time()-t0
+                log.info(f"copied {file_path} to {new_path} "
+                        f"in {duration:.4e} seconds")
             is_valid = True
     else:
         # check that we can write the specified file
@@ -70,7 +74,8 @@ def _make_temp_path(
         tmp_dir,
         log,
         suffix,
-        prefix):
+        prefix,
+        copy=True):
     """
     Create a temp path for an actual file.
 
@@ -84,11 +89,15 @@ def _make_temp_path(
     if "path" in config_dict:
         file_path = pathlib.Path(
             config_dict["path"])
-        (tmp_path,
-         is_valid) = _copy_over_file(
-                 file_path=file_path,
-                 tmp_dir=tmp_dir,
-                 log=log)
+        if copy:
+            (tmp_path,
+            is_valid) = _copy_over_file(
+                    file_path=file_path,
+                    tmp_dir=tmp_dir,
+                    log=log)
+        else:
+            tmp_path = str(file_path)
+            is_valid = file_path.exists() and file_path.is_file()
     else:
         tmp_path = pathlib.Path(
             mkstemp_clean(

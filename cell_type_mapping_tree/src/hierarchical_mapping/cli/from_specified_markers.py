@@ -45,8 +45,6 @@ def run_mapping(config, output_path, log_path=None):
 
     tmp_dir = tempfile.mkdtemp(dir=config['tmp_dir'])
 
-    output = dict()
-
     output_path = pathlib.Path(output_path)
     if log_path is not None:
         log_path = pathlib.Path(log_path)
@@ -65,14 +63,13 @@ def run_mapping(config, output_path, log_path=None):
                         f"{pth.resolve().absolute()}")
 
     try:
-        type_assignment = _run_mapping(
+        output = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             log=log)
-        output["results"] = type_assignment["assignments"]
-        output["marker_genes"] = type_assignment["marker_genes"]
         log.info("RAN SUCCESSFULLY")
     except Exception:
+        output = dict()
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"
         log.add_msg(traceback_msg)
@@ -96,7 +93,6 @@ def _run_mapping(config, tmp_dir, log):
             tmp_dir=tmp_dir,
             log=log)
 
-    query_tmp = validation_result['query_tmp']
     precomputed_path = validation_result['precomputed_path']
     precomputed_tmp = validation_result['precomputed_tmp']
     precomputed_is_valid = validation_result['precomputed_is_valid']
@@ -109,6 +105,7 @@ def _run_mapping(config, tmp_dir, log):
                   duration=time.time()-t0)
 
     # ========= precomputed stats =========
+    # Start of setup
 
     if precomputed_is_valid:
         log.info(f"using {precomputed_tmp} for precomputed_stats")
@@ -124,9 +121,11 @@ def _run_mapping(config, tmp_dir, log):
                 dir=tmp_dir))
 
         (reference_path,
-         _) = _copy_over_file(file_path=reference_path,
-                              tmp_dir=ref_tmp,
-                              log=log)
+        _) = _copy_over_file(file_path=reference_path,
+                            tmp_dir=ref_tmp,
+                            log=log,
+                            copy=config["copy_to_tmp"])
+
 
         if 'column_hierarchy' in precomputed_config:
             column_hierarchy = precomputed_config['column_hierarchy']
@@ -163,12 +162,29 @@ def _run_mapping(config, tmp_dir, log):
         reference_gene_names = json.loads(
             in_file["col_names"][()].decode("utf-8"))
 
+    # End of setup
+
     # ========= query marker cache =========
+
+    if not validation_result["query_path"]:
+        # no query passed in. Only doing the setup.
+        return {}
+
+    (query_tmp,
+    query_is_valid) = _copy_over_file(
+        file_path=validation_result["query_path"],
+        tmp_dir=tmp_dir,
+        log=log,
+        copy=config["copy_to_tmp"])
+
+    if not query_is_valid:
+        log.error(
+            f"{validation_result['query_path']} is not a valid file")
 
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir,
-                      prefix='query_marker_',
-                      suffix='.h5'))
+                    prefix='query_marker_',
+                    suffix='.h5'))
 
     t0 = time.time()
 
@@ -221,7 +237,7 @@ def _validate_config(
     result = dict()
 
     if "query_path" not in config:
-        log.error("'query_path' not in config")
+        log.info("'query_path' not in config")
 
     if "precomputed_stats" not in config:
         log.error("'precomputed_stats' not in config")
@@ -243,17 +259,7 @@ def _validate_config(
                   'normalization'],
         log=log)
 
-    (query_tmp,
-     query_is_valid) = _copy_over_file(
-         file_path=config["query_path"],
-         tmp_dir=tmp_dir,
-         log=log)
-
-    if not query_is_valid:
-        log.error(
-            f"{config['query_path']} is not a valid file")
-
-    result['query_tmp'] = query_tmp
+    result['query_path'] = config.get("query_path")
 
     precomputed_config = config["precomputed_stats"]
     lookup = _make_temp_path(
@@ -261,7 +267,8 @@ def _validate_config(
         tmp_dir=tmp_dir,
         log=log,
         prefix="precomputed_stats_",
-        suffix=".h5")
+        suffix=".h5",
+        copy=config["copy_to_tmp"])
 
     precomputed_path = lookup["path"]
     precomputed_tmp = lookup["tmp"]
@@ -312,16 +319,12 @@ def _validate_config(
     return result
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default=None)
-    parser.add_argument('--result_path', type=str, default=None)
-    parser.add_argument('--log_path', type=str, default=None)
-    parser.add_argument('--local_tmp', default=False, action='store_true')
-    args = parser.parse_args()
-
-    with open(args.config_path, 'rb') as in_file:
-        config = json.load(in_file)
+def run(args):
+    if "config" in args:
+        config = args.config
+    else:
+        with open(args.config_path, 'rb') as in_file:
+            config = json.load(in_file)
 
     if args.local_tmp:
         config['tmp_dir'] = os.environ['TMPDIR']
@@ -335,6 +338,35 @@ def main():
         config=config,
         output_path=result_path,
         log_path=args.log_path)
+    
+
+def parse_args(inputs=None):
+    """Parse CLI arguments. Takes an optinal argument `inputs` which can be used
+    to call the function from a Python script and pass in arguments as a 
+    dictionary"""
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config_path', type=str, default=None)
+    parser.add_argument('--result_path', type=str, default=None)
+    parser.add_argument('--log_path', type=str, default=None)
+    parser.add_argument('--local_tmp', default=False, action='store_true')
+    args = parser.parse_args()
+
+    if not inputs:
+        inputs = {}
+
+    for k,v in args._get_kwargs():
+        setattr(args, k, inputs.get(k,v))
+
+    if "config" in inputs:
+        setattr(args, "config", inputs["config"])
+
+    return args
+
+
+def main(inputs=None):
+    """Wrapper function to work with CLI usage of script"""
+    args = parse_args(inputs)
+    run(args)
 
 
 if __name__ == "__main__":

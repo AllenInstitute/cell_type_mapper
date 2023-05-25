@@ -200,6 +200,8 @@ def _run_mapping(config, tmp_dir, log):
                 src=reference_marker_tmp,
                 dst=reference_marker_path)
 
+    # end of setup
+    
     # ========= query marker cache =========
 
     query_marker_tmp = pathlib.Path(
