@@ -53,33 +53,28 @@ def correlate_cells(
             raise RuntimeError(
                 f"No marker genes appeared in query file {query_path}")
 
-    with h5py.File(precomputed_path, 'r') as reference_file:
-        reference_genes = json.loads(
-            reference_file['col_names'][()].decode('utf-8'))
+    (reference_profiles,
+     reference_genes,
+     cluster_to_row_lookup) = _get_reference_profiles(precomputed_path)
 
-        if marker_gene_list is not None:
-            if len(set(reference_genes).intersection(marker_gene_set)) == 0:
-                raise RuntimeError(
-                    "No marker genes in reference genes\n"
-                    f"precomputed file path: {precomputed_path}")
-
-        gene_idx = match_genes(
-                        reference_gene_names=reference_genes,
-                        query_gene_names=query_genes,
-                        marker_gene_names=marker_gene_list)
-
-        if len(gene_idx['reference']) == 0:
+    if marker_gene_list is not None:
+        if len(set(reference_genes).intersection(marker_gene_set)) == 0:
             raise RuntimeError(
-                 "Cannot map celltypes; no gene overlaps")
+                "No marker genes in reference genes\n"
+                f"precomputed file path: {precomputed_path}")
 
-        reference_profiles = reference_file['sum'][()]
-        reference_profiles = reference_profiles[:, gene_idx['reference']]
-        reference_profiles = reference_profiles.transpose()
-        reference_profiles = reference_profiles/reference_file['n_cells'][()]
-        reference_profiles = reference_profiles.transpose()
+    gene_idx = match_genes(
+                    reference_gene_names=reference_genes,
+                    query_gene_names=query_genes,
+                    marker_gene_names=marker_gene_list)
 
-        n_clusters = reference_profiles.shape[0]
-        cluster_to_row_data = reference_file['cluster_to_row'][()]
+    if len(gene_idx['reference']) == 0:
+        raise RuntimeError(
+             "Cannot map celltypes; no gene overlaps")
+
+    n_clusters = reference_profiles.shape[0]
+
+    reference_profiles = reference_profiles[:, gene_idx['reference']]
 
     row_iterator = AnnDataRowIterator(
         h5ad_path=query_path,
@@ -91,7 +86,7 @@ def correlate_cells(
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
             'cluster_to_col',
-            data=cluster_to_row_data)
+            data=json.dumps(cluster_to_row_lookup).encode('utf-8'))
 
         out_file.create_dataset(
             output_key,
@@ -194,3 +189,34 @@ def _correlate_chunk(
 def _get_query_genes(query_path):
     var = read_df_from_h5ad(query_path, 'var')
     return list(var.index.values)
+
+
+def _get_reference_profiles(
+        precomputed_path):
+    """
+    Read in path to precomputed stats file
+
+    Return:
+        reference_profiles
+            an (n_clusters, n_genes) array
+        reference_genes
+            a list
+        cluster_to_row_lookup
+            dict mapping cluster name to row in reference_profiles
+    """
+
+    with h5py.File(precomputed_path, 'r') as reference_file:
+        reference_genes = json.loads(
+            reference_file['col_names'][()].decode('utf-8'))
+
+        reference_profiles = reference_file['sum'][()]
+        reference_profiles = reference_profiles.transpose()
+        reference_profiles = reference_profiles/reference_file['n_cells'][()]
+        reference_profiles = reference_profiles.transpose()
+
+        cluster_to_row_lookup = json.loads(
+            reference_file['cluster_to_row'][()].decode('utf-8'))
+
+    return (reference_profiles,
+            reference_genes,
+            cluster_to_row_lookup)
