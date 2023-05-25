@@ -43,45 +43,18 @@ def correlate_cells(
     global_t0 = time.time()
     output_key = 'correlation'
 
-    query_genes = _get_query_genes(query_path)
-
-    if marker_gene_list is not None:
-        marker_gene_set = set(marker_gene_list)
-        query_gene_set = set(query_genes)
-
-        if len(query_gene_set.intersection(marker_gene_set)) == 0:
-            raise RuntimeError(
-                f"No marker genes appeared in query file {query_path}")
-
     (reference_profiles,
-     reference_genes,
-     cluster_to_row_lookup) = _get_reference_profiles(precomputed_path)
-
-    if marker_gene_list is not None:
-        if len(set(reference_genes).intersection(marker_gene_set)) == 0:
-            raise RuntimeError(
-                "No marker genes in reference genes\n"
-                f"precomputed file path: {precomputed_path}")
-
-    gene_idx = match_genes(
-                    reference_gene_names=reference_genes,
-                    query_gene_names=query_genes,
-                    marker_gene_names=marker_gene_list)
-
-    if len(gene_idx['reference']) == 0:
-        raise RuntimeError(
-             "Cannot map celltypes; no gene overlaps")
-
-    n_clusters = reference_profiles.shape[0]
-
-    reference_profiles = reference_profiles[:, gene_idx['reference']]
-
-    row_iterator = AnnDataRowIterator(
-        h5ad_path=query_path,
-        row_chunk_size=rows_at_a_time,
-        tmp_dir=tmp_dir)
+     cluster_to_row_lookup,
+     gene_idx,
+     row_iterator) = _prep_data(
+                         query_path=query_path,
+                         precomputed_path=precomputed_path,
+                         marker_gene_list=marker_gene_list,
+                         rows_at_a_time=rows_at_a_time,
+                         tmp_dir=tmp_dir)
 
     n_query_rows = row_iterator.n_rows
+    n_clusters = reference_profiles.shape[0]
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
@@ -189,6 +162,89 @@ def _correlate_chunk(
 def _get_query_genes(query_path):
     var = read_df_from_h5ad(query_path, 'var')
     return list(var.index.values)
+
+
+def _prep_data(
+        precomputed_path,
+        query_path,
+        marker_gene_list,
+        rows_at_a_time,
+        tmp_dir):
+    """
+    Prepare data for flat mapping
+
+    Parameters
+    ----------
+    precomputed_path
+        path to precomputed stats file
+    query_path
+        path to query h5ad file
+    marker_gene_list
+        optional list of marker genes to use
+    rows_at_a_time
+        int indicating how many cells to map with
+        a single worker
+    tmp_dir
+        optional directory for writing temporary data products
+
+    Returns
+    -------
+    reference_profiles
+        an (n_clusters, n_genes) array
+    cluster_to_row_lookup
+        dict mapping cluster name to row index
+    gene_idx
+        dict
+
+        'reference' -> indices of reference
+        genes being used (reference_profiles has already been
+        downsampled to these genes)
+
+        'query' -> indices of query genes being used
+    row_iterator
+        n iterator over chunks of query cells
+    """
+
+    query_genes = _get_query_genes(query_path)
+
+    if marker_gene_list is not None:
+        marker_gene_set = set(marker_gene_list)
+        query_gene_set = set(query_genes)
+
+        if len(query_gene_set.intersection(marker_gene_set)) == 0:
+            raise RuntimeError(
+                f"No marker genes appeared in query file {query_path}")
+
+    (reference_profiles,
+     reference_genes,
+     cluster_to_row_lookup) = _get_reference_profiles(precomputed_path)
+
+    if marker_gene_list is not None:
+        if len(set(reference_genes).intersection(marker_gene_set)) == 0:
+            raise RuntimeError(
+                "No marker genes in reference genes\n"
+                f"precomputed file path: {precomputed_path}")
+
+    gene_idx = match_genes(
+                    reference_gene_names=reference_genes,
+                    query_gene_names=query_genes,
+                    marker_gene_names=marker_gene_list)
+
+    if len(gene_idx['reference']) == 0:
+        raise RuntimeError(
+             "Cannot map celltypes; no gene overlaps")
+
+    reference_profiles = reference_profiles[:, gene_idx['reference']]
+
+    row_iterator = AnnDataRowIterator(
+        h5ad_path=query_path,
+        row_chunk_size=rows_at_a_time,
+        tmp_dir=tmp_dir)
+
+    return (reference_profiles,
+            cluster_to_row_lookup,
+            gene_idx,
+            row_iterator)
 
 
 def _get_reference_profiles(
