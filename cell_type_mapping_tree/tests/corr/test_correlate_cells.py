@@ -260,14 +260,20 @@ def test_flatmap_cells_function(
     row_to_cluster = {cluster_to_row[n]: n for n in cluster_to_row}
 
     assert len(results) == len(cell_id_list)
+    expected_lookup = dict()
     for i_query in range(len(cell_id_list)):
-        idx = np.argmax(expected_corr_fixture[i_query, :])
-        cluster = row_to_cluster[idx]
-        assert results[i_query]['assignment'] == cluster
-        corr = expected_corr_fixture[i_query, idx]
-        assert np.isclose(
-            results[i_query]['confidence'],
-            corr,
-            atol=0.0,
-            rtol=1.0e-6)
-        assert results[i_query]['cell_id'] == cell_id_list[i_query]
+        cell_id = cell_id_list[i_query]
+        max_cluster = np.argmax(expected_corr_fixture[i_query, :])
+        max_cluster_name = row_to_cluster[max_cluster]
+        max_corr = expected_corr_fixture[i_query, max_cluster]
+        expected_lookup[cell_id] = {'assignment': max_cluster_name,
+                                    'confidence': max_corr}
+
+    for i_query in range(len(cell_id_list)):
+        cell_id = results[i_query]['cell_id']
+        expected = expected_lookup[cell_id]
+        assert results[i_query]['assignment'] == expected['assignment']
+        assert np.isclose(expected['confidence'],
+                          results[i_query]['confidence'],
+                          atol=0.0,
+                          rtol=1.0e-6)

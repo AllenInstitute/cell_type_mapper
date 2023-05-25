@@ -209,12 +209,20 @@ def test_flatmap_cells_with_markers(
     cell_id_list = a_data.obs_names
 
     assert len(result) == query_x_fixture.shape[0]
+    expected_lookup = dict()
     for i_query in range(query_x_fixture.shape[0]):
+        cell_id = cell_id_list[i_query]
         max_cluster = np.argmax(expected_corr[i_query, :])
+        max_cluster_name = cluster_list[max_cluster]
         max_corr = expected_corr[i_query, max_cluster]
-        assert result[i_query]['assignment'] == cluster_list[max_cluster]
-        assert result[i_query]['cell_id'] == cell_id_list[i_query]
-        assert np.isclose(max_corr,
+        expected_lookup[cell_id] = {'assignment': max_cluster_name,
+                                    'confidence': max_corr}
+
+    for i_query in range(query_x_fixture.shape[0]):
+        cell_id = result[i_query]['cell_id']
+        expected = expected_lookup[cell_id]
+        assert result[i_query]['assignment'] == expected['assignment']
+        assert np.isclose(expected['confidence'],
                           result[i_query]['confidence'],
                           atol=0.0,
                           rtol=1.0e-6)
