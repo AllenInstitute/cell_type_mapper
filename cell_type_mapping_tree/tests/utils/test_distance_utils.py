@@ -1,3 +1,5 @@
+import pytest
+
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
 
@@ -63,7 +65,9 @@ def test_correlation_distance():
     np.testing.assert_allclose(actual, expected)
 
 
-def test_correlation_nn():
+@pytest.mark.parametrize(
+        "return_correlation", [True, False])
+def test_correlation_nn(return_correlation):
     rng = np.random.default_rng(4455123)
     n_genes = 50
     n_baseline = 116
@@ -71,12 +75,20 @@ def test_correlation_nn():
     baseline_array= rng.random((n_baseline, n_genes))
     query_array = rng.random((n_query, n_genes))
 
-    actual = correlation_nearest_neighbors(
+    result = correlation_nearest_neighbors(
                 baseline_array=baseline_array,
-                query_array=query_array)
+                query_array=query_array,
+                return_correlation=return_correlation)
 
-    assert actual.shape == (n_query, )
-    expected = np.zeros(n_query, dtype=int)
+    if return_correlation:
+        actual_nn = result[0]
+        actual_corr = result[1]
+    else:
+        actual_nn = result
+
+    assert actual_nn.shape == (n_query, )
+    expected_nn = np.zeros(n_query, dtype=int)
+    expected_corr = np.zeros(n_query, dtype=float)
     for i_query in range(n_query):
         mu_q = np.mean(query_array[i_query, :])
         std_q = np.std(query_array[i_query, :], ddof=0)
@@ -91,5 +103,12 @@ def test_correlation_nn():
             if min_dex is None or dist<min_dist:
                 min_dex = i_baseline
                 min_dist = dist
-        expected[i_query] = min_dex
-    np.testing.assert_array_equal(actual, expected)
+        expected_nn[i_query] = min_dex
+        expected_corr[i_query] = 1.0-min_dist
+    np.testing.assert_array_equal(actual_nn, expected_nn)
+    if return_correlation:
+        np.testing.assert_allclose(
+            actual_corr,
+            expected_corr,
+            atol=0.0,
+            rtol=1.0e-6)

@@ -3,7 +3,8 @@ import numpy as np
 
 def correlation_nearest_neighbors(
         baseline_array,
-        query_array):
+        query_array,
+        return_correlation=False):
     """
     Find the index of the nearest neighbors (by correlation
     distance) of the cells in
@@ -16,6 +17,9 @@ def correlation_nearest_neighbors(
     query_array:
         A (n_cells_1, n_genes) np.ndarray. The cell x gene data
         whose nearest neighbors are desired
+    return_correlation:
+        If True, also return the correlation values of the best
+        fit
 
     Returns
     -------
@@ -24,7 +28,14 @@ def correlation_nearest_neighbors(
     cell in query_array (i.e. the returned value at 11 is the
     nearest neighbor of query_array[11, :])
     """
-    return np.argmax(correlation_dot(baseline_array, query_array), axis=0)
+    correlation_array = correlation_dot(baseline_array, query_array)
+    max_idx = np.argmax(correlation_array, axis=0)
+    if not return_correlation:
+        return max_idx
+    max_val = correlation_array[
+        max_idx,
+        np.arange(correlation_array.shape[1])]
+    return max_idx, max_val
 
 
 def correlation_distance(
