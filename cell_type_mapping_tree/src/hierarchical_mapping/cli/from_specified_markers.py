@@ -4,7 +4,6 @@ import json
 import numpy as np
 import os
 import pathlib
-import shutil
 import tempfile
 import time
 import traceback
@@ -25,15 +24,15 @@ from hierarchical_mapping.cli.utils import (
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
-
 from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     serialize_markers,
     create_marker_cache_from_specified_markers)
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
+
+from hierarchical_mapping.cli.processing_utils import (
+    create_precomputed_stats_file)
 
 
 def run_mapping(config, output_path, log_path=None):
@@ -113,48 +112,12 @@ def _run_mapping(config, tmp_dir, log):
     if precomputed_is_valid:
         log.info(f"using {precomputed_tmp} for precomputed_stats")
     else:
-        log.info("creating precomputed stats file")
-
-        reference_path = pathlib.Path(
-            precomputed_config['reference_path'])
-
-        ref_tmp = pathlib.Path(
-            tempfile.mkdtemp(
-                prefix='reference_data_',
-                dir=tmp_dir))
-
-        (reference_path,
-         _) = _copy_over_file(file_path=reference_path,
-                              tmp_dir=ref_tmp,
-                              log=log)
-
-        if 'column_hierarchy' in precomputed_config:
-            column_hierarchy = precomputed_config['column_hierarchy']
-            taxonomy_tree = None
-        else:
-            taxonomy_tree = TaxonomyTree.from_json_file(
-                json_path=precomputed_config['taxonomy_tree'])
-            column_hierarchy = None
-
-        t0 = time.time()
-        precompute_summary_stats_from_h5ad(
-            data_path=reference_path,
-            column_hierarchy=column_hierarchy,
-            taxonomy_tree=taxonomy_tree,
-            output_path=precomputed_tmp,
-            rows_at_a_time=10000,
-            normalization=precomputed_config['normalization'])
-        log.benchmark(msg="precomputing stats",
-                      duration=time.time()-t0)
-
-        if precomputed_path is not None:
-            log.info("copying precomputed stats from "
-                     f"{precomputed_tmp} to {precomputed_path}")
-            shutil.copy(
-                src=precomputed_tmp,
-                dst=precomputed_path)
-
-        _clean_up(ref_tmp)
+        create_precomputed_stats_file(
+            precomputed_config=precomputed_config,
+            precomputed_path=precomputed_path,
+            precomputed_tmp=precomputed_tmp,
+            log=log,
+            tmp_dir=tmp_dir)
 
     log.info(f"reading taxonomy_tree from {precomputed_tmp}")
     with h5py.File(precomputed_tmp, "r") as in_file:
