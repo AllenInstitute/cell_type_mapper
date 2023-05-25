@@ -25,7 +25,7 @@ def _copy_over_file(file_path, tmp_dir, log):
     -------
     new_path:
         Where the file was copied (even if file was not copied,
-        return a to a file in tmp_dir)
+        return a path to a file in tmp_dir)
 
     valid:
         boolean indicating whether this file can be used (True)
