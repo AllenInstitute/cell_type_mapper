@@ -58,7 +58,10 @@ def flatmap_cells(
         cluster_to_row_lookup[n]: n
         for n in cluster_to_row_lookup.keys()}
 
-    result = []
+    mgr = multiprocessing.Manager()
+    output_list = mgr.list()
+    output_lock = mgr.Lock()
+    process_list = []
 
     for query_chunk_meta in row_iterator:
 
@@ -67,20 +70,51 @@ def flatmap_cells(
         r1 = query_chunk_meta[2]
 
         query_chunk = query_chunk[:, gene_idx['query']]
+        cell_id_chunk = cell_id_list[r0:r1]
+        p = multiprocessing.Process(
+                target=_flatmap_worker,
+                kwargs={
+                    'reference_profiles': reference_profiles,
+                    'query_chunk': query_chunk,
+                    'row_to_cluster_lookup': row_to_cluster_lookup,
+                    'cell_id_chunk': cell_id_chunk,
+                    'output_list': output_list,
+                    'output_lock': output_lock})
+        p.start()
+        process_list.append(p)
+        while len(process_list) >= n_processors:
+            process_list = winnow_process_list(process_list)
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
-        (cluster_idx,
-         correlation_values) = correlation_nearest_neighbors(
+    return list(output_list)
+
+
+def _flatmap_worker(
+        reference_profiles,
+        query_chunk,
+        row_to_cluster_lookup,
+        cell_id_chunk,
+        output_list,
+        output_lock):
+    result = []
+
+    (cluster_idx,
+     correlation_values) = correlation_nearest_neighbors(
                  baseline_array=reference_profiles,
                  query_array=query_chunk,
                  return_correlation=True)
-        for idx, corr, cell_id in zip(cluster_idx,
-                                      correlation_values,
-                                      cell_id_list[r0:r1]):
-            this = {'cell_id': cell_id,
-                    'assignment': row_to_cluster_lookup[idx],
-                    'confidence': corr}
-            result.append(this)
-    return result
+    for idx, corr, cell_id in zip(cluster_idx,
+                                  correlation_values,
+                                  cell_id_chunk):
+        this = {'cell_id': cell_id,
+                'assignment': row_to_cluster_lookup[idx],
+                'confidence': corr}
+        result.append(this)
+
+    with output_lock:
+        for element in result:
+            output_list.append(element)
 
 
 def correlate_cells(
