@@ -6,6 +6,9 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.cli.cli_log import (
+    CommandLog)
+
 from hierarchical_mapping.file_tracker.file_tracker import (
     FileTracker)
 
@@ -32,17 +35,25 @@ def actual_file_bytes(actual_file):
     return data
 
 
-@pytest.mark.parametrize('input_only', [True, False])
+@pytest.mark.parametrize(
+       'input_only, use_log',
+       [(True, True), (True, False),
+        (False, True), (False, False)])
 def test_input_file(
         tmp_dir_fixture,
         actual_file,
         actual_file_bytes,
-        input_only):
+        input_only,
+        use_log):
     """
     Test that, when tracking a file that already exists,
     it is not changed (but is faithfully copied)
     """
-    tracker = FileTracker(tmp_dir=tmp_dir_fixture)
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
+    tracker = FileTracker(tmp_dir=tmp_dir_fixture, log=log)
     this_dir = str(tracker.tmp_dir.resolve().absolute())
     assert this_dir != str(tmp_dir_fixture.resolve().absolute())
 
@@ -88,12 +99,20 @@ def test_error_if_input_does_not_exit(
         tracker.add_file('garbage.txt', input_only=True)
 
 
+@pytest.mark.parametrize(
+    'use_log', (True, False))
 def test_creating_new_file(
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        use_log):
     """
     Test that a file is created and copied to the correct
     location once the tracker is deleted.
     """
+
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
 
     final_path = pathlib.Path(
             mkstemp_clean(
@@ -103,7 +122,8 @@ def test_creating_new_file(
     final_path.unlink()
 
     tracker = FileTracker(
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        log=log)
 
     tracker.add_file(
         final_path,
@@ -125,9 +145,17 @@ def test_creating_new_file(
     assert actual_bytes == expected_bytes
 
 
-@pytest.mark.parametrize("input_only", [True, False])
-def test_no_tmp_dir(input_only):
-    tracker = FileTracker(tmp_dir=None)
+@pytest.mark.parametrize("input_only, use_log",
+        [(True, True), (True, False),
+         (False, True), (False, False)])
+def test_no_tmp_dir(input_only, use_log):
+
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
+
+    tracker = FileTracker(tmp_dir=None, log=log)
     test_path = pathlib.Path('junk.txt')
     str_test_path = str(test_path.resolve().absolute())
     tracker.add_file(test_path, input_only=input_only)

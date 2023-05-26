@@ -15,7 +15,8 @@ class FileTracker(object):
 
     def __init__(
             self,
-            tmp_dir):
+            tmp_dir,
+            log=None):
         if tmp_dir is None:
             self.tmp_dir = tmp_dir
         else:
@@ -24,6 +25,7 @@ class FileTracker(object):
 
         self._path_to_location = dict()
         self._to_write_out = []
+        self.log = log
 
     def __del__(self):
         for dst_path in self._to_write_out:
@@ -31,8 +33,14 @@ class FileTracker(object):
             shutil.copy(
                 src=src_path,
                 dst=dst_path)
+            if self.log is not None:
+                msg = f"FILE TRACKER: copied {src_path} to {dst_path}"
+                self.log.info(msg)
 
         if self.tmp_dir is not None:
+            if self.log is not None:
+                msg = f"FILE TRACKER: cleaning up {self.tmp_dir}"
+                self.log.info(msg)
             _clean_up(self.tmp_dir)
 
     def add_file(
@@ -71,6 +79,9 @@ class FileTracker(object):
             shutil.copy(
                 src=file_path,
                 dst=tmp_path)
+            if self.log is not None:
+                msg = f"FILE TRACKER: copied {file_path} to {tmp_path}"
+                self.log.info(msg)
 
         tmp_path = str(tmp_path.resolve().absolute())
         self._path_to_location[path_str] = tmp_path
