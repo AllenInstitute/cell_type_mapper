@@ -167,7 +167,8 @@ def _run_mapping(config, tmp_dir, log):
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
         normalization=type_assignment_config['normalization'],
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        log=log)
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 

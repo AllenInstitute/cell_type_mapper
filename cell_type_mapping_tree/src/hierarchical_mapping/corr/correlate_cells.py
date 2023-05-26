@@ -410,7 +410,8 @@ def _prep_data(
     row_iterator = AnnDataRowIterator(
         h5ad_path=query_path,
         row_chunk_size=rows_at_a_time,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        log=log)
 
     return (reference_profiles,
             cluster_to_row_lookup,

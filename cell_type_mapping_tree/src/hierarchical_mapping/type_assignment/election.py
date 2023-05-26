@@ -38,7 +38,8 @@ def run_type_assignment_on_h5ad(
         bootstrap_iteration,
         rng,
         normalization='log2CPM',
-        tmp_dir=None):
+        tmp_dir=None,
+        log=None):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -93,6 +94,9 @@ def run_type_assignment_on_h5ad(
        for faster row iteration (if query data is in the form
        of a CSC matrix)
 
+    log:
+        Optional CommandLog for tracking warnings emitted by CLI
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -125,7 +129,8 @@ def run_type_assignment_on_h5ad(
     chunk_iterator = AnnDataRowIterator(
         h5ad_path=query_h5ad_path,
         row_chunk_size=chunk_size,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        log=log)
 
     process_list = []
     mgr = multiprocessing.Manager()
