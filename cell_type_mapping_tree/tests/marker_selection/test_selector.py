@@ -789,7 +789,7 @@ def test_specified_marker_empty_parent(
             # missing marker genes
             found_warning = False
             for l in log._log:
-                if 'The following marker genes' in l:
+                if 'marker genes were not present' in l:
                     found_warning = True
             assert found_warning
 
