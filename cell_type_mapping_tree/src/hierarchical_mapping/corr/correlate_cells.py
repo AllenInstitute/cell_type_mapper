@@ -34,7 +34,8 @@ def flatmap_cells(
         rows_at_a_time=100000,
         n_processors=4,
         tmp_dir=None,
-        query_normalization='raw'):
+        query_normalization='raw',
+        log=None):
     """
     query_path is the path to the h5ad file containing the query cells
 
@@ -59,7 +60,8 @@ def flatmap_cells(
                          precomputed_path=precomputed_path,
                          marker_gene_list=marker_gene_list,
                          rows_at_a_time=rows_at_a_time,
-                         tmp_dir=tmp_dir)
+                         tmp_dir=tmp_dir,
+                         log=log)
 
     row_to_cluster_lookup = {
         cluster_to_row_lookup[n]: n
@@ -291,7 +293,8 @@ def _prep_data(
         query_path,
         marker_gene_list,
         rows_at_a_time,
-        tmp_dir):
+        tmp_dir,
+        log=None):
     """
     Prepare data for flat mapping
 
@@ -308,6 +311,9 @@ def _prep_data(
         a single worker
     tmp_dir
         optional directory for writing temporary data products
+    log
+        optional CommandLog for recording messages when run
+        with CLI
 
     Returns
     -------
@@ -367,19 +373,26 @@ def _prep_data(
             reference_gene_set = set(reference_genes)
             not_in_ref = marker_gene_set-reference_gene_set
             not_in_query = marker_gene_set-query_gene_set
+            all_missing = not_in_ref.union(not_in_query)
 
-            msg = "The following marker genes are being skipped.\n"
+            msg = f"The following {len(all_missing)} "
+            msg += "marker genes are being skipped.\n"
             if len(not_in_query) > 0:
                 not_in_query = list(not_in_query)
                 not_in_query.sort()
-                msg += "These were not present in the query dataset:\n"
+                msg += f"These {len(not_in_query)} genes were not present "
+                msg += "in the query dataset:\n"
                 msg += f"{not_in_query}\n"
             if len(not_in_ref) > 0:
                 not_in_ref = list(not_in_ref)
                 not_in_ref.sort()
-                msg += "These were not present in the reference dataset:\n"
+                msg += f"These {len(not_in_ref)} were not present "
+                msg += "in the reference dataset:\n"
                 msg += f"{not_in_ref}"
-            warnings.warn(msg)
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
 
     reference_profiles = reference_profiles[:, gene_idx['reference']]
 

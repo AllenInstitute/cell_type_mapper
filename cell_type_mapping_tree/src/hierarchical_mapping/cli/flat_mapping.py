@@ -141,7 +141,8 @@ def _run_mapping(config, tmp_dir, log):
         rows_at_a_time=type_assignment_config['chunk_size'],
         n_processors=type_assignment_config['n_processors'],
         tmp_dir=tmp_dir,
-        query_normalization=type_assignment_config['normalization'])
+        query_normalization=type_assignment_config['normalization'],
+        log=log)
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
