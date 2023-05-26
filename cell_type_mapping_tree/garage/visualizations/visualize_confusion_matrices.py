@@ -15,6 +15,16 @@ import re
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+def split_sentence(sentence, char_lim=60):
+    line_list = []
+    for i0 in range(0, len(sentence), char_lim):
+        this_line = sentence[i0:i0+char_lim]
+        if i0 > 0:
+            this_line = f"    {this_line}"
+        this_line += "-"
+        line_list.append(this_line)
+    line_list[-1] = line_list[-1][:-1]
+    return line_list
 
 def invert_tree(taxonomy_tree_path):
     tree = TaxonomyTree.from_json_file(taxonomy_tree_path)
@@ -335,7 +345,9 @@ def summary_plots(
         if "BENCHMARK" in line:
             position = bmark_pattern.search(line)
             line = line[position.start()+11:]
-        msg += line+"\n"
+        line_list = split_sentence(line)
+        for sub in line_list:
+            msg += sub+"\n"
 
     print(msg)
     axis_list[0].text(
@@ -353,10 +365,12 @@ def summary_plots(
     print(
         f"bad_confidence {np.mean(bad_confidence)} +/- {np.std(bad_confidence)}")
     histogram_axis.hist(good_confidence, bins=100, density=True,
-                        zorder=0, color='b', label='correct')
+                        zorder=0, color='b', label='correct cells')
     histogram_axis.hist(bad_confidence, bins=100, density=True,
-                        zorder=1, alpha=0.7, color='r', label='incorrect')
+                        zorder=1, alpha=0.7, color='r', label='incorrect cells')
     histogram_axis.legend(loc=0, fontsize=20)
+    histogram_axis.set_xlabel('confidence', fontsize=20)
+    histogram_axis.set_ylabel('density', fontsize=20)
 
     pdf_handle.savefig(fig)
 
