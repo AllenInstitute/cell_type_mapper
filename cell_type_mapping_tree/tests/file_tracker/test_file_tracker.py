@@ -123,3 +123,16 @@ def test_creating_new_file(
     with open(final_path, 'rb') as in_file:
         actual_bytes = in_file.read()
     assert actual_bytes == expected_bytes
+
+
+@pytest.mark.parametrize("input_only", [True, False])
+def test_no_tmp_dir(input_only):
+    tracker = FileTracker(tmp_dir=None)
+    test_path = pathlib.Path('junk.txt')
+    str_test_path = str(test_path.resolve().absolute())
+    tracker.add_file(test_path, input_only=input_only)
+
+    actual = tracker.real_location(test_path)
+    actual = str(actual.resolve().absolute())
+    assert actual == str_test_path
+    assert len(tracker._to_write_out) == 0
