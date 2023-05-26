@@ -156,6 +156,14 @@ def test_mapping_from_markers(
     config['query_path'] = baseline_config['query_path']
     config['precomputed_stats'] = copy.deepcopy(baseline_config['precomputed_stats'])
     config['precomputed_stats'].pop('path')
+
+    new_stats_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5',
+            prefix='precomputed_stats_',
+            delete=True)
+
+    config['precomputed_stats']['path'] = new_stats_path
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
 
     config['query_markers'] = {

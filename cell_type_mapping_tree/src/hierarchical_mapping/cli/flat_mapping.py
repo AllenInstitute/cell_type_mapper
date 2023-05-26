@@ -9,12 +9,13 @@ import traceback
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
+from hierarchical_mapping.file_tracker.file_tracker import (
+    FileTracker)
+
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
 from hierarchical_mapping.cli.utils import (
-    _copy_over_file,
-    _make_temp_path,
     _check_config)
 
 from hierarchical_mapping.corr.correlate_cells import (
@@ -79,17 +80,17 @@ def run_mapping(config, output_path, log_path=None):
 def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
-    validation_result = _validate_config(
+
+    file_tracker = FileTracker(
+        tmp_dir=tmp_dir,
+        log=log)
+
+    _validate_config(
             config=config,
-            tmp_dir=tmp_dir,
+            file_tracker=file_tracker,
             log=log)
 
-    query_tmp = validation_result['query_tmp']
-    precomputed_path = validation_result['precomputed_path']
-    precomputed_tmp = validation_result['precomputed_tmp']
-    precomputed_is_valid = validation_result['precomputed_is_valid']
-    marker_lookup_path = validation_result['marker_lookup']
-
+    query_loc = file_tracker.real_location(config['query_path'])
     precomputed_config = config["precomputed_stats"]
     type_assignment_config = config["type_assignment"]
 
@@ -98,13 +99,14 @@ def _run_mapping(config, tmp_dir, log):
 
     # ========= precomputed stats =========
 
-    if precomputed_is_valid:
-        log.info(f"using {precomputed_tmp} for precomputed_stats")
+    precomputed_path = precomputed_config['path']
+    precomputed_loc = file_tracker.real_location(precomputed_path)
+    if file_tracker.file_exists(precomputed_path):
+        log.info(f"using {precomputed_loc} for precomputed_stats")
     else:
         create_precomputed_stats_file(
             precomputed_config=precomputed_config,
-            precomputed_path=precomputed_path,
-            precomputed_tmp=precomputed_tmp,
+            file_tracker=file_tracker,
             log=log,
             tmp_dir=tmp_dir)
 
@@ -117,7 +119,7 @@ def _run_mapping(config, tmp_dir, log):
     # that dict into a list of marker gene names.
 
     t0 = time.time()
-
+    marker_lookup_path = config['query_markers']['serialized_lookup']
     marker_gene_names = set()
     marker_tree = json.load(open(marker_lookup_path, 'rb'))
     for node in marker_tree:
@@ -133,8 +135,8 @@ def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
     result = flatmap_cells(
-        query_path=query_tmp,
-        precomputed_path=precomputed_tmp,
+        query_path=query_loc,
+        precomputed_path=precomputed_loc,
         marker_gene_list=marker_gene_names,
         rows_at_a_time=type_assignment_config['chunk_size'],
         n_processors=type_assignment_config['n_processors'],
@@ -152,10 +154,8 @@ def _run_mapping(config, tmp_dir, log):
 
 def _validate_config(
         config,
-        tmp_dir,
+        file_tracker,
         log):
-
-    result = dict()
 
     if "query_path" not in config:
         log.error("'query_path' not in config")
@@ -177,35 +177,23 @@ def _validate_config(
                   'normalization'],
         log=log)
 
-    (query_tmp,
-     query_is_valid) = _copy_over_file(
-         file_path=config["query_path"],
-         tmp_dir=tmp_dir,
-         log=log)
-
-    if not query_is_valid:
-        log.error(
-            f"{config['query_path']} is not a valid file")
-
-    result['query_tmp'] = query_tmp
+    file_tracker.add_file(
+        config['query_path'],
+        input_only=True)
 
     precomputed_config = config["precomputed_stats"]
-    lookup = _make_temp_path(
+
+    _check_config(
         config_dict=precomputed_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        prefix="precomputed_stats_",
-        suffix=".h5")
+        config_name="precomputed_stats",
+        key_name=['path'],
+        log=log)
 
-    precomputed_path = lookup["path"]
-    precomputed_tmp = lookup["tmp"]
-    precomputed_is_valid = lookup["is_valid"]
+    file_tracker.add_file(
+        precomputed_config['path'],
+        input_only=False)
 
-    result['precomputed_path'] = precomputed_path
-    result['precomputed_tmp'] = precomputed_tmp
-    result['precomputed_is_valid'] = precomputed_is_valid
-
-    if not precomputed_is_valid:
+    if not file_tracker.file_exists(precomputed_config['path']):
         _check_config(
             config_dict=precomputed_config,
             config_name='precomputed_config',
@@ -240,10 +228,6 @@ def _validate_config(
             "serialized marker lookup\n"
             f"{serialized_lookup_path.resolve().absolute()}\n"
             "is not a file")
-
-    result["marker_lookup"] = serialized_lookup_path
-
-    return result
 
 
 def main():

@@ -24,6 +24,7 @@ class FileTracker(object):
                     tempfile.mkdtemp(dir=tmp_dir))
 
         self._path_to_location = dict()
+        self._file_pre_exists = dict()
         self._to_write_out = []
         self.log = log
 
@@ -55,12 +56,26 @@ class FileTracker(object):
         it will not be written out again
         """
         file_path = pathlib.Path(file_path)
-        if input_only:
-            if not file_path.is_file():
+        if not file_path.is_file():
+            if file_path.exists():
+                raise RuntimeError(
+                    f"{file_path}\nexists but is not a file")
+            elif input_only:
                 raise RuntimeError(
                     f"{file_path}\nis not a file")
+            else:
+                if not file_path.parent.is_dir():
+                    raise RuntimeError(
+                        f"will not be able to write to {file_path}\n"
+                        f"{file_path.parent} is not a dir")
 
         path_str = str(file_path.resolve().absolute())
+
+        if file_path.is_file():
+            self._file_pre_exists[path_str] = True
+        else:
+            self._file_pre_exists[path_str] = False
+
         if self.tmp_dir is None:
             # if there is no tmp_dir, then nothing will be
             # copied anywhere
@@ -100,3 +115,14 @@ class FileTracker(object):
             raise RuntimeError(
                 f"{file_path}\nnot listed in this FileTracker")
         return pathlib.Path(self._path_to_location[file_path])
+
+    def file_exists(self, file_path):
+        """
+        Did the tracked file exist before we created it?
+        """
+        file_path = pathlib.Path(file_path)
+        file_path = str(file_path.resolve().absolute())
+        if file_path not in self._file_pre_exists:
+            raise RuntimeError(
+                f"{file_path}\nnot listed in this FileTracker")
+        return self._file_pre_exists[file_path]
