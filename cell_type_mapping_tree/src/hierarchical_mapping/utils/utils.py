@@ -102,7 +102,8 @@ def json_clean_dict(input_dict):
 def mkstemp_clean(
         dir: Optional[Union[pathlib.Path, str]] = None,
         prefix: Optional[str] = None,
-        suffix: Optional[str] = None) -> str:
+        suffix: Optional[str] = None,
+        delete=False) -> str:
     """
     A thin wrapper around tempfile mkstemp that automatically
     closes the file descripter returned by mkstemp.
@@ -117,6 +118,13 @@ def mkstemp_clean(
 
     suffix: Optional[str]
         The suffix of the tempfile's name
+
+    delete:
+        if True, delete the file
+        (dangerous, as could interfere with tempfile.mkstemp's
+        ability to create unique file names; should only be used
+        during testing where it is important that the tempfile
+        doesn't actually exist)
 
     Returns
     -------
@@ -138,4 +146,6 @@ def mkstemp_clean(
                      suffix=suffix)
 
     os.close(descriptor)
+    if delete:
+        os.unlink(file_path)
     return file_path
