@@ -103,3 +103,6 @@ def test_flatmapper(
     cluster_name_set = set(taxonomy_tree_dict['cluster'])
     for el in actual['results']:
         el['assignment'] in cluster_name_set
+
+    # make sure reference file still exists
+    assert raw_reference_h5ad_fixture.is_file()

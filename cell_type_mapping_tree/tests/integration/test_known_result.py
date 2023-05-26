@@ -345,6 +345,9 @@ def test_cli_pipeline(
                 parent_k = f'{parent[0]}/{parent[1]}'
             assert parent_k in results["marker_genes"]
 
+    # make sure reference file still exists
+    assert raw_reference_h5ad_fixture.is_file()
+
 
 def test_cli_error_log(
         raw_reference_h5ad_fixture,

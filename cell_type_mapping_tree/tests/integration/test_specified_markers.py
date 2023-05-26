@@ -177,3 +177,6 @@ def test_mapping_from_markers(
         assert cell == actual_lookup[cell['cell_id']]
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
     assert len(actual['results']) == len(expected['results'])
+
+    # make sure reference file still exists
+    assert pathlib.Path(config['precomputed_stats']['reference_path']).is_file()
