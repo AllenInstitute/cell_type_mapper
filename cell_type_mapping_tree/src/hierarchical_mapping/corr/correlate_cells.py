@@ -1,6 +1,7 @@
 import h5py
 import json
 import multiprocessing
+import numpy as np
 import time
 import warnings
 
@@ -48,6 +49,14 @@ def flatmap_cells(
          'confidence': confidence_value,
          'cell_id': cell_id}
     """
+
+    # if rows_at_a_time is larger than n_query_cells/n_processors,
+    # lower it
+    obs = read_df_from_h5ad(query_path, 'obs')
+    n_cells = len(obs.index.values)
+    max_chunk_size = np.ceil(n_cells/n_processors).astype(int)
+    if rows_at_a_time > max_chunk_size:
+        rows_at_a_time = max_chunk_size
 
     all_query_genes = _get_query_genes(query_path)
 
