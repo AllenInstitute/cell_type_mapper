@@ -148,7 +148,7 @@ def test_creating_new_file(
 @pytest.mark.parametrize("input_only, use_log",
         [(True, True), (True, False),
          (False, True), (False, False)])
-def test_no_tmp_dir(input_only, use_log):
+def test_no_tmp_dir(input_only, use_log, actual_file):
 
     if use_log:
         log = CommandLog()
@@ -156,11 +156,10 @@ def test_no_tmp_dir(input_only, use_log):
         log = None
 
     tracker = FileTracker(tmp_dir=None, log=log)
-    test_path = pathlib.Path('junk.txt')
-    str_test_path = str(test_path.resolve().absolute())
-    tracker.add_file(test_path, input_only=input_only)
+    str_test_path = actual_file
+    tracker.add_file(str_test_path, input_only=input_only)
 
-    actual = tracker.real_location(test_path)
+    actual = tracker.real_location(str_test_path)
     actual = str(actual.resolve().absolute())
     assert actual == str_test_path
     assert len(tracker._to_write_out) == 0
