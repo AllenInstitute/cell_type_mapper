@@ -2,6 +2,7 @@ import anndata
 import h5py
 import numpy as np
 import pathlib
+import psutil
 import tempfile
 import time
 
@@ -181,11 +182,12 @@ class AnnDataRowIterator(object):
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
             with h5py.File(h5ad_path, 'r') as src:
+                available_bytes = psutil.virtual_memory().available
                 csc_to_csr_on_disk(
                     csc_group=src['X'],
                     csr_path=self.tmp_path,
                     array_shape=array_shape,
-                    load_chunk_size=500*1024**2)
+                    max_gb=0.8*available_bytes/(1024**3))
 
             self._iterator_type = 'CSRRow'
             self._chunk_iterator = CSRRowIterator(

@@ -61,10 +61,12 @@ def csc_fixture(
     return h5ad_path
 
 
+@pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
 def test_csc_to_csr_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
-        csc_fixture):
+        csc_fixture,
+        max_gb):
 
     csr_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
     with h5py.File(csc_fixture, 'r') as original:
@@ -72,7 +74,7 @@ def test_csc_to_csr_on_disk(
             csc_group=original['X'],
             csr_path=csr_path,
             array_shape=x_array_fixture.shape,
-            load_chunk_size=10000)
+            max_gb=max_gb)
 
     expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
     with h5py.File(csr_path, 'r') as src:
