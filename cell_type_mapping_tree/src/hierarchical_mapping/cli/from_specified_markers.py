@@ -1,4 +1,5 @@
 import argparse
+import argschema
 import h5py
 import json
 import numpy as np
@@ -34,6 +35,20 @@ from hierarchical_mapping.type_assignment.election import (
 
 from hierarchical_mapping.cli.processing_utils import (
     create_precomputed_stats_file)
+
+
+from hierarchical_mapping.cli.schemas import (
+    HierarchicalSchemaSpecifiedMarkers)
+
+
+class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
+    default_schema = HierarchicalSchemaSpecifiedMarkers
+
+    def run(self):
+        run_mapping(
+            config=self.args,
+            output_path=self.args['result_path'],
+            log_path=None)
 
 
 def run_mapping(config, output_path, log_path=None):

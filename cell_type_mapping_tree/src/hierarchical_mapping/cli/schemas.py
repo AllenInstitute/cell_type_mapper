@@ -79,3 +79,112 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
             raise ValidationError(error_msg)
 
         return data
+
+
+class SpecifiedMarkerSchema(argschema.ArgSchema):
+
+    serialized_lookup = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the JSON file that specifies the marker genes to "
+        "use for this mapping job.")
+
+
+class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
+
+    bootstrap_iteration = argschema.fields.Int(
+        required=False,
+        default=100,
+        allow_none=False,
+        help="Number of bootstrap nearest neighbor iterations to run "
+        "when assigning cell types.")
+
+    bootstrap_factor = argschema.fields.Float(
+        required=False,
+        default=0.9,
+        allow_none=False,
+        help="Factor by which to downsample the number of genes when "
+        "performing bootstrapped nearest neighbor cell type searches.")
+
+    n_processors = argschema.fields.Int(
+        required=False,
+        default=32,
+        allow_none=False,
+        help="Number of independendent processes to use when "
+        "parallelizing work for mapping job")
+
+    chunk_size = argschema.fields.Int(
+        required=False,
+        default=10000,
+        allow_none=False,
+        help="Number of rows each worker process should load at "
+        "a time from the query dataset")
+
+    normalization = argschema.fields.String(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Normalization of the query dataset")
+
+    rng_seed = argschema.fields.Int(
+        required=False,
+        default=11235813,
+        allow_none=False,
+        help="Seed value for random number generator used in "
+        "bootstrapping")
+
+    @post_load
+    def check_bootstrap_factor(self, data, **kwargs):
+        """
+        Verify that bootstrap_factor > 0 and < 1
+        and that normalization is either 'raw' or 'log2CPM'
+        """
+        factor = data['bootstrap_factor']
+        if factor <= 0.0 or factor >= 1.0:
+            raise ValidationError(
+                f"bootstrap_factor must be in (0, 1); you gave {factor}")
+
+        norm = data['normalization']
+        if norm not in ('raw', 'log2CPM'):
+            raise ValidationError(
+                f"{norm} is not a valid query normalization;\n"
+                "must be either 'raw' or 'log2CP'")
+
+        return data
+
+
+class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        help="Optional temporary directory into which data "
+        "will be copied for faster access (e.g. if the data "
+        "naturally lives on a slow NFS drive)")
+
+    query_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the h5ad file containing the query "
+        "dataset")
+
+    result_path = argschema.fields.OutputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the output file that will be written")
+
+    precomputed_stats = argschema.fields.Nested(
+        PrecomputedStatsSchema,
+        required=True)
+
+    query_markers = argschema.fields.Nested(
+        SpecifiedMarkerSchema,
+        required=True)
+
+    type_assignment = argschema.fields.Nested(
+        HierarchicalTypeAssignmentSchema,
+        required=True)
