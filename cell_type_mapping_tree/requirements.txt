@@ -3,3 +3,4 @@ numpy
 scipy
 zarr
 anndata
+argschema
