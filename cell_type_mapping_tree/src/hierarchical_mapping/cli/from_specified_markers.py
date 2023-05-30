@@ -1,9 +1,7 @@
-import argparse
 import argschema
 import h5py
 import json
 import numpy as np
-import os
 import pathlib
 import tempfile
 import time
@@ -200,28 +198,8 @@ def _run_mapping(config, tmp_dir, log):
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default=None)
-    parser.add_argument('--result_path', type=str, default=None)
-    parser.add_argument('--log_path', type=str, default=None)
-    parser.add_argument('--local_tmp', default=False, action='store_true')
-    args = parser.parse_args()
-
-    with open(args.config_path, 'rb') as in_file:
-        config = json.load(in_file)
-
-    if args.local_tmp:
-        config['tmp_dir'] = os.environ['TMPDIR']
-
-    if args.result_path is None:
-        result_path = config['result_path']
-    else:
-        result_path = args.result_path
-
-    run_mapping(
-        config=config,
-        output_path=result_path,
-        log_path=args.log_path)
+    runner = FromSpecifiedMarkersRunner()
+    runner.run()
 
 
 if __name__ == "__main__":
