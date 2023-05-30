@@ -4,7 +4,6 @@ import json
 import numpy as np
 import os
 import pathlib
-import shutil
 import tempfile
 import time
 import traceback
@@ -13,20 +12,18 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.file_tracker.file_tracker import (
+    FileTracker)
+
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
 from hierarchical_mapping.cli.utils import (
-    _copy_over_file,
-    _make_temp_path,
     _check_config,
     _get_query_gene_names)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
-
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
 
 from hierarchical_mapping.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
@@ -37,6 +34,9 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
+
+from hierarchical_mapping.cli.processing_utils import (
+    create_precomputed_stats_file)
 
 
 def run_mapping(config, output_path, log_path=None):
@@ -94,83 +94,50 @@ def run_mapping(config, output_path, log_path=None):
 def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
-    validation_result = _validate_config(
-            config=config,
-            tmp_dir=tmp_dir,
-            log=log)
+    file_tracker = FileTracker(
+        tmp_dir=tmp_dir,
+        log=log)
 
-    query_tmp = validation_result['query_tmp']
-    precomputed_path = validation_result['precomputed_path']
-    precomputed_tmp = validation_result['precomputed_tmp']
-    precomputed_is_valid = validation_result['precomputed_is_valid']
-    reference_marker_path = validation_result['reference_marker_path']
-    reference_marker_tmp = validation_result['reference_marker_tmp']
-    reference_marker_is_valid = validation_result['reference_marker_is_valid']
+    _validate_config(
+            config=config,
+            file_tracker=file_tracker,
+            log=log)
 
     reference_marker_config = config["reference_markers"]
     precomputed_config = config["precomputed_stats"]
     query_marker_config = config["query_markers"]
     type_assignment_config = config["type_assignment"]
 
+    query_loc = file_tracker.real_location(
+        config['query_path'])
+
     log.benchmark(msg="validating config and copying data",
                   duration=time.time()-t0)
 
     # ========= precomputed stats =========
 
-    if precomputed_is_valid:
-        log.info(f"using {precomputed_tmp} for precomputed_stats")
+    precomputed_loc = file_tracker.real_location(precomputed_config['path'])
+    precomputed_path = precomputed_config['path']
+    if file_tracker.file_exists(precomputed_path):
+        log.info(f"using {precomputed_loc} for precomputed_stats")
     else:
-        log.info("creating precomputed stats file")
+        create_precomputed_stats_file(
+            precomputed_config=precomputed_config,
+            log=log,
+            file_tracker=file_tracker,
+            tmp_dir=tmp_dir)
 
-        reference_path = pathlib.Path(
-            precomputed_config['reference_path'])
-
-        ref_tmp = pathlib.Path(
-            tempfile.mkdtemp(
-                prefix='reference_data_',
-                dir=tmp_dir))
-
-        (reference_path,
-         _) = _copy_over_file(file_path=reference_path,
-                              tmp_dir=ref_tmp,
-                              log=log)
-
-        if 'column_hierarchy' in precomputed_config:
-            column_hierarchy = precomputed_config['column_hierarchy']
-            taxonomy_tree = None
-        else:
-            taxonomy_tree = TaxonomyTree.from_json_file(
-                json_path=precomputed_config['taxonomy_tree'])
-            column_hierarchy = None
-
-        t0 = time.time()
-        precompute_summary_stats_from_h5ad(
-            data_path=reference_path,
-            column_hierarchy=column_hierarchy,
-            taxonomy_tree=taxonomy_tree,
-            output_path=precomputed_tmp,
-            rows_at_a_time=10000,
-            normalization=precomputed_config['normalization'])
-        log.benchmark(msg="precomputing stats",
-                      duration=time.time()-t0)
-
-        if precomputed_path is not None:
-            log.info("copying precomputed stats from "
-                     f"{precomputed_tmp} to {precomputed_path}")
-            shutil.copy(
-                src=precomputed_tmp,
-                dst=precomputed_path)
-
-        _clean_up(ref_tmp)
-
-    log.info(f"reading taxonomy_tree from {precomputed_tmp}")
-    with h5py.File(precomputed_tmp, "r") as in_file:
+    log.info(f"reading taxonomy_tree from {precomputed_loc}")
+    with h5py.File(precomputed_loc, "r") as in_file:
         taxonomy_tree = TaxonomyTree.from_str(
             serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
 
     # ========= reference marker cache =========
 
-    if reference_marker_is_valid:
+    reference_marker_path = reference_marker_config["path"]
+    reference_marker_tmp = file_tracker.real_location(reference_marker_path)
+
+    if file_tracker.file_exists(reference_marker_path):
         log.info(f"using {reference_marker_tmp} for reference markers")
     else:
         log.info("creating reference marker file")
@@ -181,7 +148,7 @@ def _run_mapping(config, tmp_dir, log):
 
         t0 = time.time()
         find_markers_for_all_taxonomy_pairs(
-            precomputed_stats_path=precomputed_tmp,
+            precomputed_stats_path=precomputed_loc,
             taxonomy_tree=taxonomy_tree,
             output_path=reference_marker_tmp,
             tmp_dir=marker_tmp,
@@ -192,14 +159,6 @@ def _run_mapping(config, tmp_dir, log):
                       duration=time.time()-t0)
 
         _clean_up(marker_tmp)
-        if reference_marker_path is not None:
-            log.info(f"copying reference markers from "
-                     f"{reference_marker_tmp} to "
-                     f"{reference_marker_path}")
-            shutil.copy(
-                src=reference_marker_tmp,
-                dst=reference_marker_path)
-
     # ========= query marker cache =========
 
     query_marker_tmp = pathlib.Path(
@@ -211,7 +170,7 @@ def _run_mapping(config, tmp_dir, log):
     create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_tmp,
         input_cache_path=reference_marker_tmp,
-        query_gene_names=_get_query_gene_names(query_tmp),
+        query_gene_names=_get_query_gene_names(query_loc),
         taxonomy_tree=taxonomy_tree,
         n_per_utility=query_marker_config['n_per_utility'],
         n_processors=query_marker_config['n_processors'],
@@ -224,8 +183,8 @@ def _run_mapping(config, tmp_dir, log):
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
     result = run_type_assignment_on_h5ad(
-        query_h5ad_path=query_tmp,
-        precomputed_stats_path=precomputed_tmp,
+        query_h5ad_path=query_loc,
+        precomputed_stats_path=precomputed_loc,
         marker_gene_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree,
         n_processors=type_assignment_config['n_processors'],
@@ -248,10 +207,8 @@ def _run_mapping(config, tmp_dir, log):
 
 def _validate_config(
         config,
-        tmp_dir,
+        file_tracker,
         log):
-
-    result = dict()
 
     if "query_path" not in config:
         log.error("'query_path' not in config")
@@ -279,37 +236,25 @@ def _validate_config(
                   'normalization'],
         log=log)
 
-    (query_tmp,
-     query_is_valid) = _copy_over_file(
-         file_path=config["query_path"],
-         tmp_dir=tmp_dir,
-         log=log)
-
-    if not query_is_valid:
-        log.error(
-            f"{config['query_path']} is not a valid file")
-
-    result['query_tmp'] = query_tmp
+    file_tracker.add_file(
+        config["query_path"],
+        input_only=True)
 
     reference_marker_config = config["reference_markers"]
 
     precomputed_config = config["precomputed_stats"]
-    lookup = _make_temp_path(
+
+    _check_config(
         config_dict=precomputed_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        prefix="precomputed_stats_",
-        suffix=".h5")
+        config_name='precomputed_stats',
+        key_name=['path'],
+        log=log)
 
-    precomputed_path = lookup["path"]
-    precomputed_tmp = lookup["tmp"]
-    precomputed_is_valid = lookup["is_valid"]
+    file_tracker.add_file(
+        precomputed_config["path"],
+        input_only=False)
 
-    result['precomputed_path'] = precomputed_path
-    result['precomputed_tmp'] = precomputed_tmp
-    result['precomputed_is_valid'] = precomputed_is_valid
-
-    if not precomputed_is_valid:
+    if not file_tracker.file_exists(precomputed_config["path"]):
         _check_config(
             config_dict=precomputed_config,
             config_name='precomputed_config',
@@ -330,21 +275,11 @@ def _validate_config(
                 "taxonomy_tree in precomputed_config")
 
     reference_marker_config = config["reference_markers"]
-    lookup = _make_temp_path(
-        config_dict=reference_marker_config,
-        tmp_dir=tmp_dir,
-        log=log,
-        prefix="reference_markers_",
-        suffix=".h5")
+    file_tracker.add_file(
+        reference_marker_config["path"],
+        input_only=False)
 
-    reference_marker_path = lookup["path"]
-    reference_marker_tmp = lookup["tmp"]
-    reference_marker_is_valid = lookup["is_valid"]
-    result['reference_marker_path'] = reference_marker_path
-    result['reference_marker_tmp'] = reference_marker_tmp
-    result['reference_marker_is_valid'] = reference_marker_is_valid
-
-    if not reference_marker_is_valid:
+    if not file_tracker.file_exists(reference_marker_config["path"]):
         _check_config(
             config_dict=reference_marker_config,
             config_name='reference_markers',
@@ -357,8 +292,6 @@ def _validate_config(
         config_name="query_markers",
         key_name=['n_per_utility', 'n_processors'],
         log=log)
-
-    return result
 
 
 def main():

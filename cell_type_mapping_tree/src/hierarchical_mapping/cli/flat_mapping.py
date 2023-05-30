@@ -1,7 +1,5 @@
 import argparse
-import h5py
 import json
-import numpy as np
 import os
 import pathlib
 import tempfile
@@ -9,7 +7,6 @@ import time
 import traceback
 
 from hierarchical_mapping.utils.utils import (
-    mkstemp_clean,
     _clean_up)
 
 from hierarchical_mapping.file_tracker.file_tracker import (
@@ -19,18 +16,10 @@ from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
 from hierarchical_mapping.cli.utils import (
-    _check_config,
-    _get_query_gene_names)
+    _check_config)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
-
-from hierarchical_mapping.type_assignment.marker_cache_v2 import (
-    serialize_markers,
-    create_marker_cache_from_specified_markers)
-
-from hierarchical_mapping.type_assignment.election import (
-    run_type_assignment_on_h5ad)
+from hierarchical_mapping.corr.correlate_cells import (
+    flatmap_cells)
 
 from hierarchical_mapping.cli.processing_utils import (
     create_precomputed_stats_file)
@@ -91,6 +80,7 @@ def run_mapping(config, output_path, log_path=None):
 def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
+
     file_tracker = FileTracker(
         tmp_dir=tmp_dir,
         log=log)
@@ -109,9 +99,8 @@ def _run_mapping(config, tmp_dir, log):
 
     # ========= precomputed stats =========
 
-    precomputed_loc = file_tracker.real_location(
-        precomputed_config['path'])
     precomputed_path = precomputed_config['path']
+    precomputed_loc = file_tracker.real_location(precomputed_path)
     if file_tracker.file_exists(precomputed_path):
         log.info(f"using {precomputed_loc} for precomputed_stats")
     else:
@@ -121,63 +110,47 @@ def _run_mapping(config, tmp_dir, log):
             log=log,
             tmp_dir=tmp_dir)
 
-    log.info(f"reading taxonomy_tree from {precomputed_loc}")
-    with h5py.File(precomputed_loc, "r") as in_file:
-        taxonomy_tree = TaxonomyTree.from_str(
-            serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
-        reference_gene_names = json.loads(
-            in_file["col_names"][()].decode("utf-8"))
-
     # ========= query marker cache =========
 
-    query_marker_tmp = pathlib.Path(
-        mkstemp_clean(dir=tmp_dir,
-                      prefix='query_marker_',
-                      suffix='.h5'))
+    # The marker genes will be stored as a dict mapping parent
+    # node in the taxonomy tree to makers that should be used
+    # when deciding between the children of that node. For flat
+    # mapping, we will just concatenate *all* the marker genes in
+    # that dict into a list of marker gene names.
 
     t0 = time.time()
-
     marker_lookup_path = config['query_markers']['serialized_lookup']
-    marker_lookup = json.load(open(marker_lookup_path, 'rb'))
+    marker_gene_names = set()
+    marker_tree = json.load(open(marker_lookup_path, 'rb'))
+    for node in marker_tree:
+        marker_gene_names = marker_gene_names.union(
+            set(marker_tree[node]))
+    marker_gene_names = list(marker_gene_names)
+    marker_gene_names.sort()
 
-    query_gene_names = _get_query_gene_names(query_loc)
-
-    create_marker_cache_from_specified_markers(
-        marker_lookup=marker_lookup,
-        reference_gene_names=reference_gene_names,
-        query_gene_names=query_gene_names,
-        output_cache_path=query_marker_tmp,
-        log=log)
-
-    log.benchmark(msg="creating query marker cache",
-                  duration=time.time()-t0)
+    log.info(
+        f"Read in {len(marker_gene_names)} marker genes")
 
     # ========= type assignment =========
 
     t0 = time.time()
-    rng = np.random.default_rng(type_assignment_config['rng_seed'])
-    result = run_type_assignment_on_h5ad(
-        query_h5ad_path=query_loc,
-        precomputed_stats_path=precomputed_loc,
-        marker_gene_cache_path=query_marker_tmp,
-        taxonomy_tree=taxonomy_tree,
+    result = flatmap_cells(
+        query_path=query_loc,
+        precomputed_path=precomputed_loc,
+        marker_gene_list=marker_gene_names,
+        rows_at_a_time=type_assignment_config['chunk_size'],
         n_processors=type_assignment_config['n_processors'],
-        chunk_size=type_assignment_config['chunk_size'],
-        bootstrap_factor=type_assignment_config['bootstrap_factor'],
-        bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
-        rng=rng,
-        normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir,
+        query_normalization=type_assignment_config['normalization'],
         log=log)
+
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 
-    # ========= copy marker gene lookup over to output file =========
-    log.info("Writing marker genes to output file")
-    marker_gene_lookup = serialize_markers(
-        marker_cache_path=query_marker_tmp,
-        taxonomy_tree=taxonomy_tree)
-    return {'assignments': result, 'marker_genes': marker_gene_lookup}
+    # right now, this just returns all of the marker genes specified
+    # in the input JSON, without regard to which ones were actually
+    # present in the query and reference datasets
+    return {'assignments': result, 'marker_genes': marker_gene_names}
 
 
 def _validate_config(
@@ -202,9 +175,6 @@ def _validate_config(
         config_name="type_assignment",
         key_name=['n_processors',
                   'chunk_size',
-                  'bootstrap_factor',
-                  'bootstrap_iteration',
-                  'rng_seed',
                   'normalization'],
         log=log)
 
@@ -216,7 +186,7 @@ def _validate_config(
 
     _check_config(
         config_dict=precomputed_config,
-        config_name='precomputed_stats',
+        config_name="precomputed_stats",
         key_name=['path'],
         log=log)
 

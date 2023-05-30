@@ -29,6 +29,11 @@ class CellByGeneMatrix(object):
             normalization,
             cell_identifiers=None):
 
+        # has this file been downsampled by
+        # genes (if it has, then conversion to
+        # CPM will be impossible)
+        self._genes_downsampled = False
+
         valid_norm = ("raw", "log2CPM")
 
         # check for valid normalization
@@ -147,11 +152,13 @@ class CellByGeneMatrix(object):
         """
         Return a new CellByGeneMatrix including only selected_genes
         """
-        return CellByGeneMatrix(
+        result = CellByGeneMatrix(
             data=self._downsample_genes(selected_genes),
             gene_identifiers=selected_genes,
             normalization=self.normalization,
             cell_identifiers=self.cell_identifiers)
+        result._genes_downsampled = True
+        return result
 
     def downsample_genes_in_place(self, selected_genes):
         """
@@ -160,6 +167,7 @@ class CellByGeneMatrix(object):
         self._data = self._downsample_genes(selected_genes)
         self._gene_identifiers = copy.deepcopy(selected_genes)
         self._create_gene_to_col()
+        self._genes_downsampled = True
 
     def downsample_cells(self, selected_cells):
         """
@@ -197,6 +205,11 @@ class CellByGeneMatrix(object):
                 "You are calling to_log2CPM, but this CellByGeneMatrix "
                 "already is not raw")
 
+        if self._genes_downsampled:
+            raise RuntimeError(
+                "This CellByGeneMatrix has been downsampled by genes; "
+                "converting to CPM will give a nonsense result")
+
         return CellByGeneMatrix(
             data=np.log2(1.0+convert_to_cpm(self.data)),
             gene_identifiers=self.gene_identifiers,
@@ -211,5 +224,11 @@ class CellByGeneMatrix(object):
             raise RuntimeError(
                 "You are calling to_log2CPM_in_place, but this "
                 "CellByGeneMatrix already is not raw")
+
+        if self._genes_downsampled:
+            raise RuntimeError(
+                "This CellByGeneMatrix has been downsampled by genes; "
+                "converting to CPM will give a nonsense result")
+
         self._data = np.log2(1.0+convert_to_cpm(self.data))
         self._normalization = "log2CPM"

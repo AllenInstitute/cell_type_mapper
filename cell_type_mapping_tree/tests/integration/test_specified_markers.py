@@ -156,6 +156,14 @@ def test_mapping_from_markers(
     config['query_path'] = baseline_config['query_path']
     config['precomputed_stats'] = copy.deepcopy(baseline_config['precomputed_stats'])
     config['precomputed_stats'].pop('path')
+
+    new_stats_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5',
+            prefix='precomputed_stats_',
+            delete=True)
+
+    config['precomputed_stats']['path'] = new_stats_path
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
 
     config['query_markers'] = {
@@ -177,3 +185,6 @@ def test_mapping_from_markers(
         assert cell == actual_lookup[cell['cell_id']]
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
     assert len(actual['results']) == len(expected['results'])
+
+    # make sure reference file still exists
+    assert pathlib.Path(config['precomputed_stats']['reference_path']).is_file()

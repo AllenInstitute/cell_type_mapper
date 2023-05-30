@@ -15,6 +15,16 @@ import re
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+def split_sentence(sentence, char_lim=60):
+    line_list = []
+    for i0 in range(0, len(sentence), char_lim):
+        this_line = sentence[i0:i0+char_lim]
+        if i0 > 0:
+            this_line = f"    {this_line}"
+        this_line += "-"
+        line_list.append(this_line)
+    line_list[-1] = line_list[-1][:-1]
+    return line_list
 
 def invert_tree(taxonomy_tree_path):
     tree = TaxonomyTree.from_json_file(taxonomy_tree_path)
@@ -123,7 +133,8 @@ def summary_plots(
         ground_truth_column_list,
         pdf_handle,
         is_log10,
-        munge_ints):
+        munge_ints,
+        is_flat=False):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -141,10 +152,25 @@ def summary_plots(
         if "RAN" in line or "BENCHMARK" in line:
             timing_statements.append(line)
 
-    results_lookup = {
-        cell['cell_id']: cell for cell in results["results"]}
-
     tree_path = results['config']['precomputed_stats']['taxonomy_tree']
+    (taxonomy_tree,
+     inverted_tree) = invert_tree(tree_path)
+    if not is_flat:
+        results_lookup = {
+            cell['cell_id']: cell for cell in results["results"]}
+    else:
+        results_lookup = dict()
+        for raw_cell in results["results"]:
+            cell = {'cell_id': raw_cell['cell_id']}
+            for level in taxonomy_tree.hierarchy:
+                if level == taxonomy_tree.leaf_level:
+                    cell[level] = {'assignment': raw_cell['assignment'],
+                                   'confidence': raw_cell['confidence']}
+                else:
+                    cell[level] = {'assignment': inverted_tree[level][raw_cell['assignment']],
+                                   'confidence': 1.0}
+            results_lookup[raw_cell['cell_id']] = cell
+
     query_path = pathlib.Path(results['config']['query_path'])
 
     with h5py.File(query_path, 'r') as src:
@@ -155,9 +181,6 @@ def summary_plots(
             break
     print(f"using ground truth {ground_truth_column}")
     assert ground_truth_column in query_obs.columns
-
-    (taxonomy_tree,
-     inverted_tree) = invert_tree(tree_path)
 
     leaf_list = taxonomy_tree.all_leaves
     if munge_ints:
@@ -322,7 +345,9 @@ def summary_plots(
         if "BENCHMARK" in line:
             position = bmark_pattern.search(line)
             line = line[position.start()+11:]
-        msg += line+"\n"
+        line_list = split_sentence(line)
+        for sub in line_list:
+            msg += sub+"\n"
 
     print(msg)
     axis_list[0].text(
@@ -340,10 +365,12 @@ def summary_plots(
     print(
         f"bad_confidence {np.mean(bad_confidence)} +/- {np.std(bad_confidence)}")
     histogram_axis.hist(good_confidence, bins=100, density=True,
-                        zorder=0, color='b', label='correct')
+                        zorder=0, color='b', label='correct cells')
     histogram_axis.hist(bad_confidence, bins=100, density=True,
-                        zorder=1, alpha=0.7, color='r', label='incorrect')
+                        zorder=1, alpha=0.7, color='r', label='incorrect cells')
     histogram_axis.legend(loc=0, fontsize=20)
+    histogram_axis.set_xlabel('confidence', fontsize=20)
+    histogram_axis.set_ylabel('density', fontsize=20)
 
     pdf_handle.savefig(fig)
 
@@ -354,6 +381,7 @@ def main():
     parser.add_argument('--output_path', type=str, default=None)
     parser.add_argument('--log10', default=False, action='store_true')
     parser.add_argument('--munge_ints', default=False, action='store_true')
+    parser.add_argument('--is_flat', default=False, action='store_true')
     args = parser.parse_args()
 
     input_dir = pathlib.Path(args.classification_dir)
@@ -374,7 +402,8 @@ def main():
                 ground_truth_column_list=ground_truth_column_list,
                 pdf_handle=pdf_handle,
                 is_log10=args.log10,
-                munge_ints=args.munge_ints)
+                munge_ints=args.munge_ints,
+                is_flat=args.is_flat)
 
 if __name__ == "__main__":
     main()

@@ -34,14 +34,18 @@ class AnnDataRowIterator(object):
         CSC file will be written as a CSR file. If None, the
         CSC file will be iterated over using anndata's infrastructure
         (which can be very slow)
+    log:
+        an optional CommandLog for tracking warnings during CLI runs
     """
 
     def __init__(
             self,
             h5ad_path,
             row_chunk_size,
-            tmp_dir=None):
+            tmp_dir=None,
+            log=None):
 
+        self.log = log
         self.tmp_dir = None
         h5ad_path = pathlib.Path(h5ad_path)
         if not h5ad_path.is_file():
@@ -167,8 +171,12 @@ class AnnDataRowIterator(object):
                     suffix=".h5"))
 
             t0 = time.time()
-            print(f"transcribing {h5ad_path} to {self.tmp_path} "
-                  "as a csr array")
+            msg = f"transcribing {h5ad_path} to {self.tmp_path} "
+            msg += "as a CSR array"
+            if self.log is not None:
+                self.log.warn(msg)
+            else:
+                print(msg)
 
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
@@ -186,7 +194,13 @@ class AnnDataRowIterator(object):
                 array_shape=array_shape)
 
             duration = time.time()-t0
-            print(f"transcription took {duration:.2e} seconds")
+            if self.log is not None:
+                self.log.benchmark(
+                    msg=f"transcribing {h5ad_path} to CSR",
+                    duration=duration)
+            else:
+                msg = f"transcription to CSR took {duration:.2e} seconds"
+                print(msg)
 
 
 class CSRRowIterator(object):
