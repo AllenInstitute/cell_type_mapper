@@ -185,7 +185,7 @@ class AnnDataRowIterator(object):
                     csc_group=src['X'],
                     csr_path=self.tmp_path,
                     array_shape=array_shape,
-                    load_chunk_size=2*1024**3)
+                    load_chunk_size=500*1024**2)
 
             self._iterator_type = 'CSRRow'
             self._chunk_iterator = CSRRowIterator(
