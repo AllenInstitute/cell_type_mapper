@@ -30,7 +30,7 @@ from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
 from hierarchical_mapping.cli.flat_mapping import (
-    run_mapping as flatmap_run_mapping)
+    FlatMapSpecifiedMarkersRunner)
 
 
 def test_flatmapper(
@@ -48,7 +48,6 @@ def test_flatmapper(
             dir=tmp_dir_fixture))
 
     precompute_out = this_tmp_dir / 'precomputed.h5'
-    ref_marker_out = this_tmp_dir / 'ref.h5'
 
     config = dict()
     config['tmp_dir'] = str(this_tmp_dir.resolve().absolute())
@@ -64,11 +63,6 @@ def test_flatmapper(
     with open(tree_path, 'w') as out_file:
         out_file.write(json.dumps(taxonomy_tree_dict))
     config['precomputed_stats']['taxonomy_tree'] = tree_path
-
-    config['reference_markers'] = {
-        'n_processors': 3,
-        'max_bytes': 6*1024**2,
-        'path': str(ref_marker_out)}
 
     marker_path = mkstemp_clean(dir=this_tmp_dir, suffix='.json')
     marker_lookup = dict()
@@ -90,10 +84,13 @@ def test_flatmapper(
         dir=this_tmp_dir,
         suffix='.json')
 
-    flatmap_run_mapping(
-        output_path=result_path,
-        config=config,
-        log_path=None)
+    config['result_path'] = result_path
+
+    runner = FlatMapSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
 
     actual = json.load(open(result_path, 'rb'))
     expected_markers = copy.deepcopy(marker_gene_names)

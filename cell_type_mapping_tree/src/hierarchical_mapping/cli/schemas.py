@@ -152,3 +152,39 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
                 "must be either 'raw' or 'log2CP'")
 
         return data
+
+
+class FlatTypeAssignmentSchema(argschema.ArgSchema):
+
+    n_processors = argschema.fields.Int(
+        required=False,
+        default=32,
+        allow_none=False,
+        help="Number of independendent processes to use when "
+        "parallelizing work for mapping job")
+
+    chunk_size = argschema.fields.Int(
+        required=False,
+        default=10000,
+        allow_none=False,
+        help="Number of rows each worker process should load at "
+        "a time from the query dataset")
+
+    normalization = argschema.fields.String(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Normalization of the query dataset")
+
+    @post_load
+    def check_normalization(self, data, **kwargs):
+        """
+        Verify that normalization is either 'raw' or 'log2CPM'
+        """
+        norm = data['normalization']
+        if norm not in ('raw', 'log2CPM'):
+            raise ValidationError(
+                f"{norm} is not a valid query normalization;\n"
+                "must be either 'raw' or 'log2CP'")
+
+        return data

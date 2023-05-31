@@ -1,6 +1,5 @@
-import argparse
+import argschema
 import json
-import os
 import pathlib
 import tempfile
 import time
@@ -15,14 +14,62 @@ from hierarchical_mapping.file_tracker.file_tracker import (
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
-from hierarchical_mapping.cli.utils import (
-    _check_config)
-
 from hierarchical_mapping.corr.correlate_cells import (
     flatmap_cells)
 
 from hierarchical_mapping.cli.processing_utils import (
     create_precomputed_stats_file)
+
+from hierarchical_mapping.cli.schemas import (
+    SpecifiedMarkerSchema,
+    FlatTypeAssignmentSchema,
+    PrecomputedStatsSchema)
+
+
+class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        help="Optional temporary directory into which data "
+        "will be copied for faster access (e.g. if the data "
+        "naturally lives on a slow NFS drive)")
+
+    query_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the h5ad file containing the query "
+        "dataset")
+
+    result_path = argschema.fields.OutputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the output file that will be written")
+
+    precomputed_stats = argschema.fields.Nested(
+        PrecomputedStatsSchema,
+        required=True)
+
+    query_markers = argschema.fields.Nested(
+        SpecifiedMarkerSchema,
+        required=True)
+
+    type_assignment = argschema.fields.Nested(
+        FlatTypeAssignmentSchema,
+        required=True)
+
+
+class FlatMapSpecifiedMarkersRunner(argschema.ArgSchemaParser):
+    default_schema = FlatSchemaSpecifiedMarkers
+
+    def run(self):
+        run_mapping(
+            config=self.args,
+            output_path=self.args['result_path'],
+            log_path=None)
 
 
 def run_mapping(config, output_path, log_path=None):
@@ -85,10 +132,15 @@ def _run_mapping(config, tmp_dir, log):
         tmp_dir=tmp_dir,
         log=log)
 
-    _validate_config(
-            config=config,
-            file_tracker=file_tracker,
-            log=log)
+    file_tracker.add_file(
+        config['query_path'],
+        input_only=True)
+
+    precomputed_config = config["precomputed_stats"]
+
+    file_tracker.add_file(
+        precomputed_config['path'],
+        input_only=False)
 
     query_loc = file_tracker.real_location(config['query_path'])
     precomputed_config = config["precomputed_stats"]
@@ -153,107 +205,9 @@ def _run_mapping(config, tmp_dir, log):
     return {'assignments': result, 'marker_genes': marker_gene_names}
 
 
-def _validate_config(
-        config,
-        file_tracker,
-        log):
-
-    if "query_path" not in config:
-        log.error("'query_path' not in config")
-
-    if "precomputed_stats" not in config:
-        log.error("'precomputed_stats' not in config")
-
-    if "query_markers" not in config:
-        log.error("'query_markers' not in config")
-
-    if "type_assignment" not in config:
-        log.error("'type_assignment' not in config")
-
-    _check_config(
-        config_dict=config["type_assignment"],
-        config_name="type_assignment",
-        key_name=['n_processors',
-                  'chunk_size',
-                  'normalization'],
-        log=log)
-
-    file_tracker.add_file(
-        config['query_path'],
-        input_only=True)
-
-    precomputed_config = config["precomputed_stats"]
-
-    _check_config(
-        config_dict=precomputed_config,
-        config_name="precomputed_stats",
-        key_name=['path'],
-        log=log)
-
-    file_tracker.add_file(
-        precomputed_config['path'],
-        input_only=False)
-
-    if not file_tracker.file_exists(precomputed_config['path']):
-        _check_config(
-            config_dict=precomputed_config,
-            config_name='precomputed_config',
-            key_name=['reference_path', 'normalization'],
-            log=log)
-
-        has_columns = 'column_hierarchy' in precomputed_config
-        has_taxonomy = 'taxonomy_tree' in precomputed_config
-
-        if has_columns and has_taxonomy:
-            log.error(
-                "Cannot specify both column_hierarchy and "
-                "taxonomy_tree in precomputed_config")
-
-        if not has_columns and not has_taxonomy:
-            log.error(
-                "Must specify one of column_hierarchy or "
-                "taxonomy_tree in precomputed_config")
-
-    query_marker_config = config["query_markers"]
-    _check_config(
-        config_dict=query_marker_config,
-        config_name="query_markers",
-        key_name=['serialized_lookup'],
-        log=log)
-
-    serialized_lookup_path = pathlib.Path(
-        query_marker_config['serialized_lookup'])
-
-    if not serialized_lookup_path.is_file():
-        log.error(
-            "serialized marker lookup\n"
-            f"{serialized_lookup_path.resolve().absolute()}\n"
-            "is not a file")
-
-
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config_path', type=str, default=None)
-    parser.add_argument('--result_path', type=str, default=None)
-    parser.add_argument('--log_path', type=str, default=None)
-    parser.add_argument('--local_tmp', default=False, action='store_true')
-    args = parser.parse_args()
-
-    with open(args.config_path, 'rb') as in_file:
-        config = json.load(in_file)
-
-    if args.local_tmp:
-        config['tmp_dir'] = os.environ['TMPDIR']
-
-    if args.result_path is None:
-        result_path = config['result_path']
-    else:
-        result_path = args.result_path
-
-    run_mapping(
-        config=config,
-        output_path=result_path,
-        log_path=args.log_path)
+    runner = FlatMapSpecifiedMarkersRunner()
+    runner.run()
 
 
 if __name__ == "__main__":
