@@ -35,7 +35,45 @@ from hierarchical_mapping.cli.processing_utils import (
 
 
 from hierarchical_mapping.cli.schemas import (
-    HierarchicalSchemaSpecifiedMarkers)
+    SpecifiedMarkerSchema,
+    HierarchicalTypeAssignmentSchema,
+    PrecomputedStatsSchema)
+
+
+class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        help="Optional temporary directory into which data "
+        "will be copied for faster access (e.g. if the data "
+        "naturally lives on a slow NFS drive)")
+
+    query_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the h5ad file containing the query "
+        "dataset")
+
+    result_path = argschema.fields.OutputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        help="Path to the output file that will be written")
+
+    precomputed_stats = argschema.fields.Nested(
+        PrecomputedStatsSchema,
+        required=True)
+
+    query_markers = argschema.fields.Nested(
+        SpecifiedMarkerSchema,
+        required=True)
+
+    type_assignment = argschema.fields.Nested(
+        HierarchicalTypeAssignmentSchema,
+        required=True)
 
 
 class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
