@@ -35,6 +35,9 @@ from hierarchical_mapping.cli.hierarchical_mapping import (
 from hierarchical_mapping.cli.from_specified_markers import (
     run_mapping as from_marker_run_mapping)
 
+from hierarchical_mapping.cli.from_specified_markers import (
+    FromSpecifiedMarkersRunner)
+
 
 @pytest.fixture
 def ab_initio_assignment_fixture(
@@ -169,10 +172,13 @@ def test_mapping_from_markers(
     config['query_markers'] = {
         'serialized_lookup': ab_initio_assignment_fixture['markers']}
 
-    from_marker_run_mapping(
-        output_path=result_path,
-        config=config,
-        log_path=None)
+    config['result_path'] = result_path
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
 
     actual = json.load(open(result_path, 'rb'))
     expected = json.load(

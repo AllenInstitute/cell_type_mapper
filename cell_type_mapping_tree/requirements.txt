@@ -3,3 +3,5 @@ numpy
 scipy
 zarr
 anndata
+marshmallow==3.12.2
+argschema
