@@ -39,7 +39,8 @@ def run_type_assignment_on_h5ad(
         rng,
         normalization='log2CPM',
         tmp_dir=None,
-        log=None):
+        log=None,
+        max_gb=10):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -97,6 +98,10 @@ def run_type_assignment_on_h5ad(
     log:
         Optional CommandLog for tracking warnings emitted by CLI
 
+    max_gb:
+        Approximate maximum number of gigabytes of memory to use
+        when converting a CSC matrix to CSR (if necessary)
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -130,7 +135,8 @@ def run_type_assignment_on_h5ad(
         h5ad_path=query_h5ad_path,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir,
-        log=log)
+        log=log,
+        max_gb=max_gb)
 
     process_list = []
     mgr = multiprocessing.Manager()

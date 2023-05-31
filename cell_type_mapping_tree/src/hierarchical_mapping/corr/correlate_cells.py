@@ -36,7 +36,8 @@ def flatmap_cells(
         n_processors=4,
         tmp_dir=None,
         query_normalization='raw',
-        log=None):
+        log=None,
+        max_gb=10):
     """
     query_path is the path to the h5ad file containing the query cells
 
@@ -70,7 +71,8 @@ def flatmap_cells(
                          marker_gene_list=marker_gene_list,
                          rows_at_a_time=rows_at_a_time,
                          tmp_dir=tmp_dir,
-                         log=log)
+                         log=log,
+                         max_gb=max_gb)
 
     row_to_cluster_lookup = {
         cluster_to_row_lookup[n]: n
@@ -303,7 +305,8 @@ def _prep_data(
         marker_gene_list,
         rows_at_a_time,
         tmp_dir,
-        log=None):
+        log=None,
+        max_gb=10):
     """
     Prepare data for flat mapping
 
@@ -411,7 +414,8 @@ def _prep_data(
         h5ad_path=query_path,
         row_chunk_size=rows_at_a_time,
         tmp_dir=tmp_dir,
-        log=log)
+        log=log,
+        max_gb=max_gb)
 
     return (reference_profiles,
             cluster_to_row_lookup,

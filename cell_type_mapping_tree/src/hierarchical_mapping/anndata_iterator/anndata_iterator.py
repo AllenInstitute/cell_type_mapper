@@ -2,7 +2,6 @@ import anndata
 import h5py
 import numpy as np
 import pathlib
-import psutil
 import tempfile
 import time
 
@@ -37,6 +36,9 @@ class AnnDataRowIterator(object):
         (which can be very slow)
     log:
         an optional CommandLog for tracking warnings during CLI runs
+    max_gb:
+        maximum number of gigabytes to use (approximate) when converting
+        CSC matrix to CSR (if necessary)
     """
 
     def __init__(
@@ -44,10 +46,12 @@ class AnnDataRowIterator(object):
             h5ad_path,
             row_chunk_size,
             tmp_dir=None,
-            log=None):
+            log=None,
+            max_gb=10):
 
         self.log = log
         self.tmp_dir = None
+        self.max_gb = max_gb
         h5ad_path = pathlib.Path(h5ad_path)
         if not h5ad_path.is_file():
             raise RuntimeError(
@@ -182,12 +186,11 @@ class AnnDataRowIterator(object):
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
             with h5py.File(h5ad_path, 'r') as src:
-                available_bytes = psutil.virtual_memory().available
                 csc_to_csr_on_disk(
                     csc_group=src['X'],
                     csr_path=self.tmp_path,
                     array_shape=array_shape,
-                    max_gb=0.8*available_bytes/(1024**3))
+                    max_gb=0.8*self.max_gb)
 
             self._iterator_type = 'CSRRow'
             self._chunk_iterator = CSRRowIterator(
