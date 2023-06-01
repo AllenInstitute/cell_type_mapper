@@ -41,7 +41,7 @@ configuration parameters expected by the tool. Those parameters are:
 **Note**:
 
 - You can see a help message defining these parameters by running
-`python -m cli.from_specified_markers --help`
+`python -m hierarchical_mapping.cli.from_specified_markers --help`
 
 - If the file pointed to by `precomputed_stats.path` exists, then that file
 will just be copied to `tmp_dir` and used. If it does not exist, precomputed
