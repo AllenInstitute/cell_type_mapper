@@ -166,7 +166,7 @@ class AnnDataRowIterator(object):
         file_size_bytes = file_stats.st_size
         fudge_factor = 1.1  # just in case
 
-        if free_bytes > fudge_factor*file_size_bytes:
+        if free_bytes < fudge_factor*file_size_bytes:
             write_as_csr = False
         else:
             with h5py.File(h5ad_path, 'r') as src:
