@@ -3,6 +3,12 @@ import pytest
 import itertools
 import numpy as np
 
+from hierarchical_mapping.taxonomy.utils import (
+    get_taxonomy_tree)
+
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
 
 @pytest.fixture
 def column_hierarchy():
@@ -139,3 +145,13 @@ def parent_to_leaves(
 
     parent_to_leaves[leaf_class] = leaf_nodes
     return parent_to_leaves
+
+
+@pytest.fixture
+def taxonomy_tree_fixture(
+        records_fixture,
+        column_hierarchy):
+    return TaxonomyTree(
+        data=get_taxonomy_tree(
+            obs_records=records_fixture,
+            column_hierarchy=column_hierarchy))
