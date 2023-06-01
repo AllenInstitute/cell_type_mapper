@@ -5,18 +5,11 @@ set of marker genes. It can be run like
 
 ```
 python -m hierarchical_mapping.cli.from_specified_markers \
---config_path path/to/config.json \
---result_path path/to/output/file.json \
---log_path /optional/path/to/log/file.json
+--input_json path/to/config.json
 ```
 
-**Note**:
-
-- `result_path` can be specified in the config file. If `result_path` is specified at the command line, it will override whatever value is in the config file.
-- The log recorded in `log_path` is currently also stored in the output file, to it is not strictly necessary to specify a `log_path`.
-
-The config file is a JSON representation of a dict containing all of the configuration
-parameters expected by the tool. Those parameters are:
+The config file is a JSON representation of a dict containing all of the
+configuration parameters expected by the tool. Those parameters are:
 
 
 ```
@@ -24,6 +17,7 @@ parameters expected by the tool. Those parameters are:
   "result_path": "/optional/path/to/output/file/to/be/created.json",
   "query_path": "/path/to/h5ad/file/containing/query/dataset.h5ad",
   "tmp_dir": "/path/to/fast/tmp/dir/where/data/will/be/copied/for/processing/",
+  "max_gb": gigabytes_available_for_matrix_transform,
   "precomputed_stats": {
     "reference_path": "/path/to/h5ad/file/containing/reference/dataset.h5ad",
     "path": "/path/to/hdf5/file/of/precomputed/stats/to/be/created.h5",
@@ -46,6 +40,9 @@ parameters expected by the tool. Those parameters are:
 
 **Note**:
 
+- You can see a help message defining these parameters by running
+`python -m cli.from_specified_markers --help`
+
 - If the file pointed to by `precomputed_stats.path` exists, then that file
 will just be copied to `tmp_dir` and used. If it does not exist, precomputed
 stats will be generated from the reference dataset and stored in
@@ -54,6 +51,27 @@ stats will be generated from the reference dataset and stored in
 - Strictly speaking, the taxonomy tree is read from the precomputed stats file
 to preserve consistency so, if `precomputed_stats.path` points to a file that
 exists, then `precomputed_stats.taxonom_tree` is superflous.
+
+### Running programmatically
+
+This modules uses the
+[argschema library](https://github.com/AllenInstitute/argschema)
+to manage configuration parameters. If you want to run this mapping tool
+from within a python script, run
+
+```
+from hierarchical_mapping.cli.from_specified_markers import (
+    FromSpecifiedMarkersRunner)
+
+runner = FromSpecifiedMarkersRunner(
+    args=[],
+    input_data=dict_containing_config_parameters)
+
+runner.run()
+```
+
+The `args=[]` is important to prevent the `runner` from trying to grab
+configuration parameters from the command line.
 
 ## hierarchical_mapping.py
 
