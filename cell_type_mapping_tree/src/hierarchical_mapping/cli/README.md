@@ -57,7 +57,7 @@ exists, then `precomputed_stats.taxonom_tree` is superflous.
 
 ### Running programmatically
 
-This modules uses the
+This module uses the
 [argschema library](https://github.com/AllenInstitute/argschema)
 to manage configuration parameters. If you want to run this mapping tool
 from within a python script, run
