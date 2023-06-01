@@ -47,7 +47,7 @@ def thin_marker_file(
 
     if tmp_dir is not None:
         tmp_dir = pathlib.Path(
-            tempfile.mkdtemp(dir=tmp_dir))
+            tempfile.mkdtemp(dir=tmp_dir, prefix='thinning_'))
         new_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
         shutil.copy(src=marker_file_path, dst=new_path)
         marker_file_path = pathlib.Path(new_path)

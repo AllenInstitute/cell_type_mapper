@@ -99,7 +99,7 @@ def find_markers_for_all_taxonomy_pairs(
         discriminator
     """
 
-    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
     tmp_output_path = pathlib.Path(

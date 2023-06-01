@@ -154,7 +154,9 @@ class AnnDataRowIterator(object):
             use anndata.chunked_X to iterate over the data)
         """
         write_as_csr = True
-        self.tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+        self.tmp_dir = tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='anndata_iterator_')
 
         # is there space in self.tmp_dir to write out
         # the file as a CSR file?

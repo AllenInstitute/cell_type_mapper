@@ -21,7 +21,8 @@ class FileTracker(object):
             self.tmp_dir = tmp_dir
         else:
             self.tmp_dir = pathlib.Path(
-                    tempfile.mkdtemp(dir=tmp_dir))
+                    tempfile.mkdtemp(dir=tmp_dir),
+                    prefix='file_tracker_')
 
         self._path_to_location = dict()
         self._file_pre_exists = dict()
