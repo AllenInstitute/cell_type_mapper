@@ -9,7 +9,7 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
                 required=True,
                 default=None,
                 allow_none=False,
-                help="The path to the file where the precomputed "
+                description="The path to the file where the precomputed "
                 "stats will be saved. If it already exists, this "
                 "file will be read in and used as the precomputed "
                 "stats file for this mapping job.")
@@ -18,23 +18,23 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
                 required=False,
                 default=None,
                 allow_none=True,
-                help="The path to the h5ad file containing the reference "
-                "dataset. Only used if precomputed_stats.path does not "
-                "already exist.")
+                description="The path to the h5ad file containing the "
+                "reference dataset. Only used if precomputed_stats.path "
+                "does not already exist.")
 
     taxonomy_tree = argschema.fields.String(
                 required=False,
                 default=None,
                 allow_none=True,
-                help="The path to the JSON file specifying the taxonomy "
-                "tree for this mapping job. ONly used if "
+                description="The path to the JSON file specifying the "
+                "taxonomy tree for this mapping job. ONly used if "
                 "precomputed_stats.path does not already exist.")
 
     normalization = argschema.fields.String(
                 required=False,
                 default=None,
                 allow_none=True,
-                help="The normalization of the cell by gene matrix in "
+                description="The normalization of the cell by gene matrix in "
                 "the reference dataset. Must be ('raw' or 'log2CPM'). "
                 "Only used if precomputed_stats.path does not already "
                 "exist.")
@@ -87,7 +87,7 @@ class SpecifiedMarkerSchema(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
-        help="Path to the JSON file that specifies the marker genes to "
+        description="Path to the JSON file that specifies the marker genes to "
         "use for this mapping job.")
 
 
@@ -97,41 +97,42 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         required=False,
         default=100,
         allow_none=False,
-        help="Number of bootstrap nearest neighbor iterations to run "
+        description="Number of bootstrap nearest neighbor iterations to run "
         "when assigning cell types.")
 
     bootstrap_factor = argschema.fields.Float(
         required=False,
         default=0.9,
         allow_none=False,
-        help="Factor by which to downsample the number of genes when "
+        description="Factor by which to downsample the number of genes when "
         "performing bootstrapped nearest neighbor cell type searches.")
 
     n_processors = argschema.fields.Int(
         required=False,
         default=32,
         allow_none=False,
-        help="Number of independendent processes to use when "
+        description="Number of independendent processes to use when "
         "parallelizing work for mapping job")
 
     chunk_size = argschema.fields.Int(
         required=False,
         default=10000,
         allow_none=False,
-        help="Number of rows each worker process should load at "
+        description="Number of rows each worker process should load at "
         "a time from the query dataset")
 
     normalization = argschema.fields.String(
         required=True,
         default=None,
         allow_none=False,
-        help="Normalization of the query dataset")
+        description="Normalization of the query dataset "
+        "(must be 'raw' or 'log2CPM')")
 
     rng_seed = argschema.fields.Int(
         required=False,
         default=11235813,
         allow_none=False,
-        help="Seed value for random number generator used in "
+        description="Seed value for random number generator used in "
         "bootstrapping")
 
     @post_load
@@ -160,21 +161,22 @@ class FlatTypeAssignmentSchema(argschema.ArgSchema):
         required=False,
         default=32,
         allow_none=False,
-        help="Number of independendent processes to use when "
+        description="Number of independendent processes to use when "
         "parallelizing work for mapping job")
 
     chunk_size = argschema.fields.Int(
         required=False,
         default=10000,
         allow_none=False,
-        help="Number of rows each worker process should load at "
+        description="Number of rows each worker process should load at "
         "a time from the query dataset")
 
     normalization = argschema.fields.String(
         required=True,
         default=None,
         allow_none=False,
-        help="Normalization of the query dataset")
+        description="Normalization of the query dataset "
+        "(must be 'raw' or 'log2CPM')")
 
     @post_load
     def check_normalization(self, data, **kwargs):

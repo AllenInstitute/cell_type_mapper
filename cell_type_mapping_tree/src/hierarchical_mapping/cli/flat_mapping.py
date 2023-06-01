@@ -32,7 +32,7 @@ class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
         required=False,
         default=None,
         allow_none=True,
-        help="Optional temporary directory into which data "
+        description="Optional temporary directory into which data "
         "will be copied for faster access (e.g. if the data "
         "naturally lives on a slow NFS drive)")
 
@@ -40,20 +40,20 @@ class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
-        help="Path to the h5ad file containing the query "
+        description="Path to the h5ad file containing the query "
         "dataset")
 
     result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
         allow_none=False,
-        help="Path to the output file that will be written")
+        description="Path to the output file that will be written")
 
     max_gb = argschema.fields.Float(
         required=False,
         default=100.0,
         allow_none=False,
-        help="In the event that a CSC matrix needs to be "
+        description="In the event that a CSC matrix needs to be "
         "converted to a temporary on disk CSR matrix, how "
         "much memory (in gigabytes) can we use.")
 
