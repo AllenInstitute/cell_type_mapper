@@ -11,16 +11,6 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
-@pytest.fixture
-def taxonomy_tree_fixture(
-        records_fixture,
-        column_hierarchy):
-    return TaxonomyTree(
-        data=get_taxonomy_tree(
-            obs_records=records_fixture,
-            column_hierarchy=column_hierarchy))
-
-
 def test_tree_as_leaves(
         records_fixture,
         column_hierarchy,
