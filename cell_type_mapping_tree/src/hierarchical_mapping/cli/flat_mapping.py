@@ -49,6 +49,14 @@ class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
         allow_none=False,
         help="Path to the output file that will be written")
 
+    max_gb = argschema.fields.Float(
+        required=False,
+        default=100.0,
+        allow_none=False,
+        help="In the event that a CSC matrix needs to be "
+        "converted to a temporary on disk CSR matrix, how "
+        "much memory (in gigabytes) can we use.")
+
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsSchema,
         required=True)
@@ -194,7 +202,8 @@ def _run_mapping(config, tmp_dir, log):
         n_processors=type_assignment_config['n_processors'],
         tmp_dir=tmp_dir,
         query_normalization=type_assignment_config['normalization'],
-        log=log)
+        log=log,
+        max_gb=config['max_gb'])
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)

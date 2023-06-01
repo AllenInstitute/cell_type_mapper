@@ -57,11 +57,20 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         help="Path to the h5ad file containing the query "
         "dataset")
 
+
     result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
         allow_none=False,
         help="Path to the output file that will be written")
+
+    max_gb = argschema.fields.Float(
+        required=False,
+        default=100.0,
+        allow_none=False,
+        help="In the event that a CSC matrix needs to be "
+        "converted to a temporary on disk CSR matrix, how "
+        "much memory (in gigabytes) can we use.")
 
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsSchema,
@@ -223,7 +232,9 @@ def _run_mapping(config, tmp_dir, log):
         rng=rng,
         normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir,
-        log=log)
+        log=log,
+        max_gb=config['max_gb'])
+
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 

@@ -85,6 +85,7 @@ def test_flatmapper(
         suffix='.json')
 
     config['result_path'] = result_path
+    config['max_gb'] = 1.0
 
     runner = FlatMapSpecifiedMarkersRunner(
         args=[],

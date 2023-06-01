@@ -173,6 +173,7 @@ def test_mapping_from_markers(
         'serialized_lookup': ab_initio_assignment_fixture['markers']}
 
     config['result_path'] = result_path
+    config['max_gb'] = 1.0
 
     runner = FromSpecifiedMarkersRunner(
         args= [],
