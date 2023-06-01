@@ -1,8 +1,10 @@
-import anndata
 import copy
 import itertools
 import numbers
 import numpy as np
+
+from hierarchical_mapping.utils.anndata_utils import (
+    read_df_from_h5ad)
 
 
 def compute_row_order(
@@ -151,9 +153,9 @@ def get_taxonomy_tree_from_h5ad(
     """
     Get taxonomy tree from an h5ad file
     """
-    a_data = anndata.read_h5ad(h5ad_path, backed='r')
+    obs = read_df_from_h5ad(h5ad_path, 'obs')
     taxonomy_tree = get_taxonomy_tree(
-        obs_records=a_data.obs.to_dict(orient='records'),
+        obs_records=obs.to_dict(orient='records'),
         column_hierarchy=column_hierarchy)
     return taxonomy_tree
 
