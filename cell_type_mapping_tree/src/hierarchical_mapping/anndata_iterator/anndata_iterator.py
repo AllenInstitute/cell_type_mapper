@@ -1,6 +1,7 @@
 import anndata
 import h5py
 import numpy as np
+import os
 import pathlib
 import tempfile
 import time
@@ -153,9 +154,18 @@ class AnnDataRowIterator(object):
             use anndata.chunked_X to iterate over the data)
         """
         write_as_csr = True
-        if tmp_dir is None:
-            write_as_csr = False
+        self.tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
 
+        # is there space in self.tmp_dir to write out
+        # the file as a CSR file?
+        dir_stats = os.statvfs(self.tmp_dir)
+        free_bytes = dir_stats.f_bavail*dir_stats.f_bsize
+        file_stats = os.stat(h5ad_path)
+        file_size_bytes = file_stats.st_size
+        fudge_factor = 1.1  # just in case
+
+        if free_bytes > fudge_factor*file_size_bytes:
+            write_as_csr = False
         else:
             with h5py.File(h5ad_path, 'r') as src:
                 attrs = dict(src['X'].attrs)
@@ -168,7 +178,6 @@ class AnnDataRowIterator(object):
                 h5ad_path=h5ad_path,
                 row_chunk_size=row_chunk_size)
         else:
-            self.tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
             self.tmp_path = pathlib.Path(
                 mkstemp_clean(
                     dir=self.tmp_dir,

@@ -57,7 +57,6 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         help="Path to the h5ad file containing the query "
         "dataset")
 
-
     result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
