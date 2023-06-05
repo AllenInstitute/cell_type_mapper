@@ -14,7 +14,9 @@ from hierarchical_mapping.utils.csc_to_csr import (
     csc_to_csr_on_disk)
 
 from hierarchical_mapping.utils.sparse_utils import (
-    load_csr)
+    load_csr,
+    _load_disjoint_csr,
+    _csr_to_dense)
 
 
 class AnnDataRowIterator(object):
@@ -50,6 +52,7 @@ class AnnDataRowIterator(object):
             log=None,
             max_gb=10):
 
+        self._iterator_type = None
         self.log = log
         self.tmp_dir = None
         self.max_gb = max_gb
@@ -75,6 +78,7 @@ class AnnDataRowIterator(object):
                 row_chunk_size=row_chunk_size,
                 array_shape=array_shape,
                 h5_group='X')
+
         elif encoding_type.startswith('csc'):
             self._initialize_as_csc(
                 h5ad_path=h5ad_path,
@@ -84,6 +88,29 @@ class AnnDataRowIterator(object):
             self._initialize_anndata_iterator(
                 h5ad_path=h5ad_path,
                 row_chunk_size=row_chunk_size)
+
+    def get_rows(self, row_idx):
+        """
+        Return a chunk of rows as a numpy array
+
+        Parameters
+        ----------
+        row_idx:
+            List of indexes of the desired rows
+        """
+        if self._iterator_type == 'anndata':
+            if not hasattr(self, '_data'):
+                self._data = anndata.read_h5ad(
+                    self._h5ad_path,
+                    backed='r')
+            return self._data.chunk_X(row_idx)
+        elif self._iterator_type == 'CSRRow':
+            return self._chunk_iterator.get_rows(
+                        row_idx=row_idx)
+        else:
+            raise RuntimeError(
+                "Do not know how to return row chunk for "
+                f"iterator type {self._iterator_type}")
 
     def __del__(self):
         if self.tmp_dir is not None:
@@ -127,6 +154,7 @@ class AnnDataRowIterator(object):
             Number of rows to return per chunk
         """
         self._iterator_type = 'anndata'
+        self._h5ad_path = h5ad_path
         data = anndata.read_h5ad(h5ad_path, backed='r')
         self.n_rows = data.X.shape[0]
         self._chunk_iterator = data.chunked_X(
@@ -261,6 +289,26 @@ class CSRRowIterator(object):
             self.data_key = f'{h5_group}/data'
             self.indices_key = f'{h5_group}/indices'
             self.indptr_key = f'{h5_group}/indptr'
+
+    def get_rows(self, row_idx):
+        """
+        row_idx is a list of row indexes to return
+        as a dense chunk
+        """
+        (data,
+         indices,
+         indptr) = _load_disjoint_csr(
+                     row_index_list=row_idx,
+                     data=self.h5_handle[self.data_key],
+                     indices=self.h5_handle[self.indices_key],
+                     indptr=self.h5_handle[self.indptr_key])
+
+        return _csr_to_dense(
+            data=data,
+            indices=indices,
+            indptr=indptr,
+            n_rows=len(row_idx),
+            n_cols=self.n_cols)
 
     def __del__(self):
         if self.h5_handle is not None:

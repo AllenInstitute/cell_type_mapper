@@ -147,4 +147,116 @@ def test_anndata_row_iterator(
             x_array_fixture[i0:i1, :],
             atol=0.0,
             rtol=1.0e-7)
-        
+
+@pytest.mark.parametrize(
+    'use, with_tmp',
+    [('csr', False),
+     ('csc', False),
+     ('csc', True),
+     ('dense', False)])
+def test_chunk_grab(
+        x_array_fixture,
+        csr_fixture,
+        csc_fixture,
+        dense_fixture,
+        tmp_dir_fixture,
+        use,
+        with_tmp):
+    """
+    Test that the iterator lets us grab a specified chunk
+    """
+    if use == 'csr':
+        fpath = csr_fixture
+    elif use == 'csc':
+        fpath = csc_fixture
+    elif use == 'dense':
+        fpath = dense_fixture
+    else:
+        raise RuntimeError(
+            f"use={use} makese no sense")
+
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
+    chunk_size = 123
+
+    iterator = AnnDataRowIterator(
+        h5ad_path=fpath,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
+
+    specified_rows = [33, 451, 2, 77, 86, 52]
+    actual = iterator.get_rows(specified_rows)
+    expected = x_array_fixture[specified_rows, :]
+    np.testing.assert_allclose(
+        actual,
+        expected,
+        atol=0.0,
+        rtol=1.0e-7)
+
+
+@pytest.mark.parametrize(
+    'use, with_tmp',
+    [('csr', False),
+     ('csc', False),
+     ('csc', True),
+     ('dense', False)])
+def test_anndata_row_iterator_with_chunk_grab(
+        x_array_fixture,
+        csr_fixture,
+        csc_fixture,
+        dense_fixture,
+        tmp_dir_fixture,
+        use,
+        with_tmp):
+    """
+    Test that we can also grab a chunk of specified
+    rows in the middle of the iteration
+    """
+    if use == 'csr':
+        fpath = csr_fixture
+    elif use == 'csc':
+        fpath = csc_fixture
+    elif use == 'dense':
+        fpath = dense_fixture
+    else:
+        raise RuntimeError(
+            f"use={use} makese no sense")
+
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
+    chunk_size = 123
+
+    iterator = AnnDataRowIterator(
+        h5ad_path=fpath,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
+
+    n_rows = x_array_fixture.shape[0]
+    assert iterator.n_rows == n_rows
+    ct = 0
+    for i0, chunk in zip(range(0, n_rows, chunk_size),
+                         iterator):
+        i1 = min(n_rows, i0+chunk_size)
+        assert chunk[1] == i0
+        assert chunk[2] == i1
+        np.testing.assert_allclose(
+            chunk[0],
+            x_array_fixture[i0:i1, :],
+            atol=0.0,
+            rtol=1.0e-7)
+
+        if ct == 2:
+            specified_rows = [10, 6, 313, 122, 11]
+            actual = iterator.get_rows(specified_rows)
+            np.testing.assert_allclose(
+                actual,
+                x_array_fixture[specified_rows, :],
+                atol=0.0,
+                rtol=1.0e-7)
+        ct += 1
