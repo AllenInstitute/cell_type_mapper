@@ -39,8 +39,12 @@ def assemble_query_data(
         full_query_data,
         mean_profile_matrix,
         taxonomy_tree,
-        marker_cache_path,
-        parent_node):
+        parent_node,
+        marker_cache_path=None,
+        all_ref_identifiers=None,
+        all_query_identifiers=None,
+        reference_markers=None,
+        raw_query_markers=None):
     """
     Assemble all of the data needed to select a taxonomy node
     for a collection of cells.
@@ -75,23 +79,40 @@ def assemble_query_data(
         downsampled to the relevant clusters and marker genes
 
         'reference_types' -> A list indicating the taxonomic types implied
-        by teh clusters in 'reference_data' (in the order they appear in
+        by the clusters in 'reference_data' (in the order they appear in
         'reference_data's rows)
     """
+
+    if marker_cache_path is not None:
+        assert all_ref_identifiers is None
+        assert all_query_identifiers is None
+        assert reference_markers is None
+        assert raw_query_markers is None
+    else:
+        assert all_ref_identifiers is not None
+        assert all_query_identifiers is not None
+        assert reference_markers is not None
+        assert raw_query_markers is not None
 
     tree_as_leaves = taxonomy_tree.as_leaves
     hierarchy = taxonomy_tree.hierarchy
     level_to_idx = {level: idx for idx, level in enumerate(hierarchy)}
 
-    marker_lookup = assemble_markers(
-        marker_cache_path=marker_cache_path,
-        taxonomy_tree=taxonomy_tree,
-        parent_node=parent_node)
+    if marker_cache_path is not None:
+        marker_lookup = assemble_markers(
+            marker_cache_path=marker_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            parent_node=parent_node)
 
-    all_ref_identifiers = marker_lookup['all_ref_identifiers']
-    all_query_identifiers = marker_lookup['all_query_identifiers']
-    reference_markers = marker_lookup['reference_markers']
-    raw_query_markers = marker_lookup['query_markers']
+        all_ref_identifiers = marker_lookup['all_ref_identifiers']
+        all_query_identifiers = marker_lookup['all_query_identifiers']
+        reference_markers = marker_lookup['reference_markers']
+        raw_query_markers = marker_lookup['query_markers']
+    else:
+        all_ref_identifiers = np.copy(all_ref_identifiers)
+        all_query_identifiers = np.copy(all_query_identifiers)
+        reference_markers = np.copy(reference_markers)
+        raw_query_markers = np.copy(raw_query_markers)
 
     if parent_node is None:
         immediate_children = taxonomy_tree.nodes_at_level(hierarchy[0])

@@ -408,12 +408,16 @@ def run_type_assignment(
 def _run_type_assignment(
         full_query_gene_data,
         leaf_node_matrix,
-        marker_gene_cache_path,
         taxonomy_tree,
         parent_node,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        marker_gene_cache_path=None,
+        all_ref_identifiers=None,
+        all_query_identifiers=None,
+        reference_markers=None,
+        raw_query_markers=None):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -470,9 +474,13 @@ def _run_type_assignment(
     query_data = assemble_query_data(
         full_query_data=full_query_gene_data,
         mean_profile_matrix=leaf_node_matrix,
-        marker_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
-        parent_node=parent_node)
+        parent_node=parent_node,
+        marker_cache_path=marker_gene_cache_path,
+        all_ref_identifiers=all_ref_identifiers,
+        all_query_identifiers=all_query_identifiers,
+        reference_markers=reference_markers,
+        raw_query_markers=raw_query_markers)
 
     (result,
      confidence) = choose_node(
