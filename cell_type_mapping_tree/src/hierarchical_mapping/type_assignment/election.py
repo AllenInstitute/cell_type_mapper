@@ -1,3 +1,4 @@
+import os
 import h5py
 import json
 import multiprocessing
@@ -26,7 +27,15 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
-
+try:
+    import torch # if torch is available
+    if torch.cuda.is_available():
+        TORCH_AVAILABLE = True
+        NUM_GPUS = torch.cuda.device_count()
+except:
+    TORCH_AVAILABLE = False
+    NUM_GPUS = None
+    
 def run_type_assignment_on_h5ad(
         query_h5ad_path,
         precomputed_stats_path,
@@ -40,7 +49,8 @@ def run_type_assignment_on_h5ad(
         normalization='log2CPM',
         tmp_dir=None,
         log=None,
-        max_gb=10):
+        max_gb=10,
+        results_output_path=None):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -148,7 +158,9 @@ def run_type_assignment_on_h5ad(
     t0 = time.time()
 
     print("starting type assignment")
+    chunk_index = -1
     for chunk in chunk_iterator:
+        chunk_index += 1
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
@@ -167,9 +179,13 @@ def run_type_assignment_on_h5ad(
         # to limit memory footprint
         data.downsample_genes_in_place(all_query_markers)
 
+        gpu_index = chunk_index % NUM_GPUS if TORCH_AVAILABLE else None
+
         p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
                 kwargs={
+                    'r0': r0,
+                    'r1': r1,                    
                     'query_cell_chunk': data,
                     'query_cell_names': name_chunk,
                     'precomputed_stats_path': precomputed_stats_path,
@@ -179,7 +195,9 @@ def run_type_assignment_on_h5ad(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'output_list': output_list,
-                    'output_lock': output_lock})
+                    'output_lock': output_lock,
+                    'gpu_index':gpu_index,
+                    'results_output_path': results_output_path})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -200,8 +218,13 @@ def run_type_assignment_on_h5ad(
     output_list = list(output_list)
     return output_list
 
+def save_results(result, results_output_path):
+    with open(results_output_path, "w") as outfile:
+        json.dump(result, outfile)
 
 def _run_type_assignment_on_h5ad_worker(
+        r0,
+        r1,        
         query_cell_chunk,
         query_cell_names,
         precomputed_stats_path,
@@ -211,8 +234,10 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration,
         rng,
         output_list,
-        output_lock):
-
+        output_lock,
+        gpu_index=0,
+        results_output_path=None):
+    
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
         precomputed_stats_path=precomputed_stats_path,
@@ -220,11 +245,17 @@ def _run_type_assignment_on_h5ad_worker(
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        gpu_index=gpu_index)
+
 
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
 
+    if results_output_path:
+        this_output_path = os.path.join(results_output_path, f"{r0}_{r1}_assignment.json")
+        save_results(assignment, this_output_path)
+    
     with output_lock:
         output_list += assignment
 
@@ -236,7 +267,8 @@ def run_type_assignment(
         taxonomy_tree,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        gpu_index=0):
     """
     Assign types at all levels of the taxonomy to a set of
     query cells.
@@ -367,7 +399,8 @@ def run_type_assignment(
                                 parent_node=parent_node,
                                 bootstrap_factor=bootstrap_factor,
                                 bootstrap_iteration=bootstrap_iteration,
-                                rng=rng)
+                                rng=rng,
+                                gpu_index=gpu_index)
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 confidence = [1.0]*chosen_query_data.n_cells
@@ -413,7 +446,8 @@ def _run_type_assignment(
         parent_node,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        gpu_index=0):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -481,7 +515,8 @@ def _run_type_assignment(
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        gpu_index=gpu_index)
 
     return result, confidence
 
@@ -492,7 +527,8 @@ def choose_node(
          reference_types,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         gpu_index=0):
     """
     Parameters
     ----------
@@ -521,7 +557,8 @@ def choose_node(
         reference_gene_data=reference_gene_data,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        gpu_index=gpu_index)
 
     chosen_type = np.argmax(votes, axis=1)
     result = [reference_types[ii] for ii in chosen_type]
@@ -534,7 +571,8 @@ def tally_votes(
          reference_gene_data,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         gpu_index=0):
     """
     Parameters
     ----------
@@ -576,7 +614,8 @@ def tally_votes(
 
         nearest_neighbors = correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
-            query_array=bootstrap_query)
+            query_array=bootstrap_query,
+            gpu_index=gpu_index)
 
         votes[query_idx, nearest_neighbors] += 1
     return votes
