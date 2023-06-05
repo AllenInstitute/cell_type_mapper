@@ -28,14 +28,16 @@ from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 try:
-    import torch # if torch is available
+    TORCH_AVAILABLE = False
+    import torch  # type: ignore
     if torch.cuda.is_available():
         TORCH_AVAILABLE = True
         NUM_GPUS = torch.cuda.device_count()
-except:
+except ImportError:
     TORCH_AVAILABLE = False
     NUM_GPUS = None
-    
+
+
 def run_type_assignment_on_h5ad(
         query_h5ad_path,
         precomputed_stats_path,
@@ -112,6 +114,10 @@ def run_type_assignment_on_h5ad(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
+    results_output_path: 
+        Output path for run assignment. If given will save individual chunks of
+        the run assignment process to separate files.
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -185,7 +191,7 @@ def run_type_assignment_on_h5ad(
                 target=_run_type_assignment_on_h5ad_worker,
                 kwargs={
                     'r0': r0,
-                    'r1': r1,                    
+                    'r1': r1,
                     'query_cell_chunk': data,
                     'query_cell_names': name_chunk,
                     'precomputed_stats_path': precomputed_stats_path,
@@ -196,7 +202,7 @@ def run_type_assignment_on_h5ad(
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'output_list': output_list,
                     'output_lock': output_lock,
-                    'gpu_index':gpu_index,
+                    'gpu_index': gpu_index,
                     'results_output_path': results_output_path})
         p.start()
         process_list.append(p)
@@ -218,13 +224,15 @@ def run_type_assignment_on_h5ad(
     output_list = list(output_list)
     return output_list
 
+
 def save_results(result, results_output_path):
     with open(results_output_path, "w") as outfile:
         json.dump(result, outfile)
 
+
 def _run_type_assignment_on_h5ad_worker(
         r0,
-        r1,        
+        r1,
         query_cell_chunk,
         query_cell_names,
         precomputed_stats_path,
@@ -237,7 +245,7 @@ def _run_type_assignment_on_h5ad_worker(
         output_lock,
         gpu_index=0,
         results_output_path=None):
-    
+
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
         precomputed_stats_path=precomputed_stats_path,
@@ -248,14 +256,14 @@ def _run_type_assignment_on_h5ad_worker(
         rng=rng,
         gpu_index=gpu_index)
 
-
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
 
     if results_output_path:
-        this_output_path = os.path.join(results_output_path, f"{r0}_{r1}_assignment.json")
+        this_output_path = os.path.join(results_output_path,
+                                        f"{r0}_{r1}_assignment.json")
         save_results(assignment, this_output_path)
-    
+
     with output_lock:
         output_list += assignment
 
@@ -306,6 +314,9 @@ def run_type_assignment(
 
     rng:
         A random number generator
+
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -491,6 +502,9 @@ def _run_type_assignment(
     rng:
         A random number generator
 
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
+
     Returns
     -------
     A list of strings. There is one string per row in the
@@ -544,6 +558,8 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -588,6 +604,8 @@ def tally_votes(
         Number of bootstrapping iterations
     rng
         random number generator
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------

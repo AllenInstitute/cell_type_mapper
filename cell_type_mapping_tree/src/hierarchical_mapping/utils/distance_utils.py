@@ -5,19 +5,21 @@ TORCH_AVAILABLE = False
 LOGGER = logging.getLogger(__name__)
 
 try:
-    import torch # if torch is available
+    import torch  # type: ignore
     if torch.cuda.is_available():
         TORCH_AVAILABLE = True
         LOGGER.info("Found CUDA. Runnig on GPU.")
     LOGGER.info("Torch found.")
-except:
-    LOGGER.info("Torch not found. Running on CPU.")
+except ImportError as e:
+    LOGGER.info(f"Torch not found. Running on CPU. {str(e)}")
     pass
+
 
 def correlation_nearest_neighbors(
         baseline_array,
         query_array,
-        return_correlation=False):
+        return_correlation=False,
+        gpu_index=0):
     """
     Find the index of the nearest neighbors (by correlation
     distance) of the cells in
@@ -41,7 +43,9 @@ def correlation_nearest_neighbors(
     cell in query_array (i.e. the returned value at 11 is the
     nearest neighbor of query_array[11, :])
     """
-    correlation_array = correlation_dot(baseline_array, query_array)
+    correlation_array = correlation_dot(baseline_array,
+                                        query_array,
+                                        gpu_index=gpu_index)
     max_idx = np.argmax(correlation_array, axis=0)
     if not return_correlation:
         return max_idx
@@ -74,7 +78,7 @@ def correlation_distance(
     return 1.0-correlation_dot(arr0, arr1)
 
 
-def correlation_dot(arr0, arr1):
+def correlation_dot(arr0, arr1, gpu_index=0):
     """
     Return the correlation between the rows of two
     (n_cells, n_genes) arrays
@@ -98,13 +102,18 @@ def correlation_dot(arr0, arr1):
     has a constant expression value), the correlation will be returned
     as zero, instead of NaN.
     """
-    arr0 = _subtract_mean_and_normalize(arr0, do_transpose=False)
-    arr1 = _subtract_mean_and_normalize(arr1, do_transpose=True)
+    arr0 = _subtract_mean_and_normalize(arr0,
+                                        do_transpose=False,
+                                        gpu_index=gpu_index)
+    arr1 = _subtract_mean_and_normalize(arr1,
+                                        do_transpose=True,
+                                        gpu_index=gpu_index)
     if TORCH_AVAILABLE:
-        correlation = torch.matmul(arr0, arr1).cpu().numpy()
+        correlation = torch.matmul(arr0, arr1)
+        correlation = correlation.cpu().numpy()
         del arr0
         del arr1
-        return correlation    
+        return correlation
     return np.dot(arr0, arr1)
 
 
@@ -129,7 +138,9 @@ def _subtract_mean_and_normalize(data, do_transpose=False, gpu_index=0):
     input if do_transpose)
     """
     if TORCH_AVAILABLE:
-        return _subtract_mean_and_normalize_gpu(data, do_transpose=do_transpose, gpu_index=gpu_index)
+        return _subtract_mean_and_normalize_gpu(data,
+                                                do_transpose=do_transpose,
+                                                gpu_index=gpu_index)
     return _subtract_mean_and_normalize_cpu(data, do_transpose=do_transpose)
 
 
@@ -173,7 +184,8 @@ def _subtract_mean_and_normalize_cpu(data, do_transpose=False):
 def _subtract_mean_and_normalize_gpu(data, do_transpose=False, gpu_index=0):
 
     with torch.no_grad():
-        data = torch.from_numpy(data).type(torch.HalfTensor).to(device=f'cuda:{gpu_index}') 
+        data = torch.from_numpy(data).type(torch.HalfTensor)
+        data = data.to(device=f'cuda:{gpu_index}')
 
         mu = torch.mean(data, axis=1)
         data = torch.t(data)-mu
