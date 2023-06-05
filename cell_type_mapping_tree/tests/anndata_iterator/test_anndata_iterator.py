@@ -260,3 +260,11 @@ def test_anndata_row_iterator_with_chunk_grab(
                 atol=0.0,
                 rtol=1.0e-7)
         ct += 1
+
+    specified_rows = [678, 47, 33, 21, 789]
+    actual = iterator.get_rows(specified_rows)
+    np.testing.assert_allclose(
+        actual,
+        x_array_fixture[specified_rows, :],
+        atol=0.0,
+        rtol=1.0e-7)
