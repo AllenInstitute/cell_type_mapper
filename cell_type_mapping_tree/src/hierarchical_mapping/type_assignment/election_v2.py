@@ -131,8 +131,11 @@ def run_type_assignment_on_h5ad_v2(
             dir=tmp_dir,
             prefix='election_runner_dir_'))
 
+    level_to_dir = dict()
+
     root_output_dir = tmp_dir / 'None'
     root_output_dir.mkdir()
+    level_to_dir[None] = root_output_dir
 
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')
     query_cell_names = list(obs.index.values)
@@ -140,13 +143,6 @@ def run_type_assignment_on_h5ad_v2(
     max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
     chunk_size = min(max_chunk_size, chunk_size)
     del obs
-
-    with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
-        all_query_identifiers = json.loads(
-            in_file["query_gene_names"][()].decode("utf-8"))
-        all_query_markers = [
-            all_query_identifiers[ii]
-            for ii in in_file["all_query_markers"][()]]
 
     leaf_node_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
@@ -169,7 +165,7 @@ def run_type_assignment_on_h5ad_v2(
         log=log,
         max_gb=max_gb)
 
-    mgr = multiprocessing.Manager()
+    print(f"assigning {taxonomy_tree.hierarchy[0]}")
     process_list = []
     for chunk in chunk_iterator:
         chunk_data = chunk[0]
@@ -183,13 +179,14 @@ def run_type_assignment_on_h5ad_v2(
 
         these_cell_names = query_cell_names[r0:r1]
         p = multiprocessing.Process(
-                target=_root_worker,
+                target=_assignment_worker,
                 kwargs={
                     'full_query_gene_data': query_data,
                     'query_cell_names': these_cell_names,
                     'leaf_node_matrix': leaf_node_matrix,
                     'taxonomy_tree': taxonomy_tree,
                     'parent_node': None,
+                    'child_level': taxonomy_tree.hierarchy[0],
                     'bootstrap_factor': bootstrap_factor,
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(1, 2**32-1)),
@@ -206,10 +203,166 @@ def run_type_assignment_on_h5ad_v2(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
+    parent_hierarchy = [None] + taxonomy_tree.hierarchy[:-2]
+    child_hierarchy = taxonomy_tree.hierarchy[1:]
+    for parent_level, child_level in zip(parent_hierarchy,
+                                         child_hierarchy):
+        print(f"assigning {child_level}")
+        level_to_dir = _assign_child_level(
+            parent_level=parent_level,
+            level_to_dir=level_to_dir,
+            query_chunk_iterator=chunk_iterator,
+            query_cell_names=query_cell_names,
+            leaf_node_matrix=leaf_node_matrix,
+            marker_gene_cache_path=marker_gene_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=rng,
+            normalization=normalization,
+            tmp_dir=tmp_dir)
+
+    # concatenate all results
+    cell_lookup = dict()
+    for level in level_to_dir:
+        path_list = [n for n in level_to_dir[level].iterdir()
+                     if n.is_file()]
+        for pth in path_list:
+            data = json.load(open(pth, 'rb'))
+            this_level = data['child_level']
+            for cell_id in data['results']:
+                cell = data['results'][cell_id]
+                if cell_id not in cell_lookup:
+                    cell_lookup[cell_id] = {}
+                    cell_lookup[cell_id]['cell_id'] = cell_id
+                this_assignment = {
+                    'assignment': cell['assignment'],
+                    'confidence': cell['confidence']}
+                cell_lookup[cell_id][this_level] = this_assignment
+
     _clean_up(tmp_dir)
 
+    return list(cell_lookup.values())
 
-def _root_worker(
+
+def _assign_child_level(
+        parent_level,
+        level_to_dir,
+        query_chunk_iterator,
+        query_cell_names,
+        leaf_node_matrix,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        n_processors,
+        chunk_size,
+        bootstrap_factor,
+        bootstrap_iteration,
+        rng,
+        normalization='log2CPM',
+        tmp_dir=None):
+
+    cell_name_to_row = {
+        n:ii for ii, n in enumerate(query_cell_names)}
+    query_cell_names = np.array(query_cell_names)
+
+    hierarchy = taxonomy_tree.hierarchy
+    this_level = None
+    if parent_level is None:
+        this_level = hierarchy[0]
+        child_level = hierarchy[1]
+    else:
+        for idx in range(len(hierarchy)-1):
+            if hierarchy[idx] == parent_level:
+                this_level = hierarchy[idx+1]
+                child_level = hierarchy[idx+2]
+                break
+
+    if this_level is None:
+        raise RuntimeError(
+            "Could not find this_level for parent_level = "
+            f"{parent_level}")
+
+    output_dir = pathlib.Path(
+        tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix=f"{this_level}_"))
+
+    level_to_dir[this_level] = output_dir
+
+    parent_node_to_rows = dict()
+    parent_dir = level_to_dir[parent_level]
+    previous_assignment_list = [n for n in parent_dir.iterdir()
+                                if n.is_file()]
+
+    for pth in previous_assignment_list:
+        data = json.load(open(pth, 'rb'))
+        for cell_id in data['results']:
+            cell = data['results'][cell_id]
+            cell_idx = cell_name_to_row[cell_id]
+            parent = cell['assignment']
+            parent_node = (this_level, parent)
+            if parent_node not in parent_node_to_rows:
+                parent_node_to_rows[parent_node] = []
+            parent_node_to_rows[parent_node].append(cell_idx)
+
+    process_list = []
+    for parent_node in parent_node_to_rows:
+        while len(process_list) >= n_processors:
+            process_list = winnow_process_list(process_list)
+
+        marker_lookup = assemble_markers(
+            marker_cache_path=marker_gene_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            parent_node=None)
+
+        all_ref_identifiers = marker_lookup['all_ref_identifiers']
+        all_query_identifiers = marker_lookup['all_query_identifiers']
+        reference_markers = marker_lookup['reference_markers']
+        raw_query_markers = marker_lookup['query_markers']
+
+        row_list = parent_node_to_rows[parent_node]
+        row_list.sort()
+        row_list = np.array(row_list)
+        for i0 in range(0, len(row_list), chunk_size):
+            i1 = min(len(row_list), i0+chunk_size)
+            these_rows = row_list[i0:i1]
+            these_names = query_cell_names[these_rows]
+            query_data = query_chunk_iterator.get_rows(these_rows)
+            query_data = CellByGeneMatrix(
+                data=query_data,
+                gene_identifiers=all_query_identifiers,
+                normalization=normalization)
+
+            p = multiprocessing.Process(
+                target=_assignment_worker,
+                kwargs={
+                    'full_query_gene_data': query_data,
+                    'query_cell_names': these_names,
+                    'leaf_node_matrix': leaf_node_matrix,
+                    'taxonomy_tree': taxonomy_tree,
+                    'parent_node': parent_node,
+                    'child_level': child_level,
+                    'bootstrap_factor': bootstrap_factor,
+                    'bootstrap_iteration': bootstrap_iteration,
+                    'rng': np.random.default_rng(rng.integers(1, 2**32-1)),
+                    'all_ref_identifiers': all_ref_identifiers,
+                    'all_query_identifiers': all_query_identifiers,
+                    'reference_markers': reference_markers,
+                    'raw_query_markers': raw_query_markers,
+                    'output_dir': output_dir})
+            p.start()
+            process_list.append(p)
+            while len(process_list) >= n_processors:
+                process_list = winnow_process_list(process_list)
+
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
+    return level_to_dir
+
+
+def _assignment_worker(
         full_query_gene_data,
         query_cell_names,
         leaf_node_matrix,
@@ -219,6 +372,7 @@ def _root_worker(
         raw_query_markers,
         taxonomy_tree,
         parent_node,
+        child_level,
         bootstrap_factor,
         bootstrap_iteration,
         rng,
@@ -245,9 +399,12 @@ def _root_worker(
 
     output = dict()
     output['parent_node'] = str(parent_node)
+    print(f"parent {parent_node} this {child_level}")
+    output['child_level'] = str(child_level)
+    output['results'] = dict()
 
     for cell_id, a, c in zip(query_cell_names, assignment, confidence):
-        output[cell_id] = {
+        output['results'][cell_id] = {
            'assignment': a,
            'confidence': c}
 

@@ -325,9 +325,6 @@ class CSRRowIterator(object):
         (i.e. row_chunk is data[r0:r1, :])
         """
         if self.r0 >= self.n_rows:
-            if self.h5_handle is not None:
-                self.h5_handle.close()
-                self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
 

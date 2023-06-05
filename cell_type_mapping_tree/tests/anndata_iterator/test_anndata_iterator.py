@@ -261,6 +261,49 @@ def test_anndata_row_iterator_with_chunk_grab(
                 rtol=1.0e-7)
         ct += 1
 
+
+@pytest.mark.parametrize(
+    'use, with_tmp',
+    [('csr', False),
+     ('csc', False),
+     ('csc', True),
+     ('dense', False)])
+def test_get_chunk_post_iteration(
+        x_array_fixture,
+        csr_fixture,
+        csc_fixture,
+        dense_fixture,
+        tmp_dir_fixture,
+        use,
+        with_tmp):
+    """
+    Test that we can get a chunk after iteration
+    """
+    if use == 'csr':
+        fpath = csr_fixture
+    elif use == 'csc':
+        fpath = csc_fixture
+    elif use == 'dense':
+        fpath = dense_fixture
+    else:
+        raise RuntimeError(
+            f"use={use} makese no sense")
+
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
+    chunk_size = 123
+
+    iterator = AnnDataRowIterator(
+        h5ad_path=fpath,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
+
+    for chunk in iterator:
+        pass
+
     specified_rows = [678, 47, 33, 21, 789]
     actual = iterator.get_rows(specified_rows)
     np.testing.assert_allclose(

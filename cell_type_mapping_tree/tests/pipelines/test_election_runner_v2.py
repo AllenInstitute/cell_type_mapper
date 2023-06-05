@@ -170,4 +170,30 @@ def test_running_h5ad_election(
             rng=rng,
             tmp_dir=tmp_dir)
 
+
+    assert len(result) == n_query_cells
+    for i_cell in range(n_query_cells):
+        for level in taxonomy_tree_dict['hierarchy']:
+            assert result[i_cell][level] is not None
+
+    # check that every cell is assigned to a
+    # taxonomically consistent set of types
+    hierarchy = taxonomy_tree_dict['hierarchy']
+    name_set = set()
+    for i_cell in range(n_query_cells):
+        this_cell = result[i_cell]
+        for level in hierarchy:
+            assert level in this_cell
+        for k in this_cell:
+            assert this_cell[k] is not None
+        name_set.add(this_cell['cell_id'])
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
+        for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+
+    # make sure all cell_ids were transcribed
+    assert len(name_set) == len(result)
+    assert len(name_set) == len(query_cell_names)
+    assert name_set == set(query_cell_names)
+
     _clean_up(tmp_dir)

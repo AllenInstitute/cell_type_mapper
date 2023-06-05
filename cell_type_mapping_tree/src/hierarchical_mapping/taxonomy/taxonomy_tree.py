@@ -154,12 +154,14 @@ class TaxonomyTree(object):
         Return a list of all (level, node) tuples indicating
         valid parents in this taxonomy
         """
-        parent_list = [None]
-        for level in self._data['hierarchy'][:-1]:
-            for node in self._data[level]:
-                parent = (level, node)
-                parent_list.append(parent)
-        return parent_list
+        if not hasattr(self, '_parent_list'):
+            parent_list = [None]
+            for level in self._data['hierarchy'][:-1]:
+                for node in self._data[level]:
+                    parent = (level, node)
+                    parent_list.append(parent)
+            self._parent_list = parent_list
+        return self._parent_list
 
     def rows_for_leaf(self, leaf_node):
         """
