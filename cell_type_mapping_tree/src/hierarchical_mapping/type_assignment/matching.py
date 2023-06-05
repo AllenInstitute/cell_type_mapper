@@ -10,6 +10,31 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 
+def assemble_markers(
+        marker_cache_path,
+        taxonomy_tree,
+        parent_node):
+
+    if parent_node is None:
+        parent_grp = 'None'
+    else:
+        parent_grp = f"{parent_node[0]}/{parent_node[1]}"
+
+    with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
+        reference_markers = in_file[parent_grp]['reference'][()]
+        raw_query_markers = in_file[parent_grp]['query'][()]
+        all_ref_identifiers = json.loads(
+            in_file["reference_gene_names"][()].decode("utf-8"))
+        all_query_identifiers = json.loads(
+            in_file["query_gene_names"][()].decode("utf-8"))
+
+    return {
+        'all_ref_identifiers': all_ref_identifiers,
+        'all_query_identifiers': all_query_identifiers,
+        'reference_markers': reference_markers,
+        'query_markers': raw_query_markers}
+
+
 def assemble_query_data(
         full_query_data,
         mean_profile_matrix,
@@ -58,14 +83,21 @@ def assemble_query_data(
     hierarchy = taxonomy_tree.hierarchy
     level_to_idx = {level: idx for idx, level in enumerate(hierarchy)}
 
+    marker_lookup = assemble_markers(
+        marker_cache_path=marker_cache_path,
+        taxonomy_tree=taxonomy_tree,
+        parent_node=parent_node)
+
+    all_ref_identifiers = marker_lookup['all_ref_identifiers']
+    all_query_identifiers = marker_lookup['all_query_identifiers']
+    reference_markers = marker_lookup['reference_markers']
+    raw_query_markers = marker_lookup['query_markers']
+
     if parent_node is None:
-        parent_grp = 'None'
         immediate_children = taxonomy_tree.nodes_at_level(hierarchy[0])
         child_level = hierarchy[0]
 
     else:
-        parent_grp = f"{parent_node[0]}/{parent_node[1]}"
-
         immediate_children = taxonomy_tree.children(
                level=parent_node[0],
                node=parent_node[1])
@@ -78,14 +110,6 @@ def assemble_query_data(
     for child in immediate_children:
         for leaf in tree_as_leaves[child_level][child]:
             leaf_to_type[leaf] = child
-
-    with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
-        reference_markers = in_file[parent_grp]['reference'][()]
-        raw_query_markers = in_file[parent_grp]['query'][()]
-        all_ref_identifiers = json.loads(
-            in_file["reference_gene_names"][()].decode("utf-8"))
-        all_query_identifiers = json.loads(
-            in_file["query_gene_names"][()].decode("utf-8"))
 
     # select only the desired query marker genes
 
