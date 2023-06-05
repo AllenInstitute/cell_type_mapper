@@ -30,9 +30,11 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
+from hierarchical_mapping.type_assignment.election_v2 import (
+    run_type_assignment_on_h5ad_v2)
+
 from hierarchical_mapping.cli.processing_utils import (
     create_precomputed_stats_file)
-
 
 from hierarchical_mapping.cli.schemas import (
     SpecifiedMarkerSchema,
@@ -221,7 +223,16 @@ def _run_mapping(config, tmp_dir, log):
 
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
-    result = run_type_assignment_on_h5ad(
+
+    if config['type_assignment']['version'] == 1:
+        election_fn = run_type_assignment_on_h5ad
+    elif config['type_assignment']['version'] == 2:
+        election_fn = run_type_assignoment_on_h5ad_v2
+    else:
+        raise RuntimeError(
+            f"invalid version {config['type_assignment']['version']}")
+
+    result = election_fn(
         query_h5ad_path=query_loc,
         precomputed_stats_path=precomputed_loc,
         marker_gene_cache_path=query_marker_tmp,

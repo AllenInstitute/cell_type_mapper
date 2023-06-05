@@ -135,6 +135,10 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         description="Seed value for random number generator used in "
         "bootstrapping")
 
+    version = argschema.fields.Int(
+        required=False,
+        default=1)
+
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):
         """
