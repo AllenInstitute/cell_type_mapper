@@ -315,7 +315,7 @@ def _assign_child_level(
         marker_lookup = assemble_markers(
             marker_cache_path=marker_gene_cache_path,
             taxonomy_tree=taxonomy_tree,
-            parent_node=None)
+            parent_node=parent_node)
 
         all_ref_identifiers = marker_lookup['all_ref_identifiers']
         all_query_identifiers = marker_lookup['all_query_identifiers']
