@@ -227,7 +227,7 @@ def _run_mapping(config, tmp_dir, log):
     if config['type_assignment']['version'] == 1:
         election_fn = run_type_assignment_on_h5ad
     elif config['type_assignment']['version'] == 2:
-        election_fn = run_type_assignoment_on_h5ad_v2
+        election_fn = run_type_assignment_on_h5ad_v2
     else:
         raise RuntimeError(
             f"invalid version {config['type_assignment']['version']}")
