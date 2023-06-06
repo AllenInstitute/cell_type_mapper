@@ -1,4 +1,4 @@
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Dict
 import anndata
 import numpy as np
 import h5py
@@ -7,6 +7,9 @@ import time
 
 from hierarchical_mapping.utils.utils import (
     print_timing)
+
+from hierarchical_mapping.utils.anndata_utils import (
+    read_df_from_h5ad)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -101,9 +104,71 @@ def precompute_summary_stats_from_h5ad_and_tree(
         Path to the HDF5 file that will contain the lookup
         information for the clusters
 
-    col_names:
-        Optional list of names associated with the columns
-        in the data matrix
+    rows_at_a_time:
+        Number of rows to load at once from the cell x gene
+        matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
+    """
+    cluster_to_input_row = taxonomy_tree.leaf_to_rows
+
+    cluster_list = list(cluster_to_input_row)
+    cluster_list.sort()
+    cluster_to_output_row = {c: int(ii)
+                             for ii, c in enumerate(cluster_list)}
+
+    obs = read_df_from_h5ad(data_path, 'obs')
+    cell_name_list = list(obs.index.values)
+    cell_name_to_output_row = dict()
+    for cluster_name in cluster_to_output_row:
+        cluster_idx = cluster_to_output_row[cluster_name]
+        for cell_idx in cluster_to_input_row[cluster_name]:
+            cell_name = cell_name_list[cell_idx]
+            cell_name_to_output_row[cell_name] = cluster_idx
+
+    precompute_summary_stats_from_h5ad_and_lookup(
+        data_path=data_path,
+        cell_name_to_output_row=cell_name_to_output_row,
+        cluster_to_output_row=cluster_to_output_row,
+        output_path=output_path,
+        rows_at_a_time=rows_at_a_time,
+        normalization=normalization)
+
+    with h5py.File(output_path, 'a') as out_file:
+        out_file.create_dataset(
+            'taxonomy_tree',
+            data=taxonomy_tree.to_str().encode('utf-8'))
+
+
+def precompute_summary_stats_from_h5ad_and_lookup(
+        data_path: Union[str, pathlib.Path],
+        cell_name_to_output_row: Dict[str, int],
+        cluster_to_output_row: Dict[str, int],
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM'):
+
+    """
+    Precompute the summary stats used to identify marker genes
+
+    Parameters
+    ----------
+    data_path:
+        Path to the h5ad file containing the cell x gene matrix
+
+    cell_name_to_output_row:
+        dict mapping cell name to output row in the precomputed
+        matrix
+
+    cluster_to_output_row:
+        dict mapping cluster name to output row in the precomputed
+        matrix
+
+    output_path:
+        Path to the HDF5 file that will contain the lookup
+        information for the clusters
 
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
@@ -113,15 +178,12 @@ def precompute_summary_stats_from_h5ad_and_tree(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
+
     a_data = anndata.read_h5ad(data_path, backed='r')
+    cell_name_list = list(a_data.obs.index.values)
     gene_names = a_data.var_names
 
-    cluster_to_input_row = taxonomy_tree.leaf_to_rows
-
-    cluster_list = list(cluster_to_input_row)
-    cluster_to_output_row = {c: int(ii)
-                             for ii, c in enumerate(cluster_list)}
-    n_clusters = len(cluster_list)
+    n_clusters = len(cluster_to_output_row)
 
     n_cells = a_data.X.shape[0]
     n_genes = a_data.X.shape[1]
@@ -129,17 +191,6 @@ def precompute_summary_stats_from_h5ad_and_tree(
     col_names = list(a_data.var_names)
     if len(col_names) == 0:
         col_names = None
-
-    # create a numpy array mapping rows (cells) in the h5ad
-    # file to rows (clusters) in the output summary file.
-
-    anndata_row_to_output_row = np.zeros(
-            n_cells, dtype=int)
-
-    for cluster in cluster_to_input_row:
-        these_rows = np.array(cluster_to_input_row[cluster])
-        output_idx = cluster_to_output_row[cluster]
-        anndata_row_to_output_row[these_rows] = output_idx
 
     chunk_iterator = a_data.chunked_X(
         chunk_size=rows_at_a_time)
@@ -158,7 +209,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
     for chunk in chunk_iterator:
         r0 = chunk[1]
         r1 = chunk[2]
-        cluster_chunk = anndata_row_to_output_row[r0:r1]
+        cluster_chunk = np.array([
+            cell_name_to_output_row[cell_name_list[idx]]
+            for idx in range(r0, r1)
+        ])
         for unq_cluster in np.unique(cluster_chunk):
             valid = np.where(cluster_chunk == unq_cluster)[0]
             valid = np.sort(valid)
@@ -198,9 +252,6 @@ def precompute_summary_stats_from_h5ad_and_tree(
         col_names=col_names)
 
     with h5py.File(output_path, 'a') as out_file:
-        out_file.create_dataset(
-            'taxonomy_tree',
-            data=taxonomy_tree.to_str().encode('utf-8'))
         for k in buffer_dict.keys():
             if k == 'n_cells':
                 out_file[k][:] = buffer_dict[k]
