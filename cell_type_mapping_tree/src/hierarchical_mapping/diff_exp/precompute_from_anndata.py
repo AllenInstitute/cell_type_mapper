@@ -125,8 +125,12 @@ def precompute_summary_stats_from_h5ad_and_tree(
             cell_name = cell_name_list[cell_idx]
             cell_name_to_cluster_name[cell_name] = cluster_name
 
+    gene_names = list(
+        read_df_from_h5ad(data_path, 'var').index.values)
+
     precompute_summary_stats_from_h5ad_and_lookup(
-        data_path=data_path,
+        data_path_list=[data_path],
+        gene_names=gene_names,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
@@ -140,7 +144,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
 
 
 def precompute_summary_stats_from_h5ad_and_lookup(
-        data_path: Union[str, pathlib.Path],
+        data_path_list: List[Union[str, pathlib.Path]],
+        gene_names: List[str],
         cell_name_to_cluster_name: Dict[str, str],
         cluster_to_output_row: Dict[str, int],
         output_path: Union[str, pathlib.Path],
@@ -152,8 +157,12 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
     Parameters
     ----------
-    data_path:
-        Path to the h5ad file containing the cell x gene matrix
+    data_path_list:
+        List of paths to the h5ad files containing the cell x gene
+        data
+
+    gene_names:
+        List of gene_names
 
     cell_name_to_cluster_name:
         dict mapping cell name to the name of the cluster it belongs
@@ -176,24 +185,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         the input file; either 'raw' or 'log2CPM'
     """
 
-    cell_name_list = list(
-        read_df_from_h5ad(data_path, 'obs').index.values)
-    gene_names = list(
-        read_df_from_h5ad(data_path, 'var').index.values)
-
     n_clusters = len(cluster_to_output_row)
-
-    n_cells = len(cell_name_list)
     n_genes = len(gene_names)
-
-    chunk_iterator = AnnDataRowIterator(
-        h5ad_path=data_path,
-        row_chunk_size=rows_at_a_time)
-
-    cell_name_to_output_row = dict()
-    for cell_name in cell_name_to_cluster_name:
-        cell_name_to_output_row[cell_name] = cluster_to_output_row[
-            cell_name_to_cluster_name[cell_name]]
 
     buffer_dict = dict()
     buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
@@ -203,46 +196,62 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
     buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
 
-    t0 = time.time()
-    print(f"chunking through {data_path}")
-    processed_cells = 0
-    for chunk in chunk_iterator:
-        r0 = chunk[1]
-        r1 = chunk[2]
-        cluster_chunk = np.array([
-            cell_name_to_output_row[cell_name_list[idx]]
-            for idx in range(r0, r1)
-        ])
-        for unq_cluster in np.unique(cluster_chunk):
-            valid = np.where(cluster_chunk == unq_cluster)[0]
-            valid = np.sort(valid)
-            this_cluster = chunk[0][valid, :]
+    for data_path in data_path_list:
 
-            if not isinstance(this_cluster, np.ndarray):
-                this_cluster = this_cluster.toarray()
+        cell_name_list = list(
+            read_df_from_h5ad(data_path, 'obs').index.values)
 
-            this_cluster = CellByGeneMatrix(
-                data=this_cluster,
-                gene_identifiers=gene_names,
-                normalization=normalization)
+        n_cells = len(cell_name_list)
 
-            if this_cluster.normalization != 'log2CPM':
-                this_cluster.to_log2CPM_in_place()
+        chunk_iterator = AnnDataRowIterator(
+            h5ad_path=data_path,
+            row_chunk_size=rows_at_a_time)
 
-            summary_chunk = summary_stats_for_chunk(this_cluster)
+        cell_name_to_output_row = dict()
+        for cell_name in cell_name_to_cluster_name:
+            cell_name_to_output_row[cell_name] = cluster_to_output_row[
+                cell_name_to_cluster_name[cell_name]]
 
-            for k in summary_chunk.keys():
-                if len(buffer_dict[k].shape) == 1:
-                    buffer_dict[k][unq_cluster] += summary_chunk[k]
-                else:
-                    buffer_dict[k][unq_cluster, :] += summary_chunk[k]
+        t0 = time.time()
+        print(f"chunking through {data_path}")
+        processed_cells = 0
+        for chunk in chunk_iterator:
+            r0 = chunk[1]
+            r1 = chunk[2]
+            cluster_chunk = np.array([
+                cell_name_to_output_row[cell_name_list[idx]]
+                for idx in range(r0, r1)
+            ])
+            for unq_cluster in np.unique(cluster_chunk):
+                valid = np.where(cluster_chunk == unq_cluster)[0]
+                valid = np.sort(valid)
+                this_cluster = chunk[0][valid, :]
 
-        processed_cells += (r1-r0)
-        print_timing(
-            t0=t0,
-            i_chunk=processed_cells,
-            tot_chunks=n_cells,
-            unit='hr')
+                if not isinstance(this_cluster, np.ndarray):
+                    this_cluster = this_cluster.toarray()
+
+                this_cluster = CellByGeneMatrix(
+                    data=this_cluster,
+                    gene_identifiers=gene_names,
+                    normalization=normalization)
+
+                if this_cluster.normalization != 'log2CPM':
+                    this_cluster.to_log2CPM_in_place()
+
+                summary_chunk = summary_stats_for_chunk(this_cluster)
+
+                for k in summary_chunk.keys():
+                    if len(buffer_dict[k].shape) == 1:
+                        buffer_dict[k][unq_cluster] += summary_chunk[k]
+                    else:
+                        buffer_dict[k][unq_cluster, :] += summary_chunk[k]
+
+            processed_cells += (r1-r0)
+            print_timing(
+                t0=t0,
+                i_chunk=processed_cells,
+                tot_chunks=n_cells,
+                unit='hr')
 
     _create_empty_stats_file(
         output_path=output_path,
