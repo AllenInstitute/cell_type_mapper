@@ -1,5 +1,4 @@
 from typing import Union, List, Optional, Dict
-import anndata
 import numpy as np
 import h5py
 import pathlib
@@ -10,6 +9,9 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
+
+from hierarchical_mapping.anndata_iterator.anndata_iterator import (
+    AnnDataRowIterator)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -51,10 +53,6 @@ def precompute_summary_stats_from_h5ad(
     output_path:
         Path to the HDF5 file that will contain the lookup
         information for the clusters
-
-    col_names:
-        Optional list of names associated with the columns
-        in the data matrix
 
     rows_at_a_time:
         Number of rows to load at once from the cell x gene
@@ -178,21 +176,19 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         the input file; either 'raw' or 'log2CPM'
     """
 
-    a_data = anndata.read_h5ad(data_path, backed='r')
-    cell_name_list = list(a_data.obs.index.values)
-    gene_names = a_data.var_names
+    cell_name_list = list(
+        read_df_from_h5ad(data_path, 'obs').index.values)
+    gene_names = list(
+        read_df_from_h5ad(data_path, 'var').index.values)
 
     n_clusters = len(cluster_to_output_row)
 
-    n_cells = a_data.X.shape[0]
-    n_genes = a_data.X.shape[1]
+    n_cells = len(cell_name_list)
+    n_genes = len(gene_names)
 
-    col_names = list(a_data.var_names)
-    if len(col_names) == 0:
-        col_names = None
-
-    chunk_iterator = a_data.chunked_X(
-        chunk_size=rows_at_a_time)
+    chunk_iterator = AnnDataRowIterator(
+        h5ad_path=data_path,
+        row_chunk_size=rows_at_a_time)
 
     cell_name_to_output_row = dict()
     for cell_name in cell_name_to_cluster_name:
@@ -253,7 +249,7 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         cluster_to_output_row=cluster_to_output_row,
         n_clusters=n_clusters,
         n_genes=n_genes,
-        col_names=col_names)
+        col_names=gene_names)
 
     with h5py.File(output_path, 'a') as out_file:
         for k in buffer_dict.keys():
