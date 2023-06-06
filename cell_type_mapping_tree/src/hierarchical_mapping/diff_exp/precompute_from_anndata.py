@@ -121,16 +121,15 @@ def precompute_summary_stats_from_h5ad_and_tree(
 
     obs = read_df_from_h5ad(data_path, 'obs')
     cell_name_list = list(obs.index.values)
-    cell_name_to_output_row = dict()
+    cell_name_to_cluster_name = dict()
     for cluster_name in cluster_to_output_row:
-        cluster_idx = cluster_to_output_row[cluster_name]
         for cell_idx in cluster_to_input_row[cluster_name]:
             cell_name = cell_name_list[cell_idx]
-            cell_name_to_output_row[cell_name] = cluster_idx
+            cell_name_to_cluster_name[cell_name] = cluster_name
 
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path=data_path,
-        cell_name_to_output_row=cell_name_to_output_row,
+        cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
@@ -144,7 +143,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
 
 def precompute_summary_stats_from_h5ad_and_lookup(
         data_path: Union[str, pathlib.Path],
-        cell_name_to_output_row: Dict[str, int],
+        cell_name_to_cluster_name: Dict[str, str],
         cluster_to_output_row: Dict[str, int],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
@@ -158,9 +157,9 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     data_path:
         Path to the h5ad file containing the cell x gene matrix
 
-    cell_name_to_output_row:
-        dict mapping cell name to output row in the precomputed
-        matrix
+    cell_name_to_cluster_name:
+        dict mapping cell name to the name of the cluster it belongs
+        to
 
     cluster_to_output_row:
         dict mapping cluster name to output row in the precomputed
@@ -194,6 +193,11 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
     chunk_iterator = a_data.chunked_X(
         chunk_size=rows_at_a_time)
+
+    cell_name_to_output_row = dict()
+    for cell_name in cell_name_to_cluster_name:
+        cell_name_to_output_row[cell_name] = cluster_to_output_row[
+            cell_name_to_cluster_name[cell_name]]
 
     buffer_dict = dict()
     buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
