@@ -17,10 +17,20 @@ def test_summary_stats_for_chunk():
     ncols = 516
     raw_data = np.zeros(nrows*ncols, dtype=int)
     chosen_dex = rng.choice(np.arange(nrows*ncols),
-                            (nrows*ncols)//13,
+                            (nrows*ncols)//3,
                             replace=False)
-    raw_data[chosen_dex] = rng.integers(1, 2000, len(chosen_dex))
+    n_chosen = len(chosen_dex)
+    raw_data[chosen_dex[:n_chosen//2]] = rng.integers(1, 50, n_chosen//2)
+    raw_data[chosen_dex[n_chosen//2:]] = rng.integers(
+                 1000000,
+                 20000000,
+                 len(chosen_dex[n_chosen//2:]))
     raw_data = raw_data.reshape(nrows, ncols)
+
+    # engineer one row to have a CPM==1 element
+    raw_data[15, :] = 0
+    raw_data[15, 29] = 999999
+    raw_data[15, 44] = 1
 
     cpm_data = convert_to_cpm(raw_data)
     log2cpm_data = np.log(cpm_data+1.0)/np.log(2.0)
@@ -60,6 +70,12 @@ def test_summary_stats_for_chunk():
     assert actual['gt1'].sum() > 0
     assert actual['gt1'].sum() < nrows*ncols
     np.testing.assert_array_equal(actual['gt1'], (cpm_data>1).sum(axis=0))
+
+    assert actual['ge1'].shape == (ncols,)
+    assert actual['ge1'].sum() > 0
+    assert actual['ge1'].sum() < nrows*ncols
+    np.testing.assert_array_equal(actual['ge1'], (cpm_data>=1).sum(axis=0))
+    assert not np.array_equal(actual['ge1'], actual['gt1'])
 
 
 def test_welch_t_test():

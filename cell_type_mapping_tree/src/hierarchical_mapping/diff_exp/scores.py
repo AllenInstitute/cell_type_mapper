@@ -57,6 +57,7 @@ def read_precomputed_stats(
             'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
+            'ge1'
     """
 
     precomputed_stats = dict()
@@ -74,6 +75,7 @@ def read_precomputed_stats(
         sumsq_arr = in_file['sumsq'][()]
         gt0_arr = in_file['gt0'][()]
         gt1_arr = in_file['gt1'][()]
+        ge1_arr = in_file['ge1'][()]
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
@@ -84,6 +86,7 @@ def read_precomputed_stats(
         this['sumsq'] = sumsq_arr[idx, :]
         this['gt0'] = gt0_arr[idx, :]
         this['gt1'] = gt1_arr[idx, :]
+        this['ge1'] = ge1_arr[idx, :]
         cluster_stats[leaf_name] = this
 
     precomputed_stats['cluster_stats'] = cluster_stats
@@ -174,8 +177,8 @@ def score_differential_genes(
 
     pvalue_valid = (pvalues < p_th)
 
-    pij_1 = stats_1['gt1']/max(1, stats_1['n_cells'])
-    pij_2 = stats_2['gt1']/max(1, stats_2['n_cells'])
+    pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
+    pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
 
     penetrance_mask = penetrance_tests(
         pij_1=pij_1,
@@ -335,6 +338,7 @@ def aggregate_stats(
             'sumsq' -- units of log2(CPM+1)
             'gt0'
             'gt1'
+            'ge1'
 
     Returns
     -------
@@ -353,6 +357,7 @@ def aggregate_stats(
     sumsq_arr = np.zeros(n_genes, dtype=float)
     gt0 = np.zeros(n_genes, dtype=int)
     gt1 = np.zeros(n_genes, dtype=int)
+    ge1 = np.zeros(n_genes, dtype=int)
     n_cells = 0
 
     for leaf_node in leaf_population:
@@ -363,6 +368,7 @@ def aggregate_stats(
         sumsq_arr += these_stats['sumsq']
         gt0 += these_stats['gt0']
         gt1 += these_stats['gt1']
+        ge1 += these_stats['ge1']
 
     mu = sum_arr/n_cells
     var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
@@ -371,7 +377,8 @@ def aggregate_stats(
             'var': var,
             'n_cells': n_cells,
             'gt0': gt0,
-            'gt1': gt1}
+            'gt1': gt1,
+            'ge1': ge1}
 
 
 def rank_genes(

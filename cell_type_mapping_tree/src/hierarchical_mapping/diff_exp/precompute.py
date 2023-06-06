@@ -22,7 +22,7 @@ def _create_empty_stats_file(
 
         out_file.create_dataset('n_cells', shape=(n_clusters,), dtype=int)
         for (k, dt) in (('sum', float), ('sumsq', float),
-                        ('gt0', int), ('gt1', int)):
+                        ('gt0', int), ('gt1', int), ('ge1', int)):
             out_file.create_dataset(k,
                                     shape=(n_clusters, n_genes),
                                     chunks=((max(1, n_clusters//10), n_genes)),

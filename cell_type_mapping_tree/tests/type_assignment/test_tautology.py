@@ -105,7 +105,7 @@ def precomputed_fixture(
         out_file.create_dataset(
             'sum',
             data=data)
-        for k in ('gt1', 'gt0', 'sumsq'):
+        for k in ('gt1', 'gt0', 'ge1', 'sumsq'):
             out_file.create_dataset(
                 k,
                 data=np.zeros((n_cells, n_genes), dtype=int))
