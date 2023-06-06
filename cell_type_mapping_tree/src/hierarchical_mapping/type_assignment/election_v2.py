@@ -382,6 +382,9 @@ def _assignment_worker(
         dir=output_dir,
         suffix='.json')
 
+    if full_query_gene_data.normalization != 'log2CPM':
+        full_query_gene_data.to_log2CPM_in_place()
+
     (assignment,
      confidence) = _run_type_assignment(
          full_query_gene_data=full_query_gene_data,
