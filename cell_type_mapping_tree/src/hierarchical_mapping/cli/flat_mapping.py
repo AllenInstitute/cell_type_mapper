@@ -87,9 +87,12 @@ def run_mapping(config, output_path, log_path=None):
     if 'tmp_dir' not in config:
         raise RuntimeError("did not specify tmp_dir")
 
-    tmp_dir = tempfile.mkdtemp(
-        dir=config['tmp_dir'],
-        prefix='flat_mapping_')
+    if config['tmp_dir'] is not None:
+        tmp_dir = tempfile.mkdtemp(
+            dir=config['tmp_dir'],
+            prefix='flat_mapping_')
+    else:
+        tmp_dir = None
 
     output = dict()
 
