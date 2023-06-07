@@ -25,7 +25,8 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
-    get_tree_above_leaves)
+    get_tree_above_leaves,
+    get_alias_mapper)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -59,7 +60,7 @@ def cluster_to_supertype_fixture(cluster_names_fixture):
     result = dict()
     n_super = len(cluster_names_fixture)//3
     assert n_super > 2
-    super_type_list = [f'super_type_{ii}'
+    super_type_list = [f'supertype_{ii}'
                        for ii in range(n_super)]
     rng = np.random.default_rng()
     for cl in cluster_names_fixture:
@@ -360,6 +361,27 @@ def test_get_tree_above_leaves(
         for child in lookup:
             parent = lookup[child]
             assert child in actual[parent_level][parent]
+
+def test_get_alias_mapper(
+        cluster_membership_fixture,
+        alias_fixture):
+
+    actual = get_alias_mapper(
+        csv_path=cluster_membership_fixture)
+
+    for full_label in alias_fixture:
+        if 'cluster' in full_label:
+            level = 'cluster'
+        elif 'subclass' in full_label:
+            level = 'subclass'
+        elif 'supertype' in full_label:
+            level = 'supertype'
+        elif 'class' in full_label:
+            level = 'class'
+        else:
+            raise RuntimeError(
+                f"no obvious level for {full_label}")
+        assert actual[(level, full_label)] == str(alias_fixture[full_label])
 
 
 def test_all_this(

@@ -106,3 +106,45 @@ def get_tree_above_leaves(
             result[level][node] = list(result[level][node])
             result[level][node].sort()
     return result
+
+
+def get_alias_mapper(
+        csv_path):
+    """
+    Read a cluster_to_cluster_annotation_membership.csv file. Return
+    a dict mapping (level, label) to alias
+    """
+    header_lookup = get_header_map(
+        csv_path=csv_path,
+        desired_columns=[
+            'cluster_annotation_term_set_label',
+            'cluster_alias',
+            'cluster_annotation_term_label'])
+
+    level_idx = header_lookup['cluster_annotation_term_set_label']
+    label_idx = header_lookup['cluster_annotation_term_label']
+    alias_idx = header_lookup['cluster_alias']
+
+    result = dict()
+    used_aliases = dict()
+    with open(csv_path, 'r') as src:
+        src.readline()
+        for line in src:
+            params = line.strip().split(',')
+            level = params[level_idx]
+            label = params[label_idx]
+            alias = params[alias_idx]
+            this_key = (level, label)
+            if this_key in result:
+                raise RuntimeError(
+                    f"level={level}, label={label} listed more than "
+                    f"once in {csv_path}")
+            if level not in used_aliases:
+                used_aliases[level] = set()
+            if alias in used_aliases[level]:
+                raise RuntimeError(
+                    f"alias={alias} used more than once at level="
+                    f"{level}")
+            used_aliases[level].add(alias)
+            result[this_key] = alias
+    return result
