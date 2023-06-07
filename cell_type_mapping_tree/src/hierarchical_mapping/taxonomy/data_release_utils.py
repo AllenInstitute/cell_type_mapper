@@ -37,3 +37,72 @@ def get_header_map(
         error_msg = f"errors parsing {csv_path}:\n{error_msg}"
         raise RuntimeError(error_msg)
     return result
+
+
+def get_tree_above_leaves(
+        csv_path,
+        hierarchy):
+    """
+    Read the structure of a cell type tree (excluding the leaf nodes)
+    from the cluster_annotation_term.csv file
+
+    Parameters
+    ----------
+    csv_path:
+        Path to the CSV file
+    hierarchy:
+        List of string encoding the hierarchy of
+        cluster_annotation_term_set_labels in order from
+        most gross to most fine.
+
+    Returns
+    -------
+    A dict encoding the inheritance structure
+     (these will be in terms of labels; not aliases)
+    """
+
+    header_lookup = get_header_map(
+        csv_path=csv_path,
+        desired_columns=[
+            'label',
+            'cluster_annotation_term_set_label',
+            'parent_term_label',
+            'parent_term_set_label'])
+
+    child_to_parent = {
+        l0:l1
+        for l0, l1 in zip(hierarchy[1:], hierarchy[:-1])}
+
+    label_idx = header_lookup['label']
+    level_idx = header_lookup['cluster_annotation_term_set_label']
+    parent_idx = header_lookup['parent_term_label']
+    parent_level_idx = header_lookup['parent_term_set_label']
+
+    result = dict()
+    with open(csv_path , 'r') as src:
+        src.readline()
+        for line in src:
+            params = line.strip().split(',')
+            label = params[label_idx]
+            level = params[level_idx]
+            parent = params[parent_idx]
+            parent_level = params[parent_level_idx]
+            if level not in child_to_parent:
+                continue
+            if parent_level != child_to_parent[level]:
+                msg = f"node {label} at level {level} expected "
+                msg += f"to have a parent at level {child_to_parent[level]}; "
+                msg += f"got parent {parent} and level {parent_level} instead"
+                raise RuntimeError(msg)
+
+            if parent_level not in result:
+                result[parent_level] = dict()
+            if parent not in result[parent_level]:
+                result[parent_level][parent] = set()
+            result[parent_level][parent].add(label)
+
+    for level in result:
+        for node in result[level]:
+            result[level][node] = list(result[level][node])
+            result[level][node].sort()
+    return result

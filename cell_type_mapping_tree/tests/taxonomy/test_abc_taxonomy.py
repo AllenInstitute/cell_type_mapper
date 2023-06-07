@@ -24,6 +24,8 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.taxonomy.data_release_utils import (
+    get_tree_above_leaves)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -337,12 +339,35 @@ def baseline_tree_fixture(
     return TaxonomyTree(data=data)
 
 
+def test_get_tree_above_leaves(
+        cluster_annotation_term_fixture,
+        cluster_to_supertype_fixture,
+        supertype_to_subclass_fixture,
+        subclass_to_class_fixture):
+
+    actual = get_tree_above_leaves(
+        csv_path=cluster_annotation_term_fixture,
+        hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    assert len(actual) == 3
+    assert 'class' in actual
+    assert 'subclass' in actual
+    assert 'supertype' in actual
+
+    for lookup, parent_level in [(cluster_to_supertype_fixture, 'supertype'),
+                                 (supertype_to_subclass_fixture, 'subclass'),
+                                 (subclass_to_class_fixture, 'class')]:
+        for child in lookup:
+            parent = lookup[child]
+            assert child in actual[parent_level][parent]
+
+
 def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
         baseline_tree_fixture):
-    pass
+    return
 
     test_tree = TaxonomyTree.from_data_release(
             cell_metadata_path=cell_metadata_fixture,
