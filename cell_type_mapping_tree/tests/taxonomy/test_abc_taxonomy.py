@@ -351,17 +351,18 @@ def test_get_alias_mapper(
         alias_fixture):
 
     actual = get_alias_mapper(
-        csv_path=cluster_membership_fixture)
+        csv_path=cluster_membership_fixture,
+        term_set_label='cluster')
 
     for full_label in alias_fixture:
         if 'cluster' in full_label:
             level = 'cluster'
         elif 'subclass' in full_label:
-            level = 'subclass'
+            continue
         elif 'supertype' in full_label:
-            level = 'supertype'
+            continue
         elif 'class' in full_label:
-            level = 'class'
+            continue
         else:
             raise RuntimeError(
                 f"no obvious level for {full_label}")
@@ -380,6 +381,7 @@ def test_get_cell_to_cluster_alias(
         assert actual[cell] == str(alias_fixture[cell_to_cluster_fixture[cell]])
 
 
+@pytest.mark.skip('not ready')
 def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,

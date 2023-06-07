@@ -109,10 +109,13 @@ def get_tree_above_leaves(
 
 
 def get_alias_mapper(
-        csv_path):
+        csv_path,
+        term_set_label):
     """
     Read a cluster_to_cluster_annotation_membership.csv file. Return
     a dict mapping (level, label) to alias
+
+    Only record aliases for the specified term_set_label
     """
     header_lookup = get_header_map(
         csv_path=csv_path,
@@ -132,6 +135,8 @@ def get_alias_mapper(
         for line in src:
             params = line.strip().split(',')
             level = params[level_idx]
+            if level != term_set_label:
+                continue
             label = params[label_idx]
             alias = params[alias_idx]
             this_key = (level, label)
