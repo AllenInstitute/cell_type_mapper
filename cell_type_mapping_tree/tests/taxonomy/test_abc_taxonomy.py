@@ -26,7 +26,8 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
-    get_alias_mapper)
+    get_alias_mapper,
+    get_cell_to_cluster_alias)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -382,6 +383,18 @@ def test_get_alias_mapper(
             raise RuntimeError(
                 f"no obvious level for {full_label}")
         assert actual[(level, full_label)] == str(alias_fixture[full_label])
+
+
+def test_get_cell_to_cluster_alias(
+        cell_metadata_fixture,
+        alias_fixture,
+        cell_to_cluster_fixture):
+
+    actual = get_cell_to_cluster_alias(
+        csv_path=cell_metadata_fixture)
+
+    for cell in cell_to_cluster_fixture:
+        assert actual[cell] == str(alias_fixture[cell_to_cluster_fixture[cell]])
 
 
 def test_all_this(

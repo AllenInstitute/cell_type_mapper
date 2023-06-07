@@ -70,7 +70,7 @@ def get_tree_above_leaves(
             'parent_term_set_label'])
 
     child_to_parent = {
-        l0:l1
+        l0: l1
         for l0, l1 in zip(hierarchy[1:], hierarchy[:-1])}
 
     label_idx = header_lookup['label']
@@ -79,7 +79,7 @@ def get_tree_above_leaves(
     parent_level_idx = header_lookup['parent_term_set_label']
 
     result = dict()
-    with open(csv_path , 'r') as src:
+    with open(csv_path, 'r') as src:
         src.readline()
         for line in src:
             params = line.strip().split(',')
@@ -147,4 +147,32 @@ def get_alias_mapper(
                     f"{level}")
             used_aliases[level].add(alias)
             result[this_key] = alias
+    return result
+
+
+def get_cell_to_cluster_alias(
+        csv_path):
+    """
+    Read a cell_metadata.csv file. Return a dict mapping
+    cell_id to cluster_alias
+    """
+    header_map = get_header_map(
+        csv_path=csv_path,
+        desired_columns=[
+            'cell_label',
+            'cluster_alias'])
+
+    cell_idx = header_map['cell_label']
+    cluster_idx = header_map['cluster_alias']
+    result = dict()
+    with open(csv_path, 'r') as src:
+        src.readline()
+        for line in src:
+            params = line.strip().split(',')
+            cell = params[cell_idx]
+            cluster = params[cluster_idx]
+            if cell in result:
+                raise RuntimeError(
+                    f"cell {cell} listed more than once in {csv_path}")
+            result[cell] = cluster
     return result
