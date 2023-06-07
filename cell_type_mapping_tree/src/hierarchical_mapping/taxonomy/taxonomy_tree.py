@@ -16,13 +16,18 @@ class TaxonomyTree(object):
 
     def __init__(
             self,
-            data):
+            data,
+            alias_mapping=None):
         """
         data is a dict encoding the taxonomy tree.
         Probably, users will not instantiate this class
         directly, instead using one of the classmethods
+
+        alias_mapping maps a (hierarchy_level, alias) tuple
+        to a human-readable label (this is optional)
         """
         self._data = copy.deepcopy(data)
+        self._alias_mapping = copy.deepcopy(alias_mapping)
         validate_taxonomy_tree(self._data)
 
     def __eq__(self, other):
@@ -147,9 +152,9 @@ class TaxonomyTree(object):
         return get_all_pairs(self._data)
 
     @property
-    def leaf_to_rows(self):
+    def leaf_to_cells(self):
         """
-        Return the lookup from leaf name to rows in the
+        Return the lookup from leaf name to cells in the
         cell by gene file
         """
         return copy.deepcopy(self._data[self.leaf_level])

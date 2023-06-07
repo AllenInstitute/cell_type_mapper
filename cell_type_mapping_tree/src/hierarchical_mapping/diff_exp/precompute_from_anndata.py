@@ -1,5 +1,6 @@
 from typing import Union, List, Optional, Dict
 import numpy as np
+import numbers
 import h5py
 import pathlib
 import time
@@ -110,7 +111,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
-    cluster_to_input_row = taxonomy_tree.leaf_to_rows
+    cluster_to_input_row = taxonomy_tree.leaf_to_cells
 
     cluster_list = list(cluster_to_input_row)
     cluster_list.sort()
@@ -122,6 +123,11 @@ def precompute_summary_stats_from_h5ad_and_tree(
     cell_name_to_cluster_name = dict()
     for cluster_name in cluster_to_output_row:
         for cell_idx in cluster_to_input_row[cluster_name]:
+            if not isinstance(cell_idx, numbers.Integral):
+                raise RuntimeError(
+                    f"cell_idx is of type {type(cell_idx)}\n"
+                    "this TaxonomyTree does not seem to map leaf "
+                    "nodes to row indexes")
             cell_name = cell_name_list[cell_idx]
             cell_name_to_cluster_name[cell_name] = cluster_name
 
