@@ -25,6 +25,12 @@ class TaxonomyTree(object):
         self._data = copy.deepcopy(data)
         validate_taxonomy_tree(self._data)
 
+    def __eq__(self, other):
+        return self._data == other._data
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     @classmethod
     def from_h5ad(cls, h5ad_path, column_hierarchy):
         """
