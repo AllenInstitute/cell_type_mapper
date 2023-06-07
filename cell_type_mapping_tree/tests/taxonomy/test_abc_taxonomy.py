@@ -299,27 +299,28 @@ def baseline_tree_fixture(
                          'supertype',
                          'cluster']
 
-    for lookup, parent_name in [(subclass_to_class_fixture, 'class'),
+    for lookup, parent_level in [(subclass_to_class_fixture, 'class'),
                                 (supertype_to_subclass_fixture, 'subclass'),
                                 (cluster_to_supertype_fixture, 'supertype'),
                                 (cell_to_cluster_fixture, 'cluster')]:
         this = dict()
         for child_label in lookup:
-            parent_label = lookup[child_label]
+            parent = lookup[child_label]
 
-            if parent_name != 'cluster':
+            if parent_level == 'supertype':
                 child = str(alias_fixture[child_label])
             else:
                 child = child_label
 
-            parent = str(alias_fixture[parent_label])
+            if parent_level == 'cluster':
+                parent = str(alias_fixture[parent])
 
             if parent not in this:
                 this[parent] = []
             this[parent].append(child)
         for parent in this:
             this[parent].sort()
-        data[parent_name] = this
+        data[parent_level] = this
 
     return TaxonomyTree(data=data)
 
@@ -381,7 +382,6 @@ def test_get_cell_to_cluster_alias(
         assert actual[cell] == str(alias_fixture[cell_to_cluster_fixture[cell]])
 
 
-@pytest.mark.skip('not ready')
 def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,

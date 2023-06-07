@@ -102,6 +102,8 @@ class TaxonomyTree(object):
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
         """
+        leaf_level = hierarchy[-1]
+
         cell_to_alias = get_cell_to_cluster_alias(
             csv_path=cell_metadata_path)
 
@@ -110,19 +112,19 @@ class TaxonomyTree(object):
             hierarchy=hierarchy)
 
         alias_map = get_alias_mapper(
-            csv_path=cluster_membership_path)
+            csv_path=cluster_membership_path,
+            term_set_label=leaf_level)
 
         data = dict()
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
             data[parent_level] = dict()
-            for node_label in rough_tree[parent_level]:
-                node = str(alias_map[(parent_level, node_label)])
+            for node in rough_tree[parent_level]:
                 data[parent_level][node] = []
-                for child in rough_tree[parent_level][node_label]:
-                    data[parent_level][node].append(
-                        alias_map[
-                            (child_level, child)])
+                for child in rough_tree[parent_level][node]:
+                    if child_level == leaf_level:
+                        child = alias_map[(child_level, child)]
+                    data[parent_level][node].append(child)
             for node in data[parent_level]:
                 data[parent_level][node].sort()
 
