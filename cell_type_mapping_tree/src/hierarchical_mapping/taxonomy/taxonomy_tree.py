@@ -11,6 +11,11 @@ from hierarchical_mapping.taxonomy.utils import (
     convert_tree_to_leaves,
     get_all_pairs)
 
+from hierarchical_mapping.taxonomy.data_release_utils import (
+    get_tree_above_leaves,
+    get_alias_mapper,
+    get_cell_to_cluster_alias)
+
 
 class TaxonomyTree(object):
 
@@ -70,6 +75,68 @@ class TaxonomyTree(object):
         """
         return cls(
             data=json.load(open(json_path, 'rb')))
+
+    @classmethod
+    def from_data_release(
+            cls,
+            cell_metadata_path,
+            cluster_annotation_path,
+            cluster_membership_path,
+            hierarchy):
+        """
+        Construct a TaxonomyTree from the canonical CSV files
+        encoding a taxonomy for a data release
+
+        Parameters
+        ----------
+        cell_metadata_path:
+            path to cell_metadata.csv; the file mapping cells to clusters
+        cluster_annotation_path:
+            path to cluster_annotation_term.csv; the file containing
+            parent-child relationships
+        cluster_membership_path:
+            path to cluster_to_cluster_annotation_membership.csv;
+            the file containing the mapping between cluster labels
+            and aliases
+        hierarchy:
+            list of term_set labels (*not* aliases) in the hierarchy
+            from most gross to most fine
+        """
+        cell_to_alias = get_cell_to_cluster_alias(
+            csv_path=cell_metadata_path)
+
+        rough_tree = get_tree_above_leaves(
+            csv_path=cluster_annotation_path,
+            hierarchy=hierarchy)
+
+        alias_map = get_alias_mapper(
+            csv_path=cluster_membership_path)
+
+        data = dict()
+        data['hierarchy'] = copy.deepcopy(hierarchy)
+        for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+            data[parent_level] = dict()
+            for node_label in rough_tree[parent_level]:
+                node = str(alias_map[(parent_level, node_label)])
+                data[parent_level][node] = []
+                for child in rough_tree[parent_level][node_label]:
+                    data[parent_level][node].append(
+                        alias_map[
+                            (child_level, child)])
+            for node in data[parent_level]:
+                data[parent_level][node].sort()
+
+        # now add leaves
+        leaves = dict()
+        for cell in cell_to_alias:
+            leaf = cell_to_alias[cell]
+            if leaf not in leaves:
+                leaves[leaf] = []
+            leaves[leaf].append(cell)
+        for leaf in leaves:
+            leaves[leaf].sort()
+        data[hierarchy[-1]] = leaves
+        return cls(data=data)
 
     def to_str(self, indent=None):
         """

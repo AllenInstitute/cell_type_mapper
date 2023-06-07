@@ -233,23 +233,6 @@ def cluster_annotation_term_fixture(
         dir=tmp_dir_fixture,
         suffix='.csv')
 
-    """
-   this is the file we need to mimic
-   
-   label,name,cluster_annotation_term_set_label,parent_term_label,parent_term_set_l
-abel,term_set_order,term_order,cluster_annotation_term_set_name,color_hex_triple
-t
-CCN20230504_NEUR_Glut,Glut,CCN20230504_NEUR,,,0,0,neurotransmitter,#2B93DF
-CCN20230504_NEUR_GABA,GABA,CCN20230504_NEUR,,,0,1,neurotransmitter,#FF3358
-CCN20230504_NEUR_Glut-GABA,Glut-GABA,CCN20230504_NEUR,,,0,2,neurotransmitter,#0a
-9964
-CCN20230504_NEUR_Chol,Chol,CCN20230504_NEUR,,,0,3,neurotransmitter,#73E785
-CCN20230504_NEUR_Dopa,Dopa,CCN20230504_NEUR,,,0,4,neurotransmitter,#fcf04b
-CCN20230504_NEUR_Hist,Hist,CCN20230504_NEUR,,,0,5,neurotransmitter,#ff7621
-CCN20230504_NEUR_Sero,Sero,CCN20230504_NEUR,,,0,6,neurotransmitter,#533691
-CCN20230504_NEUR_GABA-Glyc,GABA-Glyc,CCN20230504_NEUR,,,0,7,neurotransmitter,#82
-0e57
-    """
     #label is the label of this node
     #cluster_annotation_term_set_label is somethign like 'subclass' or 'supertype'
     #parent_term_label is the parent of this
@@ -402,10 +385,10 @@ def test_all_this(
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
         baseline_tree_fixture):
-    return
 
     test_tree = TaxonomyTree.from_data_release(
             cell_metadata_path=cell_metadata_fixture,
             cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_to_cluster_annotation_path=cluster_annotation_term_fixture)
-    assert test_tree == baseline_tree
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+    assert test_tree == baseline_tree_fixture
