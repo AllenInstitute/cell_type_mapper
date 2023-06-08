@@ -1,6 +1,5 @@
 import copy
 import itertools
-import numbers
 import numpy as np
 
 from hierarchical_mapping.utils.anndata_utils import (
@@ -173,7 +172,8 @@ def validate_taxonomy_tree(
 
     expected_keys = set(hierarchy)
     expected_keys.add('hierarchy')
-    if set(taxonomy_tree.keys()) != expected_keys:
+    these_keys = set(taxonomy_tree.keys())-{'metadata', 'alias_mapping'}
+    if these_keys != expected_keys:
         msg = f"Expect tree to have keys\n {expected_keys}\n"
         msg += f"this has {taxonomy_tree.keys()}"
         raise RuntimeError(msg)
@@ -213,17 +213,11 @@ def validate_taxonomy_tree(
                 else:
                     child_to_parent[child_level][this_child] = this_parent
 
-    # check that all rows are unique integers
+    # check that all rows are unique
     leaf_level = taxonomy_tree['hierarchy'][-1]
     all_rows = []
     for leaf_node in taxonomy_tree[leaf_level].keys():
         all_rows += list(taxonomy_tree[leaf_level][leaf_node])
-
-    for value in all_rows:
-        if not isinstance(value, numbers.Integral):
-            raise RuntimeError(
-                f"row {value} is not an int "
-                f"(it is a {type(value)}")
 
     unq_values, unq_ct = np.unique(all_rows, return_counts=True)
     if unq_ct.max() > 1:

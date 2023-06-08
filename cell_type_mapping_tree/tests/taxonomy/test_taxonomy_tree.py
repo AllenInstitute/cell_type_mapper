@@ -128,3 +128,36 @@ def test_tree_get_all_leaf_pairs():
     parent_node=('leaf', '15')
     actual = taxonomy_tree.leaves_to_compare(parent_node)
     assert actual == []
+
+
+def test_tree_eq():
+    """
+    Test implementations of __eq__ and __ne__ in TaxonomyTree
+    """
+    data1 = {
+        'hierarchy': ['a', 'b'],
+        'a': {'aa': ['aaa', 'bbb'],
+              'bb': ['ccc', 'ddd']},
+        'b': {'aaa': [1, 2],
+              'bbb': [3],
+              'ccc': [4, 5],
+              'ddd': [6]}}
+
+    tree1 = TaxonomyTree(data=data1)
+    tree2 = TaxonomyTree(data=copy.deepcopy(data1))
+    assert tree1 == tree2
+    assert not tree1 != tree2
+    assert not tree1 is tree2
+
+    data2 = {
+        'hierarchy': ['a', 'd'],
+        'a': {'aa': ['aaa', 'bbb'],
+              'bb': ['ccc', 'ddd']},
+        'd': {'aaa': [1, 2],
+              'bbb': [3],
+              'ccc': [4, 5],
+              'ddd': [6]}}
+
+    tree3 = TaxonomyTree(data=data2)
+    assert not tree3 == tree1
+    assert tree3 != tree1

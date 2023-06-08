@@ -1,4 +1,5 @@
 from typing import Union, List, Tuple, Optional, Any
+import datetime
 import numpy as np
 import os
 import pathlib
@@ -149,3 +150,13 @@ def mkstemp_clean(
     if delete:
         os.unlink(file_path)
     return file_path
+
+
+def get_timestamp():
+    """
+    Return a string with the current timestamp
+    """
+    now = datetime.datetime.now()
+    result = f"{now.year}-{now.month}-{now.day}-{now.hour}"
+    result += f"-{now.minute}-{now.second}"
+    return result
