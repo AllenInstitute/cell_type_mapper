@@ -201,18 +201,6 @@ class TaxonomyTree(object):
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
 
-    @property
-    def valid_levels(self):
-        """
-        list of valid levels
-        """
-        k_list = []
-        for k in self._data.keys():
-            if k == 'hierarchy':
-                continue
-            k_list.append(k)
-        return k_list
-
     def nodes_at_level(self, this_level):
         """
         Return a list of all valid nodes at the specified level
