@@ -199,7 +199,12 @@ def test_mapping_from_markers(
         for cell in expected['results']:
             assert cell == actual_lookup[cell['cell_id']]
     else:
-        assert actual['marker_genes']['None'] == expected['marker_genes']['None']
+        all_markers = set()
+        for k in expected['marker_genes']:
+            all_markers = all_markers.union(set(expected['marker_genes'][k]))
+
+        assert set(actual['marker_genes']['None']) == all_markers
+        assert len(actual['marker_genes']['None']) == len(all_markers)
         assert len(actual['marker_genes']) == 1
         valid_clusters = set(taxonomy_tree_dict['cluster'].keys())
         for cell in actual['results']:
