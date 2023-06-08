@@ -75,7 +75,10 @@ def read_precomputed_stats(
         sumsq_arr = in_file['sumsq'][()]
         gt0_arr = in_file['gt0'][()]
         gt1_arr = in_file['gt1'][()]
-        ge1_arr = in_file['ge1'][()]
+        if 'ge1' in in_file:
+            ge1_arr = in_file['ge1'][()]
+        else:
+            ge1_arr = None
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
@@ -86,7 +89,8 @@ def read_precomputed_stats(
         this['sumsq'] = sumsq_arr[idx, :]
         this['gt0'] = gt0_arr[idx, :]
         this['gt1'] = gt1_arr[idx, :]
-        this['ge1'] = ge1_arr[idx, :]
+        if ge1_arr is not None:
+            this['ge1'] = ge1_arr[idx, :]
         cluster_stats[leaf_name] = this
 
     precomputed_stats['cluster_stats'] = cluster_stats
