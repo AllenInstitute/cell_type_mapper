@@ -13,7 +13,7 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.corr.correlate_cells import (
     correlate_cells,
-    flatmap_cells)
+    corrmap_cells)
 
 from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
@@ -224,7 +224,7 @@ def test_correlate_cells_with_markers(
 
 @pytest.mark.parametrize(
     'query_norm', ['raw', 'log2CPM'])
-def test_flatmap_cells_with_markers(
+def test_corrmap_cells_with_markers(
         tmp_dir_fixture,
         query_h5ad_fixture,
         query_h5ad_fixture_raw,
@@ -243,7 +243,7 @@ def test_flatmap_cells_with_markers(
     cluster_list = list(cluster_to_profile.keys())
     cluster_list.sort()
 
-    result = flatmap_cells(
+    result = corrmap_cells(
         query_path=query_path,
         precomputed_path=precompute_fixture,
         rows_at_a_time=17,

@@ -15,18 +15,18 @@ from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
 from hierarchical_mapping.corr.correlate_cells import (
-    flatmap_cells)
+    corrmap_cells)
 
 from hierarchical_mapping.cli.processing_utils import (
     create_precomputed_stats_file)
 
 from hierarchical_mapping.cli.schemas import (
     SpecifiedMarkerSchema,
-    FlatTypeAssignmentSchema,
+    CorrTypeAssignmentSchema,
     PrecomputedStatsSchema)
 
 
-class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
+class CorrSchemaSpecifiedMarkers(argschema.ArgSchema):
 
     tmp_dir = argschema.fields.OutputDir(
         required=False,
@@ -66,12 +66,12 @@ class FlatSchemaSpecifiedMarkers(argschema.ArgSchema):
         required=True)
 
     type_assignment = argschema.fields.Nested(
-        FlatTypeAssignmentSchema,
+        CorrTypeAssignmentSchema,
         required=True)
 
 
-class FlatMapSpecifiedMarkersRunner(argschema.ArgSchemaParser):
-    default_schema = FlatSchemaSpecifiedMarkers
+class CorrMapSpecifiedMarkersRunner(argschema.ArgSchemaParser):
+    default_schema = CorrSchemaSpecifiedMarkers
 
     def run(self):
         run_mapping(
@@ -199,7 +199,7 @@ def _run_mapping(config, tmp_dir, log):
     # ========= type assignment =========
 
     t0 = time.time()
-    result = flatmap_cells(
+    result = corrmap_cells(
         query_path=query_loc,
         precomputed_path=precomputed_loc,
         marker_gene_list=marker_gene_names,
@@ -220,7 +220,7 @@ def _run_mapping(config, tmp_dir, log):
 
 
 def main():
-    runner = FlatMapSpecifiedMarkersRunner()
+    runner = CorrMapSpecifiedMarkersRunner()
     runner.run()
 
 
