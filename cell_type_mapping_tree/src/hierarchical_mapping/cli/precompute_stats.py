@@ -4,7 +4,7 @@ import h5py
 import json
 from marshmallow import post_load
 
-from hierarchical_utils.utils import (
+from hierarchical_mapping.utils.utils import (
     get_timestamp)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
@@ -107,7 +107,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
         with h5py.File(self.args['output_path'], 'a') as out_file:
             out_file.create_dataset(
                 'metadata',
-                json.dumps(metadata).encode('utf-8'))
+                data=json.dumps(metadata).encode('utf-8'))
 
 
 def main():
