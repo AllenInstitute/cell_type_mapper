@@ -20,7 +20,11 @@ from hierarchical_mapping.utils.anndata_utils import (
 
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad,
-    precompute_summary_stats_from_h5ad_and_lookup)
+    precompute_summary_stats_from_h5ad_and_lookup,
+    precompute_summary_stats_from_h5ad_list_and_tree)
+
+from hierarchical_mapping.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 from hierarchical_mapping.utils.utils import (
     _clean_up,
@@ -133,13 +137,17 @@ def records_fixture(
                 "garbage": rng.integers(8, 1000)}
         records.append(this)
 
+    for ii, r in enumerate(records):
+        r['cell_id'] = f'cell_{ii}'
 
     rng.shuffle(records)
+
     return records
+
 
 @pytest.fixture
 def obs_fixture(records_fixture):
-    return pd.DataFrame(records_fixture)
+    return pd.DataFrame(records_fixture).set_index('cell_id')
 
 
 @pytest.fixture
@@ -394,7 +402,7 @@ def test_precompute_from_data(
 
 
 @pytest.mark.parametrize('use_raw', [True, False])
-def test_precompute_from_many_h5ad(
+def test_precompute_from_many_h5ad_with_lookup(
         many_h5ad_fixture,
         many_raw_h5ad_fixture,
         records_fixture,
@@ -449,6 +457,118 @@ def test_precompute_from_many_h5ad(
         output_path=stats_file,
         rows_at_a_time=13,
         normalization=normalization)
+
+    assert stats_file.is_file()
+    with h5py.File(stats_file, "r") as in_file:
+        cluster_to_row = json.loads(
+                    in_file["cluster_to_row"][()].decode("utf-8"))
+
+        n_cells = in_file["n_cells"][()]
+        sum_data = in_file["sum"][()]
+        sumsq_data = in_file["sumsq"][()]
+        gt0 = in_file["gt0"][()]
+        gt1 = in_file["gt1"][()]
+        ge1 = in_file["ge1"][()]
+
+    assert not np.array_equal(gt1, ge1)
+    assert len(cluster_to_row) == len(baseline_stats_fixture)
+    for cluster in cluster_to_row:
+        idx = cluster_to_row[cluster]
+
+        assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
+
+        np.testing.assert_allclose(
+            sum_data[idx, :],
+            baseline_stats_fixture[cluster]["sum"],
+            rtol=1.0e-6)
+
+        np.testing.assert_allclose(
+            sumsq_data[idx, :],
+            baseline_stats_fixture[cluster]["sumsq"],
+            rtol=1.0e-6)
+
+        np.testing.assert_array_equal(
+            gt0[idx, :],
+            baseline_stats_fixture[cluster]["gt0"])
+
+        np.testing.assert_array_equal(
+            gt1[idx, :],
+            baseline_stats_fixture[cluster]["gt1"])
+
+        np.testing.assert_array_equal(
+            ge1[idx, :],
+            baseline_stats_fixture[cluster]["ge1"])
+
+    _clean_up(tmp_dir)
+
+
+@pytest.mark.parametrize('use_raw', [True, False])
+def test_precompute_from_many_h5ad_with_tree(
+        many_h5ad_fixture,
+        many_raw_h5ad_fixture,
+        records_fixture,
+        obs_fixture,
+        baseline_stats_fixture,
+        tmp_dir_fixture,
+        use_raw):
+    """
+    Test the generation of precomputed stats file from many
+    h5ad files at once.
+
+    The test checks results against known answers.
+    """
+    if use_raw:
+        path_list = many_raw_h5ad_fixture
+        normalization = 'raw'
+    else:
+        path_list = many_h5ad_fixture
+        normalization = 'log2CPM'
+
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
+
+    hierarchy = ["level1", "level2", "class", "cluster"]
+
+    stats_file = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='stats_from_many_',
+            suffix='.h5'))
+
+    expected_tree = get_taxonomy_tree(
+        obs_records=records_fixture,
+        column_hierarchy=hierarchy)
+
+    # munge tree so that leaf node maps to cell name,
+    # rather than rows in x_fixture
+    expected_tree.pop('cluster')
+
+    leaf_to_cell = dict()
+    for record in records_fixture:
+        cluster = record['cluster']
+        cell = record['cell_id']
+        if cluster not in leaf_to_cell:
+            leaf_to_cell[cluster] = []
+        leaf_to_cell[cluster].append(cell)
+    expected_tree['cluster'] = leaf_to_cell
+
+    taxonomy_tree = TaxonomyTree(data=expected_tree)
+
+    precompute_summary_stats_from_h5ad_list_and_tree(
+        data_path_list=path_list,
+        taxonomy_tree=taxonomy_tree,
+        output_path=stats_file,
+        rows_at_a_time=13,
+        normalization=normalization)
+
+    with h5py.File(stats_file, 'r') as in_file:
+        actual_tree = json.loads(
+            in_file['taxonomy_tree'][()].decode('utf-8'))
+    for k in ('metadata', 'alias_mapping'):
+        if k in actual_tree:
+            actual_tree.pop(k)
+
+    assert json_clean_dict(expected_tree) == actual_tree
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:

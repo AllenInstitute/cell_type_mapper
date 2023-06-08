@@ -62,6 +62,11 @@ def precompute_summary_stats_from_h5ad(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
+
+    Note
+    ----
+    Assumes that the leaf level of the tree lists the rows in a single
+    h5ad file that belong to that cluster
     """
     if taxonomy_tree is not None and column_hierarchy is not None:
         raise RuntimeError(
@@ -110,6 +115,11 @@ def precompute_summary_stats_from_h5ad_and_tree(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
+
+    Note
+    ----
+    Assumes that the leaf level of the tree lists the rows in a single
+    h5ad file that belong to that cluster
     """
     cluster_to_input_row = taxonomy_tree.leaf_to_cells
 
@@ -136,6 +146,83 @@ def precompute_summary_stats_from_h5ad_and_tree(
 
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=[data_path],
+        gene_names=gene_names,
+        cell_name_to_cluster_name=cell_name_to_cluster_name,
+        cluster_to_output_row=cluster_to_output_row,
+        output_path=output_path,
+        rows_at_a_time=rows_at_a_time,
+        normalization=normalization)
+
+    with h5py.File(output_path, 'a') as out_file:
+        out_file.create_dataset(
+            'taxonomy_tree',
+            data=taxonomy_tree.to_str().encode('utf-8'))
+
+
+def precompute_summary_stats_from_h5ad_list_and_tree(
+        data_path_list: List[Union[str, pathlib.Path]],
+        taxonomy_tree: TaxonomyTree,
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM'):
+    """
+    Precompute the summary stats used to identify marker genes
+
+    Parameters
+    ----------
+    data_path_list:
+        List of paths to the h5ad files containing
+        the cell x gene matrix
+
+    taxonomy_tree:
+        instance of
+        hierarchical_mapping.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
+
+    output_path:
+        Path to the HDF5 file that will contain the lookup
+        information for the clusters
+
+    rows_at_a_time:
+        Number of rows to load at once from the cell x gene
+        matrix
+
+    normalization:
+        The normalization of the cell by gene matrix in
+        the input file; either 'raw' or 'log2CPM'
+
+    Note
+    ----
+    Assumes that the leaf level of the tree lists the the names of
+    cells that belong to a given cluster
+    """
+
+    gene_names = None
+    for pth in data_path_list:
+        these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
+        if gene_names is None:
+            gene_names = these_genes
+        else:
+            if gene_names != these_genes:
+                raise RuntimeError(
+                    f"{pth}\nhas gene_names\n{these_genes}\n"
+                    f"which does not match\n{data_path_list[0]}\n"
+                    f"genes\n{gene_names}")
+
+    leaf_to_cells = taxonomy_tree.leaf_to_cells
+
+    cluster_list = list(leaf_to_cells)
+    cluster_list.sort()
+    cluster_to_output_row = {c: int(ii)
+                             for ii, c in enumerate(cluster_list)}
+
+    cell_name_to_cluster_name = dict()
+    for cluster in leaf_to_cells:
+        for cell in leaf_to_cells[cluster]:
+            cell_name_to_cluster_name[str(cell)] = cluster
+
+    precompute_summary_stats_from_h5ad_and_lookup(
+        data_path_list=data_path_list,
         gene_names=gene_names,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
