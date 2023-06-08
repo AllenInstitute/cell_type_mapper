@@ -265,6 +265,10 @@ def test_precompute_from_data(
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
             in_file['taxonomy_tree'][()].decode('utf-8'))
+    for k in ('metadata', 'alias_mapping'):
+        if k in actual_tree:
+            actual_tree.pop(k)
+
     assert expected_tree == actual_tree
 
     assert stats_file.is_file()
