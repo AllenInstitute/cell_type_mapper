@@ -196,6 +196,9 @@ def _run_mapping(config, tmp_dir, log):
         reference_gene_names = json.loads(
             in_file["col_names"][()].decode("utf-8"))
 
+    if config['type_assignment']['flatten']:
+        taxonomy_tree = taxonomy_tree.flatten()
+
     # ========= query marker cache =========
 
     query_marker_tmp = pathlib.Path(
