@@ -5,6 +5,11 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
 
 
 class TaxonomySerializationSchema(argschema.ArgSchema):
+    """
+    Create a taxonomy tree by bootstrapping it from columns
+    in the obs dataframe of a single h5ad file. Write that
+    tree to a JSON file.
+    """
 
     h5ad_path = argschema.fields.InputFile(
         required=True,
