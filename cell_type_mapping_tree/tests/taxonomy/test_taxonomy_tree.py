@@ -194,6 +194,12 @@ def test_flattening_tree():
     assert isinstance(flat_tree, TaxonomyTree)
     assert flat_tree.hierarchy == ['leaf']
     assert flat_tree._data['metadata'] == {'hello': 'there', 'flattened': True}
+    assert flat_tree.leaf_level == 'leaf'
+    assert flat_tree.all_leaves == first_tree.all_leaves
+    as_leaves = flat_tree.as_leaves
+    assert len(as_leaves) == 1
+    assert list(as_leaves.keys()) == ['leaf']
+    assert flat_tree.all_parents == [None]
 
     flat_leaves = flat_tree.nodes_at_level('leaf')
     base_leaves = first_tree.nodes_at_level('leaf')
