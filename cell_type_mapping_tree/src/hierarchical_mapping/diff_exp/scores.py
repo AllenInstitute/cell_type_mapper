@@ -368,7 +368,8 @@ def aggregate_stats(
         sumsq_arr += these_stats['sumsq']
         gt0 += these_stats['gt0']
         gt1 += these_stats['gt1']
-        ge1 += these_stats['ge1']
+        if 'ge1' in these_stats:
+            ge1 += these_stats['ge1']
 
     mu = sum_arr/n_cells
     var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
