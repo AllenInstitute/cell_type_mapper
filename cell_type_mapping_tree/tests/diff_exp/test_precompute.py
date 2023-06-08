@@ -15,6 +15,9 @@ from hierarchical_mapping.taxonomy.utils import (
 from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
+from hierarchical_mapping.utils.anndata_utils import (
+    read_df_from_h5ad)
+
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad,
     precompute_summary_stats_from_h5ad_and_lookup)
@@ -233,6 +236,67 @@ def baseline_stats_fixture(
     return results
 
 
+@pytest.fixture
+def many_h5ad_fixture(
+        obs_fixture,
+        x_fixture,
+        tmp_dir_fixture):
+    """
+    Store the data in multiple h5ad files;
+    return a list to their paths
+    """
+    idx_arr =np.arange(x_fixture.shape[0])
+    rng = np.random.default_rng(663344)
+    rng.shuffle(idx_arr)
+    n_per = len(idx_arr) // 4
+    assert n_per > 2
+    path_list = []
+    for i0 in range(0, len(idx_arr), n_per):
+       i1 = i0+n_per
+       this_idx = idx_arr[i0:i1]
+       this_obs = obs_fixture.iloc[this_idx]
+       this_x = x_fixture[this_idx, :]
+       csr = scipy_sparse.csr_matrix(this_x)
+       this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
+       this_path = mkstemp_clean(
+           dir=tmp_dir_fixture,
+           prefix='broken_up_h5ad',
+           suffix='.h5ad')
+       this_a.write_h5ad(this_path)
+       path_list.append(this_path)
+    return path_list
+
+
+@pytest.fixture
+def many_raw_h5ad_fixture(
+        obs_fixture,
+        raw_x_fixture,
+        tmp_dir_fixture):
+    """
+    Store the data in multiple h5ad files;
+    return a list to their paths
+    """
+    idx_arr =np.arange(raw_x_fixture.shape[0])
+    rng = np.random.default_rng(456312)
+    rng.shuffle(idx_arr)
+    n_per = len(idx_arr) // 4
+    assert n_per > 2
+    path_list = []
+    for i0 in range(0, len(idx_arr), n_per):
+       i1 = i0+n_per
+       this_idx = idx_arr[i0:i1]
+       this_obs = obs_fixture.iloc[this_idx]
+       this_x = raw_x_fixture[this_idx, :]
+       csr = scipy_sparse.csr_matrix(this_x)
+       this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
+       this_path = mkstemp_clean(
+           dir=tmp_dir_fixture,
+           prefix='broken_up_h5ad',
+           suffix='.h5ad')
+       this_a.write_h5ad(this_path)
+       path_list.append(this_path)
+    return path_list
+
 @pytest.mark.parametrize(
         'use_raw',
         [True, False])
@@ -325,5 +389,106 @@ def test_precompute_from_data(
             baseline_stats_fixture[cluster]["ge1"])
 
         assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
+
+    _clean_up(tmp_dir)
+
+
+@pytest.mark.parametrize('use_raw', [True, False])
+def test_precompute_from_many_h5ad(
+        many_h5ad_fixture,
+        many_raw_h5ad_fixture,
+        records_fixture,
+        obs_fixture,
+        baseline_stats_fixture,
+        tmp_dir_fixture,
+        use_raw):
+    """
+    Test the generation of precomputed stats file from many
+    h5ad files at once.
+
+    The test checks results against known answers.
+    """
+    if use_raw:
+        path_list = many_raw_h5ad_fixture
+        normalization = 'raw'
+    else:
+        path_list = many_h5ad_fixture
+        normalization = 'log2CPM'
+
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
+
+    hierarchy = ["level1", "level2", "class", "cluster"]
+
+    stats_file = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='stats_from_many_',
+            suffix='.h5'))
+
+    expected_tree = get_taxonomy_tree(
+        obs_records=records_fixture,
+        column_hierarchy=hierarchy)
+
+    cluster_to_output_row = {
+        n:ii
+        for ii, n in enumerate(expected_tree['cluster'].keys())}
+
+    cell_name_to_cluster_name = {
+        str(cell): cluster
+        for cell, cluster in zip(obs_fixture.index.values,
+                                 obs_fixture['cluster'].values)}
+
+    gene_names = list(read_df_from_h5ad(path_list[0], 'var').index.values)
+
+    precompute_summary_stats_from_h5ad_and_lookup(
+        data_path_list=path_list,
+        gene_names=gene_names,
+        cell_name_to_cluster_name=cell_name_to_cluster_name,
+        cluster_to_output_row=cluster_to_output_row,
+        output_path=stats_file,
+        rows_at_a_time=13,
+        normalization=normalization)
+
+    assert stats_file.is_file()
+    with h5py.File(stats_file, "r") as in_file:
+        cluster_to_row = json.loads(
+                    in_file["cluster_to_row"][()].decode("utf-8"))
+
+        n_cells = in_file["n_cells"][()]
+        sum_data = in_file["sum"][()]
+        sumsq_data = in_file["sumsq"][()]
+        gt0 = in_file["gt0"][()]
+        gt1 = in_file["gt1"][()]
+        ge1 = in_file["ge1"][()]
+
+    assert not np.array_equal(gt1, ge1)
+    assert len(cluster_to_row) == len(baseline_stats_fixture)
+    for cluster in cluster_to_row:
+        idx = cluster_to_row[cluster]
+
+        assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
+
+        np.testing.assert_allclose(
+            sum_data[idx, :],
+            baseline_stats_fixture[cluster]["sum"],
+            rtol=1.0e-6)
+
+        np.testing.assert_allclose(
+            sumsq_data[idx, :],
+            baseline_stats_fixture[cluster]["sumsq"],
+            rtol=1.0e-6)
+
+        np.testing.assert_array_equal(
+            gt0[idx, :],
+            baseline_stats_fixture[cluster]["gt0"])
+
+        np.testing.assert_array_equal(
+            gt1[idx, :],
+            baseline_stats_fixture[cluster]["gt1"])
+
+        np.testing.assert_array_equal(
+            ge1[idx, :],
+            baseline_stats_fixture[cluster]["ge1"])
 
     _clean_up(tmp_dir)
