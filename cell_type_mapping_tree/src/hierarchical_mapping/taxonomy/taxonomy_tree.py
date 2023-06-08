@@ -1,5 +1,6 @@
 import copy
 import json
+import pathlib
 
 from hierarchical_mapping.utils.utils import (
     json_clean_dict)
@@ -21,8 +22,7 @@ class TaxonomyTree(object):
 
     def __init__(
             self,
-            data,
-            alias_mapping=None):
+            data):
         """
         data is a dict encoding the taxonomy tree.
         Probably, users will not instantiate this class
@@ -32,11 +32,23 @@ class TaxonomyTree(object):
         to a human-readable label (this is optional)
         """
         self._data = copy.deepcopy(data)
-        self._alias_mapping = copy.deepcopy(alias_mapping)
         validate_taxonomy_tree(self._data)
 
     def __eq__(self, other):
-        return self._data == other._data
+        """
+        Ignore keys 'metadata' and 'alias_mapping'
+        """
+        these_keys = set(self._data.keys())
+        other_keys = set(other._data.keys())
+        bad_keys = {'metadata', 'alias_mapping'}
+        these_keys -= bad_keys
+        other_keys -= bad_keys
+        if these_keys != other_keys:
+            return False
+        for k in these_keys:
+            if self._data[k] != other._data[k]:
+                return False
+        return True
 
     def __ne__(self, other):
         return not self.__eq__(other)
@@ -54,9 +66,17 @@ class TaxonomyTree(object):
             ordered list of levels in the taxonomy (columns in the
             obs dataframe to be read in)
         """
+        h5ad_path = pathlib.Path(h5ad_path)
         data = get_taxonomy_tree_from_h5ad(
             h5ad_path=h5ad_path,
             column_hierarchy=column_hierarchy)
+
+        data['metadata'] = {
+            'factory': 'from_h5ad',
+            'params': {
+                'h5ad_path': str(h5ad_path.resolve().absolute()),
+                'column_hierarchy': column_hierarchy}}
+
         return cls(data=data)
 
     @classmethod
@@ -102,6 +122,22 @@ class TaxonomyTree(object):
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
         """
+        cell_metadata_path = pathlib.Path(cell_metadata_path)
+        cluster_annotation_path = pathlib.Path(cluster_annotation_path)
+        cluster_membership_path = pathlib.Path(cluster_membership_path)
+
+        data = dict()
+        data['metadata'] = {
+            'factory': 'from_data_release',
+            'params': {
+                'cell_metadata_path':
+                    str(cell_metadata_path.resolve().absolute()),
+                'cluster_annotation_path':
+                    str(cluster_annotation_path.resolve().absolute()),
+                'cluster_membership_path':
+                    str(cluster_membership_path.resolve().absolute()),
+                'hierarchy': hierarchy}}
+
         leaf_level = hierarchy[-1]
 
         cell_to_alias = get_cell_to_cluster_alias(
@@ -115,7 +151,6 @@ class TaxonomyTree(object):
             csv_path=cluster_membership_path,
             term_set_label=leaf_level)
 
-        data = dict()
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
             data[parent_level] = dict()
@@ -138,6 +173,7 @@ class TaxonomyTree(object):
         for leaf in leaves:
             leaves[leaf].sort()
         data[hierarchy[-1]] = leaves
+
         return cls(data=data)
 
     def to_str(self, indent=None):

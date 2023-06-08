@@ -1,6 +1,7 @@
 import pytest
 
 import anndata
+import copy
 import json
 import numpy as np
 import pandas as pd
@@ -49,4 +50,8 @@ def test_serialization_cli(
     runner.run()
 
     test_tree = json.load(open(out_path, 'rb'))
-    assert test_tree == json_clean_dict(taxonomy_tree_fixture._data)
+    expected = copy.deepcopy(taxonomy_tree_fixture._data)
+    for k in ('metadata', 'alias_mapping'):
+        if k in test_tree:
+            test_tree.pop(k)
+    assert test_tree == json_clean_dict(expected)
