@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as scipy_sparse
 import pathlib
+import tempfile
 
 from hierarchical_mapping.taxonomy.utils import (
     get_taxonomy_tree)
@@ -15,11 +16,21 @@ from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
 from hierarchical_mapping.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
+    precompute_summary_stats_from_h5ad,
+    precompute_summary_stats_from_h5ad_and_lookup)
 
 from hierarchical_mapping.utils.utils import (
     _clean_up,
-    json_clean_dict)
+    json_clean_dict,
+    mkstemp_clean)
+
+
+@pytest.fixture
+def tmp_dir_fixture(tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('precompute_'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
 
 
 @pytest.fixture
@@ -158,8 +169,9 @@ def x_fixture(raw_x_fixture):
 def h5ad_path_fixture(
         obs_fixture,
         x_fixture,
-        tmp_path_factory):
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('anndata'))
+        tmp_dir_fixture):
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='anndata_'))
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
                              obs=obs_fixture,
                              dtype=x_fixture.dtype)
@@ -176,8 +188,9 @@ def h5ad_path_fixture(
 def raw_h5ad_path_fixture(
         obs_fixture,
         raw_x_fixture,
-        tmp_path_factory):
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('anndata'))
+        tmp_dir_fixture):
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='raw_anndata'))
     a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(raw_x_fixture),
                              obs=obs_fixture,
                              dtype=raw_x_fixture.dtype)
@@ -228,7 +241,7 @@ def test_precompute_from_data(
         raw_h5ad_path_fixture,
         records_fixture,
         baseline_stats_fixture,
-        tmp_path_factory,
+        tmp_dir_fixture,
         use_raw):
     """
     Test the generation of precomputed stats file.
@@ -243,7 +256,8 @@ def test_precompute_from_data(
         h5ad_path = h5ad_path_fixture
         normalization = 'log2CPM'
 
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp("stats_from_contig"))
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
 
     hierarchy = ["level1", "level2", "class", "cluster"]
 
