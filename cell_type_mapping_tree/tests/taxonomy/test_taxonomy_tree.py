@@ -83,7 +83,7 @@ def test_tree_get_all_leaf_pairs():
                    'l3g': set([str(ii) for ii in range(19, 21)]),
                    'l3h': set([str(ii) for ii in range(21, 23)]),
                    'l3i': set(['23',])},
-        'leaf': {str(k): range(k,26*k, 26*(k+1))
+        'leaf': {str(k): range(26*k, 26*(k+1))
                  for k in range(24)}}
 
     taxonomy_tree = TaxonomyTree(data=tree_data)
