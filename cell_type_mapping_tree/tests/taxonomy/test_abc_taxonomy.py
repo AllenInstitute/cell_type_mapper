@@ -394,3 +394,38 @@ def test_all_this(
             cluster_membership_path=cluster_membership_fixture,
             hierarchy=['class', 'subclass', 'supertype', 'cluster'])
     assert test_tree == baseline_tree_fixture
+
+
+def test_de_aliasing(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_tree_fixture,
+        alias_fixture,
+        cell_to_cluster_fixture):
+
+    test_tree = TaxonomyTree.from_data_release(
+            cell_metadata_path=cell_metadata_fixture,
+            cluster_annotation_path=cluster_annotation_term_fixture,
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+
+    for cluster in set(cell_to_cluster_fixture.values()):
+        alias = alias_fixture[cluster]
+        assert test_tree.alias_to_label(str(alias)) == cluster
+
+    with pytest.raises(RuntimeError, match="Do not have a label"):
+        test_tree.alias_to_label('gar')
+
+
+def test_de_aliasing_when_no_map():
+    data = {
+        'hierarchy': ['a', 'b'],
+        'a': {'aa': ['aaa'],
+              'bb': ['bbb']},
+        'b': {'aaa': ['1', '2'],
+              'bbb': ['3']}}
+
+    tree = TaxonomyTree(data=data)
+    assert tree.alias_to_label('3') == '3'

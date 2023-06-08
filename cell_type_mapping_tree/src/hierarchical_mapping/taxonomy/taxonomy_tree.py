@@ -174,6 +174,18 @@ class TaxonomyTree(object):
             leaves[leaf].sort()
         data[hierarchy[-1]] = leaves
 
+        # save a way to go from cluster alias back
+        # to cluster label
+        reverse_alias_mapping = dict()
+        for node in alias_map:
+            if node[1] in reverse_alias_mapping:
+                raise RuntimeError(
+                    f"{node[1]} occurs in alias map twice")
+            alias = alias_map[node]
+            reverse_alias_mapping[alias] = node[1]
+
+        data['alias_mapping'] = reverse_alias_mapping
+
         return cls(data=data)
 
     def to_str(self, indent=None):
@@ -287,6 +299,21 @@ class TaxonomyTree(object):
                 f"{leaf_node} is not a valid {self.leaf_level} "
                 "in this taxonomy")
         return self._data[self.leaf_level][leaf_node]
+
+    def alias_to_label(self, alias):
+        """
+        Map from cluster alias back to label (if appropriate)
+
+        If no mapping exists, just return input alias
+        """
+        if 'alias_mapping' not in self._data:
+            return alias
+
+        if alias not in self._data['alias_mapping']:
+            raise RuntimeError(
+                "Do not have a label associated with alias: "
+                f"'{alias}'")
+        return self._data['alias_mapping'][alias]
 
     def leaves_to_compare(
             self,
