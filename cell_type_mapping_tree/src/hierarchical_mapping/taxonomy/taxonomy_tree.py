@@ -3,7 +3,8 @@ import json
 import pathlib
 
 from hierarchical_mapping.utils.utils import (
-    json_clean_dict)
+    json_clean_dict,
+    get_timestamp)
 
 from hierarchical_mapping.taxonomy.utils import (
     validate_taxonomy_tree,
@@ -73,6 +74,7 @@ class TaxonomyTree(object):
 
         data['metadata'] = {
             'factory': 'from_h5ad',
+            'timestamp': get_timestamp(),
             'params': {
                 'h5ad_path': str(h5ad_path.resolve().absolute()),
                 'column_hierarchy': column_hierarchy}}
@@ -129,6 +131,7 @@ class TaxonomyTree(object):
         data = dict()
         data['metadata'] = {
             'factory': 'from_data_release',
+            'timestamp': get_timestamp(),
             'params': {
                 'cell_metadata_path':
                     str(cell_metadata_path.resolve().absolute()),
