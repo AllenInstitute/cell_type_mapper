@@ -143,10 +143,13 @@ def ab_initio_assignment_fixture(
     assignment_path.unlink()
 
 
+@pytest.mark.parametrize('flatten', [True, False])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
-        tmp_dir_fixture):
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten):
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
     result_path = mkstemp_clean(
@@ -168,6 +171,7 @@ def test_mapping_from_markers(
 
     config['precomputed_stats']['path'] = new_stats_path
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment']['flatten'] = flatten
 
     config['query_markers'] = {
         'serialized_lookup': ab_initio_assignment_fixture['markers']}
@@ -182,14 +186,33 @@ def test_mapping_from_markers(
     runner.run()
 
     actual = json.load(open(result_path, 'rb'))
+
+    # this is only expectd if flatten == False
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
-    assert actual['marker_genes'] == expected['marker_genes']
-    actual_lookup = {
-        cell['cell_id']:cell for cell in actual['results']}
-    for cell in expected['results']:
-        assert cell == actual_lookup[cell['cell_id']]
+
+    if not flatten:
+        assert actual['marker_genes'] == expected['marker_genes']
+        actual_lookup = {
+            cell['cell_id']:cell for cell in actual['results']}
+        for cell in expected['results']:
+            assert cell == actual_lookup[cell['cell_id']]
+    else:
+        all_markers = set()
+        for k in expected['marker_genes']:
+            all_markers = all_markers.union(set(expected['marker_genes'][k]))
+
+        assert set(actual['marker_genes']['None']) == all_markers
+        assert len(actual['marker_genes']['None']) == len(all_markers)
+        assert len(actual['marker_genes']) == 1
+        valid_clusters = set(taxonomy_tree_dict['cluster'].keys())
+        for cell in actual['results']:
+            assert 'cluster' in cell
+            assert 'assignment' in cell['cluster']
+            assert 'confidence' in cell['cluster']
+            assert cell['cluster']['assignment'] in valid_clusters
+
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
     assert len(actual['results']) == len(expected['results'])
 

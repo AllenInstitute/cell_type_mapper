@@ -207,6 +207,16 @@ def _run_mapping(config, tmp_dir, log):
 
     marker_lookup_path = config['query_markers']['serialized_lookup']
     marker_lookup = json.load(open(marker_lookup_path, 'rb'))
+    if config['type_assignment']['flatten']:
+
+        taxonomy_tree = taxonomy_tree.flatten()
+
+        all_markers = set()
+        for k in marker_lookup:
+            all_markers = all_markers.union(set(marker_lookup[k]))
+        all_markers = list(all_markers)
+        all_markers.sort()
+        marker_lookup = {'None': all_markers}
 
     query_gene_names = _get_query_gene_names(query_loc)
 

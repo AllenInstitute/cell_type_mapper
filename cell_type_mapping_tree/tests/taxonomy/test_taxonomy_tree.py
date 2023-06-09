@@ -83,7 +83,7 @@ def test_tree_get_all_leaf_pairs():
                    'l3g': set([str(ii) for ii in range(19, 21)]),
                    'l3h': set([str(ii) for ii in range(21, 23)]),
                    'l3i': set(['23',])},
-        'leaf': {str(k): range(k,26*k, 26*(k+1))
+        'leaf': {str(k): range(26*k, 26*(k+1))
                  for k in range(24)}}
 
     taxonomy_tree = TaxonomyTree(data=tree_data)
@@ -161,3 +161,49 @@ def test_tree_eq():
     tree3 = TaxonomyTree(data=data2)
     assert not tree3 == tree1
     assert tree3 != tree1
+
+
+def test_flattening_tree():
+    tree_data = {
+        'metadata': {'hello': 'there'},
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): list(range(26*k, 26*(k+1)))
+                 for k in range(24)}}
+
+    first_tree = TaxonomyTree(data=tree_data)
+    flat_tree = first_tree.flatten()
+    assert isinstance(flat_tree, TaxonomyTree)
+    assert flat_tree.hierarchy == ['leaf']
+    assert flat_tree._data['metadata'] == {'hello': 'there', 'flattened': True}
+    assert flat_tree.leaf_level == 'leaf'
+    assert flat_tree.all_leaves == first_tree.all_leaves
+    as_leaves = flat_tree.as_leaves
+    assert len(as_leaves) == 1
+    assert list(as_leaves.keys()) == ['leaf']
+    assert flat_tree.all_parents == [None]
+
+    flat_leaves = flat_tree.nodes_at_level('leaf')
+    base_leaves = first_tree.nodes_at_level('leaf')
+    assert flat_leaves == base_leaves
+    assert first_tree.hierarchy == ['level1', 'level2', 'level3', 'leaf']
+    for node in flat_leaves:
+        assert first_tree.children('leaf', node) == flat_tree.children('leaf', node)

@@ -29,11 +29,11 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.flat_mapping import (
-    FlatMapSpecifiedMarkersRunner)
+from hierarchical_mapping.cli.simple_correlation_mapping import (
+    CorrMapSpecifiedMarkersRunner)
 
 
-def test_flatmapper(
+def test_corrmapper(
         tmp_dir_fixture,
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
@@ -87,7 +87,7 @@ def test_flatmapper(
     config['result_path'] = result_path
     config['max_gb'] = 1.0
 
-    runner = FlatMapSpecifiedMarkersRunner(
+    runner = CorrMapSpecifiedMarkersRunner(
         args=[],
         input_data=config)
 

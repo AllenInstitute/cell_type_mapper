@@ -18,7 +18,7 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.corr.correlate_cells import (
     correlate_cells,
-    flatmap_cells,
+    corrmap_cells,
     _prep_data)
 
 from hierarchical_mapping.cell_by_gene.utils import (
@@ -283,7 +283,7 @@ def test_correlate_cells_function(
 
 @pytest.mark.parametrize(
     'query_norm', ['raw', 'log2CPM'])
-def test_flatmap_cells_function(
+def test_corrmap_cells_function(
         h5ad_fixture,
         h5ad_fixture_raw,
         x_data_fixture,
@@ -299,7 +299,7 @@ def test_flatmap_cells_function(
     a_data = anndata.read_h5ad(h5ad_fixture, backed='r')
     cell_id_list = a_data.obs_names
 
-    results = flatmap_cells(
+    results = corrmap_cells(
            query_path=query_path,
            precomputed_path=precomputed_fixture,
            rows_at_a_time=51,

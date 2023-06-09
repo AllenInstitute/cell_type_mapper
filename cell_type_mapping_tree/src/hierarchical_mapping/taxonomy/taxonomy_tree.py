@@ -197,21 +197,21 @@ class TaxonomyTree(object):
         """
         return json.dumps(json_clean_dict(self._data), indent=indent)
 
+    def flatten(self):
+        """
+        Return a 'flattened' (i.e. 1-level) version of the taxonomy tree.
+        """
+        new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            new_data['metadata']['flattened'] = True
+        new_data['hierarchy'] = [self._data['hierarchy'][-1]]
+        for level in self._data['hierarchy'][:-1]:
+            new_data.pop(level)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
-
-    @property
-    def valid_levels(self):
-        """
-        list of valid levels
-        """
-        k_list = []
-        for k in self._data.keys():
-            if k == 'hierarchy':
-                continue
-            k_list.append(k)
-        return k_list
 
     def nodes_at_level(self, this_level):
         """

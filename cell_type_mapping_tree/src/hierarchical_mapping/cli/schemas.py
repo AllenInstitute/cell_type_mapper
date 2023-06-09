@@ -135,6 +135,13 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         description="Seed value for random number generator used in "
         "bootstrapping")
 
+    flatten = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description="If true, flatten the taxonomy so that we are "
+        "mapping directly to the leaf node")
+
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):
         """
@@ -155,7 +162,7 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         return data
 
 
-class FlatTypeAssignmentSchema(argschema.ArgSchema):
+class CorrTypeAssignmentSchema(argschema.ArgSchema):
 
     n_processors = argschema.fields.Int(
         required=False,

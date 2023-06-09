@@ -1,6 +1,7 @@
 import json
 import h5py
 import numpy as np
+import warnings
 
 from hierarchical_mapping.utils.stats_utils import (
     welch_t_test,
@@ -61,7 +62,7 @@ def read_precomputed_stats(
     """
 
     precomputed_stats = dict()
-
+    raw_data = dict()
     with h5py.File(precomputed_stats_path, 'r') as in_file:
 
         precomputed_stats['gene_names'] = json.loads(
@@ -70,23 +71,18 @@ def read_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
-        n_cells = in_file['n_cells'][()]
-        sum_arr = in_file['sum'][()]
-        sumsq_arr = in_file['sumsq'][()]
-        gt0_arr = in_file['gt0'][()]
-        gt1_arr = in_file['gt1'][()]
-        ge1_arr = in_file['ge1'][()]
+        for k in ('n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+            if k in in_file:
+                raw_data[k] = in_file[k][()]
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
         idx = row_lookup[leaf_name]
         this = dict()
-        this['n_cells'] = n_cells[idx]
-        this['sum'] = sum_arr[idx, :]
-        this['sumsq'] = sumsq_arr[idx, :]
-        this['gt0'] = gt0_arr[idx, :]
-        this['gt1'] = gt1_arr[idx, :]
-        this['ge1'] = ge1_arr[idx, :]
+        if 'n_cells' in raw_data:
+            this['n_cells'] = raw_data['n_cells'][idx]
+        for k in ('sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+            this[k] = raw_data[k][idx, :]
         cluster_stats[leaf_name] = this
 
     precomputed_stats['cluster_stats'] = cluster_stats
@@ -350,6 +346,10 @@ def aggregate_stats(
     Note
     -----
     output mean and var are in units of log2(CPM+1)
+
+    Some historical versions of precomputed_stats files did
+    not contain the 'ge1' column. If you are reading one of those,
+    'ge1' will be returned as None.
     """
     n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
 
@@ -359,6 +359,7 @@ def aggregate_stats(
     gt1 = np.zeros(n_genes, dtype=int)
     ge1 = np.zeros(n_genes, dtype=int)
     n_cells = 0
+    has_ge1 = True
 
     for leaf_node in leaf_population:
         these_stats = precomputed_stats[leaf_node]
@@ -368,10 +369,17 @@ def aggregate_stats(
         sumsq_arr += these_stats['sumsq']
         gt0 += these_stats['gt0']
         gt1 += these_stats['gt1']
-        ge1 += these_stats['ge1']
+        if 'ge1' in these_stats:
+            ge1 += these_stats['ge1']
+        else:
+            has_ge1 = False
 
     mu = sum_arr/n_cells
     var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
+
+    if not has_ge1:
+        warnings.warn("precomputed stats file does not have 'ge1' data")
+        ge1 = None
 
     return {'mean': mu,
             'var': var,
