@@ -173,6 +173,8 @@ def summary_plots(
 
     query_path = pathlib.Path(results['config']['query_path'])
 
+    result_levels = set(results['results'][0].keys())
+
     with h5py.File(query_path, 'r') as src:
         query_obs = read_elem(src['obs'])
     for g in ground_truth_column_list:
@@ -251,6 +253,8 @@ def summary_plots(
 
     accuracy_statements = []
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
+        if level not in result_levels:
+            continue
 
         this_axis_list = sub_axis_lists[i_level]
         if level == taxonomy_tree.leaf_level:
@@ -288,7 +292,8 @@ def summary_plots(
                 cell = results_lookup[cell_id]
                 confidence = 1.0
                 for l in taxonomy_tree.hierarchy:
-                    confidence *= cell[l]['confidence']
+                    if l in cell:
+                        confidence *= cell[l]['confidence']
             if truth == experiment:
                 good += 1
                 if level == taxonomy_tree.leaf_level:
