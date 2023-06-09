@@ -143,15 +143,29 @@ def ab_initio_assignment_fixture(
     assignment_path.unlink()
 
 
-@pytest.mark.parametrize('flatten', [True, False])
+@pytest.mark.parametrize(
+        'flatten,use_csv',
+        [(True, True),
+         (True, False),
+         (False, True),
+         (False, False)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
         taxonomy_tree_dict,
         tmp_dir_fixture,
-        flatten):
+        flatten,
+        use_csv):
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    if use_csv:
+        csv_path = mkstemp_clean(
+            dir=this_tmp,
+            suffix='.csv')
+    else:
+        csv_path = None
+
     result_path = mkstemp_clean(
         dir=this_tmp,
         suffix='.json')
@@ -176,7 +190,8 @@ def test_mapping_from_markers(
     config['query_markers'] = {
         'serialized_lookup': ab_initio_assignment_fixture['markers']}
 
-    config['result_path'] = result_path
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
     runner = FromSpecifiedMarkersRunner(
@@ -218,3 +233,34 @@ def test_mapping_from_markers(
 
     # make sure reference file still exists
     assert pathlib.Path(config['precomputed_stats']['reference_path']).is_file()
+
+    # check consistency between extended and csv results
+    if use_csv:
+        result_lookup = {
+            cell['cell_id']: cell for cell in actual['results']}
+        with open(csv_path, 'r') as in_file:
+            assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
+            if flatten:
+                hierarchy = ['cluster']
+            else:
+                hierarchy = ['class', 'subclass', 'cluster']
+            assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+
+            header_line = 'cell_id'
+            for level in hierarchy:
+                header_line += f',{level},{level}_confidence'
+            header_line += '\n'
+            assert in_file.readline() == header_line
+            found_cells = []
+            for line in in_file:
+                params = line.strip().split(',')
+                assert len(params) == 2*len(hierarchy)+1
+                this_cell = result_lookup[params[0]]
+                found_cells.append(params[0])
+                for i_level, level in enumerate(hierarchy):
+                    assert params[1+2*i_level] == this_cell[level]['assignment']
+                    delta = np.abs(this_cell[level]['confidence']-float(params[2+2*i_level]))
+                    assert delta < 0.0001
+
+            assert len(found_cells) == len(result_lookup)
+            assert set(found_cells) == set(result_lookup.keys())
