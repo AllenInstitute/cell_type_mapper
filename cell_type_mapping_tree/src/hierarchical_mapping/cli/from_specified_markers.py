@@ -17,7 +17,7 @@ from hierarchical_mapping.file_tracker.file_tracker import (
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
-from hierarchical_mapping.cli.utils import (
+from hierarchical_mapping.utils.cli_utils import (
     _get_query_gene_names)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
@@ -30,7 +30,7 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.processing_utils import (
+from hierarchical_mapping.utils.cli_utils import (
     create_precomputed_stats_file)
 
 
