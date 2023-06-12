@@ -82,7 +82,8 @@ def read_precomputed_stats(
         if 'n_cells' in raw_data:
             this['n_cells'] = raw_data['n_cells'][idx]
         for k in ('sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
-            this[k] = raw_data[k][idx, :]
+            if k in raw_data:
+                this[k] = raw_data[k][idx, :]
         cluster_stats[leaf_name] = this
 
     precomputed_stats['cluster_stats'] = cluster_stats
