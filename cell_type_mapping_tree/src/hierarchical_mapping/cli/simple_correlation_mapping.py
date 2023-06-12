@@ -17,7 +17,7 @@ from hierarchical_mapping.cli.cli_log import (
 from hierarchical_mapping.corr.correlate_cells import (
     corrmap_cells)
 
-from hierarchical_mapping.cli.processing_utils import (
+from hierarchical_mapping.utils.cli_utils import (
     create_precomputed_stats_file)
 
 from hierarchical_mapping.cli.schemas import (

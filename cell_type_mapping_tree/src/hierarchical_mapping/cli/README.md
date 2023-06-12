@@ -14,10 +14,12 @@ configuration parameters expected by the tool. Those parameters are:
 
 ```
 {
-  "result_path": "/optional/path/to/output/file/to/be/created.json",
+  "extended_result_path": "/required/path/to/output/file/to/be/created.json",
+  "csv_result_path": "/optional/path/to/other/output/file.csv",
   "query_path": "/path/to/h5ad/file/containing/query/dataset.h5ad",
   "tmp_dir": "/path/to/fast/tmp/dir/where/data/will/be/copied/for/processing/",
   "max_gb": gigabytes_available_for_matrix_transform,
+  "flatten": a_boolean (if True, flatten the taxonomy tree to a single level),
   "precomputed_stats": {
     "reference_path": "/path/to/h5ad/file/containing/reference/dataset.h5ad",
     "path": "/path/to/hdf5/file/of/precomputed/stats/to/be/created.h5",

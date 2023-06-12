@@ -11,13 +11,16 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.utils.output_utils import (
+    blob_to_csv)
+
 from hierarchical_mapping.file_tracker.file_tracker import (
     FileTracker)
 
 from hierarchical_mapping.cli.cli_log import (
     CommandLog)
 
-from hierarchical_mapping.cli.utils import (
+from hierarchical_mapping.utils.cli_utils import (
     _get_query_gene_names)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
@@ -30,7 +33,7 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.processing_utils import (
+from hierarchical_mapping.utils.cli_utils import (
     create_precomputed_stats_file)
 
 
@@ -57,11 +60,19 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to the h5ad file containing the query "
         "dataset")
 
-    result_path = argschema.fields.OutputFile(
+    extended_result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
         allow_none=False,
-        description="Path to the output file that will be written")
+        description="Path to JSON file where extended results "
+        "will be saved.")
+
+    csv_result_path = argschema.fields.OutputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to CSV file where output file will be "
+        "written (if None, no CSV will be produced).")
 
     max_gb = argschema.fields.Float(
         required=False,
@@ -83,6 +94,13 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         HierarchicalTypeAssignmentSchema,
         required=True)
 
+    flatten = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description="If true, flatten the taxonomy so that we are "
+        "mapping directly to the leaf node")
+
 
 class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = HierarchicalSchemaSpecifiedMarkers
@@ -90,7 +108,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     def run(self):
         run_mapping(
             config=self.args,
-            output_path=self.args['result_path'],
+            output_path=self.args['extended_result_path'],
             log_path=None)
 
 
@@ -207,7 +225,7 @@ def _run_mapping(config, tmp_dir, log):
 
     marker_lookup_path = config['query_markers']['serialized_lookup']
     marker_lookup = json.load(open(marker_lookup_path, 'rb'))
-    if config['type_assignment']['flatten']:
+    if config['flatten']:
 
         taxonomy_tree = taxonomy_tree.flatten()
 
@@ -257,6 +275,14 @@ def _run_mapping(config, tmp_dir, log):
     marker_gene_lookup = serialize_markers(
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
+
+    if config['csv_result_path'] is not None:
+        blob_to_csv(
+            results_blob=result,
+            taxonomy_tree=taxonomy_tree,
+            output_path=config['csv_result_path'],
+            metadata_path=config['extended_result_path'])
+
     return {'assignments': result, 'marker_genes': marker_gene_lookup}
 
 
