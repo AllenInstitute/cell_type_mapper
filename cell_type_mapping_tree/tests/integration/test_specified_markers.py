@@ -144,18 +144,20 @@ def ab_initio_assignment_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv',
-        [(True, True),
-         (True, False),
-         (False, True),
-         (False, False)])
+        'flatten,use_csv,use_tmp_dir',
+        [(True, True, True),
+         (True, False, True),
+         (False, True, True),
+         (False, False, True),
+         (False, True, True)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
         taxonomy_tree_dict,
         tmp_dir_fixture,
         flatten,
-        use_csv):
+        use_csv,
+        use_tmp_dir):
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -172,7 +174,10 @@ def test_mapping_from_markers(
 
     baseline_config = ab_initio_assignment_fixture['ab_initio_config']
     config = dict()
-    config['tmp_dir'] = this_tmp
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
     config['query_path'] = baseline_config['query_path']
     config['precomputed_stats'] = copy.deepcopy(baseline_config['precomputed_stats'])
     config['precomputed_stats'].pop('path')
