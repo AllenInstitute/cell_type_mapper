@@ -8,6 +8,8 @@ import time
 
 
 def _clean_up(target_path):
+    if target_path is None:
+        return
     target_path = pathlib.Path(target_path)
     if target_path.is_file():
         target_path.unlink()
