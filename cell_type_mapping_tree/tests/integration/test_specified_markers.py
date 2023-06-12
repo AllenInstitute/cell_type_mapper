@@ -185,7 +185,7 @@ def test_mapping_from_markers(
 
     config['precomputed_stats']['path'] = new_stats_path
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
-    config['type_assignment']['flatten'] = flatten
+    config['flatten'] = flatten
 
     config['query_markers'] = {
         'serialized_lookup': ab_initio_assignment_fixture['markers']}

@@ -94,6 +94,13 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         HierarchicalTypeAssignmentSchema,
         required=True)
 
+    flatten = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description="If true, flatten the taxonomy so that we are "
+        "mapping directly to the leaf node")
+
 
 class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = HierarchicalSchemaSpecifiedMarkers
@@ -218,7 +225,7 @@ def _run_mapping(config, tmp_dir, log):
 
     marker_lookup_path = config['query_markers']['serialized_lookup']
     marker_lookup = json.load(open(marker_lookup_path, 'rb'))
-    if config['type_assignment']['flatten']:
+    if config['flatten']:
 
         taxonomy_tree = taxonomy_tree.flatten()
 
