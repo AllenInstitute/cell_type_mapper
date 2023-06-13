@@ -47,3 +47,11 @@ def test_gene_id_mapper(map_data_fixture):
     expected = ["nonsense_2", "gene_2", "gene_0", "nonsense_3", "gene_3",
                 "gene_2"]
     assert actual == expected
+
+
+def test_from_default():
+    """
+    Just a smoke test to make sure that default gene mapping can load
+    """
+    mapper = GeneIdMapper.from_default()
+    assert isinstance(mapper, GeneIdMapper)
