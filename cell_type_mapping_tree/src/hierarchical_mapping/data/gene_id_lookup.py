@@ -1,3 +1,4 @@
+# flake8: noqa
 gene_id_lookup = {
   "Blank-1": {
     "gene_symbol": "Blank-1",
