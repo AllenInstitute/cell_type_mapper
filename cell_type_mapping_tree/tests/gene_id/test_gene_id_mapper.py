@@ -38,15 +38,23 @@ def test_gene_id_mapper(map_data_fixture):
 
     names = ["charlie", "alice", "zachary", "mark", "robert"]
     actual = mapper.map_gene_identifiers(names)
-    expected = ["gene_3", "gene_0", "nonsense_0", "nonsense_1", "gene_1"]
-    assert actual == expected
+    assert len(actual) == 5
+    assert actual[0] == 'gene_3'
+    assert actual[1] == 'gene_0'
+    assert 'nonsense_0' in actual[2]
+    assert 'nonsense_1' in actual[3]
+    assert actual[4] == 'gene_1'
 
     # will choose 'nicknames', since they are more common than names here
     nicknames = ["alice", "hammer", "allie", "robert", "chuck", "hammer"]
     actual = mapper.map_gene_identifiers(nicknames)
-    expected = ["nonsense_2", "gene_2", "gene_0", "nonsense_3", "gene_3",
-                "gene_2"]
-    assert actual == expected
+    assert len(actual) == 6
+    assert 'nonsense_2' in actual[0]
+    assert actual[1] == 'gene_2'
+    assert actual[2] == 'gene_0'
+    assert 'nonsense_3' in actual[3]
+    assert actual[4] == 'gene_3'
+    assert actual[5] == 'gene_2'
 
 
 def test_from_default():

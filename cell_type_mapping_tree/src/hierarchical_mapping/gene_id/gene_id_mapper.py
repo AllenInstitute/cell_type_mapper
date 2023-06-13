@@ -1,5 +1,7 @@
 import warnings
 
+from hierarchical_mapping.utils.utils import get_timestamp
+
 from hierarchical_mapping.data.gene_id_lookup import (
     gene_id_lookup)
 
@@ -99,6 +101,6 @@ class RandomNameGenerator(object):
         """
         Get a locally unique nonsense name
         """
-        name = f"nonsense_{self.ct}"
+        name = f"nonsense_{self.ct}_{get_timestamp()}"
         self.ct += 1
         return name
