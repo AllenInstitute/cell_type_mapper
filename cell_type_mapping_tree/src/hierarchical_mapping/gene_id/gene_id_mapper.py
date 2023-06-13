@@ -65,6 +65,10 @@ class GeneIdMapper(object):
                 map_from = other_id_type
                 n_max = n_intersection
 
+        if n_max == 0:
+            raise RuntimeError(
+                "You gene identifiers did not match any known schema")
+
         if map_from is None:
             return gene_id_list
 

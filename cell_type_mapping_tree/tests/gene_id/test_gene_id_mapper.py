@@ -57,6 +57,15 @@ def test_gene_id_mapper(map_data_fixture):
     assert actual[5] == 'gene_2'
 
 
+def test_bad_gene_mapping(map_data_fixture):
+    """
+    Test error when cannot map genes
+    """
+    mapper = GeneIdMapper(data=map_data_fixture)
+    names = ["zack", "tyler", "miguel"]
+    with pytest.raises(RuntimeError, match="did not match any known schema"):
+        mapper.map_gene_identifiers(names)
+
 def test_from_default():
     """
     Just a smoke test to make sure that default gene mapping can load
