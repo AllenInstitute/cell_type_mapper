@@ -28,7 +28,7 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 
-def flatmap_cells(
+def corrmap_cells(
         query_path,
         precomputed_path,
         marker_gene_list=None,
@@ -105,7 +105,7 @@ def flatmap_cells(
 
         cell_id_chunk = cell_id_list[r0:r1]
         p = multiprocessing.Process(
-                target=_flatmap_worker,
+                target=_corrmap_worker,
                 kwargs={
                     'reference_profiles': reference_profiles,
                     'query_chunk': query_chunk,
@@ -123,7 +123,7 @@ def flatmap_cells(
     return list(output_list)
 
 
-def _flatmap_worker(
+def _corrmap_worker(
         reference_profiles,
         query_chunk,
         row_to_cluster_lookup,

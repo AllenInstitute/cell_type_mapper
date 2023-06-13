@@ -163,6 +163,12 @@ def run_type_assignment_on_h5ad(
     row_ct = 0
     t0 = time.time()
 
+    # get a CellByGeneMatrix of average expression
+    # profiles for each leaf in the taxonomy
+    leaf_node_matrix = get_leaf_means(
+        taxonomy_tree=taxonomy_tree,
+        precompute_path=precomputed_stats_path)
+
     print("starting type assignment")
     chunk_index = -1
     for chunk in chunk_iterator:
@@ -194,7 +200,7 @@ def run_type_assignment_on_h5ad(
                     'r1': r1,
                     'query_cell_chunk': data,
                     'query_cell_names': name_chunk,
-                    'precomputed_stats_path': precomputed_stats_path,
+                    'leaf_node_matrix': leaf_node_matrix,
                     'marker_gene_cache_path': marker_gene_cache_path,
                     'taxonomy_tree': taxonomy_tree,
                     'bootstrap_factor': bootstrap_factor,
@@ -235,7 +241,7 @@ def _run_type_assignment_on_h5ad_worker(
         r1,
         query_cell_chunk,
         query_cell_names,
-        precomputed_stats_path,
+        leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
         bootstrap_factor,
@@ -248,7 +254,7 @@ def _run_type_assignment_on_h5ad_worker(
 
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
-        precomputed_stats_path=precomputed_stats_path,
+        leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=bootstrap_factor,
@@ -270,7 +276,7 @@ def _run_type_assignment_on_h5ad_worker(
 
 def run_type_assignment(
         full_query_gene_data,
-        precomputed_stats_path,
+        leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
         bootstrap_factor,
@@ -287,9 +293,9 @@ def run_type_assignment(
         A CellByGeneMatrix containing the query data.
         Must have normalization == 'log2CPM'.
 
-    precomputed_stats_path:
-        Path to the HDF5 file where precomputed stats on the
-        clusters in our taxonomy are stored.
+    leaf_node_matrix:
+        A CellByGeneMatrix containing the average expression
+        profiles for the leaf nodes of the taxonomy
 
     marker_gene_cache_path:
         Path to the HDF5 file where lists of marker genes for
@@ -330,11 +336,6 @@ def run_type_assignment(
         {taxonomy_level : {'assignment': chosen_node,
                            'confidence': fraction_of_votes}}
     """
-    # get a dict mapping leaf node name
-    # to mean gene expression profile
-    leaf_node_matrix = get_leaf_means(
-        taxonomy_tree=taxonomy_tree,
-        precompute_path=precomputed_stats_path)
 
     # create effectively empty list of dicts to
     # store the hierarchical classification of

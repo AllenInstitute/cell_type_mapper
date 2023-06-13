@@ -281,9 +281,15 @@ def test_running_full_election(
     query_cell_by_gene.downsample_genes_in_place(
         selected_genes=query_markers)
 
+    # get a CellByGeneMatrix of average expression
+    # profiles for each leaf in the taxonomy
+    leaf_node_matrix = get_leaf_means(
+        taxonomy_tree=taxonomy_tree,
+        precompute_path=precompute_path)
+
     result = run_type_assignment(
         full_query_gene_data=query_cell_by_gene,
-        precomputed_stats_path=precompute_path,
+        leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=0.8,
@@ -422,9 +428,15 @@ def test_running_flat_election(
     query_cell_by_gene.downsample_genes_in_place(
         selected_genes=query_markers)
 
+    # get a CellByGeneMatrix of average expression
+    # profiles for each leaf in the taxonomy
+    leaf_node_matrix = get_leaf_means(
+        taxonomy_tree=taxonomy_tree,
+        precompute_path=precompute_path)
+
     result = run_type_assignment(
         full_query_gene_data=query_cell_by_gene,
-        precomputed_stats_path=precompute_path,
+        leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=0.8,

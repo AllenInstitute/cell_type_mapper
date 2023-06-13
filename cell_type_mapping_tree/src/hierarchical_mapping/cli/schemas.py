@@ -155,7 +155,7 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         return data
 
 
-class FlatTypeAssignmentSchema(argschema.ArgSchema):
+class CorrTypeAssignmentSchema(argschema.ArgSchema):
 
     n_processors = argschema.fields.Int(
         required=False,
