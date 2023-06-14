@@ -2,6 +2,7 @@ import anndata
 import gc
 import h5py
 import numpy as np
+import pandas as pd
 import pathlib
 import tempfile
 
@@ -96,6 +97,50 @@ def get_minmax_x_from_h5ad(
             pass
 
     return _get_minmax_x_using_anndata(h5ad_path)
+
+
+def map_gene_ids_in_var(
+        var_df,
+        gene_id_mapper):
+    """
+    Fix the index of the var dataframe to use the preferred gene identifiers
+    specified in a GeneIdMapper
+
+    Parameters
+    ----------
+    var_df:
+        original var dataframe
+    gene_id_mapper:
+        GeneIdMapper containing data needed to map between gene identification
+        schemes
+
+    Returns
+    -------
+    If the var dataframe needs to be updated, return the updated
+    var dataframe.
+
+    If not, return None.
+    """
+
+    gene_id_list = list(var_df.index.values)
+    new_gene_id_list = gene_id_mapper.map_gene_identifiers(gene_id_list)
+    if new_gene_id_list == gene_id_list:
+        return None
+
+    var_df = var_df.reset_index().to_dict(orient='records')
+    idx_key_root = f'{gene_id_mapper.preferred_type}_VALIDATED'
+    idx_key = idx_key_root
+    ct = 0
+    while idx_key in var_df[0]:
+        idx_key = f'{idx_key_root}_{ct}'
+        ct += 1
+
+    for record, gene_id in zip(var_df, new_gene_id_list):
+        record[idx_key] = gene_id
+
+    new_var = pd.DataFrame(var_df).set_index(idx_key)
+
+    return new_var
 
 
 def _get_minmax_x_using_anndata(

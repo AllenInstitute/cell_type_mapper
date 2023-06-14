@@ -1,6 +1,6 @@
 import warnings
 
-from hierarchical_mapping.utils.utils import get_timestamp
+import hierarchical_mapping.utils.utils as utils
 
 from hierarchical_mapping.data.gene_id_lookup import (
     gene_id_lookup)
@@ -19,7 +19,7 @@ class GeneIdMapper(object):
         """
         self.random_name_generator = RandomNameGenerator()
 
-        self.preferred_type = "EnsemblID"
+        self._preferred_type = "EnsemblID"
         self.preferred_gene_id = set(
             data.keys())
 
@@ -44,6 +44,10 @@ class GeneIdMapper(object):
     @classmethod
     def from_default(cls):
         return cls(data=gene_id_lookup)
+
+    @property
+    def preferred_type(self):
+        return self._preferred_type
 
     def map_gene_identifiers(
             self,
@@ -105,6 +109,6 @@ class RandomNameGenerator(object):
         """
         Get a locally unique nonsense name
         """
-        name = f"nonsense_{self.ct}_{get_timestamp()}"
+        name = f"nonsense_{self.ct}_{utils.get_timestamp()}"
         self.ct += 1
         return name
