@@ -14,7 +14,8 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.validation.utils import (
     get_minmax_x_from_h5ad,
-    round_x_to_integers)
+    round_x_to_integers,
+    is_x_integers)
 
 
 # add function to create various flavors of h5ad file
@@ -29,7 +30,14 @@ def create_h5ad_file(
         min_val,
         density,
         is_chunked,
-        output_path):
+        output_path,
+        int_values=False,
+        int_dtype=False):
+
+    if int_dtype:
+        if not int_values:
+            raise RuntimeError(
+                "int_dtype is True but int_values is False")
 
     rng = np.random.default_rng(7612231)
     var_data = [
@@ -44,14 +52,27 @@ def create_h5ad_file(
     ]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
 
+    if int_values:
+        max_val = np.round(max_val)
+        min_val = np.round(min_val)
+
     n_tot = n_rows*n_cols
     raw_data = np.zeros(n_tot, dtype=float)
     chosen = rng.choice(np.array(n_tot), n_tot//5, replace=False)
     delta = (max_val-min_val)
-    raw_data[chosen] = rng.random(len(chosen))*0.8*delta+min_val+0.05*delta
+    if int_values:
+        raw_data[chosen] = rng.integers(
+                min_val+1,
+                max_val-1,
+                len(chosen)).astype(float)
+    else:
+        raw_data[chosen] = rng.random(len(chosen))*0.8*delta+min_val+0.05*delta
     raw_data = raw_data.reshape(n_rows, n_cols)
     raw_data[max_coord[0], max_coord[1]] = max_val
     raw_data[min_coord[0], min_coord[1]] = min_val
+
+    if int_dtype:
+        raw_data = raw_data.astype(int)
 
     assert raw_data.shape == (n_rows, n_cols)
 
@@ -171,7 +192,7 @@ def test_get_minmax(
 @pytest.mark.parametrize(
     "density,is_chunked",
     itertools.product(
-        ('csr',),
+        ('csr', 'csc', 'array'),
         (True, False)
     )
 )
@@ -208,6 +229,113 @@ def test_round_x_to_integers(
         tmp_dir=tmp_dir_fixture)
 
     a_data = anndata.read_h5ad(output_path, backed='r')
-    actual_x = a_data.X[()].toarray()
+    actual_x = a_data.X[()]
+    if not isinstance(actual_x, np.ndarray):
+        actual_x = actual_x.toarray()
+    assert actual_x.dtype == int
     int_x = np.round(raw_x).astype(int)
     np.testing.assert_array_equal(actual_x, int_x)
+
+
+@pytest.mark.parametrize(
+    "density,is_chunked",
+    itertools.product(
+        ('csr', 'csc', 'array'),
+        (True, False)
+    )
+)
+def test_round_x_to_integers_no_op(
+        density,
+        is_chunked,
+        tmp_dir_fixture):
+    """
+    Test case when the X axis was already an integer value
+    (though dtype was a float), such that this roundint is
+    a no-op
+    """
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    max_val = 101.3
+    min_val = -10.2
+
+    raw_x = create_h5ad_file(
+        n_rows=55,
+        n_cols=267,
+        max_val=max_val,
+        max_coord=(43, 112),
+        min_val=min_val,
+        min_coord=(21, 45),
+        density=density,
+        is_chunked=is_chunked,
+        output_path=output_path,
+        int_values=True)
+
+    if density != 'array':
+        with h5py.File(output_path, 'r') as src:
+            print(dict(src['X'].attrs))
+            print(src['X/data'].shape,src['X/indices'].shape,src['X/indptr'].shape)
+
+    round_x_to_integers(
+        h5ad_path=output_path,
+        tmp_dir=tmp_dir_fixture)
+
+    a_data = anndata.read_h5ad(output_path, backed='r')
+    actual_x = a_data.X[()]
+    if not isinstance(actual_x, np.ndarray):
+        actual_x = actual_x.toarray()
+    assert actual_x.dtype == float
+    int_x = np.round(raw_x)
+    np.testing.assert_allclose(
+        actual_x,
+        int_x,
+        atol=0.0,
+        rtol=1.0e-6)
+
+
+
+@pytest.mark.parametrize(
+    "density,is_chunked,int_dtype,int_values",
+    itertools.product(
+        ('csr', 'csc', 'array'),
+        (True, False),
+        (True, False),
+        (True, False)
+    )
+)
+def test_is_x_integers(
+        density,
+        is_chunked,
+        tmp_dir_fixture,
+        int_dtype,
+        int_values):
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    if int_dtype:
+        if not int_values:
+            return
+
+    max_val = 101.3
+    min_val = -10.2
+
+    raw_x = create_h5ad_file(
+        n_rows=55,
+        n_cols=267,
+        max_val=max_val,
+        max_coord=(43, 112),
+        min_val=min_val,
+        min_coord=(21, 45),
+        density=density,
+        is_chunked=is_chunked,
+        output_path=output_path,
+        int_values=int_values,
+        int_dtype=int_dtype)
+
+    actual = is_x_integers(output_path)
+    if int_values:
+        assert actual
+    else:
+        assert not actual

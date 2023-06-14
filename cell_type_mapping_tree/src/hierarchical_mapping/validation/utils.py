@@ -10,6 +10,31 @@ from hierarchical_mapping.utils.utils import (
     _clean_up)
 
 
+def is_x_integers(
+        h5ad_path):
+    """
+    Returns True if the values in X are integers (or, effectively integers).
+
+    Returns False otherwise
+    """
+
+    with h5py.File(h5ad_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+    encoding_type = attrs['encoding-type']
+    if encoding_type == 'array':
+        return _is_dense_x_integers(
+            h5ad_path=h5ad_path,
+            eps=1.0e-10)
+    elif 'csr' in encoding_type or 'csc' in encoding_type:
+        return _is_sparse_x_integers(
+            h5ad_path=h5ad_path,
+            eps=1.0e-10)
+    else:
+        raise RuntimeError(
+            "Do not know how to handle encoding-type "
+            f"{encoding_type}")
+
+
 def round_x_to_integers(
         h5ad_path,
         tmp_dir=None):
@@ -19,6 +44,9 @@ def round_x_to_integers(
 
     tmp_dir is a directory where the new data can be written before being
     copied over
+
+    Note: if there is no numeric benefit to casting the data to integers,
+    do not do anything.
     """
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(
@@ -173,6 +201,7 @@ def _get_minmax_from_sparse(x_grp):
 def _round_dense_x_to_integers(
         h5ad_path,
         tmp_path):
+    delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
             data = src['X']
@@ -192,27 +221,34 @@ def _round_dense_x_to_integers(
                 for c0 in range(0, data.shape[1], chunk_size[1]):
                     c1 = min(data.shape[1], c0+chunk_size[1])
                     chunk = data[r0:r1, c0:c1]
-                    chunk = np.round(chunk).astype(int)
-                    dst['data'][r0:r1, c0:c1] = chunk
+                    rounded_chunk = np.round(chunk)
+                    this_delta = np.abs(rounded_chunk-chunk).max()
+                    if this_delta > delta:
+                        delta = this_delta
+                    dst['data'][r0:r1, c0:c1] = rounded_chunk.astype(int)
 
-    with h5py.File(h5ad_path, 'a') as dst:
-        with h5py.File(tmp_path, 'r') as src:
-            attrs = dict(dst['X'].attrs)
-            del dst['X']
-            dataset = dst.create_dataset(
-                'X',
-                data=src['data'][()],
-                dtype=src['data'].dtype,
-                chunks=src['data'].chunks)
-            for k in attrs:
-                dataset.attrs.create(
-                    name=k,
-                    data=attrs[k])
+    # if something changed, actually transcribe the new data
+    eps = 1.0e-10
+    if delta > eps:
+        with h5py.File(h5ad_path, 'a') as dst:
+            with h5py.File(tmp_path, 'r') as src:
+                attrs = dict(dst['X'].attrs)
+                del dst['X']
+                dataset = dst.create_dataset(
+                    'X',
+                    data=src['data'][()],
+                    dtype=src['data'].dtype,
+                    chunks=src['data'].chunks)
+                for k in attrs:
+                    dataset.attrs.create(
+                        name=k,
+                        data=attrs[k])
 
 
 def _round_sparse_x_to_integers(
         h5ad_path,
         tmp_path):
+    delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
             data = src['X/data']
@@ -230,14 +266,84 @@ def _round_sparse_x_to_integers(
             for i0 in range(0, data.shape[0], chunk_size[0]):
                 i1 = min(data.shape[0], i0+chunk_size[0])
                 chunk = data[i0:i1]
-                chunk = np.round(chunk).astype(int)
-                dst['data'][i0:i1] = chunk
+                rounded_chunk = np.round(chunk)
+                this_delta = np.abs(chunk-rounded_chunk).max()
+                if this_delta > delta:
+                    delta = this_delta
+                dst['data'][i0:i1] = rounded_chunk.astype(int)
 
-    with h5py.File(h5ad_path, 'a') as dst:
-        with h5py.File(tmp_path, 'r') as src:
-            del dst['X/data']
-            dst.create_dataset(
-                'X/data',
-                data=src['data'][()],
-                dtype=src['data'].dtype,
-                chunks=src['data'].chunks)
+    # if something changed, actually transcribe the new data
+    eps = 1.0e-10
+    if delta > eps:
+        with h5py.File(h5ad_path, 'a') as dst:
+            with h5py.File(tmp_path, 'r') as src:
+                del dst['X/data']
+                dst.create_dataset(
+                    'X/data',
+                    data=src['data'][()],
+                    dtype=src['data'].dtype,
+                    chunks=src['data'].chunks)
+
+
+def _is_dense_x_integers(
+        h5ad_path,
+        eps=1.0e-10):
+    """
+    Returns True if the values in X are integers (or, effectively integers).
+
+    Returns False otherwise
+
+    eps governs how close a float can be to an integer
+    and still be called an integer
+    """
+    with h5py.File(h5ad_path, 'r') as src:
+        data = src['X']
+        if np.issubdtype(data.dtype, np.integer):
+            return True
+
+        chunk_size = data.chunks
+
+        if chunk_size is None:
+            chunk_size = data.shape
+
+        for r0 in range(0, data.shape[0], chunk_size[0]):
+            r1 = min(data.shape[0], r0+chunk_size[0])
+            for c0 in range(0, data.shape[1], chunk_size[1]):
+                c1 = min(data.shape[1], c0+chunk_size[1])
+                chunk = data[r0:r1, c0:c1]
+                rounded_chunk = np.round(chunk)
+                this_delta = np.abs(rounded_chunk-chunk).max()
+                if this_delta > eps:
+                    return False
+    return True
+
+
+def _is_sparse_x_integers(
+        h5ad_path,
+        eps=1.0e-6):
+    """
+    Returns True if the values in X are integers (or, effectively integers).
+
+    Returns False otherwise
+
+    eps governs how close a float can be to an integer
+    and still be called an integer
+    """
+    with h5py.File(h5ad_path, 'r') as src:
+        data = src['X/data']
+        if np.issubdtype(data.dtype, np.integer):
+            return True
+        chunk_size = data.chunks
+
+        if chunk_size is None:
+            chunk_size = data.shape
+
+        for i0 in range(0, data.shape[0], chunk_size[0]):
+            i1 = min(data.shape[0], i0+chunk_size[0])
+            chunk = data[i0:i1]
+            rounded_chunk = np.round(chunk)
+            this_delta = np.abs(chunk-rounded_chunk).max()
+            if this_delta > eps:
+                return False
+
+    return True
