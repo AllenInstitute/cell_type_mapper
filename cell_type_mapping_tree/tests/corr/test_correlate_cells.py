@@ -317,17 +317,18 @@ def test_corrmap_cells_function(
         max_cluster = np.argmax(expected_corr_fixture[i_query, :])
         max_cluster_name = row_to_cluster[max_cluster]
         max_corr = expected_corr_fixture[i_query, max_cluster]
-        expected_lookup[cell_id] = {'assignment': max_cluster_name,
-                                    'confidence': max_corr}
+        expected_lookup[cell_id] = {'cluster':
+                                       {'assignment': max_cluster_name,
+                                        'confidence': max_corr}}
 
     for i_query in range(len(cell_id_list)):
         cell_id = results[i_query]['cell_id']
-        expected = expected_lookup[cell_id]
+        expected = expected_lookup[cell_id]['cluster']
         assert np.isclose(expected['confidence'],
-                          results[i_query]['confidence'],
+                          results[i_query]['cluster']['confidence'],
                           atol=0.0,
                           rtol=1.0e-5)
-        assert results[i_query]['assignment'] == expected['assignment']
+        assert results[i_query]['cluster']['assignment'] == expected['assignment']
 
 
 def test_prep_data_errors(
