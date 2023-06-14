@@ -8,6 +8,9 @@ import traceback
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
+from hierarchical_mapping.utils.output_utils import (
+    blob_to_csv)
+
 from hierarchical_mapping.file_tracker.file_tracker import (
     FileTracker)
 
@@ -43,11 +46,19 @@ class CorrSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to the h5ad file containing the query "
         "dataset")
 
-    result_path = argschema.fields.OutputFile(
+    extended_result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
         allow_none=False,
-        description="Path to the output file that will be written")
+        description="Path to JSON file where extended results "
+        "will be saved.")
+
+    csv_result_path = argschema.fields.OutputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to CSV file where output file will be "
+        "written (if None, no CSV will be produced).")
 
     max_gb = argschema.fields.Float(
         required=False,
@@ -76,7 +87,7 @@ class CorrMapSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     def run(self):
         run_mapping(
             config=self.args,
-            output_path=self.args['result_path'],
+            output_path=self.args['extended_result_path'],
             log_path=None)
 
 
@@ -212,6 +223,18 @@ def _run_mapping(config, tmp_dir, log):
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
+
+    class DummyTree(object):
+        @property
+        def hierarchy(self):
+            return ['cluster']
+
+    if config['csv_result_path'] is not None:
+        blob_to_csv(
+            results_blob=result,
+            taxonomy_tree=DummyTree(),
+            output_path=config['csv_result_path'],
+            metadata_path=config['extended_result_path'])
 
     # right now, this just returns all of the marker genes specified
     # in the input JSON, without regard to which ones were actually

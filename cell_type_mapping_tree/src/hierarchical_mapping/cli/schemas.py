@@ -138,11 +138,12 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):
         """
-        Verify that bootstrap_factor > 0 and < 1
+        Verify that bootstrap_factor > 0 and <= 1
         and that normalization is either 'raw' or 'log2CPM'
         """
         factor = data['bootstrap_factor']
-        if factor <= 0.0 or factor >= 1.0:
+        eps = 1.0e-6
+        if factor <= 0.0 or factor > 1.0+eps:
             raise ValidationError(
                 f"bootstrap_factor must be in (0, 1); you gave {factor}")
 
