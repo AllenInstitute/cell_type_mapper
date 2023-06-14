@@ -26,7 +26,7 @@ def _create_word(rng):
     return ''.join(rng.choice(alphabet, 5))
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
 

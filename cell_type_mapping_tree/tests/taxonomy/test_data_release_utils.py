@@ -10,7 +10,7 @@ from hierarchical_mapping.taxonomy.data_release_utils import (
     get_header_map)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

@@ -12,7 +12,7 @@ from hierarchical_mapping.cli.cli_log import (
 from hierarchical_mapping.file_tracker.file_tracker import (
     FileTracker)
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

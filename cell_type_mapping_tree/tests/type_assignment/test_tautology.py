@@ -23,7 +23,7 @@ from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp("tautology"))

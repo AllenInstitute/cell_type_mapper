@@ -16,7 +16,7 @@ from hierarchical_mapping.cli.serialize_taxonomy_tree import (
     TaxonomySerializationRunner)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('taxonomy_serialization_'))
