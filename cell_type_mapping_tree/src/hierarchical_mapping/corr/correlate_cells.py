@@ -142,8 +142,9 @@ def _corrmap_worker(
                                   correlation_values,
                                   cell_id_chunk):
         this = {'cell_id': cell_id,
-                'assignment': row_to_cluster_lookup[idx],
-                'confidence': corr}
+                'cluster': {
+                    'assignment': row_to_cluster_lookup[idx],
+                    'confidence': corr}}
         result.append(this)
 
     with output_lock:

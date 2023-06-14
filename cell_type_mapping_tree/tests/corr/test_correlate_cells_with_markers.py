@@ -261,14 +261,15 @@ def test_corrmap_cells_with_markers(
         max_cluster = np.argmax(expected_corr[i_query, :])
         max_cluster_name = cluster_list[max_cluster]
         max_corr = expected_corr[i_query, max_cluster]
-        expected_lookup[cell_id] = {'assignment': max_cluster_name,
-                                    'confidence': max_corr}
+        expected_lookup[cell_id] = {'cluster':
+                                    {'assignment': max_cluster_name,
+                                     'confidence': max_corr}}
 
     for i_query in range(query_x_fixture.shape[0]):
         cell_id = result[i_query]['cell_id']
-        expected = expected_lookup[cell_id]
-        assert result[i_query]['assignment'] == expected['assignment']
+        expected = expected_lookup[cell_id]['cluster']
+        assert result[i_query]['cluster']['assignment'] == expected['assignment']
         assert np.isclose(expected['confidence'],
-                          result[i_query]['confidence'],
+                          result[i_query]['cluster']['confidence'],
                           atol=1.0e-5,
                           rtol=1.0e-5)
