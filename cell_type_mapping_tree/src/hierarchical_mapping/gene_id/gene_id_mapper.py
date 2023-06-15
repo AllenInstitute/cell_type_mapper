@@ -42,8 +42,8 @@ class GeneIdMapper(object):
                 self.other_gene_id[other][gene[other]] = preferred
 
     @classmethod
-    def from_default(cls):
-        return cls(data=gene_id_lookup)
+    def from_default(cls, log=None):
+        return cls(data=gene_id_lookup, log=log)
 
     @property
     def preferred_type(self):
