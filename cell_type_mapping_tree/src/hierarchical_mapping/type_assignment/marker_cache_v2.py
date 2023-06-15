@@ -164,8 +164,8 @@ def create_marker_cache_from_specified_markers(
         missing_query_markers = list(missing_query_markers)
         missing_query_markers.sort()
         n_missing = len(missing_query_markers)
-        msg = f"The following {n_missing} marker genes were not present "
-        msg += f"in the query dataset\n{missing_query_markers}\n"
+        msg = f"{n_missing} marker genes were not present "
+        msg += "in the query dataset. "
         msg += "They have been ignored"
         if log is None:
             warnings.warn(msg)
