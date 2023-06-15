@@ -155,9 +155,12 @@ def run_type_assignment_on_h5ad(
         max_gb=max_gb)
 
     process_list = []
-    mgr = multiprocessing.Manager()
-    output_list = mgr.list()
-    output_lock = mgr.Lock()
+    if results_output_path:
+        output_list, output_lock = [], None
+    else:
+        mgr = multiprocessing.Manager()
+        output_list = mgr.list()
+        output_lock = mgr.Lock()
 
     tot_rows = chunk_iterator.n_rows
     row_ct = 0
@@ -269,9 +272,9 @@ def _run_type_assignment_on_h5ad_worker(
         this_output_path = os.path.join(results_output_path,
                                         f"{r0}_{r1}_assignment.json")
         save_results(assignment, this_output_path)
-
-    with output_lock:
-        output_list += assignment
+    else:
+        with output_lock:
+            output_list += assignment
 
 
 def run_type_assignment(

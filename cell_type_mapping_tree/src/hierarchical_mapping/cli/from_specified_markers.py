@@ -60,6 +60,13 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to the h5ad file containing the query "
         "dataset")
 
+    extended_result_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Optional temporary directory into which assignment "
+        "results will be saved from each process.")
+    
     extended_result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
@@ -112,6 +119,22 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             log_path=None)
 
 
+def get_assignments(config, type_assignment):
+    tmp_output_dir = config.get("extended_result_dir")
+    if tmp_output_dir:
+        assignments = []
+        import glob
+        temp_output_files = glob.glob(f"{tmp_output_dir}/*.json")
+        for temp_output_file in temp_output_files:
+            with open(temp_output_file, 'r') as f:
+                chunk_assignments = json.load(f)
+            assignments.extend(chunk_assignments)
+
+    else:  # temp output path not given
+        assignments = type_assignment["assignments"]
+    return assignments
+
+
 def run_mapping(config, output_path, log_path=None):
 
     log = CommandLog()
@@ -150,8 +173,10 @@ def run_mapping(config, output_path, log_path=None):
             config=config,
             tmp_dir=tmp_dir,
             log=log)
-        output["results"] = type_assignment["assignments"]
+        assignments = get_assignments(config, type_assignment)
+        output["results"] = assignments
         output["marker_genes"] = type_assignment["marker_genes"]
+
         log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
@@ -167,6 +192,13 @@ def run_mapping(config, output_path, log_path=None):
         output["log"] = log.log
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
+
+        if config['csv_result_path'] is not None:
+            blob_to_csv(
+                results_blob=assignments,
+                taxonomy_tree=type_assignment["taxonomy_tree"],
+                output_path=config['csv_result_path'],
+                metadata_path=config['extended_result_path'])
 
 
 def _run_mapping(config, tmp_dir, log):
@@ -265,7 +297,8 @@ def _run_mapping(config, tmp_dir, log):
         normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir,
         log=log,
-        max_gb=config['max_gb'])
+        max_gb=config['max_gb'],
+        results_output_path=config.get("extended_result_dir"))
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
@@ -276,14 +309,9 @@ def _run_mapping(config, tmp_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    if config['csv_result_path'] is not None:
-        blob_to_csv(
-            results_blob=result,
-            taxonomy_tree=taxonomy_tree,
-            output_path=config['csv_result_path'],
-            metadata_path=config['extended_result_path'])
-
-    return {'assignments': result, 'marker_genes': marker_gene_lookup}
+    return {'assignments': result,
+            'marker_genes': marker_gene_lookup,
+            "taxonomy_tree": taxonomy_tree}
 
 
 def main():
