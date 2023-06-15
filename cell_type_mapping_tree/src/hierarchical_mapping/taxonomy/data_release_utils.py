@@ -110,13 +110,13 @@ def get_tree_above_leaves(
 
 def get_alias_mapper(
         csv_path,
-        term_set_label,
+        valid_term_set_labels,
         alias_column_name='cluster_alias'):
     """
     Read a cluster_to_cluster_annotation_membership.csv file. Return
     a dict mapping (level, label) to alias
 
-    Only record aliases for the specified term_set_label
+    Only record aliases in the specified valid_term_set_labels
 
     alias_column_name is the name of the column to treat
     as 'alias' (could also be cluster_annotation_term_name, for instance)
@@ -132,6 +132,8 @@ def get_alias_mapper(
     label_idx = header_lookup['cluster_annotation_term_label']
     alias_idx = header_lookup[alias_column_name]
 
+    valid_term_set_labels = set(valid_term_set_labels)
+
     result = dict()
     used_aliases = dict()
     with open(csv_path, 'r') as src:
@@ -139,7 +141,7 @@ def get_alias_mapper(
         for line in src:
             params = line.strip().split(',')
             level = params[level_idx]
-            if level != term_set_label:
+            if level not in valid_term_set_labels:
                 continue
             label = params[label_idx]
             alias = params[alias_idx]

@@ -152,7 +152,7 @@ class TaxonomyTree(object):
 
         alias_map = get_alias_mapper(
             csv_path=cluster_membership_path,
-            term_set_label=leaf_level)
+            valid_term_set_labels=(leaf_level,))
 
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):

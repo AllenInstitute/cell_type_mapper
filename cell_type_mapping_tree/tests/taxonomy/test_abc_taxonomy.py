@@ -353,7 +353,7 @@ def test_get_alias_mapper(
 
     actual = get_alias_mapper(
         csv_path=cluster_membership_fixture,
-        term_set_label='cluster')
+        valid_term_set_labels=('cluster',))
 
     for full_label in alias_fixture:
         if 'cluster' in full_label:
