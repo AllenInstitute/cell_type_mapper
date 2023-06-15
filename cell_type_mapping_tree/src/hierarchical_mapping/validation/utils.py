@@ -38,17 +38,13 @@ def is_x_integers(
 
 def round_x_to_integers(
         h5ad_path,
-        tmp_dir=None,
-        min_chunk_size=1000000):
+        tmp_dir=None):
     """
     If X matrix in h5ad file is not integers, round to nearest integers,
     saving the new data to the h5ad file in question.
 
     tmp_dir is a directory where the new data can be written before being
     copied over
-
-    min_chunk_size is the minimum number of floats to read in at once
-    (if the data is chunked)
 
     Note: if there is no numeric benefit to casting the data to integers,
     do not do anything.
@@ -70,13 +66,11 @@ def round_x_to_integers(
     if encoding_type == 'array':
         _round_dense_x_to_integers(
             h5ad_path=h5ad_path,
-            tmp_path=tmp_path,
-            min_chunk_size=min_chunk_size)
+            tmp_path=tmp_path)
     elif 'csr' in encoding_type or 'csc' in encoding_type:
         _round_sparse_x_to_integers(
             h5ad_path=h5ad_path,
-            tmp_path=tmp_path,
-            min_chunk_size=min_chunk_size)
+            tmp_path=tmp_path)
     else:
         raise RuntimeError(
             "Do not know how to handle encoding-type "
@@ -251,8 +245,7 @@ def _get_minmax_from_sparse(x_grp):
 
 def _round_dense_x_to_integers(
         h5ad_path,
-        tmp_path,
-        min_chunk_size=None):
+        tmp_path):
     delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
@@ -267,15 +260,6 @@ def _round_dense_x_to_integers(
 
             if chunk_size is None:
                 chunk_size = data.shape
-            else:
-                if min_chunk_size is not None:
-                    if chunk_size[0]*chunk_size[1] < min_chunk_size:
-                        n_rows = data.shape[0]
-                        n_cols = data.shape[1]
-                        if n_rows < n_cols:
-                            chunk_size = (n_rows, min_chunk_size//n_rows)
-                        else:
-                            chunk_size = (min_chunk_size//n_cols, n_rows)
 
             for r0 in range(0, data.shape[0], chunk_size[0]):
                 r1 = min(data.shape[0], r0+chunk_size[0])
@@ -308,8 +292,7 @@ def _round_dense_x_to_integers(
 
 def _round_sparse_x_to_integers(
         h5ad_path,
-        tmp_path,
-        min_chunk_size=None):
+        tmp_path):
     delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
@@ -324,10 +307,6 @@ def _round_sparse_x_to_integers(
 
             if chunk_size is None:
                 chunk_size = data.shape
-            else:
-                if min_chunk_size is not None:
-                    if chunk_size[0] < min_chunk_size:
-                        chunk_size = (min_chunk_size, )
 
             for i0 in range(0, data.shape[0], chunk_size[0]):
                 i1 = min(data.shape[0], i0+chunk_size[0])
