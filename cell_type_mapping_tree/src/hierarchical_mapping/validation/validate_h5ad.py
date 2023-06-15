@@ -132,6 +132,10 @@ def validate_h5ad(
             msg += "no changes required"
         log.info(msg)
 
+    if output_path is None:
+        if new_h5ad_path.exists():
+            new_h5ad_path.unlink()
+
     return output_path
 
 
