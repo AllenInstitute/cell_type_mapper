@@ -1,3 +1,4 @@
+import numpy as np
 import pathlib
 import shutil
 import warnings
@@ -107,6 +108,8 @@ def validate_h5ad(
             df_value=mapped_var)
 
     if not is_int:
+        output_dtype = _choose_dtype(x_minmax)
+
         msg = "VALIDATION: rounding X matrix of "
         msg += f"{original_h5ad_path} to integer values"
         if log is not None:
@@ -115,6 +118,24 @@ def validate_h5ad(
             warnings.warn(msg)
         round_x_to_integers(
             h5ad_path=new_h5ad_path,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            output_dtype=output_dtype)
 
     return output_path
+
+
+def _choose_dtype(
+        x_minmax):
+    output_dtype = None
+    int_min = np.round(x_minmax[0])
+    int_max = np.round(x_minmax[1])
+
+    for candidate in (np.uint8, np.int8, np.uint16, np.int16,
+                      np.uint32, np.int32, np.uint64, np.int64):
+        this_info = np.iinfo(candidate)
+        if int_min >= this_info.min and int_max <= this_info.max:
+            output_dtype = candidate
+            break
+    if output_dtype is None:
+        output_dtype = int
+    return output_dtype

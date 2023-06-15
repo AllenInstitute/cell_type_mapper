@@ -38,7 +38,8 @@ def is_x_integers(
 
 def round_x_to_integers(
         h5ad_path,
-        tmp_dir=None):
+        tmp_dir=None,
+        output_dtype=int):
     """
     If X matrix in h5ad file is not integers, round to nearest integers,
     saving the new data to the h5ad file in question.
@@ -46,13 +47,15 @@ def round_x_to_integers(
     tmp_dir is a directory where the new data can be written before being
     copied over
 
+    output_dtype is the datatype of the array to be saved
+
     Note: if there is no numeric benefit to casting the data to integers,
     do not do anything.
     """
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(
             dir=tmp_dir,
-            prefix='round_x_to_integers_'))
+            prefix='round_x_to_integers_staging_'))
 
     tmp_path = pathlib.Path(
         mkstemp_clean(
@@ -66,11 +69,13 @@ def round_x_to_integers(
     if encoding_type == 'array':
         _round_dense_x_to_integers(
             h5ad_path=h5ad_path,
-            tmp_path=tmp_path)
+            tmp_path=tmp_path,
+            output_dtype=output_dtype)
     elif 'csr' in encoding_type or 'csc' in encoding_type:
         _round_sparse_x_to_integers(
             h5ad_path=h5ad_path,
-            tmp_path=tmp_path)
+            tmp_path=tmp_path,
+            output_dtype=output_dtype)
     else:
         raise RuntimeError(
             "Do not know how to handle encoding-type "
@@ -245,7 +250,8 @@ def _get_minmax_from_sparse(x_grp):
 
 def _round_dense_x_to_integers(
         h5ad_path,
-        tmp_path):
+        tmp_path,
+        output_dtype=int):
     delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
@@ -256,7 +262,7 @@ def _round_dense_x_to_integers(
                 'data',
                 shape=data.shape,
                 chunks=chunk_size,
-                dtype=int)
+                dtype=output_dtype)
 
             if chunk_size is None:
                 chunk_size = data.shape
@@ -270,7 +276,8 @@ def _round_dense_x_to_integers(
                     this_delta = np.abs(rounded_chunk-chunk).max()
                     if this_delta > delta:
                         delta = this_delta
-                    dst['data'][r0:r1, c0:c1] = rounded_chunk.astype(int)
+                    dst['data'][r0:r1, c0:c1] = rounded_chunk.astype(
+                                                    output_dtype)
 
     # if something changed, actually transcribe the new data
     eps = 1.0e-10
@@ -292,7 +299,8 @@ def _round_dense_x_to_integers(
 
 def _round_sparse_x_to_integers(
         h5ad_path,
-        tmp_path):
+        tmp_path,
+        output_dtype=int):
     delta = 0.0
     with h5py.File(h5ad_path, 'r') as src:
         with h5py.File(tmp_path, 'w') as dst:
@@ -303,7 +311,7 @@ def _round_sparse_x_to_integers(
                 'data',
                 shape=data.shape,
                 chunks=chunk_size,
-                dtype=int)
+                dtype=output_dtype)
 
             if chunk_size is None:
                 chunk_size = data.shape
@@ -315,7 +323,7 @@ def _round_sparse_x_to_integers(
                 this_delta = np.abs(chunk-rounded_chunk).max()
                 if this_delta > delta:
                     delta = this_delta
-                dst['data'][i0:i1] = rounded_chunk.astype(int)
+                dst['data'][i0:i1] = rounded_chunk.astype(output_dtype)
 
     # if something changed, actually transcribe the new data
     eps = 1.0e-10
