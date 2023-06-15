@@ -19,10 +19,11 @@ from hierarchical_mapping.validation.utils import (
 
 def validate_h5ad(
         h5ad_path,
-        tmp_dir,
+        output_dir,
         gene_id_mapper,
         log=None,
-        expected_max=20):
+        expected_max=20,
+        tmp_dir=None):
     """
     Perform validation transformations on h5ad file.
 
@@ -30,7 +31,7 @@ def validate_h5ad(
     ----------
     h5ad_path:
         Path to the source h5ad file
-    tmp_dir:
+    output_dir:
         Dir where new h5ad file can be written (if necessary)
     gene_id_mapper:
         the GeneIdMapper that will handle the mapping of gene
@@ -41,6 +42,8 @@ def validate_h5ad(
         If the max X value is less than this, emit a warning
         indicating that we think the normalization of the
         data is incorrect
+    tmp_dir:
+       Dir where scratch data products can be written if needed
 
     Returns
     -------
@@ -56,7 +59,7 @@ def validate_h5ad(
                     original_h5ad_path.suffix, '')
 
     new_h5ad_path = mkstemp_clean(
-        dir=tmp_dir,
+        dir=output_dir,
         prefix=f'{h5ad_name}_VALIDATED_',
         suffix='.h5ad')
 

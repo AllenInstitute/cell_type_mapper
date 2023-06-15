@@ -140,8 +140,9 @@ def test_validation_of_h5ad(
 
     result_path = validate_h5ad(
         h5ad_path=orig_path,
-        tmp_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper)
+        output_dir=tmp_dir_fixture,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture)
 
     assert result_path is not None
 
@@ -216,8 +217,9 @@ def test_validation_of_good_h5ad(
 
     result_path = validate_h5ad(
         h5ad_path=orig_path,
-        tmp_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper)
+        output_dir=tmp_dir_fixture,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture)
 
     assert result_path is None
 
@@ -300,8 +302,9 @@ def test_validation_of_h5ad_diverse_dtypes(
 
     result_path = validate_h5ad(
         h5ad_path=orig_path,
-        tmp_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper)
+        output_dir=tmp_dir_fixture,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture)
 
     assert result_path is not None
 
