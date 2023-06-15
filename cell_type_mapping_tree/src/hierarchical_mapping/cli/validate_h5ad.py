@@ -1,3 +1,7 @@
+"""
+This module defines the CLI tool for validating an H5AD file against our
+normalization and gene_id requirements
+"""
 import argschema
 
 from hierarchical_mapping.gene_id.gene_id_mapper import (
