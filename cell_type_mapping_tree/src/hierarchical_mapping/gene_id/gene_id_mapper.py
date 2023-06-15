@@ -59,6 +59,9 @@ class GeneIdMapper(object):
         gene identification scheme to the preferred gene_identifiers, adding
         nonsense names for the genes that do not map.
         """
+        if len(gene_id_list) == 0:
+            return []
+
         gene_id_set = set(gene_id_list)
         n_max = len(gene_id_set.intersection(self.preferred_gene_id))
         map_from = None
