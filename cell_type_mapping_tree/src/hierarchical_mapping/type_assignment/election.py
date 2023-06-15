@@ -16,6 +16,9 @@ from hierarchical_mapping.utils.multiprocessing_utils import (
 from hierarchical_mapping.utils.distance_utils import (
     correlation_nearest_neighbors)
 
+from hierarchical_mapping.type_assignment.utils import (
+    reconcile_taxonomy_and_markers)
+
 from hierarchical_mapping.type_assignment.matching import (
    get_leaf_means,
    assemble_query_data)
@@ -116,6 +119,17 @@ def run_type_assignment_on_h5ad(
                            'confidence': fraction_of_votes},
          ...}
     """
+
+    (taxonomy_validity,
+     taxonomy_msg) = reconcile_taxonomy_and_markers(
+         taxonomy_tree=taxonomy_tree,
+         marker_cache_path=marker_gene_cache_path)
+
+    if not taxonomy_validity:
+        if log is not None:
+            log.error(taxonomy_msg)
+        else:
+            raise RuntimeError(taxonomy_msg)
 
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')
     query_cell_names = list(obs.index.values)
