@@ -32,7 +32,7 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('precompute_'))

@@ -21,7 +21,7 @@ from hierarchical_mapping.diff_exp.sparse_markers import (
     add_sparse_markers_to_h5)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

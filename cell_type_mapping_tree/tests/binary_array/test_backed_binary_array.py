@@ -16,7 +16,7 @@ from hierarchical_mapping.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('backed_binary'))

@@ -20,7 +20,7 @@ from hierarchical_mapping.marker_selection.utils import (
     create_utility_array)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('marker_array'))

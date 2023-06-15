@@ -17,7 +17,7 @@ from hierarchical_mapping.utils.csc_to_csr import (
     csc_to_csr_on_disk)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

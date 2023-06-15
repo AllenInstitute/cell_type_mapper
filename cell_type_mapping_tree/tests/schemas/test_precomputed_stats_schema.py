@@ -12,7 +12,7 @@ from hierarchical_mapping.cli.schemas import (
     PrecomputedStatsSchema)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

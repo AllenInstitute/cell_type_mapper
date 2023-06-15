@@ -10,7 +10,7 @@ from hierarchical_mapping.utils.output_utils import (
     blob_to_csv)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('output'))
