@@ -126,10 +126,13 @@ def run_type_assignment_on_h5ad(
          marker_cache_path=marker_gene_cache_path)
 
     if not taxonomy_validity:
+        full_msg = "taxonomy_tree and marker_cache "
+        full_msg += "appear to describe different taxonomies\n"
+        full_msg += taxonomy_msg
         if log is not None:
-            log.error(taxonomy_msg)
+            log.error(full_msg)
         else:
-            raise RuntimeError(taxonomy_msg)
+            raise RuntimeError(full_msg)
 
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')
     query_cell_names = list(obs.index.values)
