@@ -207,3 +207,116 @@ def test_flattening_tree():
     assert first_tree.hierarchy == ['level1', 'level2', 'level3', 'leaf']
     for node in flat_leaves:
         assert first_tree.children('leaf', node) == flat_tree.children('leaf', node)
+
+
+
+def test_drop_level():
+    """
+    Test fuction to drop a level from the tree
+    """
+    data = {
+        'hierarchy': ['l0', 'l1', 'l2', 'l3'],
+        'l0': {
+            'a0': ['b0', 'b3'],
+            'a1': ['b1', 'b4'],
+            'a2': ['b2']
+        },
+        'l1': {
+            'b0': ['c1', 'c5'],
+            'b1': ['c2'],
+            'b2': ['c0', 'c4', 'c3'],
+            'b3': ['c6'],
+            'b4': ['c7', 'c8']
+        },
+        'l2': {
+            f'c{ii}': [f'd{ii}', f'd{ii+9}']
+            for ii in range(9)
+        },
+        'l3':{
+            f'd{ii}': list(range(ii*10, 5+ii*10))
+            for ii in range(18)
+        }
+    }
+
+    baseline_tree = TaxonomyTree(data=data)
+
+    with pytest.raises(RuntimeError, match='That is the leaf level'):
+        baseline_tree.drop_level('l3')
+
+    with pytest.raises(RuntimeError, match='not in the hierarchy'):
+        baseline_tree.drop_level('xyz')
+
+    flat_tree = baseline_tree.flatten()
+    with pytest.raises(RuntimeError, match='It is flat'):
+        flat_tree.drop_level('l1')
+
+    dropped_l0 = {
+        'hierarchy': ['l1', 'l2', 'l3'],
+        'l1': {
+            'b0': ['c1', 'c5'],
+            'b1': ['c2'],
+            'b2': ['c0', 'c4', 'c3'],
+            'b3': ['c6'],
+            'b4': ['c7', 'c8']
+        },
+        'l2': {
+            f'c{ii}': [f'd{ii}', f'd{ii+9}']
+            for ii in range(9)
+        },
+        'l3':{
+            f'd{ii}': list(range(ii*10, 5+ii*10))
+            for ii in range(18)
+        }
+    }
+
+    expected = TaxonomyTree(data=dropped_l0)
+    actual = baseline_tree.drop_level('l0')
+    assert expected == actual
+    assert not baseline_tree == actual
+
+
+    dropped_l1 = {
+        'hierarchy': ['l0', 'l2', 'l3'],
+        'l0': {
+            'a0': ['c1', 'c5', 'c6'],
+            'a1': ['c2', 'c7', 'c8'],
+            'a2': ['c0', 'c4', 'c3']
+        },
+        'l2': {
+            f'c{ii}': [f'd{ii}', f'd{ii+9}']
+            for ii in range(9)
+        },
+        'l3':{
+            f'd{ii}': list(range(ii*10, 5+ii*10))
+            for ii in range(18)
+        }
+    }
+    expected = TaxonomyTree(data=dropped_l1)
+    actual = baseline_tree.drop_level('l1')
+    assert actual == expected
+    assert not baseline_tree == actual
+
+
+    dropped_l2 = {
+        'hierarchy': ['l0', 'l1', 'l3'],
+        'l0': {
+            'a0': ['b0', 'b3'],
+            'a1': ['b1', 'b4'],
+            'a2': ['b2']
+        },
+        'l1': {
+            'b0': ['d1', 'd10', 'd5', 'd14'],
+            'b1': ['d2', 'd11'],
+            'b2': ['d0', 'd9', 'd4', 'd13', 'd3', 'd12'],
+            'b3': ['d6', 'd15'],
+            'b4': ['d7', 'd16', 'd8', 'd17']
+        },
+        'l3':{
+            f'd{ii}': list(range(ii*10, 5+ii*10))
+            for ii in range(18)
+        }
+    }
+    expected = TaxonomyTree(data=dropped_l2)
+    actual = baseline_tree.drop_level('l2')
+    assert actual == expected
+    assert not baseline_tree == actual

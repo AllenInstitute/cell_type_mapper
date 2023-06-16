@@ -418,6 +418,29 @@ def test_de_aliasing(
     with pytest.raises(RuntimeError, match="Do not have a label"):
         test_tree.alias_to_label('gar')
 
+def test_abc_dropping(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_tree_fixture,
+        alias_fixture,
+        cell_to_cluster_fixture):
+    """
+    Just a smoke test; will check metadata, though
+    """
+    test_tree = TaxonomyTree.from_data_release(
+            cell_metadata_path=cell_metadata_fixture,
+            cluster_annotation_path=cluster_annotation_term_fixture,
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    new_tree = test_tree.drop_level('supertype')
+    assert new_tree._data['metadata']['dropped_levels'] == ['supertype']
+    assert new_tree.hierarchy == ['class', 'subclass', 'cluster']
+    new_tree = new_tree.drop_level('subclass')
+    assert new_tree._data['metadata']['dropped_levels'] == ['supertype',
+                                                            'subclass']
+    assert new_tree.hierarchy == ['class', 'cluster']
 
 def test_de_aliasing_when_no_map():
     data = {

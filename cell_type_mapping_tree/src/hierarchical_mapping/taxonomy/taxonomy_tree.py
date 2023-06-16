@@ -209,6 +209,61 @@ class TaxonomyTree(object):
             new_data.pop(level)
         return TaxonomyTree(data=new_data)
 
+    def drop_level(self, level_to_drop):
+        """
+        Return a new taxonomy tree which has dropped the specified
+        level from its hierarchy.
+
+        Will not drop leaf levels from tree.
+        """
+
+        if len(self.hierarchy) == 1:
+            raise RuntimeError(
+                "Cannot drop a level from this tree. "
+                f"It is flat. hierarchy={self.hierarchy}")
+
+        if level_to_drop not in self.hierarchy:
+            raise RuntimeError(
+                f"Cannot drop level '{level_to_drop}' from this tree. "
+                "That level is not in the hierarchy\n"
+                f"hierarchy={self.hierarchy}")
+
+        if level_to_drop == self.leaf_level:
+            raise RuntimeError(
+                f"Cannot drop level '{level_to_drop}' from this tree. "
+                "That is the leaf level.")
+
+        new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            if 'dropped_levels' not in new_data['metadata']:
+                new_data['metadata']['dropped_levels'] = []
+            new_data['metadata']['dropped_levels'].append(level_to_drop)
+
+        level_idx = -1
+        for idx, level in enumerate(self.hierarchy):
+            if level == level_to_drop:
+                level_idx = idx
+                break
+
+        if level_idx == 0:
+            new_data['hierarchy'].pop(0)
+            new_data.pop(level_to_drop)
+            return TaxonomyTree(data=new_data)
+
+        parent_idx = level_idx - 1
+        parent_level = self.hierarchy[parent_idx]
+
+        new_parent = dict()
+        for node in new_data[parent_level]:
+            new_parent[node] = []
+            for child in self.children(parent_level, node):
+                new_parent[node] += self.children(level_to_drop, child)
+
+        new_data.pop(level_to_drop)
+        new_data[parent_level] = new_parent
+        new_data['hierarchy'].pop(level_idx)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
