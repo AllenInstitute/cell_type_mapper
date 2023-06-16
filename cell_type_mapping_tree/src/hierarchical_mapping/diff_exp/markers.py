@@ -36,7 +36,6 @@ def find_markers_for_all_taxonomy_pairs(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
-        flush_every=1000,
         n_processors=4,
         tmp_dir=None,
         max_bytes=6*1024**3):
@@ -64,9 +63,6 @@ def find_markers_for_all_taxonomy_pairs(
     p_th/q1_th/qdiff_th
         Thresholds for determining if a gene is a valid marker.
         See Notes under score_differential_genes
-
-    flush_every:
-        Write to HDF5 every flush_every pairs
 
     n_processors:
         Number of independent worker processes to spin out
