@@ -9,7 +9,8 @@ try:
     if torch.cuda.is_available():
         TORCH_AVAILABLE = True
         NUM_GPUS = torch.cuda.device_count()
-        from hierarchical_mapping.gpu_utils.type_assignment.election import run_type_assignment_on_h5ad_gpu
+        from hierarchical_mapping.gpu_utils.type_assignment.election import (
+            run_type_assignment_on_h5ad_gpu)
 except ImportError:
     TORCH_AVAILABLE = False
     NUM_GPUS = None

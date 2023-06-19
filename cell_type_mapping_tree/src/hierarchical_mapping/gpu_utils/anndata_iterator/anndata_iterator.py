@@ -10,13 +10,13 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 
 
 class AnnDataRowDataset(Dataset):
-    def __init__(self, query_h5ad_path, chunk_size=1):
+    def __init__(self, query_h5ad_path, chunk_size=1, max_gb=10, tmp_dir=None):
         self.iterator = AnnDataRowIterator(
             h5ad_path=query_h5ad_path,
             row_chunk_size=chunk_size,
-            tmp_dir=None,
+            tmp_dir=tmp_dir,
             log=None,
-            max_gb=None,
+            max_gb=max_gb,
             keep_open=False)
 
     def __len__(self):
@@ -42,7 +42,7 @@ class Collator():
         data = np.concatenate([b[0] for b in batch])
 
         data = torch.from_numpy(data)  # .type(torch.HalfTensor)
-        data = data.to(device=self.device)
+        data = data.to(device=self.device, non_blocking=True)
 
         r0 = batch[0][1]
         r1 = batch[-1][-1]
@@ -68,8 +68,13 @@ def get_torch_dataloader(query_h5ad_path,
                          normalization,
                          all_query_markers,
                          device,
-                         num_workers=0):
-    dataset = AnnDataRowDataset(query_h5ad_path, chunk_size=1)
+                         num_workers=0,
+                         max_gb=10,
+                         tmp_dir=None):
+    dataset = AnnDataRowDataset(query_h5ad_path,
+                                chunk_size=1,
+                                max_gb=max_gb,
+                                tmp_dir=tmp_dir)
     collator = Collator(all_query_identifiers,
                         normalization,
                         all_query_markers,

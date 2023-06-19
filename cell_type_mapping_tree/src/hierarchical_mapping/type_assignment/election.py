@@ -357,12 +357,13 @@ def run_type_assignment(
     # store the hierarchical classification of
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree.hierarchy
-    result = []
-    for i_cell in range(full_query_gene_data.n_cells):
-        this = dict()
-        for level in hierarchy:
-            this[level] = None
-        result.append(this)
+    # result = []
+    # for i_cell in range(full_query_gene_data.n_cells):
+    #     this = dict()
+    #     for level in hierarchy:
+    #         this[level] = None
+    #     result.append(this)
+    result = [{level: None for level in hierarchy} for _ in range(full_query_gene_data.n_cells)]
 
     # list of levels in the taxonomy (None means consider all clusters)
     level_list = [None] + list(hierarchy)
@@ -381,9 +382,9 @@ def run_type_assignment(
         else:
             k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
-            parent_node_list = []
-            for k in k_list:
-                parent_node_list.append((parent_level, k))
+            parent_node_list = [(parent_level, k) for k in k_list]
+            # for k in k_list:
+            #     parent_node_list.append((parent_level, k))
 
         previously_assigned[child_level] = dict()
 
@@ -432,7 +433,7 @@ def run_type_assignment(
                                 gpu_index=gpu_index,
                                 timers=timers)
                 update_timer("run_type_assignment", t, timers)
-     
+
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 confidence = [1.0]*chosen_query_data.n_cells
@@ -458,6 +459,13 @@ def run_type_assignment(
                 assigned_this = (assignment_idx == idx)
                 assigned_this = chosen_idx[assigned_this]
                 previously_assigned[child_level][celltype] = assigned_this
+
+            # type_to_idx = {celltype: idx for idx, celltype in enumerate(set(assignment))}
+            # idx_to_type = list(set(assignment))
+            # assignment_idx = np.array([type_to_idx[celltype] for celltype in assignment])
+
+            # temp = {celltype: chosen_idx[assignment_idx == idx] for idx, celltype in enumerate(idx_to_type)}
+            # previously_assigned[child_level].update(temp)
 
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type, confidence_level in zip(chosen_idx,
@@ -703,6 +711,16 @@ def tally_votes(
     votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
                      dtype=int)
 
+    neighbors = []
+    # if TORCH_AVAILABLE:
+    #     neighbors = torch.zeros(bootstrap_iteration,
+    #                             query_gene_data.shape[0],
+    #                             dtype=int)
+    # else:
+    #     neighbors = np.zeros(bootstrap_iteration,
+    #                          query_gene_data.shape[0],
+    #                          dtype=int)
+
     # query_idx is needed to associate each vote with its row
     # in the votes array
     query_idx = np.arange(query_gene_data.shape[0])
@@ -717,13 +735,28 @@ def tally_votes(
         update_timer("looppreproc", t2, timers)
 
         t3 = time.time()
-        nearest_neighbors = correlation_nearest_neighbors(
+        out = correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
             query_array=bootstrap_query,
             gpu_index=gpu_index,
             timers=timers)
         update_timer("correlation_nearest_neighbors", t3, timers)
 
+        t3 = time.time()
+        # neighbors[i_iteration, :] = out
+        neighbors.append(out)
+        update_timer("neighbor_assign", t3, timers)
+
+    if TORCH_AVAILABLE:
+        t = time.time()
+        neighbors = torch.stack(neighbors)
+        update_timer("stack", t, timers)
+
+        t = time.time()
+        neighbors = neighbors.detach().cpu().numpy()
+        update_timer("tocpu", t, timers)
+
+    for nearest_neighbors in neighbors:
         t4 = time.time()
         votes[query_idx, nearest_neighbors] += 1
         update_timer("votes_counter", t4, timers)

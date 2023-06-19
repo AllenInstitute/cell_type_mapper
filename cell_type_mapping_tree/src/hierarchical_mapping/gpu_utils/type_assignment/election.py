@@ -177,7 +177,9 @@ def run_type_assignment_on_h5ad_gpu(
                                       normalization,
                                       all_query_markers,
                                       device=torch.device('cuda:0'),
-                                      num_workers=num_workers)
+                                      num_workers=num_workers,
+                                      max_gb=max_gb,
+                                      tmp_dir=tmp_dir)
 
     # get a CellByGeneMatrix of average expression
     # profiles for each leaf in the taxonomy

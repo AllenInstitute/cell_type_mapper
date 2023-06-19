@@ -65,9 +65,9 @@ def correlation_nearest_neighbors(
         max_idx = torch.argmax(correlation_array, dim=0)
         update_timer("argmax", t, timers)
 
-        t = time.time()
-        max_idx = max_idx.cpu().numpy()
-        update_timer("tocpu", t, timers)
+        # t = time.time()
+        # max_idx = max_idx.cpu().numpy()
+        # update_timer("tocpu", t, timers)
 
     else:
         t = time.time()
@@ -171,7 +171,10 @@ def correlation_dot(arr0,
     return correlation
 
 
-def _subtract_mean_and_normalize(data, do_transpose=False, gpu_index=0, timers=None):
+def _subtract_mean_and_normalize(data,
+                                 do_transpose=False,
+                                 gpu_index=0,
+                                 timers=None):
     """
     Prep an array of cell x gene data for correlation distance
     computation.
@@ -236,14 +239,17 @@ def _subtract_mean_and_normalize_cpu(data, do_transpose=False):
     return data
 
 
-def _subtract_mean_and_normalize_gpu(data, do_transpose=False, gpu_index=0, timers=None):
+def _subtract_mean_and_normalize_gpu(data,
+                                     do_transpose=False,
+                                     gpu_index=0,
+                                     timers=None):
 
     with torch.no_grad():
 
         t = time.time()
         if not torch.is_tensor(data):
             data = torch.from_numpy(data).type(torch.float)
-            data = data.to(device=f'cuda:{gpu_index}')
+            data = data.to(device=f'cuda:{gpu_index}', non_blocking=True)
         update_timer("togpu", t, timers)
 
         t = time.time()
