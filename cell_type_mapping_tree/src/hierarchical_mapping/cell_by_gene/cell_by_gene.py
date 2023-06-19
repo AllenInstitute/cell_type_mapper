@@ -4,6 +4,15 @@ import numpy as np
 from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
+TORCH_AVAILABLE = False
+
+try:
+    import torch  # type: ignore
+    if torch.cuda.is_available():
+        TORCH_AVAILABLE = True
+except ImportError as e:
+    pass
+
 
 class CellByGeneMatrix(object):
     """
@@ -210,8 +219,13 @@ class CellByGeneMatrix(object):
                 "This CellByGeneMatrix has been downsampled by genes; "
                 "converting to CPM will give a nonsense result")
 
+        if TORCH_AVAILABLE:
+            data = torch.log2(1.0+convert_to_cpm(self.data))
+        else:
+            data = np.log2(1.0+convert_to_cpm(self.data))
+
         return CellByGeneMatrix(
-            data=np.log2(1.0+convert_to_cpm(self.data)),
+            data=data,
             gene_identifiers=self.gene_identifiers,
             normalization="log2CPM",
             cell_identifiers=self.cell_identifiers)
@@ -230,5 +244,9 @@ class CellByGeneMatrix(object):
                 "This CellByGeneMatrix has been downsampled by genes; "
                 "converting to CPM will give a nonsense result")
 
-        self._data = np.log2(1.0+convert_to_cpm(self.data))
+        if TORCH_AVAILABLE:
+            self._data = torch.log2(1.0+convert_to_cpm(self.data))
+        else:
+            self._data = np.log2(1.0+convert_to_cpm(self.data))
+
         self._normalization = "log2CPM"

@@ -16,7 +16,7 @@ import tempfile
 from hierarchical_mapping.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.type_assignment.election import (
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 import os

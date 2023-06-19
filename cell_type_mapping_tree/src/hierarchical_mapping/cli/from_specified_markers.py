@@ -30,7 +30,7 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     serialize_markers,
     create_marker_cache_from_specified_markers)
 
-from hierarchical_mapping.type_assignment.election import (
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 from hierarchical_mapping.utils.cli_utils import (
@@ -120,16 +120,21 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 
 def get_assignments(config, type_assignment):
+    """Get the assignments from the type assignment output.
+    If extended_results_dir is given, then the results were saved in 
+    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise, 
+    the assignments are given in the 'assignments' key in type_assignment.
+    """
     tmp_output_dir = config.get("extended_result_dir")
     if tmp_output_dir:
         assignments = []
         import glob
-        temp_output_files = glob.glob(f"{tmp_output_dir}/*.json")
+        temp_output_files = glob.glob(f"{tmp_output_dir}/*_assignment.json")
         for temp_output_file in temp_output_files:
             with open(temp_output_file, 'r') as f:
                 chunk_assignments = json.load(f)
             assignments.extend(chunk_assignments)
-
+            pathlib.Path(temp_output_file).unlink()
     else:  # temp output path not given
         assignments = type_assignment["assignments"]
     return assignments

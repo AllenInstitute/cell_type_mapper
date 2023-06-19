@@ -15,12 +15,14 @@ except ImportError as e:
     LOGGER.info(f"Torch not found. Running on CPU. {str(e)}")
     pass
 
-def update_timer(name, t,timers=None):
+
+def update_timer(name, t, timers=None):
     if timers is not None:
         if timers.get(name) is not None:
             timers.get(name).update(time.time() - t)
-        else:
-            print("{name} not in timers")
+        # else:
+        #     print("{name} not in timers")
+
 
 def correlation_nearest_neighbors(
         baseline_array,
@@ -134,7 +136,7 @@ def correlation_dot(arr0,
     has a constant expression value), the correlation will be returned
     as zero, instead of NaN.
     """
-    
+
     t = time.time()
     arr0 = _subtract_mean_and_normalize(arr0,
                                         do_transpose=False,
@@ -148,26 +150,23 @@ def correlation_dot(arr0,
                                         gpu_index=gpu_index,
                                         timers=timers)
     update_timer("sn2", t, timers)
-  
+
     if TORCH_AVAILABLE:
 
         t = time.time()
         correlation = torch.matmul(arr0, arr1)
         update_timer("matmul", t, timers)
 
-        # t = time.time()
-        # correlation = correlation#.cpu().numpy()
-        # update_timer("tocpu", t, timers)
-
         t = time.time()
         del arr0
         del arr1
         update_timer("dele", t, timers)
-        # return correlation
-    else:
-        t = time.time()
-        correlation = np.dot(arr0, arr1)
-        update_timer("matmul", t, timers)
+        return correlation
+    
+    # non-gpu path
+    t = time.time()
+    correlation = np.dot(arr0, arr1)
+    update_timer("matmul", t, timers)
 
     return correlation
 
@@ -243,7 +242,7 @@ def _subtract_mean_and_normalize_gpu(data, do_transpose=False, gpu_index=0, time
 
         t = time.time()
         if not torch.is_tensor(data):
-            data = torch.from_numpy(data).type(torch.HalfTensor)
+            data = torch.from_numpy(data).type(torch.float)
             data = data.to(device=f'cuda:{gpu_index}')
         update_timer("togpu", t, timers)
 
