@@ -80,8 +80,19 @@ def assemble_query_data(
             leaf_to_type[leaf] = child
 
     with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
-        reference_markers = in_file[parent_grp]['reference'][()]
-        raw_query_markers = in_file[parent_grp]['query'][()]
+        if parent_grp not in in_file:
+            raise RuntimeError(
+                f"{parent_grp} not in marker cache path ({marker_cache_path})")
+
+        this_grp = in_file[parent_grp]
+
+        for k in ("reference", "query"):
+            if k not in this_grp:
+                raise RuntimeError(
+                    f"'{k}' not in group '{parent_grp}' of marker cache path")
+
+        reference_markers = this_grp['reference'][()]
+        raw_query_markers = this_grp['query'][()]
         all_ref_identifiers = json.loads(
             in_file["reference_gene_names"][()].decode("utf-8"))
         all_query_identifiers = json.loads(

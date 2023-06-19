@@ -19,7 +19,7 @@ from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(tmp_path_factory.mktemp('corr_markers'))

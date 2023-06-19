@@ -23,7 +23,7 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

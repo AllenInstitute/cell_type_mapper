@@ -98,16 +98,12 @@ def test_running_single_election(
 
     assert not score_path.is_file()
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
 
     find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
         output_path=score_path,
-        flush_every=flush_every,
         n_processors=n_processors,
         tmp_dir=tmp_dir)
 
@@ -229,16 +225,12 @@ def test_running_full_election(
 
     assert not score_path.is_file()
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
 
     find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
         output_path=score_path,
-        flush_every=flush_every,
         n_processors=n_processors,
         tmp_dir=tmp_dir)
 
@@ -375,16 +367,12 @@ def test_running_flat_election(
 
     assert not score_path.is_file()
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
 
     find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
         output_path=score_path,
-        flush_every=flush_every,
         n_processors=n_processors,
         tmp_dir=tmp_dir)
 
@@ -496,16 +484,12 @@ def test_running_h5ad_election(
 
     assert not score_path.is_file()
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
 
     find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
         output_path=score_path,
-        flush_every=flush_every,
         n_processors=n_processors,
         tmp_dir=tmp_dir)
 

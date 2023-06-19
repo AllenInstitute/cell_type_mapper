@@ -23,7 +23,7 @@ from hierarchical_mapping.marker_selection.selection import (
     _get_taxonomy_idx)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

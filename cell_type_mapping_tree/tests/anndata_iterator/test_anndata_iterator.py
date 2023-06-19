@@ -14,7 +14,7 @@ from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
     tmp_dir = pathlib.Path(

@@ -82,13 +82,8 @@ def test_marker_finding_pipeline(
 
     taxonomy_tree = TaxonomyTree(data=tree_fixture)
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
     siblings = get_all_pairs(tree_fixture)
-    assert len(siblings) > (n_processors*flush_every)
-    assert len(siblings) % (n_processors*flush_every) != 0
 
     find_markers_for_all_taxonomy_pairs(
             precomputed_stats_path=precompute_path,
@@ -218,9 +213,6 @@ def test_select_marker_genes_v2(
 
     taxonomy_tree = TaxonomyTree(data=tree_fixture)
 
-    # make sure flush_every is not an integer
-    # divisor of the number of sibling pairs
-    flush_every = 11
     n_processors = 3
     siblings = get_all_pairs(tree_fixture)
 
