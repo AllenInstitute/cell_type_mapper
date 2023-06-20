@@ -15,7 +15,8 @@ from hierarchical_mapping.taxonomy.utils import (
     get_siblings,
     get_all_pairs,
     get_all_leaf_pairs,
-    validate_taxonomy_tree)
+    validate_taxonomy_tree,
+    get_child_to_parent)
 
 
 def test_get_taxonomy_tree(
@@ -515,3 +516,51 @@ def test_validate_taxonomy_tree():
     with pytest.raises(RuntimeError,
                        match="Some rows appear more than once"):
         validate_taxonomy_tree(tree)
+
+
+def test_get_child_to_parent():
+    """
+    Test the child-to-parent utility function
+    """
+    tree = {
+        'hierarchy': ['a', 'b', 'c'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            '1': ['x'],
+            '2': ['y', 'z'],
+            '3': ['w', 'u', 'v']
+        },
+        'c': {
+            'u': [],
+            'v': [],
+            'w': [],
+            'x': [],
+            'y': [],
+            'z': []
+        }
+    }
+
+    validate_taxonomy_tree(tree)
+
+    actual = get_child_to_parent(tree_data=tree)
+
+    expected = {
+        'c': {
+            'u': '3',
+            'v': '3',
+            'w': '3',
+            'x': '1',
+            'y': '2',
+            'z': '2'
+        },
+        'b': {
+            '1': 'aa',
+            '2': 'aa',
+            '3': 'bb'
+        }
+    }
+
+    assert actual == expected
