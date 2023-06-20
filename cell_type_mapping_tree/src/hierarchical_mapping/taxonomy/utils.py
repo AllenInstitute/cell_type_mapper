@@ -402,3 +402,22 @@ def get_all_leaf_pairs(
                 result.append((leaf_level, leaf_pair[1], leaf_pair[0]))
 
     return result
+
+
+def get_child_to_parent(tree_data):
+    """
+    tree_data is the _data dict underlying a TaxonomyTree.
+    Return a dict such that
+        result[child_level][child_node]
+    maps to the child's immediate parent
+    """
+    result = dict()
+    reverse_hierarchy = copy.deepcopy(tree_data['hierarchy'])
+    reverse_hierarchy.reverse()
+    for child_level, parent_level in zip(reverse_hierarchy[:-1],
+                                         reverse_hierarchy[1:]):
+        result[child_level] = dict()
+        for parent in tree_data[parent_level]:
+            for child in tree_data[parent_level][parent]:
+                result[child_level][child] = parent
+    return result

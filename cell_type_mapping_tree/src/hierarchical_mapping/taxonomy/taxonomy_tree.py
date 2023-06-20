@@ -11,7 +11,8 @@ from hierarchical_mapping.taxonomy.utils import (
     get_all_leaf_pairs,
     get_taxonomy_tree_from_h5ad,
     convert_tree_to_leaves,
-    get_all_pairs)
+    get_all_pairs,
+    get_child_to_parent)
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -34,6 +35,7 @@ class TaxonomyTree(object):
         """
         self._data = copy.deepcopy(data)
         validate_taxonomy_tree(self._data)
+        self._child_to_parent = get_child_to_parent(self._data)
 
     def __eq__(self, other):
         """
@@ -277,6 +279,27 @@ class TaxonomyTree(object):
                 f"{this_level} is not a valid level in this taxonomy;\n"
                 f"valid levels are:\n {self.valid_levels}")
         return list(self._data[this_level].keys())
+
+    def parents(self, level, node):
+        """
+        return a dict listing all the descendants of
+        (level, node)
+        """
+        this = dict()
+        hierarchy_idx = None
+        for idx in range(len(self.hierarchy)):
+            if self.hierarchy[idx] == level:
+                hierarchy_idx = idx
+                break
+        for parent_level_idx in range(hierarchy_idx-1, -1, -1):
+            current = self.hierarchy[parent_level_idx]
+            if len(this) == 0:
+                this[current] = self._child_to_parent[level][node]
+            else:
+                prev = self.hierarchy[parent_level_idx+1]
+                prev_node = this[prev]
+                this[current] = self._child_to_parent[prev][prev_node]
+        return this
 
     def children(self, level, node):
         """
