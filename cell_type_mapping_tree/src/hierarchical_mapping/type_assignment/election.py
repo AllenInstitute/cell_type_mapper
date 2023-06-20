@@ -9,13 +9,13 @@ from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
-    print_timing)
+    print_timing, update_timer)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from hierarchical_mapping.utils.distance_utils import (
-    correlation_nearest_neighbors, update_timer)
+    correlation_nearest_neighbors)
 
 from hierarchical_mapping.type_assignment.utils import (
     reconcile_taxonomy_and_markers)
@@ -570,53 +570,6 @@ def _run_type_assignment(
     return result, confidence
 
 
-# def choose_node(
-#          query_gene_data,
-#          reference_gene_data,
-#          reference_types,
-#          bootstrap_factor,
-#          bootstrap_iteration,
-#          rng,
-#          gpu_index=0):
-#     if TORCH_AVAILABLE:
-#         return choose_node_gpu(query_gene_data=query_gene_data,
-#                                reference_gene_data=reference_gene_data,
-#                                reference_types=reference_types,
-#                                bootstrap_factor=bootstrap_factor,
-#                                bootstrap_iteration=bootstrap_iteration,
-#                                rng=rng,
-#                                gpu_index=gpu_index)
-#     return choose_node_cpu(query_gene_data=query_gene_data,
-#                            reference_gene_data=reference_gene_data,
-#                            reference_types=reference_types,
-#                            bootstrap_factor=bootstrap_factor,
-#                            bootstrap_iteration=bootstrap_iteration,
-#                            rng=rng,
-#                            gpu_index=gpu_index)
-
-
-# def tally_votes(
-#          query_gene_data,
-#          reference_gene_data,
-#          bootstrap_factor,
-#          bootstrap_iteration,
-#          rng,
-#          gpu_index=0):
-#     if TORCH_AVAILABLE:
-#         return tally_votes_gpu(query_gene_data=query_gene_data,
-#                                reference_gene_data=reference_gene_data,
-#                                bootstrap_factor=bootstrap_factor,
-#                                bootstrap_iteration=bootstrap_iteration,
-#                                rng=rng,
-#                                gpu_index=gpu_index)
-#     return tally_votes_cpu(query_gene_data=query_gene_data,
-#                            reference_gene_data=reference_gene_data,
-#                            bootstrap_factor=bootstrap_factor,
-#                            bootstrap_iteration=bootstrap_iteration,
-#                            rng=rng,
-#                            gpu_index=gpu_index)
-
-
 def choose_node(
          query_gene_data,
          reference_gene_data,
@@ -712,14 +665,6 @@ def tally_votes(
                      dtype=int)
 
     neighbors = []
-    # if TORCH_AVAILABLE:
-    #     neighbors = torch.zeros(bootstrap_iteration,
-    #                             query_gene_data.shape[0],
-    #                             dtype=int)
-    # else:
-    #     neighbors = np.zeros(bootstrap_iteration,
-    #                          query_gene_data.shape[0],
-    #                          dtype=int)
 
     # query_idx is needed to associate each vote with its row
     # in the votes array

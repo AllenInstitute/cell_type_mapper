@@ -2,6 +2,9 @@ import numpy as np
 import logging
 import time
 
+from hierarchical_mapping.utils.utils import (
+    update_timer)
+
 TORCH_AVAILABLE = False
 LOGGER = logging.getLogger(__name__)
 
@@ -14,14 +17,6 @@ try:
 except ImportError as e:
     LOGGER.info(f"Torch not found. Running on CPU. {str(e)}")
     pass
-
-
-def update_timer(name, t, timers=None):
-    if timers is not None:
-        if timers.get(name) is not None:
-            timers.get(name).update(time.time() - t)
-        # else:
-        #     print("{name} not in timers")
 
 
 def correlation_nearest_neighbors(
@@ -109,8 +104,8 @@ def correlation_distance(
     return 1.0-correlation_dot(arr0, arr1)
 
 
-def correlation_dot(arr0, 
-                    arr1, 
+def correlation_dot(arr0,
+                    arr1,
                     gpu_index=0,
                     timers=None):
     """
@@ -162,7 +157,7 @@ def correlation_dot(arr0,
         del arr1
         update_timer("dele", t, timers)
         return correlation
-    
+
     # non-gpu path
     t = time.time()
     correlation = np.dot(arr0, arr1)

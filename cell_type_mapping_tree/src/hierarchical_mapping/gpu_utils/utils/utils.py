@@ -109,28 +109,19 @@ class ProgressMeter(object):
 
 
 def get_timers():
+    """Define timers to be used with update_timer()"""
+    def get_meter(name, fmt=':6.3f'):
+        return AverageMeter(name, fmt)
+
+    meters = []
+    # meters = ["type_assignment","loop","results","run_type_assignment", 
+    #           "assemble","choose_node","tally_votes","choose_node_p2",
+    #           "togpu","tocpu","sn1","sn2","matmul","meansqrt","looppreproc",
+    #           "correlation_nearest_neighbors","tally_loop","argmax",
+    #           "correlationarraynge","votes_counter","dele","correlation_dot"]
 
     timers = {}
-    # timers["type_assignment"] = AverageMeter('type_assignment', ':6.3f')
-    # timers["loop"] = AverageMeter('loop', ':6.3f')
-    # timers["results"] = AverageMeter('Results', ':6.3f')
-    # timers["run_type_assignment"] = AverageMeter('run_type_assignment', ':6.3f')
-    # timers["assemble"] = AverageMeter('assemble', ':6.3f')
-    # timers["choose_node"] = AverageMeter('choose_node', ':6.3f')
-    # timers["tally_votes"] = AverageMeter('tally votes', ':6.3f')
-    # timers["choose_node_p2"] = AverageMeter('cnp2', ':6.3f')
-    # timers["togpu"] = AverageMeter('togpu', ':6.3f')
-    # timers["tocpu"] = AverageMeter('tocpu', ':6.3f')
-    # timers["sn1"] = AverageMeter('sn1', ':6.3f')
-    # timers["sn2"] = AverageMeter('sn2', ':6.3f')
-    # timers["matmul"] = AverageMeter('matmul', ':6.3f')
-    # timers["meansqrt"] = AverageMeter('meansqrt', ':6.3f')
-    # timers["looppreproc"] = AverageMeter('looppreproc', ':6.3f')
-    # timers["correlation_nearest_neighbors"] = AverageMeter('correlation_nearest_neighbors', ':6.3f')
-    # timers["tally_loop"] = AverageMeter('tally_loop', ':6.3f')
-    # timers["argmax"] = AverageMeter('argmax', ':6.3f')
-    # timers["correlationarraynge"] = AverageMeter('correlationarraynge', ':6.3f')
-    # timers["votes_counter"] = AverageMeter('votes_counter', ':6.3f')
-    # timers["dele"] = AverageMeter('dele', ':6.3f')
-    # timers["correlation_dot"] = AverageMeter('correlation_dot', ':6.3f')
+
+    for meter in meters:
+        timers[meter] = get_meter(meter)
     return timers

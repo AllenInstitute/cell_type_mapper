@@ -14,12 +14,12 @@ from hierarchical_mapping.gpu_utils.anndata_iterator.anndata_iterator import (
     get_torch_dataloader)
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment, save_results)
-from hierarchical_mapping.utils.distance_utils import (
-    update_timer)
 from hierarchical_mapping.type_assignment.matching import (
    get_leaf_means)
 from hierarchical_mapping.gpu_utils.utils.utils import (
     get_timers, AverageMeter, ProgressMeter)
+from hierarchical_mapping.utils.utils import (
+    update_timer)
 
 NUM_GPUS = torch.cuda.device_count()
 
@@ -249,108 +249,3 @@ def run_type_assignment_on_h5ad_gpu(
 
     output_list = list(output_list)
     return output_list
-
-
-# def choose_node_gpu(
-#          query_gene_data,
-#          reference_gene_data,
-#          reference_types,
-#          bootstrap_factor,
-#          bootstrap_iteration,
-#          rng,
-#          gpu_index=0):
-#     """
-#     Parameters
-#     ----------
-#     query_gene_data
-#         A numpy array of cell-by-marker-gene data for the query set
-#     reference_gene_data
-#         A numpy array of cell-by-marker-gene data for the reference set
-#     reference_types
-#         array of cell types we are chosing from (n_cells in size)
-#     bootstrap_factor
-#         Factor by which to subsample reference genes at each bootstrap
-#     bootstrap_iteration
-#         Number of bootstrapping iterations
-#     rng
-#         random number generator
-#     gpu_index:
-#         Index of the GPU for this operation. Supports multi-gpu usage
-
-#     Returns
-#     -------
-#     Array of cell type assignments (majority rule)
-
-#     Array of vote fractions
-#     """
-
-#     votes = tally_votes(
-#         query_gene_data=query_gene_data,
-#         reference_gene_data=reference_gene_data,
-#         bootstrap_factor=bootstrap_factor,
-#         bootstrap_iteration=bootstrap_iteration,
-#         rng=rng,
-#         gpu_index=gpu_index)
-
-#     chosen_type = torch.argmax(votes, axis=1)
-#     result = [reference_types[ii] for ii in chosen_type]
-#     confidence = np.max(votes, axis=1) / bootstrap_iteration
-#     return (np.array(result), confidence)
-
-
-# def tally_votes_gpu(
-#          query_gene_data,
-#          reference_gene_data,
-#          bootstrap_factor,
-#          bootstrap_iteration,
-#          rng,
-#          gpu_index=0):
-#     """
-#     Parameters
-#     ----------
-#     query_gene_data
-#         A numpy array of cell-by-marker-gene data for the query set
-#     reference_gene_data
-#         A numpy array of cell-by-marker-gene data for the reference set
-#     reference_types
-#         array of cell types we are chosing from (n_cells in size)
-#     bootstrap_factor
-#         Factor by which to subsample reference genes at each bootstrap
-#     bootstrap_iteration
-#         Number of bootstrapping iterations
-#     rng
-#         random number generator
-#     gpu_index:
-#         Index of the GPU for this operation. Supports multi-gpu usage
-
-#     Returns
-#     -------
-#     Array of ints. Each row is a query cell. Each column is a
-#     reference cell. The value is how many iterations voted for
-#     "this query cell is the same type as this reference cell"
-#     """
-#     n_markers = query_gene_data.shape[1]
-#     marker_idx = np.arange(n_markers)
-#     n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
-
-#     votes = np.zeros((query_gene_data.shape[0],
-#                       reference_gene_data.shape[0]),
-#                       dtype=int)
-
-#     # query_idx is needed to associate each vote with its row
-#     # in the votes array
-#     query_idx = np.arange(query_gene_data.shape[0])
-
-#     for i_iteration in range(bootstrap_iteration):
-#         chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
-#         chosen_idx = np.sort(chosen_idx)
-#         bootstrap_query = query_gene_data[:, chosen_idx]
-#         bootstrap_reference = reference_gene_data[:, chosen_idx]
-
-#         nearest_neighbors = correlation_nearest_neighbors(
-#             baseline_array=bootstrap_reference,
-#             query_array=bootstrap_query,
-#             gpu_index=gpu_index)
-
-#         votes[query_idx, nearest_neighbors] += 1
-#     return votes
