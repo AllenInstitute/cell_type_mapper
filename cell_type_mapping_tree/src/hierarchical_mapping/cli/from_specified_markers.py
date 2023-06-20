@@ -155,6 +155,7 @@ def run_mapping(config, output_path, log_path=None):
         tmp_dir = None
 
     output = dict()
+    csv_result = dict()
 
     output_path = pathlib.Path(output_path)
     if log_path is not None:
@@ -181,14 +182,8 @@ def run_mapping(config, output_path, log_path=None):
         assignments = get_assignments(config, type_assignment)
         output["results"] = assignments
         output["marker_genes"] = type_assignment["marker_genes"]
-
-        if config['csv_result_path'] is not None:
-            blob_to_csv(
-                results_blob=assignments,
-                taxonomy_tree=type_assignment["taxonomy_tree"],
-                output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'])
-            
+        csv_result["taxonomy_tree"] = type_assignment["taxonomy_tree"]
+        csv_result["assignments"] = assignments
         log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
@@ -204,6 +199,13 @@ def run_mapping(config, output_path, log_path=None):
         output["log"] = log.log
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
+
+        if config['csv_result_path'] is not None:
+            blob_to_csv(
+                results_blob=csv_result.get("assignments"),
+                taxonomy_tree=csv_result.get("taxonomy_tree"),
+                output_path=config['csv_result_path'],
+                metadata_path=config['extended_result_path'])
 
 
 def _run_mapping(config, tmp_dir, log):
