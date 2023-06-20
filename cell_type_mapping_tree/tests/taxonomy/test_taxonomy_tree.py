@@ -320,3 +320,38 @@ def test_drop_level():
     actual = baseline_tree.drop_level('l2')
     assert actual == expected
     assert not baseline_tree == actual
+
+
+def test_parents_method():
+    """
+    Test method that returns the parents (all of them) of a node
+    """
+    data = {
+        'hierarchy': ['a', 'b', 'c'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3']
+        },
+        'b': {
+            '1': ['x'],
+            '2': ['y', 'z'],
+            '3': ['w', 'u', 'v']
+        },
+        'c': {
+            'u': [],
+            'v': [],
+            'w': [],
+            'x': [],
+            'y': [],
+            'z': []
+        }
+    }
+
+    taxonomy_tree = TaxonomyTree(data=data)
+
+    actual = taxonomy_tree.parents('c', 'u')
+    expected = {'b': '3', 'a': 'bb'}
+    assert actual == expected
+    actual = taxonomy_tree.parents('b', '2')
+    expected = {'a': 'aa'}
+    assert actual == expected
