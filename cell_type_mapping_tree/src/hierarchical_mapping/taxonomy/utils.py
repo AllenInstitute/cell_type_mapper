@@ -1,6 +1,7 @@
 import copy
 import itertools
 import numpy as np
+import warnings
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -219,7 +220,13 @@ def validate_taxonomy_tree(
     for leaf_node in taxonomy_tree[leaf_level].keys():
         all_rows += list(taxonomy_tree[leaf_level][leaf_node])
 
+    if len(all_rows) == 0:
+        warnings.warn("This taxonomy has no mapping from leaf_node -> rows "
+                      "in the cell by gene matrix")
+        return
+
     unq_values, unq_ct = np.unique(all_rows, return_counts=True)
+
     if unq_ct.max() > 1:
         msg = f"Some rows appear more than once at level {leaf_level}:\n"
         invalid = (unq_ct > 1)
@@ -394,4 +401,23 @@ def get_all_leaf_pairs(
             else:
                 result.append((leaf_level, leaf_pair[1], leaf_pair[0]))
 
+    return result
+
+
+def get_child_to_parent(tree_data):
+    """
+    tree_data is the _data dict underlying a TaxonomyTree.
+    Return a dict such that
+        result[child_level][child_node]
+    maps to the child's immediate parent
+    """
+    result = dict()
+    reverse_hierarchy = copy.deepcopy(tree_data['hierarchy'])
+    reverse_hierarchy.reverse()
+    for child_level, parent_level in zip(reverse_hierarchy[:-1],
+                                         reverse_hierarchy[1:]):
+        result[child_level] = dict()
+        for parent in tree_data[parent_level]:
+            for child in tree_data[parent_level][parent]:
+                result[child_level][child] = parent
     return result

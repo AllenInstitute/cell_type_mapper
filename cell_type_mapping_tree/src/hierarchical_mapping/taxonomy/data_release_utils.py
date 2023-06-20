@@ -2,6 +2,7 @@
 This module will contain utility functions to help read the CSV files that
 are part of an official data release taxonomy.
 """
+import json
 
 
 def get_header_map(
@@ -110,23 +111,32 @@ def get_tree_above_leaves(
 
 def get_alias_mapper(
         csv_path,
-        term_set_label):
+        valid_term_set_labels,
+        alias_column_name='cluster_alias',
+        strict_alias=True):
     """
     Read a cluster_to_cluster_annotation_membership.csv file. Return
     a dict mapping (level, label) to alias
 
-    Only record aliases for the specified term_set_label
+    Only record aliases in the specified valid_term_set_labels
+
+    alias_column_name is the name of the column to treat
+    as 'alias' (could also be cluster_annotation_term_name, for instance)
+
+    if strict_alias == True, can only use each alias once per level
     """
     header_lookup = get_header_map(
         csv_path=csv_path,
         desired_columns=[
             'cluster_annotation_term_set_label',
-            'cluster_alias',
+            alias_column_name,
             'cluster_annotation_term_label'])
 
     level_idx = header_lookup['cluster_annotation_term_set_label']
     label_idx = header_lookup['cluster_annotation_term_label']
-    alias_idx = header_lookup['cluster_alias']
+    alias_idx = header_lookup[alias_column_name]
+
+    valid_term_set_labels = set(valid_term_set_labels)
 
     result = dict()
     used_aliases = dict()
@@ -135,21 +145,34 @@ def get_alias_mapper(
         for line in src:
             params = line.strip().split(',')
             level = params[level_idx]
-            if level != term_set_label:
+            if level not in valid_term_set_labels:
                 continue
             label = params[label_idx]
             alias = params[alias_idx]
             this_key = (level, label)
             if this_key in result:
-                raise RuntimeError(
-                    f"level={level}, label={label} listed more than "
-                    f"once in {csv_path}")
+                old_result = result[this_key]
+                if alias != old_result:
+                    raise RuntimeError(
+                        f"level={level}, label={label} listed more than "
+                        f"once in {csv_path} with mappings '{alias}' and "
+                        f"'{old_result}'")
             if level not in used_aliases:
                 used_aliases[level] = set()
-            if alias in used_aliases[level]:
-                raise RuntimeError(
-                    f"alias={alias} used more than once at level="
-                    f"{level}")
+            if alias in used_aliases[level] and strict_alias:
+                # check that the alias is actually mapped
+                # to more than one label at this level (and not
+                # that the same data appears in more than one
+                # row of the csv)
+                repeat_labels = [
+                    k[1] for k in result
+                    if k[0] == level and result[k] == alias]
+                repeat_labels.append(label)
+                if len(set(repeat_labels)) > 1:
+                    raise RuntimeError(
+                        f"alias={alias} used more than once at level="
+                        f"{level}\nvalues\n"
+                        f"{json.dumps(repeat_labels,indent=2)}")
             used_aliases[level].add(alias)
             result[this_key] = alias
     return result

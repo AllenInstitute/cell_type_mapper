@@ -11,7 +11,8 @@ from hierarchical_mapping.taxonomy.utils import (
     get_all_leaf_pairs,
     get_taxonomy_tree_from_h5ad,
     convert_tree_to_leaves,
-    get_all_pairs)
+    get_all_pairs,
+    get_child_to_parent)
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -34,6 +35,7 @@ class TaxonomyTree(object):
         """
         self._data = copy.deepcopy(data)
         validate_taxonomy_tree(self._data)
+        self._child_to_parent = get_child_to_parent(self._data)
 
     def __eq__(self, other):
         """
@@ -152,7 +154,7 @@ class TaxonomyTree(object):
 
         alias_map = get_alias_mapper(
             csv_path=cluster_membership_path,
-            term_set_label=leaf_level)
+            valid_term_set_labels=(leaf_level,))
 
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
@@ -209,6 +211,61 @@ class TaxonomyTree(object):
             new_data.pop(level)
         return TaxonomyTree(data=new_data)
 
+    def drop_level(self, level_to_drop):
+        """
+        Return a new taxonomy tree which has dropped the specified
+        level from its hierarchy.
+
+        Will not drop leaf levels from tree.
+        """
+
+        if len(self.hierarchy) == 1:
+            raise RuntimeError(
+                "Cannot drop a level from this tree. "
+                f"It is flat. hierarchy={self.hierarchy}")
+
+        if level_to_drop not in self.hierarchy:
+            raise RuntimeError(
+                f"Cannot drop level '{level_to_drop}' from this tree. "
+                "That level is not in the hierarchy\n"
+                f"hierarchy={self.hierarchy}")
+
+        if level_to_drop == self.leaf_level:
+            raise RuntimeError(
+                f"Cannot drop level '{level_to_drop}' from this tree. "
+                "That is the leaf level.")
+
+        new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            if 'dropped_levels' not in new_data['metadata']:
+                new_data['metadata']['dropped_levels'] = []
+            new_data['metadata']['dropped_levels'].append(level_to_drop)
+
+        level_idx = -1
+        for idx, level in enumerate(self.hierarchy):
+            if level == level_to_drop:
+                level_idx = idx
+                break
+
+        if level_idx == 0:
+            new_data['hierarchy'].pop(0)
+            new_data.pop(level_to_drop)
+            return TaxonomyTree(data=new_data)
+
+        parent_idx = level_idx - 1
+        parent_level = self.hierarchy[parent_idx]
+
+        new_parent = dict()
+        for node in new_data[parent_level]:
+            new_parent[node] = []
+            for child in self.children(parent_level, node):
+                new_parent[node] += self.children(level_to_drop, child)
+
+        new_data.pop(level_to_drop)
+        new_data[parent_level] = new_parent
+        new_data['hierarchy'].pop(level_idx)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
@@ -222,6 +279,27 @@ class TaxonomyTree(object):
                 f"{this_level} is not a valid level in this taxonomy;\n"
                 f"valid levels are:\n {self.valid_levels}")
         return list(self._data[this_level].keys())
+
+    def parents(self, level, node):
+        """
+        return a dict listing all the descendants of
+        (level, node)
+        """
+        this = dict()
+        hierarchy_idx = None
+        for idx in range(len(self.hierarchy)):
+            if self.hierarchy[idx] == level:
+                hierarchy_idx = idx
+                break
+        for parent_level_idx in range(hierarchy_idx-1, -1, -1):
+            current = self.hierarchy[parent_level_idx]
+            if len(this) == 0:
+                this[current] = self._child_to_parent[level][node]
+            else:
+                prev = self.hierarchy[parent_level_idx+1]
+                prev_node = this[prev]
+                this[current] = self._child_to_parent[prev][prev_node]
+        return this
 
     def children(self, level, node):
         """
