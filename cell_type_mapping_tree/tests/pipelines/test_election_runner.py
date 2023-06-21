@@ -40,7 +40,9 @@ from hierarchical_mapping.type_assignment.matching import (
 
 from hierarchical_mapping.type_assignment.election import (
     choose_node,
-    run_type_assignment,
+    run_type_assignment)
+
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
