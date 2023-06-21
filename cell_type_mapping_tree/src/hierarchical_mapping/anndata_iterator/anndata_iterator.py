@@ -17,6 +17,30 @@ from hierarchical_mapping.utils.sparse_utils import (
     load_csr)
 
 
+class h5_handler_manager():
+    def __init__(self, h5_path, mode='r', keepopen=True):
+        self.keepopen = keepopen
+        self.h5_path = h5_path
+        self.mode = mode
+        self.h5_handle = None
+        if keepopen:
+            self.h5_handle = h5py.File(h5_path, mode)
+
+    def __enter__(self):
+        if not self.keepopen:
+            self.h5_handle = h5py.File(self.h5_path, self.mode)
+        return self.h5_handle
+     
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        if not self.keepopen:
+            self.h5_handle.close()
+
+    def close(self):
+        if self.keepopen:
+            self.h5_handle.close()
+            self.h5_handle = None
+
+
 class AnnDataRowIterator(object):
     """
     A class to efficiently iterate over the rows of an anndata
@@ -48,7 +72,8 @@ class AnnDataRowIterator(object):
             row_chunk_size,
             tmp_dir=None,
             log=None,
-            max_gb=10):
+            max_gb=10,
+            keep_open=True):
 
         self.log = log
         self.tmp_dir = None
@@ -74,7 +99,8 @@ class AnnDataRowIterator(object):
                 h5_path=h5ad_path,
                 row_chunk_size=row_chunk_size,
                 array_shape=array_shape,
-                h5_group='X')
+                h5_group='X',
+                keep_open=keep_open)
         elif encoding_type.startswith('csc'):
             self._initialize_as_csc(
                 h5ad_path=h5ad_path,
@@ -91,7 +117,10 @@ class AnnDataRowIterator(object):
 
     def __iter__(self):
         return self
-
+    
+    def __getitem__(self, x):
+        return self._chunk_iterator[x]
+    
     def __next__(self):
         """
         Return the next chunk of rows.
@@ -243,7 +272,8 @@ class CSRRowIterator(object):
             h5_path,
             row_chunk_size,
             array_shape,
-            h5_group=None):
+            h5_group=None,
+            keep_open=True):
 
         self.h5_path = h5_path
         self.h5_handle = None
@@ -251,7 +281,8 @@ class CSRRowIterator(object):
         self.r0 = 0
         self.n_rows = array_shape[0]
         self.n_cols = array_shape[1]
-        self.h5_handle = h5py.File(h5_path, 'r')
+
+        self.h5_handler = h5_handler_manager(h5_path, keepopen=keep_open)
 
         if h5_group is None:
             self.data_key = 'data'
@@ -264,8 +295,7 @@ class CSRRowIterator(object):
 
     def __del__(self):
         if self.h5_handle is not None:
-            self.h5_handle.close()
-            self.h5_handle = None
+            self.h5_handler.close()
 
     def __next__(self):
         """
@@ -278,18 +308,35 @@ class CSRRowIterator(object):
         """
         if self.r0 >= self.n_rows:
             if self.h5_handle is not None:
-                self.h5_handle.close()
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
 
-        chunk = load_csr(
-            row_spec=(self.r0, r1),
-            n_cols=self.n_cols,
-            data=self.h5_handle[self.data_key],
-            indices=self.h5_handle[self.indices_key],
-            indptr=self.h5_handle[self.indptr_key])
+        with self.h5_handler as h5_handle:
+            chunk = load_csr(
+                row_spec=(self.r0, r1),
+                n_cols=self.n_cols,
+                data=h5_handle[self.data_key],
+                indices=h5_handle[self.indices_key],
+                indptr=h5_handle[self.indptr_key])
 
         old_r0 = self.r0
         self.r0 = r1
         return (chunk, old_r0, r1)
+
+    def __getitem__(self, r0):
+        if isinstance(r0, list):
+            r1 = r0[-1] + 1
+            r0 = r0[0]
+        else:
+            r1 = r0 + 1
+
+        with self.h5_handler as h5_handle:
+            chunk = load_csr(
+                row_spec=(r0, r1),
+                n_cols=self.n_cols,
+                data=h5_handle[self.data_key],
+                indices=h5_handle[self.indices_key],
+                indptr=h5_handle[self.indptr_key])
+
+        return (chunk, r0, r1)

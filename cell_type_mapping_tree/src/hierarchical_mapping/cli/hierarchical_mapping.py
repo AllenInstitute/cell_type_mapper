@@ -32,7 +32,7 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     serialize_markers)
 
-from hierarchical_mapping.type_assignment.election import (
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 from hierarchical_mapping.utils.cli_utils import (

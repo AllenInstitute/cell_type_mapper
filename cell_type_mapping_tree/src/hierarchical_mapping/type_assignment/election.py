@@ -1,3 +1,4 @@
+import os
 import h5py
 import json
 import multiprocessing
@@ -8,7 +9,7 @@ from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
-    print_timing)
+    print_timing, update_timer)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -29,8 +30,18 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
+try:
+    TORCH_AVAILABLE = False
+    import torch  # type: ignore
+    if torch.cuda.is_available():
+        TORCH_AVAILABLE = True
+        NUM_GPUS = torch.cuda.device_count()
+except ImportError:
+    TORCH_AVAILABLE = False
+    NUM_GPUS = None
 
-def run_type_assignment_on_h5ad(
+
+def run_type_assignment_on_h5ad_cpu(
         query_h5ad_path,
         precomputed_stats_path,
         marker_gene_cache_path,
@@ -43,7 +54,8 @@ def run_type_assignment_on_h5ad(
         normalization='log2CPM',
         tmp_dir=None,
         log=None,
-        max_gb=10):
+        max_gb=10,
+        results_output_path=None):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -105,6 +117,10 @@ def run_type_assignment_on_h5ad(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
+    results_output_path: 
+        Output path for run assignment. If given will save individual chunks of
+        the run assignment process to separate files.
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -156,9 +172,12 @@ def run_type_assignment_on_h5ad(
         max_gb=max_gb)
 
     process_list = []
-    mgr = multiprocessing.Manager()
-    output_list = mgr.list()
-    output_lock = mgr.Lock()
+    if results_output_path:
+        output_list, output_lock = [], None
+    else:
+        mgr = multiprocessing.Manager()
+        output_list = mgr.list()
+        output_lock = mgr.Lock()
 
     tot_rows = chunk_iterator.n_rows
     row_ct = 0
@@ -171,7 +190,9 @@ def run_type_assignment_on_h5ad(
         precompute_path=precomputed_stats_path)
 
     print("starting type assignment")
+    chunk_index = -1
     for chunk in chunk_iterator:
+        chunk_index += 1
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
@@ -193,6 +214,8 @@ def run_type_assignment_on_h5ad(
         p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
                 kwargs={
+                    'r0': r0,
+                    'r1': r1,
                     'query_cell_chunk': data,
                     'query_cell_names': name_chunk,
                     'leaf_node_matrix': leaf_node_matrix,
@@ -202,7 +225,8 @@ def run_type_assignment_on_h5ad(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'output_list': output_list,
-                    'output_lock': output_lock})
+                    'output_lock': output_lock,
+                    'results_output_path': results_output_path})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -224,7 +248,14 @@ def run_type_assignment_on_h5ad(
     return output_list
 
 
+def save_results(result, results_output_path):
+    with open(results_output_path, "w") as outfile:
+        json.dump(result, outfile)
+
+
 def _run_type_assignment_on_h5ad_worker(
+        r0,
+        r1,
         query_cell_chunk,
         query_cell_names,
         leaf_node_matrix,
@@ -234,7 +265,8 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration,
         rng,
         output_list,
-        output_lock):
+        output_lock,
+        results_output_path=None):
 
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
@@ -248,8 +280,13 @@ def _run_type_assignment_on_h5ad_worker(
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
 
-    with output_lock:
-        output_list += assignment
+    if results_output_path:
+        this_output_path = os.path.join(results_output_path,
+                                        f"{r0}_{r1}_assignment.json")
+        save_results(assignment, this_output_path)
+    else:
+        with output_lock:
+            output_list += assignment
 
 
 def run_type_assignment(
@@ -259,7 +296,9 @@ def run_type_assignment(
         taxonomy_tree,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        gpu_index=0,
+        timers=None):
     """
     Assign types at all levels of the taxonomy to a set of
     query cells.
@@ -298,6 +337,9 @@ def run_type_assignment(
     rng:
         A random number generator
 
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
+
     Returns
     -------
     A list of dicts. Each dict correponds to a cell in full_query_gene_data.
@@ -315,12 +357,13 @@ def run_type_assignment(
     # store the hierarchical classification of
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree.hierarchy
-    result = []
-    for i_cell in range(full_query_gene_data.n_cells):
-        this = dict()
-        for level in hierarchy:
-            this[level] = None
-        result.append(this)
+    # result = []
+    # for i_cell in range(full_query_gene_data.n_cells):
+    #     this = dict()
+    #     for level in hierarchy:
+    #         this[level] = None
+    #     result.append(this)
+    result = [{level: None for level in hierarchy} for _ in range(full_query_gene_data.n_cells)]
 
     # list of levels in the taxonomy (None means consider all clusters)
     level_list = [None] + list(hierarchy)
@@ -339,9 +382,9 @@ def run_type_assignment(
         else:
             k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
-            parent_node_list = []
-            for k in k_list:
-                parent_node_list.append((parent_level, k))
+            parent_node_list = [(parent_level, k) for k in k_list]
+            # for k in k_list:
+            #     parent_node_list.append((parent_level, k))
 
         previously_assigned[child_level] = dict()
 
@@ -376,6 +419,7 @@ def run_type_assignment(
                 possible_children = taxonomy_tree.children(None, None)
 
             if len(possible_children) > 1:
+                t = time.time()
                 (assignment,
                  confidence) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
@@ -385,7 +429,11 @@ def run_type_assignment(
                                 parent_node=parent_node,
                                 bootstrap_factor=bootstrap_factor,
                                 bootstrap_iteration=bootstrap_iteration,
-                                rng=rng)
+                                rng=rng,
+                                gpu_index=gpu_index,
+                                timers=timers)
+                update_timer("run_type_assignment", t, timers)
+
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 confidence = [1.0]*chosen_query_data.n_cells
@@ -412,6 +460,13 @@ def run_type_assignment(
                 assigned_this = chosen_idx[assigned_this]
                 previously_assigned[child_level][celltype] = assigned_this
 
+            # type_to_idx = {celltype: idx for idx, celltype in enumerate(set(assignment))}
+            # idx_to_type = list(set(assignment))
+            # assignment_idx = np.array([type_to_idx[celltype] for celltype in assignment])
+
+            # temp = {celltype: chosen_idx[assignment_idx == idx] for idx, celltype in enumerate(idx_to_type)}
+            # previously_assigned[child_level].update(temp)
+
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type, confidence_level in zip(chosen_idx,
                                                                assignment,
@@ -431,7 +486,9 @@ def _run_type_assignment(
         parent_node,
         bootstrap_factor,
         bootstrap_iteration,
-        rng):
+        rng,
+        gpu_index=0,
+        timers=None):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -475,6 +532,9 @@ def _run_type_assignment(
     rng:
         A random number generator
 
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
+
     Returns
     -------
     A list of strings. There is one string per row in the
@@ -485,13 +545,16 @@ def _run_type_assignment(
     the winner got) in the choice
     """
 
+    t = time.time()
     query_data = assemble_query_data(
         full_query_data=full_query_gene_data,
         mean_profile_matrix=leaf_node_matrix,
         marker_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
+    update_timer("assemble", t, timers)
 
+    t = time.time()
     (result,
      confidence) = choose_node(
         query_gene_data=query_data['query_data'].data,
@@ -499,7 +562,10 @@ def _run_type_assignment(
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        gpu_index=gpu_index,
+        timers=timers)
+    update_timer("choose_node", t, timers)
 
     return result, confidence
 
@@ -510,7 +576,9 @@ def choose_node(
          reference_types,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         gpu_index=0,
+         timers=None):
     """
     Parameters
     ----------
@@ -526,6 +594,8 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -534,16 +604,24 @@ def choose_node(
     Array of vote fractions
     """
 
+    t = time.time()
     votes = tally_votes(
         query_gene_data=query_gene_data,
         reference_gene_data=reference_gene_data,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        gpu_index=gpu_index,
+        timers=timers)
+    update_timer("tally_votes", t, timers)
 
     chosen_type = np.argmax(votes, axis=1)
+
+    t = time.time()
     result = [reference_types[ii] for ii in chosen_type]
     confidence = np.max(votes, axis=1) / bootstrap_iteration
+    update_timer("choose_node_p2", t, timers)
+
     return (np.array(result), confidence)
 
 
@@ -552,7 +630,9 @@ def tally_votes(
          reference_gene_data,
          bootstrap_factor,
          bootstrap_iteration,
-         rng):
+         rng,
+         gpu_index=0,
+         timers=None):
     """
     Parameters
     ----------
@@ -568,6 +648,8 @@ def tally_votes(
         Number of bootstrapping iterations
     rng
         random number generator
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -582,19 +664,48 @@ def tally_votes(
     votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
                      dtype=int)
 
+    neighbors = []
+
     # query_idx is needed to associate each vote with its row
     # in the votes array
     query_idx = np.arange(query_gene_data.shape[0])
 
+    t = time.time()
     for i_iteration in range(bootstrap_iteration):
+        t2 = time.time()
         chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
         chosen_idx = np.sort(chosen_idx)
         bootstrap_query = query_gene_data[:, chosen_idx]
         bootstrap_reference = reference_gene_data[:, chosen_idx]
+        update_timer("looppreproc", t2, timers)
 
-        nearest_neighbors = correlation_nearest_neighbors(
+        t3 = time.time()
+        out = correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
-            query_array=bootstrap_query)
+            query_array=bootstrap_query,
+            gpu_index=gpu_index,
+            timers=timers)
+        update_timer("correlation_nearest_neighbors", t3, timers)
 
+        t3 = time.time()
+        # neighbors[i_iteration, :] = out
+        neighbors.append(out)
+        update_timer("neighbor_assign", t3, timers)
+
+    if TORCH_AVAILABLE:
+        t = time.time()
+        neighbors = torch.stack(neighbors)
+        update_timer("stack", t, timers)
+
+        t = time.time()
+        neighbors = neighbors.detach().cpu().numpy()
+        update_timer("tocpu", t, timers)
+
+    for nearest_neighbors in neighbors:
+        t4 = time.time()
         votes[query_idx, nearest_neighbors] += 1
+        update_timer("votes_counter", t4, timers)
+
+    update_timer("tally_loop", t, timers)
+
     return votes

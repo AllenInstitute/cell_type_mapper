@@ -163,3 +163,11 @@ def get_timestamp():
     result += f"-{now.day:02d}-{now.hour:02d}"
     result += f"-{now.minute:02d}-{now.second:02d}"
     return result
+
+
+def update_timer(name, t, timers=None):
+    if timers is not None:
+        if timers.get(name) is not None:
+            timers.get(name).update(time.time() - t)
+        # else:
+        #     print("{name} not in timers")
