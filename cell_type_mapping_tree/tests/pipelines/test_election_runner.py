@@ -9,6 +9,10 @@ import anndata
 import pathlib
 import json
 import scipy.sparse as scipy_sparse
+import tempfile
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available)
 
 from hierarchical_mapping.utils.utils import (
     _clean_up,
@@ -45,6 +49,10 @@ from hierarchical_mapping.type_assignment.election import (
 
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
+
+if is_torch_available():
+    from hierarchical_mapping.gpu_utils.type_assignment.election import (
+        run_type_assignment_on_h5ad_gpu)
 
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
@@ -625,6 +633,75 @@ def test_running_h5ad_election(
             bootstrap_factor=bootstrap_factor,
             bootstrap_iteration=bootstrap_iteration,
             rng=rng)
+
+    query_data = query_data_fixture
+    n_query_cells = query_data.shape[0]
+
+    assert len(result) == n_query_cells
+    for i_cell in range(n_query_cells):
+        for level in taxonomy_tree_dict['hierarchy']:
+            assert result[i_cell][level] is not None
+
+    # check that every cell is assigned to a
+    # taxonomically consistent set of types
+    hierarchy = taxonomy_tree_dict['hierarchy']
+    name_set = set()
+    for i_cell in range(n_query_cells):
+        this_cell = result[i_cell]
+        for level in hierarchy:
+            assert level in this_cell
+        for k in this_cell:
+            assert this_cell[k] is not None
+        name_set.add(this_cell['cell_id'])
+        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
+        for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+
+    a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+    query_cell_names = a_data.obs.index.values
+
+    # make sure all cell_ids were transcribed
+    assert len(name_set) == len(result)
+    assert len(name_set) == len(query_cell_names)
+    assert name_set == set(query_cell_names)
+
+
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, ],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election_gpu(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture):
+    """
+    Test self-consistency of GPU type assignments
+    """
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+    taxonomy_tree_dict = taxonomy_tree_fixture[1]
+
+    n_processors = 3
+    chunk_size = 21
+
+    bootstrap_factor = 0.8
+    bootstrap_iteration = 23
+
+    result = run_type_assignment_on_h5ad_gpu(
+        query_h5ad_path=query_h5ad_fixture,
+        precomputed_stats_path=precompute_stats_path_fixture,
+        marker_gene_cache_path=query_marker_cache_fixture,
+        taxonomy_tree=taxonomy_tree,
+        n_processors=n_processors,
+        chunk_size=chunk_size,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng,
+        results_output_path=None)
 
     query_data = query_data_fixture
     n_query_cells = query_data.shape[0]

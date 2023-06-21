@@ -3,6 +3,9 @@ import pytest
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
 
+from hierarchical_mapping.utils.torch_utils import(
+    is_torch_available)
+
 from hierarchical_mapping.utils.distance_utils import (
     correlation_distance,
     _correlation_nearest_neighbors_cpu,
@@ -120,17 +123,15 @@ def test_correlation_nn_cpu(return_correlation):
             rtol=1.0e-6)
 
 
+@pytest.mark.skipif(not is_torch_available(), reason="no torch")
 @pytest.mark.parametrize(
         "return_correlation", [True, False])
 def test_correlation_nn_gpu(
-        return_correlation,
-        torch_available_for_testing):
+        return_correlation):
     """
     Test that _correlation_nearest_neighbors_gpu is consistent
     with _correlation_nearest_neigbhors_cpu
     """
-    if not torch_available_for_testing:
-        return
 
     rng = np.random.default_rng(4455123)
     n_genes = 50
@@ -205,16 +206,14 @@ def test_correlation_nn_runner(
         np.testing.assert_array_equal(cpu, test)
 
 
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
 @pytest.mark.parametrize('transpose', [True, False])
 def test_subtract_mean_and_normalize_gpu(
-        torch_available_for_testing,
         transpose):
     """
     Test that GPU and CPU implementations of
     _subtract_mean_and_normalize agree
     """
-    if not torch_available_for_testing:
-        return
 
     rng = np.random.default_rng(336611)
     n_cells = 14
@@ -238,15 +237,12 @@ def test_subtract_mean_and_normalize_gpu(
         rtol=1.0e-5)
 
 
-def test_correlation_dot_gpu(
-        torch_available_for_testing):
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
+def test_correlation_dot_gpu():
     """
     Test that correlation_dot_gpu/cpu are consistent
     with each other
     """
-    if not torch_available_for_testing:
-        return
-
     rng = np.random.default_rng(871221312)
     n_cols = 118
     arr0 = rng.random((66, n_cols))

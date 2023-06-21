@@ -1,15 +1,9 @@
 from enum import Enum
 
 try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        NUM_GPUS = torch.cuda.device_count()
-        import torch.distributed as dist
+    import torch
 except ImportError:
-    TORCH_AVAILABLE = False
-    NUM_GPUS = None
+    pass
 
 
 class Summary(Enum):

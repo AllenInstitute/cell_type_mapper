@@ -7,6 +7,10 @@ import tempfile
 import time
 import traceback
 
+from hierarchical_mapping.utils.torch_utils import(
+    is_cuda_available,
+    use_torch)
+
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -43,14 +47,12 @@ from hierarchical_mapping.cli.schemas import (
     PrecomputedStatsSchema)
 
 try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
+    import torch
+    if use_torch():
         import multiprocessing
         multiprocessing.set_start_method("spawn", force=True)
 except ImportError:
-    TORCH_AVAILABLE = False
+    pass
 
 
 class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):

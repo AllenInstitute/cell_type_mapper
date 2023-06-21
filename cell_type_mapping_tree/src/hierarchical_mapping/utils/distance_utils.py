@@ -2,22 +2,17 @@ import numpy as np
 import logging
 import time
 
+from hierarchical_mapping.utils.torch_utils import(
+    is_torch_available,
+    is_cuda_available,
+    use_torch,
+    find_num_gpus)
+
 from hierarchical_mapping.utils.utils import (
     update_timer)
 
-TORCH_AVAILABLE = False
-LOGGER = logging.getLogger(__name__)
-
-try:
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        LOGGER.info("Found CUDA. Runnig on GPU.")
-    LOGGER.info("Torch found.")
-except ImportError as e:
-    LOGGER.info(f"Torch not found. Running on CPU. {str(e)}")
-    pass
-
+if is_torch_available():
+    import torch
 
 def correlation_nearest_neighbors(
         baseline_array,
@@ -48,7 +43,17 @@ def correlation_nearest_neighbors(
     cell in query_array (i.e. the returned value at 11 is the
     nearest neighbor of query_array[11, :])
     """
-    if TORCH_AVAILABLE:
+
+    use_gpu = False
+    if use_torch():
+        use_gpu = True
+    elif is_torch_available():
+        if isinstance(baseline_array, torch.Tensor):
+            use_gpu = True
+        elif isinstance(query_array, torch.Tensor):
+            use_gpu = True
+
+    if use_gpu:
         return _correlation_nearest_neighbors_gpu(
             baseline_array=baseline_array,
             query_array=query_array,
@@ -203,7 +208,7 @@ def correlation_dot(arr0,
     as zero, instead of NaN.
     """
 
-    if TORCH_AVAILABLE:
+    if use_torch():
         return _correlation_dot_gpu(
             arr0=arr0,
             arr1=arr1,
@@ -351,6 +356,8 @@ def _subtract_mean_and_normalize_gpu(data,
         if not torch.is_tensor(data):
             data = torch.from_numpy(data).type(torch.float)
             data = data.to(device=device, non_blocking=True)
+        elif data.type is not torch.float:
+            data = data.type(torch.float)
         update_timer("togpu", t, timers)
 
         t = time.time()

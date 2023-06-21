@@ -6,6 +6,8 @@ import numpy as np
 import torch  # type: ignore
 import torch.nn as nn
 
+from hierarchical_mapping.utils.torch_utils import (
+    is_cuda_available)
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 from hierarchical_mapping.gpu_utils.anndata_iterator.anndata_iterator import (
@@ -115,8 +117,9 @@ def run_type_assignment_on_h5ad_gpu(
         when converting a CSC matrix to CSR (if necessary)
 
     results_output_path: 
-        Output path for run assignment. If given will save individual chunks of
-        the run assignment process to separate files.
+        Output path for run assignment (a directory).
+        If given will save individual chunks of the run assignment process
+        to separate files.
 
     Returns
     -------
@@ -147,12 +150,19 @@ def run_type_assignment_on_h5ad_gpu(
             all_query_identifiers[ii]
             for ii in in_file["all_query_markers"][()]]
 
+    if is_cuda_available():
+        gpu_index = 0
+        device = torch.device(f'cuda:{gpu_index}')
+    else:
+        gpu_index = None
+        device = torch.device('cpu')
+
     dataloader = get_torch_dataloader(query_h5ad_path,
                                       chunk_size,
                                       all_query_identifiers,
                                       normalization,
                                       all_query_markers,
-                                      device=torch.device('cuda:0'),
+                                      device=device,
                                       num_workers=num_workers,
                                       max_gb=max_gb,
                                       tmp_dir=tmp_dir)
@@ -172,7 +182,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["bootstrap_factor"] = bootstrap_factor
     config["bootstrap_iteration"] = bootstrap_iteration
     config["rng"] = rng
-    config["gpu_index"] = 0
+    config["gpu_index"] = gpu_index
 
     print("starting type assignment")
     print_freq = 1
@@ -206,7 +216,7 @@ def run_type_assignment_on_h5ad_gpu(
         update_timer("loop", t, timers)
 
         t = time.time()
-        if results_output_path:
+        if results_output_path is not None:
             this_output_path = os.path.join(results_output_path,
                                             f"{r0}_{r1}_assignment.json")
             save_results(assignment, this_output_path)

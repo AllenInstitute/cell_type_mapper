@@ -5,6 +5,11 @@ import multiprocessing
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.torch_utils import(
+    is_torch_available,
+    is_cuda_available,
+    use_torch)
+
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 
@@ -30,15 +35,8 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
-try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        NUM_GPUS = torch.cuda.device_count()
-except ImportError:
-    TORCH_AVAILABLE = False
-    NUM_GPUS = None
+if is_torch_available():
+    import torch
 
 
 def run_type_assignment_on_h5ad_cpu(
@@ -678,7 +676,7 @@ def tally_votes(
         neighbors.append(out)
         update_timer("neighbor_assign", t3, timers)
 
-    if TORCH_AVAILABLE:
+    if use_torch():
         t = time.time()
         neighbors = torch.stack(neighbors)
         update_timer("stack", t, timers)
