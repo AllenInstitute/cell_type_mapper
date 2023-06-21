@@ -28,12 +28,12 @@ def tmp_dir_fixture(
     _clean_up(tmp_dir)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def column_hierarchy():
     return ["level1", "level2", "class", "cluster"]
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def l1_to_l2_fixture():
     """
     Fixture modeling which level 2 objects belong
@@ -50,7 +50,7 @@ def l1_to_l2_fixture():
     return forward, backward
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def l2_to_class_fixture():
     """
     Fixture modeling which class objects belong
@@ -70,7 +70,7 @@ def l2_to_class_fixture():
     return forward, backward
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def class_to_cluster_fixture(l2_to_class_fixture):
     """
     Fixture modeling which cluster objects belong
@@ -91,7 +91,7 @@ def class_to_cluster_fixture(l2_to_class_fixture):
 
     return forward, backward
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def n_non_markers():
     """
     number of genes that will be pure noise
@@ -99,7 +99,7 @@ def n_non_markers():
     """
     return 10
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def n_genes(
         class_to_cluster_fixture,
         l2_to_class_fixture,
@@ -119,17 +119,17 @@ def n_genes(
     return ct
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def gene_names(n_genes):
     return [f"gene_{ii}" for ii in range(n_genes)]
 
     
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_list(class_to_cluster_fixture):
     return list(class_to_cluster_fixture[1].keys())
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_to_signal(
         cluster_list,
         class_to_cluster_fixture,
@@ -176,7 +176,7 @@ def cluster_to_signal(
         result[cluster] = signal
     return result
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def records_fixture(
          class_to_cluster_fixture,
          l2_to_class_fixture,
@@ -215,11 +215,11 @@ def records_fixture(
     return records
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def n_cells(records_fixture):
     return len(records_fixture)
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cell_x_gene_fixture(
         n_genes,
         n_cells,
@@ -255,7 +255,7 @@ def cell_x_gene_fixture(
     return data
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def h5ad_path_fixture(
         cell_x_gene_fixture,
         records_fixture,
@@ -284,7 +284,7 @@ def h5ad_path_fixture(
     return a_data_path
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def query_genes_fixture(
         gene_names,
         l1_to_l2_fixture):
@@ -305,7 +305,7 @@ def query_genes_fixture(
     rng.shuffle(query_genes)
     return query_genes
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def query_log2_cell_x_gene_fixture(
         query_genes_fixture):
     rng = np.random.default_rng(76213)
@@ -320,7 +320,7 @@ def query_log2_cell_x_gene_fixture(
     return x_data
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def query_h5ad_path_fixture(
         query_genes_fixture,
         query_log2_cell_x_gene_fixture,

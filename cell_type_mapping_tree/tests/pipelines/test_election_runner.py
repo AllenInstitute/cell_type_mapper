@@ -11,7 +11,8 @@ import json
 import scipy.sparse as scipy_sparse
 
 from hierarchical_mapping.utils.utils import (
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -42,8 +43,8 @@ from hierarchical_mapping.type_assignment.election import (
     choose_node,
     run_type_assignment)
 
-from hierarchical_mapping.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+from hierarchical_mapping.type_assignment.election import (
+    run_type_assignment_on_h5ad_cpu)
 
 from hierarchical_mapping.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
@@ -442,32 +443,16 @@ def test_running_flat_election(
     _clean_up(tmp_dir)
 
 
-
-@pytest.mark.parametrize('sparse_query', [True, False])
-def test_running_h5ad_election(
+@pytest.fixture(scope='module')
+def precompute_stats_path_fixture(
         h5ad_path_fixture,
         column_hierarchy,
-        tmp_path_factory,
-        gene_names,
-        sparse_query):
-    """
-    Just a smoke test
-    """
-    rng = np.random.default_rng(2213122)
+        tmp_dir_fixture):
 
-    n_genes = len(gene_names)
-    genes_to_keep = None
-    n_selection_processors = 4
-
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    hdf5_tmp = tmp_dir / 'hdf5'
-    hdf5_tmp.mkdir()
-    score_path = tmp_dir / 'score_results.h5'
-    marker_cache_path = tmp_dir / 'marker_cache.h5'
-
-
-    precompute_path = tmp_dir / 'precomputed.h5'
-    assert not precompute_path.is_file()
+    precompute_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_',
+        suffix='.h5')
 
     precompute_summary_stats_from_h5ad(
         data_path=h5ad_path_fixture,
@@ -476,26 +461,45 @@ def test_running_h5ad_election(
         output_path=precompute_path,
         rows_at_a_time=10000,
         normalization="log2CPM")
+    return precompute_path
 
-    assert precompute_path.is_file()
 
-    with h5py.File(precompute_path, 'r') as src:
+@pytest.fixture(scope='module')
+def taxonomy_tree_fixture(precompute_stats_path_fixture):
+
+    with h5py.File(precompute_stats_path_fixture, 'r') as src:
         taxonomy_tree_dict = json.loads(
             src['taxonomy_tree'][()].decode('utf-8'))
         taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+    return taxonomy_tree, taxonomy_tree_dict
 
-    assert not score_path.is_file()
+@pytest.fixture(scope='module')
+def marker_score_fixture(
+        tmp_dir_fixture,
+        taxonomy_tree_fixture,
+        precompute_stats_path_fixture):
+
+    score_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='reference_marker_scores_',
+        suffix='.h5')
 
     n_processors = 3
 
     find_markers_for_all_taxonomy_pairs(
-        precomputed_stats_path=precompute_path,
-        taxonomy_tree=taxonomy_tree,
+        precomputed_stats_path=precompute_stats_path_fixture,
+        taxonomy_tree=taxonomy_tree_fixture[0],
         output_path=score_path,
         n_processors=n_processors,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir_fixture)
 
-    assert score_path.is_file()
+    return score_path
+
+
+@pytest.fixture(scope='module')
+def query_gene_fixture(gene_names):
+
+    n_genes = len(gene_names)
 
     rng = np.random.default_rng(556623)
     query_genes = rng.choice(gene_names, n_genes//3, replace=False)
@@ -503,6 +507,17 @@ def test_running_h5ad_election(
 
     query_genes += ["nonsense_0", "nonsense_1", "nonsense_2"]
     rng.shuffle(query_genes)
+
+    return query_genes
+
+@pytest.fixture(scope='function')
+def query_data_fixture(
+        query_gene_fixture,
+        request):
+
+    sparse_query = request.param
+    rng = np.random.default_rng(76123)
+    query_genes = query_gene_fixture
 
     n_processors = 3
     chunk_size = 21
@@ -518,23 +533,50 @@ def test_running_h5ad_election(
     else:
         query_data = rng.random((n_query_cells, len(query_genes)))
 
-    assert not marker_cache_path.is_file()
+    return query_data
 
+@pytest.fixture(scope='module')
+def query_marker_cache_fixture(
+        tmp_dir_fixture,
+        marker_score_fixture,
+        query_gene_fixture,
+        taxonomy_tree_fixture):
+
+    cache_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_marker_fixture_',
+        suffix='.h5')
+
+    n_selection_processors = 4
     genes_per_pair = 7
 
     create_marker_cache_from_reference_markers(
-        output_cache_path=marker_cache_path,
-        input_cache_path=score_path,
-        query_gene_names=query_genes,
-        taxonomy_tree=taxonomy_tree,
+        output_cache_path=cache_path,
+        input_cache_path=marker_score_fixture,
+        query_gene_names=query_gene_fixture,
+        taxonomy_tree=taxonomy_tree_fixture[0],
         n_per_utility=genes_per_pair,
         n_processors=n_selection_processors)
 
-    assert marker_cache_path.is_file()
+    return cache_path
+
+
+@pytest.fixture(scope='function')
+def query_h5ad_fixture(
+        tmp_dir_fixture,
+        query_data_fixture,
+        query_gene_fixture):
+
+    query_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_h5ad_',
+        suffix='.h5ad')
+
+    query_data = query_data_fixture
+    query_genes = query_gene_fixture
+    n_query_cells = query_data.shape[0]
 
     query_cell_names = [f'q{ii}' for ii in range(n_query_cells)]
-    query_h5ad_path = tmp_dir / 'query.h5ad'
-    assert not query_h5ad_path.is_file()
 
     obs_data = [{'name': q, 'junk': 'nonsense'}
                 for q in query_cell_names]
@@ -546,21 +588,46 @@ def test_running_h5ad_election(
                              dtype=float)
     a_data.write_h5ad(query_h5ad_path)
 
-    assert query_h5ad_path.is_file()
+    return query_h5ad_path
+
+
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, False],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture):
+    """
+    Just a smoke test
+    """
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+    taxonomy_tree_dict = taxonomy_tree_fixture[1]
+
+    n_processors = 3
+    chunk_size = 21
 
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
-    result = run_type_assignment_on_h5ad(
-            query_h5ad_path=query_h5ad_path,
-            precomputed_stats_path=precompute_path,
-            marker_gene_cache_path=marker_cache_path,
+    result = run_type_assignment_on_h5ad_cpu(
+            query_h5ad_path=query_h5ad_fixture,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
             bootstrap_factor=bootstrap_factor,
             bootstrap_iteration=bootstrap_iteration,
             rng=rng)
+
+    query_data = query_data_fixture
+    n_query_cells = query_data.shape[0]
 
     assert len(result) == n_query_cells
     for i_cell in range(n_query_cells):
@@ -582,9 +649,10 @@ def test_running_h5ad_election(
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
             assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
 
+    a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+    query_cell_names = a_data.obs.index.values
+
     # make sure all cell_ids were transcribed
     assert len(name_set) == len(result)
     assert len(name_set) == len(query_cell_names)
     assert name_set == set(query_cell_names)
-
-    _clean_up(tmp_dir)
