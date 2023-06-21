@@ -42,6 +42,16 @@ from hierarchical_mapping.cli.schemas import (
     HierarchicalTypeAssignmentSchema,
     PrecomputedStatsSchema)
 
+try:
+    TORCH_AVAILABLE = False
+    import torch  # type: ignore
+    if torch.cuda.is_available():
+        TORCH_AVAILABLE = True
+        import multiprocessing
+        multiprocessing.set_start_method("spawn", force=True)
+except ImportError:
+    TORCH_AVAILABLE = False
+
 
 class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
 
