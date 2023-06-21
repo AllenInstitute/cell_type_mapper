@@ -357,12 +357,7 @@ def run_type_assignment(
     # store the hierarchical classification of
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree.hierarchy
-    # result = []
-    # for i_cell in range(full_query_gene_data.n_cells):
-    #     this = dict()
-    #     for level in hierarchy:
-    #         this[level] = None
-    #     result.append(this)
+
     result = [{level: None for level in hierarchy} for _ in range(full_query_gene_data.n_cells)]
 
     # list of levels in the taxonomy (None means consider all clusters)
@@ -383,8 +378,6 @@ def run_type_assignment(
             k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
             parent_node_list = [(parent_level, k) for k in k_list]
-            # for k in k_list:
-            #     parent_node_list.append((parent_level, k))
 
         previously_assigned[child_level] = dict()
 
@@ -459,13 +452,6 @@ def run_type_assignment(
                 assigned_this = (assignment_idx == idx)
                 assigned_this = chosen_idx[assigned_this]
                 previously_assigned[child_level][celltype] = assigned_this
-
-            # type_to_idx = {celltype: idx for idx, celltype in enumerate(set(assignment))}
-            # idx_to_type = list(set(assignment))
-            # assignment_idx = np.array([type_to_idx[celltype] for celltype in assignment])
-
-            # temp = {celltype: chosen_idx[assignment_idx == idx] for idx, celltype in enumerate(idx_to_type)}
-            # previously_assigned[child_level].update(temp)
 
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type, confidence_level in zip(chosen_idx,

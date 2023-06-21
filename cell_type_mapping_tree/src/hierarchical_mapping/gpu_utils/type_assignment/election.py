@@ -3,10 +3,8 @@ import h5py
 import json
 import time
 import numpy as np
-# import torch.distributed as dist
 import torch  # type: ignore
 import torch.nn as nn
-# from torch.nn.parallel import DistributedDataParallel as DDP
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -22,17 +20,6 @@ from hierarchical_mapping.utils.utils import (
     update_timer)
 
 NUM_GPUS = torch.cuda.device_count()
-
-# def setup(rank, world_size):
-#     os.environ['MASTER_ADDR'] = 'localhost'
-#     os.environ['MASTER_PORT'] = '12355'
-
-#     # initialize the process group
-#     dist.init_process_group("gloo", rank=rank, world_size=world_size)
-
-
-# def cleanup():
-#     dist.destroy_process_group()
 
 
 class TypeAssignment(nn.Module):
@@ -148,20 +135,11 @@ def run_type_assignment_on_h5ad_gpu(
          ...}
     """
 
-    # dist.init_process_group("nccl")
-    # rank = dist.get_rank()
-    # print(f"Start running basic DDP example on rank {rank}.")
-
-    # # create model and move it to GPU with id rank
-    # device_id = rank % torch.cuda.device_count()
-
     # read query file
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')
     query_cell_names = list(obs.index.values)
     n_rows = len(obs)
     num_workers = min(n_processors, np.ceil(n_rows/chunk_size).astype(int))
-    # max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
-    # chunk_size = min(max_chunk_size, chunk_size)
     del obs
 
     with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
@@ -188,8 +166,6 @@ def run_type_assignment_on_h5ad_gpu(
         precompute_path=precomputed_stats_path)
 
     type_assignment_model = TypeAssignment()
-    # type_assignment_model = DDP(type_assignment_model,
-    #                             device_ids=[device_id])
 
     config = dict()
     config["leaf_node_matrix"] = leaf_node_matrix

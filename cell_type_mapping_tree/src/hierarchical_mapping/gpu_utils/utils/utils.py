@@ -54,20 +54,9 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
     def __str__(self):
-        # fmtstr = '{name} \n ' + \
-        #     '\tval={val' + self.fmt + '} \n' + \
-        #     '\tavg={avg' + self.fmt + '} \n' + \
-        #     '\tsum={sum' + self.fmt + '} \n' + \
-        #     '\tcount={count' + self.fmt + '} \n'
-
-        # fmtstr = f'{self.name} \
-        # [{self.val}{self.fmt} \
-        # ({self.avg}{self.fmt}) \
-        # {self.sum}{self.fmt}]'
 
         fmtstr = '{name} [{val' + self.fmt + '} ({avg' + self.fmt + '}) {sum' + self.fmt + '}] '
 
-        # fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
         return fmtstr.format(**self.__dict__)
 
     def summary(self):
@@ -114,11 +103,6 @@ def get_timers():
         return AverageMeter(name, fmt)
 
     meters = []
-    # meters = ["type_assignment","loop","results","run_type_assignment", 
-    #           "assemble","choose_node","tally_votes","choose_node_p2",
-    #           "togpu","tocpu","sn1","sn2","matmul","meansqrt","looppreproc",
-    #           "correlation_nearest_neighbors","tally_loop","argmax",
-    #           "correlationarraynge","votes_counter","dele","correlation_dot"]
 
     timers = {}
 

@@ -60,10 +60,6 @@ def correlation_nearest_neighbors(
         max_idx = torch.argmax(correlation_array, dim=0)
         update_timer("argmax", t, timers)
 
-        # t = time.time()
-        # max_idx = max_idx.cpu().numpy()
-        # update_timer("tocpu", t, timers)
-
     else:
         t = time.time()
         max_idx = np.argmax(correlation_array, axis=0)
