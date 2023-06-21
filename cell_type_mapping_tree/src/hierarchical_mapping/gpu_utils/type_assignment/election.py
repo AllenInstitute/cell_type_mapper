@@ -19,8 +19,6 @@ from hierarchical_mapping.gpu_utils.utils.utils import (
 from hierarchical_mapping.utils.utils import (
     update_timer)
 
-NUM_GPUS = torch.cuda.device_count()
-
 
 class TypeAssignment(nn.Module):
     def __init__(self):
