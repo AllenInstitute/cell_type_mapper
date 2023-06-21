@@ -1,7 +1,12 @@
 import pytest
 
 import numpy as np
+import os
 from unittest.mock import patch
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available,
+    use_torch)
 
 from hierarchical_mapping.type_assignment.election import (
     tally_votes,
@@ -41,6 +46,59 @@ def test_tally_votes(
     assert result.shape == (n_query, n_baseline)
     for i_row in range(n_query):
         assert result[i_row, :].sum() == bootstrap_iteration
+
+
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
+@pytest.mark.parametrize(
+    "bootstrap_factor, bootstrap_iteration",
+    [(0.7, 22),
+     (0.4, 102),
+     (0.9, 50),
+     (1.0, 1)])
+def test_tally_votes_gpu(
+        bootstrap_factor,
+        bootstrap_iteration):
+    """
+    Test that CPU and GPU implementations of tally_votes give the
+    same reult
+    """
+    env_var = 'AIBS_BKP_USE_TORCH'
+    rng = np.random.default_rng(55666)
+
+    n_genes = 25
+    n_query = 64
+    n_baseline = 222
+
+    query_data = rng.random((n_query, n_genes))
+    reference_data = rng.random((n_baseline, n_genes))
+
+    os.environ[env_var] = 'false'
+    assert not use_torch()
+    rng_seed = 1122334455
+    rng = np.random.default_rng(rng_seed)
+    cpu_result = tally_votes(
+        query_gene_data=query_data,
+        reference_gene_data=reference_data,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng)
+
+    os.environ[env_var] = 'true'
+    print('')
+    assert use_torch()
+    rng = np.random.default_rng(rng_seed)
+    gpu_result = tally_votes(
+        query_gene_data=query_data,
+        reference_gene_data=reference_data,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng)
+
+    os.environ[env_var] = ''
+
+    np.testing.assert_array_equal(
+        cpu_result,
+        gpu_result)
 
 
 @pytest.mark.parametrize(

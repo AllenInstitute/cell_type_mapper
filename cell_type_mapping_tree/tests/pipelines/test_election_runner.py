@@ -669,7 +669,7 @@ def test_running_h5ad_election(
 @pytest.mark.skipif(not is_torch_available(), reason='no torch')
 @pytest.mark.parametrize(
         'query_data_fixture',
-        [True, ],
+        [True, False],
         indirect=['query_data_fixture'])
 def test_running_h5ad_election_gpu(
         precompute_stats_path_fixture,

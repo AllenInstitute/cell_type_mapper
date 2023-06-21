@@ -347,7 +347,7 @@ def _subtract_mean_and_normalize_gpu(data,
 
     with torch.no_grad():
 
-        if gpu_index is not None:
+        if gpu_index is not None and is_cuda_available():
             device = f'cuda:{gpu_index}'
         else:
             device = 'cpu'

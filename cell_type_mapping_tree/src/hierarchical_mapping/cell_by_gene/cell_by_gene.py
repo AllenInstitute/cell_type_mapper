@@ -244,7 +244,7 @@ class CellByGeneMatrix(object):
                 "This CellByGeneMatrix has been downsampled by genes; "
                 "converting to CPM will give a nonsense result")
 
-        if use_torch():
+        if use_torch() and isinstance(self.data, torch.Tensor):
             self._data = torch.log2(1.0+convert_to_cpm(self.data))
         else:
             self._data = np.log2(1.0+convert_to_cpm(self.data))
