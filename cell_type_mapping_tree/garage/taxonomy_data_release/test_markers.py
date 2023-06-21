@@ -12,6 +12,10 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
 def main():
     marker_dir = pathlib.Path(
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/marker_list_on_nodes')
+
+    marker_dir = pathlib.Path(
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17_knowledge/nlevel4_marker_index/marker_list_on_nodes')
+
     assert marker_dir.is_dir()
 
     data_dir = pathlib.Path(
@@ -47,6 +51,7 @@ def main():
         strict_alias=True)
 
     level_to_idx = {n:ii+2 for ii, n in enumerate(taxonomy_tree.hierarchy)}
+    print('level to idx')
     print(level_to_idx)
     good_ct = 0
     bad_ct = 0
@@ -71,6 +76,7 @@ def main():
         expected_file_names.append(fname)
         if fpath.is_file():
             good_ct += 1
+            print(f'found {fname}')
         else:
             bad_ct += 1
             missing_file_names.append(fname)
