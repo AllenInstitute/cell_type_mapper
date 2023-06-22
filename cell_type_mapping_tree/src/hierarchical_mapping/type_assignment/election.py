@@ -415,7 +415,8 @@ def run_type_assignment(
             if len(possible_children) > 1:
                 t = time.time()
                 (assignment,
-                 confidence) = _run_type_assignment(
+                 confidence,
+                 avg_corr) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_matrix=leaf_node_matrix,
                                 marker_gene_cache_path=marker_gene_cache_path,
@@ -431,6 +432,7 @@ def run_type_assignment(
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 confidence = [1.0]*chosen_query_data.n_cells
+                avg_corr = [1.0]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -455,12 +457,14 @@ def run_type_assignment(
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type, confidence_level in zip(chosen_idx,
-                                                               assignment,
-                                                               confidence):
+            for i_cell, assigned_type, conf, corr in zip(chosen_idx,
+                                                         assignment,
+                                                         confidence,
+                                                         avg_corr):
 
                 result[i_cell][child_level] = {'assignment': assigned_type,
-                                               'confidence': confidence_level}
+                                               'confidence': conf,
+                                               'avg_correlation': corr}
 
     return result
 
@@ -530,6 +534,10 @@ def _run_type_assignment(
 
     An array indicating the confidence (fraction of votes
     the winner got) in the choice
+
+    An array indicating the correlation coefficient of the
+    query cell with the chosen node over the average number
+    of times the node was chosen.
     """
 
     t = time.time()
@@ -555,7 +563,7 @@ def _run_type_assignment(
         timers=timers)
     update_timer("choose_node", t, timers)
 
-    return result, confidence
+    return result, confidence, avg_corr
 
 
 def choose_node(
