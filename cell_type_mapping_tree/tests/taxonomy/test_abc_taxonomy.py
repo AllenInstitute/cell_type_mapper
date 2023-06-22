@@ -163,7 +163,7 @@ def cell_metadata_fixture(
 
 
 @pytest.fixture(scope='module')
-def term_set_label_to_name_fixture(
+def term_label_to_name_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
         subclass_to_class_fixture):
@@ -192,7 +192,7 @@ def cluster_membership_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
         subclass_to_class_fixture,
-        term_set_label_to_name_fixture):
+        term_label_to_name_fixture):
     """
     Simulates cluster_to_cluster_annotation_membership.csv
     """
@@ -230,7 +230,7 @@ def cluster_membership_fixture(
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
-                    this += f'{term_set_label_to_name_fixture[(class_name, child)]},'
+                    this += f'{term_label_to_name_fixture[(class_name, child)]},'
                 else:
                     raise RuntimeError(f'cannot parse column {col}')
             this = this[:-1]+'\n'
@@ -400,14 +400,14 @@ def test_get_alias_mapper(
 
 def test_full_alias_mapper(
         cluster_membership_fixture,
-        term_set_label_to_name_fixture):
+        term_label_to_name_fixture):
     mapper = get_alias_mapper(
         csv_path=cluster_membership_fixture,
         valid_term_set_labels=['class', 'subclass', 'supertype', 'cluster'],
         alias_column_name='cluster_annotation_term_name')
 
-    assert len(mapper) == len(term_set_label_to_name_fixture)
-    assert mapper == term_set_label_to_name_fixture
+    assert len(mapper) == len(term_label_to_name_fixture)
+    assert mapper == term_label_to_name_fixture
 
 def test_get_cell_to_cluster_alias(
         cell_metadata_fixture,
@@ -456,6 +456,39 @@ def test_de_aliasing(
 
     with pytest.raises(RuntimeError, match="Do not have a label"):
         test_tree.alias_to_label('gar')
+
+def test_name_mapping(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_tree_fixture,
+        alias_fixture,
+        cell_to_cluster_fixture,
+        term_label_to_name_fixture):
+
+    test_tree = TaxonomyTree.from_data_release(
+            cell_metadata_path=cell_metadata_fixture,
+            cluster_annotation_path=cluster_annotation_term_fixture,
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+
+    for k in term_label_to_name_fixture:
+        assert test_tree.label_to_name(k[0], k[1]) == term_label_to_name_fixture[k]
+    assert test_tree.label_to_name('junk', 'this_label') == 'this_label'
+    assert test_tree.label_to_name('class', 'that_label') == 'that_label'
+
+    other_data = {
+        'hierarchy': ['a', 'b'],
+        'a': {
+            'c': ['d'], 'e': ['f']
+        },
+        'b': {
+            'd': [], 'f': []
+        }
+    }
+    other_tree = TaxonomyTree(data=other_data)
+    assert test_tree.label_to_name('a', 'x') == 'x'
 
 def test_abc_dropping(
         cell_metadata_fixture,
