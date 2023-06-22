@@ -193,7 +193,8 @@ def test_choose_node_smoke(
     reference_types = [f"type_{ii}" for ii in range(n_baseline)]
 
     (result,
-     confidence) = choose_node(
+     confidence,
+     avg_corr) = choose_node(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         reference_types=reference_types,
@@ -201,8 +202,9 @@ def test_choose_node_smoke(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng)
 
-    assert len(result) == n_query
-    assert len(confidence) == n_query
+    assert result.shape == (n_query,)
+    assert confidence.shape == (n_query,)
+    assert avg_corr.shape == (n_query,)
 
 
 def test_confidence_result():
@@ -212,28 +214,46 @@ def test_confidence_result():
     """
 
     reference_types = ['a', 'b', 'c']
-
-    def dummy_tally_votes(*args, **kwargs):
-        votes = np.array(
+    rng = np.random.default_rng(223112)
+    mock_votes = np.array(
             [[1, 3, 1],
              [4, 1, 0],
              [0, 0, 5],
              [4, 0, 1]])
-        corr_sum = None
-        return (votes, corr_sum)
+    mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
+
+    def dummy_tally_votes(*args, **kwargs):
+        return (mock_votes, mock_corr_sum)
 
     to_replace = 'hierarchical_mapping.type_assignment.election.tally_votes'
     with patch(to_replace, new=dummy_tally_votes):
         (results,
-         confidence) = choose_node(
+         confidence,
+         avg_corr) = choose_node(
             query_gene_data=None,
             reference_gene_data=None,
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=5,
             rng=None)
+
     np.testing.assert_array_equal(
         results, ['b', 'a', 'c', 'a'])
+
     np.testing.assert_allclose(
         confidence,
-        [0.6, 0.8, 1.0, 0.8])
+        [0.6, 0.8, 1.0, 0.8],
+        atol=0.0,
+        rtol=1.0e-6)
+
+    expected_avg_corr = np.array(
+        [mock_corr_sum[0, 1]/3,
+         mock_corr_sum[1, 0]/4,
+         mock_corr_sum[2, 2]/5,
+         mock_corr_sum[3, 0]/4])
+
+    np.testing.assert_allclose(
+        avg_corr,
+        expected_avg_corr,
+        atol=0.0,
+        rtol=1.0e-6)

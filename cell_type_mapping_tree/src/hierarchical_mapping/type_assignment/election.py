@@ -543,7 +543,8 @@ def _run_type_assignment(
 
     t = time.time()
     (result,
-     confidence) = choose_node(
+     confidence,
+     avg_corr) = choose_node(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
@@ -589,6 +590,8 @@ def choose_node(
     Array of cell type assignments (majority rule)
 
     Array of vote fractions
+
+    Array of the average correlation value of the chosen nearest neighbors
     """
 
     t = time.time()
@@ -605,13 +608,16 @@ def choose_node(
     update_timer("tally_votes", t, timers)
 
     chosen_type = np.argmax(votes, axis=1)
+    idx_array = np.arange(votes.shape[0])
 
     t = time.time()
     result = [reference_types[ii] for ii in chosen_type]
-    confidence = np.max(votes, axis=1) / bootstrap_iteration
+    n_votes = votes[idx_array, chosen_type]
+    vote_fractions = n_votes / bootstrap_iteration
+    avg_corr = corr_sum[idx_array, chosen_type] / n_votes
     update_timer("choose_node_p2", t, timers)
 
-    return (np.array(result), confidence)
+    return (np.array(result), vote_fractions, avg_corr)
 
 
 def tally_votes(
