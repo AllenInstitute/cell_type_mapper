@@ -43,7 +43,11 @@ class TaxonomyTree(object):
         """
         these_keys = set(self._data.keys())
         other_keys = set(other._data.keys())
-        bad_keys = {'metadata', 'alias_mapping'}
+
+        bad_keys = {'metadata',
+                    'alias_mapping',
+                    'full_name_mapping'}
+
         these_keys -= bad_keys
         other_keys -= bad_keys
         if these_keys != other_keys:
@@ -156,6 +160,11 @@ class TaxonomyTree(object):
             csv_path=cluster_membership_path,
             valid_term_set_labels=(leaf_level,))
 
+        full_name_map = get_alias_mapper(
+            csv_path=cluster_membership_path,
+            valid_term_set_labels=hierarchy,
+            alias_column_name='cluster_annotation_term_name')
+
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
             data[parent_level] = dict()
@@ -190,6 +199,17 @@ class TaxonomyTree(object):
             reverse_alias_mapping[alias] = node[1]
 
         data['alias_mapping'] = reverse_alias_mapping
+
+        formatted_name_map = dict()
+        for k in full_name_map:
+            level = k[0]
+            node = k[1]
+            name = full_name_map[k]
+            if level not in formatted_name_map:
+                formatted_name_map[level] = dict()
+            formatted_name_map[level][node] = name
+
+        data['full_name_mapping'] = formatted_name_map
 
         return cls(data=data)
 
@@ -395,6 +415,32 @@ class TaxonomyTree(object):
                 "Do not have a label associated with alias: "
                 f"'{alias}'")
         return self._data['alias_mapping'][alias]
+
+    def label_to_name(self, level, label):
+        """
+        Parameters
+        ----------
+        level:
+            the level in the hierarchy
+        label:
+            the machine readable label of the node
+
+        Returns
+        -------
+        The human readable name
+
+        Note
+        ----
+        if mapping is impossible, just return label
+        """
+        if 'full_name_mapping' not in self._data:
+            return label
+        if level not in self._data['full_name_mapping']:
+            return label
+        this_level = self._data['full_name_mapping'][level]
+        if label not in this_level:
+            return label
+        return this_level[label]
 
     def leaves_to_compare(
             self,

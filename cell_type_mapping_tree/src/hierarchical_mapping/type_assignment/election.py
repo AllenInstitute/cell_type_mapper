@@ -13,13 +13,14 @@ from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 
 from hierarchical_mapping.utils.utils import (
-    print_timing, update_timer)
+    print_timing,
+    update_timer,
+    choose_int_dtype)
 
 from hierarchical_mapping.utils.multiprocessing_utils import (
     winnow_process_list)
 
-from hierarchical_mapping.utils.distance_utils import (
-    correlation_nearest_neighbors)
+import hierarchical_mapping.utils.distance_utils as distance_utils
 
 from hierarchical_mapping.type_assignment.utils import (
     reconcile_taxonomy_and_markers)
@@ -414,7 +415,8 @@ def run_type_assignment(
             if len(possible_children) > 1:
                 t = time.time()
                 (assignment,
-                 confidence) = _run_type_assignment(
+                 confidence,
+                 avg_corr) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_matrix=leaf_node_matrix,
                                 marker_gene_cache_path=marker_gene_cache_path,
@@ -430,6 +432,7 @@ def run_type_assignment(
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 confidence = [1.0]*chosen_query_data.n_cells
+                avg_corr = [1.0]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -454,12 +457,14 @@ def run_type_assignment(
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type, confidence_level in zip(chosen_idx,
-                                                               assignment,
-                                                               confidence):
+            for i_cell, assigned_type, conf, corr in zip(chosen_idx,
+                                                         assignment,
+                                                         confidence,
+                                                         avg_corr):
 
                 result[i_cell][child_level] = {'assignment': assigned_type,
-                                               'confidence': confidence_level}
+                                               'confidence': conf,
+                                               'avg_correlation': corr}
 
     return result
 
@@ -529,6 +534,10 @@ def _run_type_assignment(
 
     An array indicating the confidence (fraction of votes
     the winner got) in the choice
+
+    An array indicating the correlation coefficient of the
+    query cell with the chosen node over the average number
+    of times the node was chosen.
     """
 
     t = time.time()
@@ -542,7 +551,8 @@ def _run_type_assignment(
 
     t = time.time()
     (result,
-     confidence) = choose_node(
+     confidence,
+     avg_corr) = choose_node(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
@@ -553,7 +563,7 @@ def _run_type_assignment(
         timers=timers)
     update_timer("choose_node", t, timers)
 
-    return result, confidence
+    return result, confidence, avg_corr
 
 
 def choose_node(
@@ -588,10 +598,13 @@ def choose_node(
     Array of cell type assignments (majority rule)
 
     Array of vote fractions
+
+    Array of the average correlation value of the chosen nearest neighbors
     """
 
     t = time.time()
-    votes = tally_votes(
+    (votes,
+     corr_sum) = tally_votes(
         query_gene_data=query_gene_data,
         reference_gene_data=reference_gene_data,
         bootstrap_factor=bootstrap_factor,
@@ -599,16 +612,20 @@ def choose_node(
         rng=rng,
         gpu_index=gpu_index,
         timers=timers)
+
     update_timer("tally_votes", t, timers)
 
     chosen_type = np.argmax(votes, axis=1)
+    idx_array = np.arange(votes.shape[0])
 
     t = time.time()
     result = [reference_types[ii] for ii in chosen_type]
-    confidence = np.max(votes, axis=1) / bootstrap_iteration
+    n_votes = votes[idx_array, chosen_type]
+    vote_fractions = n_votes / bootstrap_iteration
+    avg_corr = corr_sum[idx_array, chosen_type] / n_votes
     update_timer("choose_node_p2", t, timers)
 
-    return (np.array(result), confidence)
+    return (np.array(result), vote_fractions, avg_corr)
 
 
 def tally_votes(
@@ -639,18 +656,35 @@ def tally_votes(
 
     Returns
     -------
-    Array of ints. Each row is a query cell. Each column is a
-    reference cell. The value is how many iterations voted for
-    "this query cell is the same type as this reference cell"
+    votes:
+        Array of ints. Each row is a query cell. Each column is a
+        reference cell. The value is how many iterations voted for
+        "this query cell is the same type as this reference cell"
+
+    corr_sum:
+        Array of floats. Each row is a query cell. Each column
+        is a reference cell. The values are the sum of the
+        correlation values over the bootstrapping iterations
+        that assigned that query cell to that reference cell.
     """
     n_markers = query_gene_data.shape[1]
     marker_idx = np.arange(n_markers)
     n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
 
-    votes = np.zeros((query_gene_data.shape[0], reference_gene_data.shape[0]),
-                     dtype=int)
+    result_shape = (query_gene_data.shape[0], reference_gene_data.shape[0])
+
+    vote_dtype = choose_int_dtype((0, bootstrap_iteration))
+
+    votes = np.zeros(
+        result_shape,
+        dtype=vote_dtype)
+
+    corr_sum = np.zeros(
+        result_shape,
+        dtype=float)
 
     neighbors = []
+    corr = []
 
     # query_idx is needed to associate each vote with its row
     # in the votes array
@@ -666,32 +700,37 @@ def tally_votes(
         update_timer("looppreproc", t2, timers)
 
         t3 = time.time()
-        out = correlation_nearest_neighbors(
+        (these_neighbors,
+         these_corr) = distance_utils.correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
             query_array=bootstrap_query,
             gpu_index=gpu_index,
-            timers=timers)
+            timers=timers,
+            return_correlation=True)
         update_timer("correlation_nearest_neighbors", t3, timers)
 
         t3 = time.time()
-        # neighbors[i_iteration, :] = out
-        neighbors.append(out)
+        neighbors.append(these_neighbors)
+        corr.append(these_corr)
         update_timer("neighbor_assign", t3, timers)
 
     if use_torch():
         t = time.time()
         neighbors = torch.stack(neighbors)
+        corr = torch.stack(corr)
         update_timer("stack", t, timers)
 
         t = time.time()
         neighbors = neighbors.detach().cpu().numpy()
+        corr = corr.detach().cpu().numpy()
         update_timer("tocpu", t, timers)
 
-    for nearest_neighbors in neighbors:
+    for nearest_neighbors, corr_values in zip(neighbors, corr):
         t4 = time.time()
         votes[query_idx, nearest_neighbors] += 1
+        corr_sum[query_idx, nearest_neighbors] += corr_values
         update_timer("votes_counter", t4, timers)
 
     update_timer("tally_loop", t, timers)
 
-    return votes
+    return votes, corr_sum

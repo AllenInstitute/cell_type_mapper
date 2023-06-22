@@ -253,7 +253,19 @@ def test_mapping_from_markers(
         actual_lookup = {
             cell['cell_id']:cell for cell in actual['results']}
         for cell in expected['results']:
-            assert cell == actual_lookup[cell['cell_id']]
+            actual_cell = actual_lookup[cell['cell_id']]
+            assert set(cell.keys()) == set(actual_cell.keys())
+            for k in cell.keys():
+                if k == 'cell_id':
+                    continue
+                assert set(cell[k].keys()) == set(actual_cell[k].keys())
+                assert cell[k]['assignment'] == actual_cell[k]['assignment']
+                for sub_k in ('confidence', 'avg_correlation'):
+                    np.testing.assert_allclose(
+                        [cell[k][sub_k]],
+                        [actual_cell[k][sub_k]],
+                        atol=1.0e-4,
+                        rtol=1.0e-4)
     else:
         all_markers = set()
         for k in expected['marker_genes']:
@@ -267,6 +279,7 @@ def test_mapping_from_markers(
             assert 'cluster' in cell
             assert 'assignment' in cell['cluster']
             assert 'confidence' in cell['cluster']
+            assert 'avg_correlation' in cell['cluster']
             assert cell['cluster']['assignment'] in valid_clusters
 
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]

@@ -169,3 +169,30 @@ def update_timer(name, t, timers=None):
     if timers is not None:
         if timers.get(name) is not None:
             timers.get(name).update(time.time() - t)
+
+
+def choose_int_dtype(
+        x_minmax):
+    """
+    Parameters
+    ----------
+    x_minmax:
+        Tuple of minimum and maximum values
+
+    Returns
+    -------
+    smallest int dtype that can accommodate that range
+    """
+    output_dtype = None
+    int_min = np.round(x_minmax[0])
+    int_max = np.round(x_minmax[1])
+
+    for candidate in (np.uint8, np.int8, np.uint16, np.int16,
+                      np.uint32, np.int32, np.uint64, np.int64):
+        this_info = np.iinfo(candidate)
+        if int_min >= this_info.min and int_max <= this_info.max:
+            output_dtype = candidate
+            break
+    if output_dtype is None:
+        output_dtype = int
+    return output_dtype
