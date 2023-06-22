@@ -1,6 +1,4 @@
-import anndata
 import h5py
-import numpy as np
 import os
 import pathlib
 import tempfile
@@ -30,7 +28,7 @@ class h5_handler_manager():
         if not self.keepopen:
             self.h5_handle = h5py.File(self.h5_path, self.mode)
         return self.h5_handle
-     
+
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if not self.keepopen:
             self.h5_handle.close()
@@ -106,10 +104,20 @@ class AnnDataRowIterator(object):
                 h5ad_path=h5ad_path,
                 row_chunk_size=row_chunk_size,
                 tmp_dir=tmp_dir)
+        elif encoding_type.startswith('array'):
+            self._iterator_type = "dense"
+            with h5py.File(h5ad_path, "r") as src:
+                array_shape = src['X'].shape
+            self.n_rows = array_shape[0]
+            self._chunk_iterator = DenseArrayRowIterator(
+                  h5_path=h5ad_path,
+                  row_chunk_size=row_chunk_size,
+                  array_shape=array_shape,
+                  keep_open=keep_open)
         else:
-            self._initialize_anndata_iterator(
-                h5ad_path=h5ad_path,
-                row_chunk_size=row_chunk_size)
+            raise RuntimeError(
+                "Do not know how to iterate over anndata "
+                f"with attrs\n{attrs}")
 
     def __del__(self):
         if self.tmp_dir is not None:
@@ -117,10 +125,10 @@ class AnnDataRowIterator(object):
 
     def __iter__(self):
         return self
-    
+
     def __getitem__(self, x):
         return self._chunk_iterator[x]
-    
+
     def __next__(self):
         """
         Return the next chunk of rows.
@@ -131,35 +139,7 @@ class AnnDataRowIterator(object):
         (i.e. row_chunk is data[r0:r1, :])
         """
         result = next(self._chunk_iterator)
-        if self._iterator_type == 'anndata':
-            r0 = result[1]
-            r1 = result[2]
-            result = result[0]
-            if not isinstance(result, np.ndarray):
-                result = result.toarray()
-            result = (result, r0, r1)
         return result
-
-    def _initialize_anndata_iterator(
-            self,
-            h5ad_path,
-            row_chunk_size):
-        """
-        Initialize iterator using anndata.chunked_X
-        directly.
-
-        Parameters
-        ----------
-        h5ad_path:
-            Path to h5ad file whose rows we are iterating over
-        row_chunk_size:
-            Number of rows to return per chunk
-        """
-        self._iterator_type = 'anndata'
-        data = anndata.read_h5ad(h5ad_path, backed='r')
-        self.n_rows = data.X.shape[0]
-        self._chunk_iterator = data.chunked_X(
-            chunk_size=row_chunk_size)
 
     def _initialize_as_csc(
             self,
@@ -205,9 +185,10 @@ class AnnDataRowIterator(object):
                 write_as_csr = False
 
         if not write_as_csr:
-            self._initialize_anndata_iterator(
-                h5ad_path=h5ad_path,
-                row_chunk_size=row_chunk_size)
+            raise RuntimeError(
+                "Cannot write data as CSR\n"
+                f"free_bytes {free_bytes}; file size {file_size_bytes}\n"
+                f"attrs:\n{attrs}")
         else:
             self.tmp_path = pathlib.Path(
                 mkstemp_clean(
@@ -338,5 +319,80 @@ class CSRRowIterator(object):
                 data=h5_handle[self.data_key],
                 indices=h5_handle[self.indices_key],
                 indptr=h5_handle[self.indptr_key])
+
+        return (chunk, r0, r1)
+
+
+class DenseArrayRowIterator(object):
+    """
+    Class to iterate over a dense array using h5py to directly
+    access the data (rather than anndata, which can load unnecessary
+    data into memory)
+
+    Parameters
+    ----------
+    h5_path:
+        Path to HDF5 file containing CSR matrix data
+    row_chunk_size:
+        Number of rows to return with each chunk
+    array_shape:
+        Shape of the array we are iterating over
+    h5_group:
+        Optional group in the HDF5 file where you will find
+        'data', 'indices' and 'indptr'
+    """
+
+    def __init__(
+            self,
+            h5_path,
+            row_chunk_size,
+            array_shape,
+            keep_open=True):
+
+        self.h5_path = h5_path
+        self.h5_handle = None
+        self.row_chunk_size = row_chunk_size
+        self.r0 = 0
+        self.n_rows = array_shape[0]
+        self.n_cols = array_shape[1]
+
+        self.h5_handler = h5_handler_manager(h5_path, keepopen=keep_open)
+        self.data_key = 'X'
+
+    def __del__(self):
+        if self.h5_handle is not None:
+            self.h5_handler.close()
+
+    def __next__(self):
+        """
+        Actually return a tuple
+
+        (row_chunk, r0, r1)
+
+        where r0 and r1 are the indices of the slice of rows
+        (i.e. row_chunk is data[r0:r1, :])
+        """
+        if self.r0 >= self.n_rows:
+            if self.h5_handle is not None:
+                self.h5_handle = None
+            raise StopIteration
+        r1 = min(self.n_rows, self.r0+self.row_chunk_size)
+
+        with self.h5_handler as h5_handle:
+            chunk = h5_handle[self.data_key][self.r0:r1, :]
+
+        old_r0 = self.r0
+        self.r0 = r1
+        return (chunk, old_r0, r1)
+
+    def __getitem__(self, r0):
+        if isinstance(r0, list):
+            r1 = r0[-1] + 1
+            r0 = r0[0]
+        else:
+            r1 = r0 + 1
+
+        with self.h5_handler as h5_handle:
+            chunk = h5_handle[self.data_key][r0:r1, :]
 
         return (chunk, r0, r1)

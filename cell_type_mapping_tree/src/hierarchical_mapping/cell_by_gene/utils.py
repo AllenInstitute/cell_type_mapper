@@ -1,14 +1,14 @@
 import numpy as np
 
+from hierarchical_mapping.utils.torch_utils import (
+    use_torch)
+
 try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
+    import torch
 except ImportError:
-    TORCH_AVAILABLE = False
-    
-    
+    pass
+
+
 def convert_to_cpm(
         data):
     """
@@ -26,7 +26,7 @@ def convert_to_cpm(
     cpm_data:
         data converted to "counts per million"
     """
-    if TORCH_AVAILABLE:
+    if use_torch():
         if torch.is_tensor(data):
             row_sums = torch.sum(data, axis=1)
             denom = torch.where(row_sums > 0.0, row_sums, 1.)

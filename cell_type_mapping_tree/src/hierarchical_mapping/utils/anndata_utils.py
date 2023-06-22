@@ -18,4 +18,7 @@ def write_df_to_h5ad(h5ad_path, df_name, df_value):
     specified h5ad_path
     """
     with h5py.File(h5ad_path, 'a') as dst:
-        write_elem(dst, key=df_name, val=df_value)
+        try:
+            write_elem(dst, key=df_name, val=df_value)
+        except TypeError:
+            write_elem(dst, k=df_name, elem=df_value)

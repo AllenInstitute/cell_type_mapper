@@ -10,9 +10,14 @@ import copy
 import h5py
 import json
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 import tempfile
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available,
+    use_torch)
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -31,19 +36,24 @@ from hierarchical_mapping.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
 from hierarchical_mapping.type_assignment.election import (
+    run_type_assignment_on_h5ad_cpu)
+
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 from hierarchical_mapping.cli.hierarchical_mapping import (
     run_mapping)
 
+if is_torch_available():
+    from hierarchical_mapping.gpu_utils.type_assignment.election import (
+        run_type_assignment_on_h5ad_gpu)
 
-def test_raw_pipeline(
+
+@pytest.fixture(scope='module')
+def precomputed_path_fixture(
+        tmp_dir_fixture,
         raw_reference_h5ad_fixture,
-        raw_query_h5ad_fixture,
-        expected_cluster_fixture,
-        taxonomy_tree_dict,
-        query_gene_names,
-        tmp_dir_fixture):
+        taxonomy_tree_dict):
 
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_dict)
@@ -65,13 +75,24 @@ def test_raw_pipeline(
     with h5py.File(precomputed_path, 'r') as in_file:
         assert len(in_file.keys()) > 0
 
+    return precomputed_path
+
+@pytest.fixture(scope='module')
+def ref_marker_path_fixture(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        taxonomy_tree_dict):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
     ref_marker_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='reference_markers_',
         suffix='.h5')
 
     find_markers_for_all_taxonomy_pairs(
-        precomputed_stats_path=precomputed_path,
+        precomputed_stats_path=precomputed_path_fixture,
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
@@ -82,6 +103,18 @@ def test_raw_pipeline(
         assert in_file['up_regulated/data'][()].sum() > 0
         assert in_file['markers/data'][()].sum() > 0
 
+    return ref_marker_path
+
+@pytest.fixture(scope='module')
+def marker_cache_path_fixture(
+        tmp_dir_fixture,
+        taxonomy_tree_dict,
+        ref_marker_path_fixture,
+        query_gene_names):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
     marker_cache_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='ref_and_query_markers_',
@@ -89,7 +122,7 @@ def test_raw_pipeline(
 
     create_marker_cache_from_reference_markers(
         output_cache_path=marker_cache_path,
-        input_cache_path=ref_marker_path,
+        input_cache_path=ref_marker_path_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=7,
@@ -99,10 +132,25 @@ def test_raw_pipeline(
     with h5py.File(marker_cache_path, 'r') as in_file:
         assert len(in_file['None']['reference'][()]) > 0
 
+    return marker_cache_path
+
+
+def test_raw_pipeline(
+        raw_query_h5ad_fixture,
+        expected_cluster_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        ref_marker_path_fixture,
+        marker_cache_path_fixture):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=raw_query_h5ad_fixture,
-        precomputed_stats_path=precomputed_path,
-        marker_gene_cache_path=marker_cache_path,
+        precomputed_stats_path=precomputed_path_fixture,
+        marker_gene_cache_path=marker_cache_path_fixture,
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
@@ -110,6 +158,86 @@ def test_raw_pipeline(
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
         normalization='raw')
+
+    assert len(result) == len(expected_cluster_fixture)
+    for cell in result:
+        cell_id = int(cell['cell_id'])
+        actual_cluster = cell['cluster']['assignment']
+        expected_cluster = expected_cluster_fixture[cell_id]
+        assert actual_cluster == expected_cluster
+        actual_sub = cell['subclass']['assignment']
+        assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
+        actual_class = cell['class']['assignment']
+        assert actual_sub in taxonomy_tree_dict['class'][actual_class]
+
+
+def test_raw_pipeline_cpu(
+        raw_query_h5ad_fixture,
+        expected_cluster_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        ref_marker_path_fixture,
+        marker_cache_path_fixture):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    result = run_type_assignment_on_h5ad_cpu(
+        query_h5ad_path=raw_query_h5ad_fixture,
+        precomputed_stats_path=precomputed_path_fixture,
+        marker_gene_cache_path=marker_cache_path_fixture,
+        taxonomy_tree=taxonomy_tree,
+        n_processors=3,
+        chunk_size=100,
+        bootstrap_factor=6.0/7.0,
+        bootstrap_iteration=100,
+        rng=np.random.default_rng(123545),
+        normalization='raw')
+
+    assert len(result) == len(expected_cluster_fixture)
+    for cell in result:
+        cell_id = int(cell['cell_id'])
+        actual_cluster = cell['cluster']['assignment']
+        expected_cluster = expected_cluster_fixture[cell_id]
+        assert actual_cluster == expected_cluster
+        actual_sub = cell['subclass']['assignment']
+        assert actual_cluster in taxonomy_tree_dict['subclass'][actual_sub]
+        actual_class = cell['class']['assignment']
+        assert actual_sub in taxonomy_tree_dict['class'][actual_class]
+
+
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
+def test_raw_pipeline_gpu(
+        raw_query_h5ad_fixture,
+        expected_cluster_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        ref_marker_path_fixture,
+        marker_cache_path_fixture):
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    os.environ[env_var] = 'true'
+    assert use_torch()
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    result = run_type_assignment_on_h5ad_gpu(
+        query_h5ad_path=raw_query_h5ad_fixture,
+        precomputed_stats_path=precomputed_path_fixture,
+        marker_gene_cache_path=marker_cache_path_fixture,
+        taxonomy_tree=taxonomy_tree,
+        n_processors=3,
+        chunk_size=100,
+        bootstrap_factor=6.0/7.0,
+        bootstrap_iteration=100,
+        rng=np.random.default_rng(123545),
+        normalization='raw')
+
+    os.environ[env_var] = ''
+    assert not use_torch()
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:

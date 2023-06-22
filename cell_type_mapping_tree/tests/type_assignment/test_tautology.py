@@ -19,7 +19,7 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.type_assignment.election import (
+from hierarchical_mapping.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 

@@ -5,6 +5,10 @@ import multiprocessing
 import numpy as np
 import time
 
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available,
+    use_torch)
+
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 
@@ -30,15 +34,8 @@ from hierarchical_mapping.cell_by_gene.cell_by_gene import (
 from hierarchical_mapping.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
-try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        NUM_GPUS = torch.cuda.device_count()
-except ImportError:
-    TORCH_AVAILABLE = False
-    NUM_GPUS = None
+if is_torch_available():
+    import torch
 
 
 def run_type_assignment_on_h5ad_cpu(
@@ -117,7 +114,7 @@ def run_type_assignment_on_h5ad_cpu(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
-    results_output_path: 
+    results_output_path:
         Output path for run assignment. If given will save individual chunks of
         the run assignment process to separate files.
 
@@ -135,6 +132,8 @@ def run_type_assignment_on_h5ad_cpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    if log is not None:
+        log.info("Running CPU implementation of type assignment.")
 
     (taxonomy_validity,
      taxonomy_msg) = reconcile_taxonomy_and_markers(
@@ -357,13 +356,9 @@ def run_type_assignment(
     # store the hierarchical classification of
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree.hierarchy
-    # result = []
-    # for i_cell in range(full_query_gene_data.n_cells):
-    #     this = dict()
-    #     for level in hierarchy:
-    #         this[level] = None
-    #     result.append(this)
-    result = [{level: None for level in hierarchy} for _ in range(full_query_gene_data.n_cells)]
+
+    result = [{level: None for level in hierarchy}
+              for _ in range(full_query_gene_data.n_cells)]
 
     # list of levels in the taxonomy (None means consider all clusters)
     level_list = [None] + list(hierarchy)
@@ -383,8 +378,6 @@ def run_type_assignment(
             k_list = taxonomy_tree.nodes_at_level(parent_level)
             k_list.sort()
             parent_node_list = [(parent_level, k) for k in k_list]
-            # for k in k_list:
-            #     parent_node_list.append((parent_level, k))
 
         previously_assigned[child_level] = dict()
 
@@ -459,13 +452,6 @@ def run_type_assignment(
                 assigned_this = (assignment_idx == idx)
                 assigned_this = chosen_idx[assigned_this]
                 previously_assigned[child_level][celltype] = assigned_this
-
-            # type_to_idx = {celltype: idx for idx, celltype in enumerate(set(assignment))}
-            # idx_to_type = list(set(assignment))
-            # assignment_idx = np.array([type_to_idx[celltype] for celltype in assignment])
-
-            # temp = {celltype: chosen_idx[assignment_idx == idx] for idx, celltype in enumerate(idx_to_type)}
-            # previously_assigned[child_level].update(temp)
 
             # assign cells to their chosen child_level nodes
             for i_cell, assigned_type, confidence_level in zip(chosen_idx,
@@ -692,7 +678,7 @@ def tally_votes(
         neighbors.append(out)
         update_timer("neighbor_assign", t3, timers)
 
-    if TORCH_AVAILABLE:
+    if use_torch():
         t = time.time()
         neighbors = torch.stack(neighbors)
         update_timer("stack", t, timers)

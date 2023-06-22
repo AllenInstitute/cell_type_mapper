@@ -1,11 +1,17 @@
 import argschema
 import h5py
 import json
+import multiprocessing
 import numpy as np
 import pathlib
 import tempfile
 import time
 import traceback
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available,
+    is_cuda_available,
+    use_torch)
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -42,15 +48,9 @@ from hierarchical_mapping.cli.schemas import (
     HierarchicalTypeAssignmentSchema,
     PrecomputedStatsSchema)
 
-try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        import multiprocessing
-        multiprocessing.set_start_method("spawn", force=True)
-except ImportError:
-    TORCH_AVAILABLE = False
+
+if use_torch() and is_cuda_available():
+    multiprocessing.set_start_method("spawn", force=True)
 
 
 class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
@@ -76,7 +76,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         allow_none=True,
         description="Optional temporary directory into which assignment "
         "results will be saved from each process.")
-    
+
     extended_result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
@@ -131,8 +131,8 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 def get_assignments(config, type_assignment):
     """Get the assignments from the type assignment output.
-    If extended_results_dir is given, then the results were saved in 
-    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise, 
+    If extended_results_dir is given, then the results were saved in
+    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise,
     the assignments are given in the 'assignments' key in type_assignment.
     """
     tmp_output_dir = config.get("extended_result_dir")
@@ -194,6 +194,14 @@ def run_mapping(config, output_path, log_path=None):
         output["marker_genes"] = type_assignment["marker_genes"]
         csv_result["taxonomy_tree"] = type_assignment["taxonomy_tree"]
         csv_result["assignments"] = assignments
+
+        if config['csv_result_path'] is not None:
+            blob_to_csv(
+                results_blob=csv_result.get("assignments"),
+                taxonomy_tree=csv_result.get("taxonomy_tree"),
+                output_path=config['csv_result_path'],
+                metadata_path=config['extended_result_path'])
+
         log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
@@ -210,15 +218,16 @@ def run_mapping(config, output_path, log_path=None):
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
 
-        if config['csv_result_path'] is not None:
-            blob_to_csv(
-                results_blob=csv_result.get("assignments"),
-                taxonomy_tree=csv_result.get("taxonomy_tree"),
-                output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'])
-
 
 def _run_mapping(config, tmp_dir, log):
+
+    if log is not None:
+        log.env(f"is_torch_available: {is_torch_available()}")
+        log.env(f"is_cuda_available: {is_cuda_available()}")
+        log.env(f"use_torch: {use_torch()}")
+        log.env("multiprocessing start method: "
+                f"{multiprocessing.get_start_method()}")
+        log.log_software_env()
 
     t0 = time.time()
     file_tracker = FileTracker(

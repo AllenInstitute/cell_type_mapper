@@ -1,6 +1,18 @@
+import anndata
 import json
+import numpy as np
+import sys
 import time
 import warnings
+
+try:
+    import torch
+except ImportError:
+    pass
+
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available)
 
 
 class CommandLog(object):
@@ -16,6 +28,15 @@ class CommandLog(object):
         timestamp = time.time()-self.t0
         full_msg = f"{timestamp:.5e} seconds == {str(msg)}"
         return full_msg
+
+    def env(self, msg):
+        """
+        Print a message about the current operating environment
+        (really just prepends 'ENV' to the message and passes it
+        along to self.info)
+        """
+        full_msg = f"ENV: {msg}"
+        self.info(full_msg)
 
     def info(self, msg):
         full_msg = self._prepend_time(msg)
@@ -43,3 +64,14 @@ class CommandLog(object):
     def write_log(self, output_path):
         with open(output_path, 'w') as out_file:
             out_file.write(json.dumps(self.log, indent=2))
+
+    def log_software_env(self):
+        """
+        Record some boilerplate messages about the versions of software
+        being used
+        """
+        self.env(f"Python version: {sys.version}")
+        self.env(f"anndata version: {anndata.__version__}")
+        self.env(f"numpy version: {np.__version__}")
+        if is_torch_available():
+            self.env(f"torch version: {torch.__version__}")

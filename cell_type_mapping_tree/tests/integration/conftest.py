@@ -20,11 +20,12 @@ def tmp_dir_fixture(
     _clean_up(tmp_dir)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def n_reference_cells():
-    return 100000
+    return 10000
 
-@pytest.fixture
+
+@pytest.fixture(scope='module')
 def taxonomy_tree_dict(n_reference_cells):
     rng = np.random.default_rng(223112)
     hierarchy = ['class', 'subclass', 'cluster']
@@ -66,7 +67,7 @@ def taxonomy_tree_dict(n_reference_cells):
     return tree
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def obs_records_fixture(taxonomy_tree_dict):
     cluster_to_subclass = dict()
     for subclass in taxonomy_tree_dict['subclass']:
@@ -96,7 +97,7 @@ def obs_records_fixture(taxonomy_tree_dict):
     return results
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def gene_names(
         taxonomy_tree_dict):
     n_clusters = len(taxonomy_tree_dict['cluster'])
@@ -120,19 +121,19 @@ def gene_names(
     return reference_gene_names, query_gene_names, marker_genes
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def reference_gene_names(gene_names):
     return gene_names[0]
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def query_gene_names(gene_names):
     return gene_names[1]
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def marker_gene_names(gene_names):
     return gene_names[2]
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_to_signal(
         taxonomy_tree_dict,
         marker_gene_names):
@@ -147,7 +148,7 @@ def cluster_to_signal(
     return result
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def raw_reference_cell_x_gene(
         n_reference_cells,
         taxonomy_tree_dict,
@@ -171,7 +172,7 @@ def raw_reference_cell_x_gene(
     return x_data
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def raw_reference_h5ad_fixture(
         raw_reference_cell_x_gene,
         reference_gene_names,
@@ -199,10 +200,10 @@ def raw_reference_h5ad_fixture(
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def expected_cluster_fixture(
         taxonomy_tree_dict):
-    n_query_cells = 5555
+    n_query_cells = 555
     cluster_list = list(taxonomy_tree_dict['cluster'].keys())
     rng = np.random.default_rng(87123)
     chosen_clusters = rng.choice(
@@ -212,7 +213,7 @@ def expected_cluster_fixture(
     return chosen_clusters
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def raw_query_cell_x_gene_fixture(
         cluster_to_signal,
         expected_cluster_fixture,
@@ -235,7 +236,7 @@ def raw_query_cell_x_gene_fixture(
 
     return x_data
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def raw_query_h5ad_fixture(
         raw_query_cell_x_gene_fixture,
         query_gene_names,

@@ -3,11 +3,11 @@ import h5py
 import json
 import time
 import numpy as np
-# import torch.distributed as dist
 import torch  # type: ignore
 import torch.nn as nn
-# from torch.nn.parallel import DistributedDataParallel as DDP
 
+from hierarchical_mapping.utils.torch_utils import (
+    is_cuda_available)
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad)
 from hierarchical_mapping.gpu_utils.anndata_iterator.anndata_iterator import (
@@ -20,19 +20,6 @@ from hierarchical_mapping.gpu_utils.utils.utils import (
     get_timers, AverageMeter, ProgressMeter)
 from hierarchical_mapping.utils.utils import (
     update_timer)
-
-NUM_GPUS = torch.cuda.device_count()
-
-# def setup(rank, world_size):
-#     os.environ['MASTER_ADDR'] = 'localhost'
-#     os.environ['MASTER_PORT'] = '12355'
-
-#     # initialize the process group
-#     dist.init_process_group("gloo", rank=rank, world_size=world_size)
-
-
-# def cleanup():
-#     dist.destroy_process_group()
 
 
 class TypeAssignment(nn.Module):
@@ -129,9 +116,10 @@ def run_type_assignment_on_h5ad_gpu(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
-    results_output_path: 
-        Output path for run assignment. If given will save individual chunks of
-        the run assignment process to separate files.
+    results_output_path:
+        Output path for run assignment (a directory).
+        If given will save individual chunks of the run assignment process
+        to separate files.
 
     Returns
     -------
@@ -147,21 +135,14 @@ def run_type_assignment_on_h5ad_gpu(
                            'confidence': fraction_of_votes},
          ...}
     """
-
-    # dist.init_process_group("nccl")
-    # rank = dist.get_rank()
-    # print(f"Start running basic DDP example on rank {rank}.")
-
-    # # create model and move it to GPU with id rank
-    # device_id = rank % torch.cuda.device_count()
+    if log is not None:
+        log.info("Running GPU implementation of type assignment.")
 
     # read query file
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')
     query_cell_names = list(obs.index.values)
     n_rows = len(obs)
     num_workers = min(n_processors, np.ceil(n_rows/chunk_size).astype(int))
-    # max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
-    # chunk_size = min(max_chunk_size, chunk_size)
     del obs
 
     with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
@@ -171,12 +152,19 @@ def run_type_assignment_on_h5ad_gpu(
             all_query_identifiers[ii]
             for ii in in_file["all_query_markers"][()]]
 
+    if is_cuda_available():
+        gpu_index = 0
+        device = torch.device(f'cuda:{gpu_index}')
+    else:
+        gpu_index = None
+        device = torch.device('cpu')
+
     dataloader = get_torch_dataloader(query_h5ad_path,
                                       chunk_size,
                                       all_query_identifiers,
                                       normalization,
                                       all_query_markers,
-                                      device=torch.device('cuda:0'),
+                                      device=device,
                                       num_workers=num_workers,
                                       max_gb=max_gb,
                                       tmp_dir=tmp_dir)
@@ -188,8 +176,6 @@ def run_type_assignment_on_h5ad_gpu(
         precompute_path=precomputed_stats_path)
 
     type_assignment_model = TypeAssignment()
-    # type_assignment_model = DDP(type_assignment_model,
-    #                             device_ids=[device_id])
 
     config = dict()
     config["leaf_node_matrix"] = leaf_node_matrix
@@ -198,7 +184,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["bootstrap_factor"] = bootstrap_factor
     config["bootstrap_iteration"] = bootstrap_iteration
     config["rng"] = rng
-    config["gpu_index"] = 0
+    config["gpu_index"] = gpu_index
 
     print("starting type assignment")
     print_freq = 1
@@ -232,7 +218,7 @@ def run_type_assignment_on_h5ad_gpu(
         update_timer("loop", t, timers)
 
         t = time.time()
-        if results_output_path:
+        if results_output_path is not None:
             this_output_path = os.path.join(results_output_path,
                                             f"{r0}_{r1}_assignment.json")
             save_results(assignment, this_output_path)

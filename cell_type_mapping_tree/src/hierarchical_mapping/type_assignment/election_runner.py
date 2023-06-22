@@ -1,19 +1,14 @@
-
 from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
 
-try:
-    TORCH_AVAILABLE = False
-    import torch  # type: ignore
-    if torch.cuda.is_available():
-        TORCH_AVAILABLE = True
-        NUM_GPUS = torch.cuda.device_count()
-        from hierarchical_mapping.gpu_utils.type_assignment.election import (
-            run_type_assignment_on_h5ad_gpu)
-except ImportError:
-    TORCH_AVAILABLE = False
-    NUM_GPUS = None
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available,
+    use_torch)
+
+if is_torch_available():
+    from hierarchical_mapping.gpu_utils.type_assignment.election import (
+        run_type_assignment_on_h5ad_gpu)
 
 
 def run_type_assignment_on_h5ad(
@@ -31,7 +26,7 @@ def run_type_assignment_on_h5ad(
         log=None,
         max_gb=10,
         results_output_path=None):
-    if TORCH_AVAILABLE:
+    if use_torch():
         return run_type_assignment_on_h5ad_gpu(
             query_h5ad_path,
             precomputed_stats_path,
