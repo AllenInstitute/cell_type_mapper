@@ -47,14 +47,6 @@ from hierarchical_mapping.cli.schemas import (
     HierarchicalTypeAssignmentSchema,
     PrecomputedStatsSchema)
 
-try:
-    import torch
-    if use_torch():
-        import multiprocessing
-        multiprocessing.set_start_method("spawn", force=True)
-except ImportError:
-    pass
-
 
 class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
 

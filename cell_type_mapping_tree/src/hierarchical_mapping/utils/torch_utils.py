@@ -17,13 +17,19 @@ def is_torch_available():
 
 def is_cuda_available():
    """
-   Is cuda available
+   Is cuda available?
+
+   (also: if it is, force multiprocessing to
+   use 'spawn' to start child processes)
    """
    if not is_torch_available():
        return False
    if not hasattr(is_cuda_available, 'value'):
        import torch
        is_cuda_available.value = torch.cuda.is_available()
+       if is_cuda_available.value:
+           import multiprocessing
+           multiprocessing.set_start_method("spawn", force=True)
    return is_cuda_available.value
 
 
