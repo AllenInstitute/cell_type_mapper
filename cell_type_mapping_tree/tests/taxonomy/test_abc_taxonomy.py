@@ -49,14 +49,14 @@ def tmp_dir_fixture(
     _clean_up(tmp_dir)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_names_fixture():
     result = []
     for ii in range(1234):
         result.append(f'cluster_{ii}')
     return result
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_to_supertype_fixture(cluster_names_fixture):
     result = dict()
     n_super = len(cluster_names_fixture)//3
@@ -69,7 +69,7 @@ def cluster_to_supertype_fixture(cluster_names_fixture):
         result[cl] = chosen_super
     return result
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def supertype_to_subclass_fixture(cluster_to_supertype_fixture):
     supertypes = list(set(cluster_to_supertype_fixture.values()))
     supertypes.sort()
@@ -84,7 +84,7 @@ def supertype_to_subclass_fixture(cluster_to_supertype_fixture):
     return result
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def subclass_to_class_fixture(supertype_to_subclass_fixture):
     subclasses = list(set(supertype_to_subclass_fixture.values()))
     subclasses.sort()
@@ -99,7 +99,7 @@ def subclass_to_class_fixture(supertype_to_subclass_fixture):
     return result
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cell_to_cluster_fixture(cluster_names_fixture):
     result = dict()
     rng = np.random.default_rng(2233311)
@@ -115,7 +115,7 @@ def cell_to_cluster_fixture(cluster_names_fixture):
         result[cell_name] = chosen_cluster
     return result
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def alias_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
@@ -139,7 +139,7 @@ def alias_fixture(
             alias += 1
     return result
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cell_metadata_fixture(
         tmp_dir_fixture,
         cell_to_cluster_fixture,
@@ -161,13 +161,38 @@ def cell_metadata_fixture(
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
 
-@pytest.fixture
+
+@pytest.fixture(scope='module')
+def term_set_label_to_name_fixture(
+        cluster_to_supertype_fixture,
+        supertype_to_subclass_fixture,
+        subclass_to_class_fixture):
+    """
+    return a dict mapping (level, label) to a human readable name
+    """
+    result = dict()
+    class_lookup = {n:None
+                    for n in set(subclass_to_class_fixture.values())}
+
+    for lookup, class_name in [(cluster_to_supertype_fixture, 'cluster'),
+                               (supertype_to_subclass_fixture, 'supertype'),
+                               (subclass_to_class_fixture, 'subclass'),
+                               (class_lookup, 'class')]:
+        for child in lookup:
+            this_key = (class_name, child)
+            assert this_key not in result
+            result[this_key] = f'{class_name}_{child}_readable'
+    return result 
+
+
+@pytest.fixture(scope='module')
 def cluster_membership_fixture(
         alias_fixture,
         tmp_dir_fixture,
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
-        subclass_to_class_fixture):
+        subclass_to_class_fixture,
+        term_set_label_to_name_fixture):
     """
     Simulates cluster_to_cluster_annotation_membership.csv
     """
@@ -179,6 +204,7 @@ def cluster_membership_fixture(
         'cluster_annotation_term_set_label',
         'garbage1',
         'cluster_alias',
+        'cluster_annotation_term_name',
         'garbage2',
         'garbage3',
         'cluster_annotation_term_label',
@@ -203,6 +229,8 @@ def cluster_membership_fixture(
                     this += f'{class_name},'
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
+                elif col == 'cluster_annotation_term_name':
+                    this += f'{term_set_label_to_name_fixture[(class_name, child)]},'
                 else:
                     raise RuntimeError(f'cannot parse column {col}')
             this = this[:-1]+'\n'
@@ -218,7 +246,7 @@ def cluster_membership_fixture(
     return pathlib.Path(tmp_path)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def cluster_annotation_term_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
@@ -286,7 +314,7 @@ def cluster_annotation_term_fixture(
     return tmp_path
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def baseline_tree_fixture(
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
@@ -369,6 +397,17 @@ def test_get_alias_mapper(
                 f"no obvious level for {full_label}")
         assert actual[(level, full_label)] == str(alias_fixture[full_label])
 
+
+def test_full_alias_mapper(
+        cluster_membership_fixture,
+        term_set_label_to_name_fixture):
+    mapper = get_alias_mapper(
+        csv_path=cluster_membership_fixture,
+        valid_term_set_labels=['class', 'subclass', 'supertype', 'cluster'],
+        alias_column_name='cluster_annotation_term_name')
+
+    assert len(mapper) == len(term_set_label_to_name_fixture)
+    assert mapper == term_set_label_to_name_fixture
 
 def test_get_cell_to_cluster_alias(
         cell_metadata_fixture,
