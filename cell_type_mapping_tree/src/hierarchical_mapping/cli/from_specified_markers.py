@@ -1,6 +1,7 @@
 import argschema
 import h5py
 import json
+import multiprocessing
 import numpy as np
 import pathlib
 import tempfile
@@ -46,6 +47,10 @@ from hierarchical_mapping.cli.schemas import (
     SpecifiedMarkerSchema,
     HierarchicalTypeAssignmentSchema,
     PrecomputedStatsSchema)
+
+
+if use_torch() and is_cuda_available():
+    multiprocessing.set_start_method("spawn", force=True)
 
 
 class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
@@ -220,6 +225,8 @@ def _run_mapping(config, tmp_dir, log):
         log.env(f"is_torch_available: {is_torch_available()}")
         log.env(f"is_cuda_available: {is_cuda_available()}")
         log.env(f"use_torch: {use_torch()}")
+        log.env("multiprocessing start method: "
+                f"{multiprocessing.get_start_method()}")
         log.log_software_env()
 
     t0 = time.time()
