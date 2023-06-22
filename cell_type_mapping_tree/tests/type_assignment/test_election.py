@@ -84,7 +84,6 @@ def test_tally_votes_gpu(
         rng=rng)
 
     os.environ[env_var] = 'true'
-    print('')
     assert use_torch()
     rng = np.random.default_rng(rng_seed)
     gpu_result = tally_votes(
