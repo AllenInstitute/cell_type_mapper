@@ -135,6 +135,8 @@ def run_type_assignment_on_h5ad_gpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    if log is not None:
+        log.info("Running GPU implementation of type assignment.")
 
     # read query file
     obs = read_df_from_h5ad(query_h5ad_path, 'obs')

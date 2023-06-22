@@ -133,6 +133,8 @@ def run_type_assignment_on_h5ad_cpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    if log is not None:
+        log.info("Running CPU implementation of type assignment.")
 
     (taxonomy_validity,
      taxonomy_msg) = reconcile_taxonomy_and_markers(

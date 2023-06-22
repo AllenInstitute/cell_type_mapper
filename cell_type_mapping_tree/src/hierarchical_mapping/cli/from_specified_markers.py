@@ -8,6 +8,7 @@ import time
 import traceback
 
 from hierarchical_mapping.utils.torch_utils import(
+    is_torch_available,
     is_cuda_available,
     use_torch)
 
@@ -221,6 +222,12 @@ def run_mapping(config, output_path, log_path=None):
 
 
 def _run_mapping(config, tmp_dir, log):
+
+    if log is not None:
+        log.env(f"is_torch_available: {is_torch_available()}")
+        log.env(f"is_cuda_available: {is_cuda_available()}")
+        log.env(f"use_torch: {use_torch()}")
+        log.log_software_env()
 
     t0 = time.time()
     file_tracker = FileTracker(

@@ -5,6 +5,7 @@ import copy
 import h5py
 import json
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 import tempfile
@@ -12,6 +13,9 @@ import tempfile
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from hierarchical_mapping.utils.torch_utils import (
+    is_torch_available)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -39,7 +43,7 @@ from hierarchical_mapping.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
 
-@pytest.fixture
+@pytest.fixture(scope='module')
 def ab_initio_assignment_fixture(
         raw_reference_h5ad_fixture,
         raw_query_h5ad_fixture,
@@ -144,12 +148,14 @@ def ab_initio_assignment_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir',
-        [(True, True, True),
-         (True, False, True),
-         (False, True, True),
-         (False, False, True),
-         (False, True, True)])
+        'flatten,use_csv,use_tmp_dir,use_gpu',
+        [(True, True, True, False),
+         (True, False, True, False),
+         (False, True, True, False),
+         (False, False, True, False),
+         (False, True, True, False),
+         (False, True, True, True),
+         (True, True, True, True)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -157,7 +163,17 @@ def test_mapping_from_markers(
         tmp_dir_fixture,
         flatten,
         use_csv,
-        use_tmp_dir):
+        use_tmp_dir,
+        use_gpu):
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -206,6 +222,26 @@ def test_mapping_from_markers(
     runner.run()
 
     actual = json.load(open(result_path, 'rb'))
+
+    gpu_msg = 'Running GPU implementation of type assignment.'
+    cpu_msg = 'Running CPU implementation of type assignment.'
+    found_gpu = False
+    found_cpu = False
+    for line in actual['log']:
+        if gpu_msg in line:
+            found_gpu = True
+        if cpu_msg in line:
+            found_cpu = True
+
+    if found_cpu:
+        assert not found_gpu
+    if found_gpu:
+        assert not found_cpu
+
+    if use_gpu:
+        assert found_gpu
+    else:
+        assert found_cpu
 
     # this is only expectd if flatten == False
     expected = json.load(
@@ -269,3 +305,5 @@ def test_mapping_from_markers(
 
             assert len(found_cells) == len(result_lookup)
             assert set(found_cells) == set(result_lookup.keys())
+
+    os.environ[env_var] = ''

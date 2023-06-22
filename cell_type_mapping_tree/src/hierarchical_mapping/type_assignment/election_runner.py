@@ -27,7 +27,7 @@ def run_type_assignment_on_h5ad(
         log=None,
         max_gb=10,
         results_output_path=None):
-    if is_cuda_available():
+    if use_torch():
         return run_type_assignment_on_h5ad_gpu(
             query_h5ad_path,
             precomputed_stats_path,
