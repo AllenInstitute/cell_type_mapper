@@ -10,6 +10,7 @@ import pathlib
 import json
 import scipy.sparse as scipy_sparse
 import tempfile
+import os
 
 from hierarchical_mapping.utils.torch_utils import (
     is_torch_available)
@@ -171,7 +172,8 @@ def test_running_single_election(
             parent_node=parent_node)
 
         (result,
-         confidence) = choose_node(
+         confidence,
+         avg_corr) = choose_node(
             query_gene_data=data_for_election['query_data'].data,
             reference_gene_data=data_for_election['reference_data'].data,
             reference_types=data_for_election['reference_types'],
@@ -181,6 +183,7 @@ def test_running_single_election(
 
         assert result.shape == (n_query_cells,)
         assert confidence.shape == result.shape
+        assert avg_corr.shape == result.shape
 
     _clean_up(tmp_dir)
 
@@ -680,6 +683,7 @@ def test_running_h5ad_election_gpu(
     """
     Test self-consistency of GPU type assignments
     """
+    env_var = 'AIBS_BKP_USE_TORCH'
     rng = np.random.default_rng(6712312)
 
     taxonomy_tree = taxonomy_tree_fixture[0]
@@ -691,6 +695,7 @@ def test_running_h5ad_election_gpu(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    os.environ[env_var] = 'true'
     result = run_type_assignment_on_h5ad_gpu(
         query_h5ad_path=query_h5ad_fixture,
         precomputed_stats_path=precompute_stats_path_fixture,
@@ -702,6 +707,7 @@ def test_running_h5ad_election_gpu(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         results_output_path=None)
+    os.environ[env_var] = ''
 
     query_data = query_data_fixture
     n_query_cells = query_data.shape[0]
