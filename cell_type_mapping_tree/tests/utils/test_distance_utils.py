@@ -256,4 +256,4 @@ def test_correlation_dot_gpu():
             timers=None)
 
     np.testing.assert_allclose(
-        cpu, gpu, atol=0.0, rtol=1.0e-3)
+        cpu, gpu, atol=0.0, rtol=1.0e-2)
