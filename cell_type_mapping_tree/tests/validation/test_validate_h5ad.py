@@ -17,8 +17,7 @@ from hierarchical_mapping.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
 from hierarchical_mapping.validation.validate_h5ad import (
-    validate_h5ad,
-    _choose_dtype)
+    validate_h5ad)
 
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
@@ -229,18 +228,6 @@ def test_validation_of_good_h5ad(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
-
-
-@pytest.mark.parametrize(
-        "output_dtype",
-        (np.uint8, np.int8, np.uint16, np.int16,
-         np.uint32, np.int32, np.uint64, np.int64))
-def test_choose_dtype(output_dtype):
-    output_info = np.iinfo(output_dtype)
-    min_val = (output_info.min)+0.1
-    max_val = float(output_info.max)-0.1
-    print(min_val, max_val, _choose_dtype((min_val, max_val)))
-    assert _choose_dtype((min_val, max_val)) == output_dtype
 
 
 @pytest.mark.parametrize(
