@@ -116,7 +116,7 @@ def run_type_assignment_on_h5ad_gpu(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
-    results_output_path: 
+    results_output_path:
         Output path for run assignment (a directory).
         If given will save individual chunks of the run assignment process
         to separate files.

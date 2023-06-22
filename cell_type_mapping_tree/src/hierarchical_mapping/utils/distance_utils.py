@@ -1,18 +1,17 @@
 import numpy as np
-import logging
 import time
 
-from hierarchical_mapping.utils.torch_utils import(
+from hierarchical_mapping.utils.torch_utils import (
     is_torch_available,
     is_cuda_available,
-    use_torch,
-    find_num_gpus)
+    use_torch)
 
 from hierarchical_mapping.utils.utils import (
     update_timer)
 
 if is_torch_available():
     import torch
+
 
 def correlation_nearest_neighbors(
         baseline_array,
@@ -250,17 +249,19 @@ def _correlation_dot_gpu(
     """
 
     t = time.time()
-    arr0 = _subtract_mean_and_normalize_gpu(arr0,
-                                        do_transpose=False,
-                                        gpu_index=gpu_index,
-                                        timers=timers)
+    arr0 = _subtract_mean_and_normalize_gpu(
+            arr0,
+            do_transpose=False,
+            gpu_index=gpu_index,
+            timers=timers)
     update_timer("sn1", t, timers)
 
     t = time.time()
-    arr1 = _subtract_mean_and_normalize_gpu(arr1,
-                                        do_transpose=True,
-                                        gpu_index=gpu_index,
-                                        timers=timers)
+    arr1 = _subtract_mean_and_normalize_gpu(
+            arr1,
+            do_transpose=True,
+            gpu_index=gpu_index,
+            timers=timers)
     update_timer("sn2", t, timers)
 
     t = time.time()

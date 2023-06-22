@@ -1,15 +1,14 @@
 import numpy as np
 
-from hierarchical_mapping.utils.torch_utils import(
-    is_cuda_available,
+from hierarchical_mapping.utils.torch_utils import (
     use_torch)
 
 try:
     import torch
 except ImportError:
     pass
-    
-    
+
+
 def convert_to_cpm(
         data):
     """

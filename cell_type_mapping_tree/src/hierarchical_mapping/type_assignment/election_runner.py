@@ -2,15 +2,14 @@ from hierarchical_mapping.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
 
-from hierarchical_mapping.utils.torch_utils import(
+from hierarchical_mapping.utils.torch_utils import (
     is_torch_available,
-    is_cuda_available,
     use_torch)
 
 if is_torch_available():
-    import torch
     from hierarchical_mapping.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
+
 
 def run_type_assignment_on_h5ad(
         query_h5ad_path,

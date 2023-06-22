@@ -4,8 +4,7 @@ import numpy as np
 from hierarchical_mapping.cell_by_gene.utils import (
     convert_to_cpm)
 
-from hierarchical_mapping.utils.torch_utils import(
-    is_cuda_available,
+from hierarchical_mapping.utils.torch_utils import (
     use_torch)
 
 try:

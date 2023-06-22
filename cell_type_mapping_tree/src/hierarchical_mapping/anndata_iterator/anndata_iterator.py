@@ -1,6 +1,4 @@
-import anndata
 import h5py
-import numpy as np
 import os
 import pathlib
 import tempfile
@@ -30,7 +28,7 @@ class h5_handler_manager():
         if not self.keepopen:
             self.h5_handle = h5py.File(self.h5_path, self.mode)
         return self.h5_handle
-     
+
     def __exit__(self, exc_type, exc_value, exc_traceback):
         if not self.keepopen:
             self.h5_handle.close()
@@ -107,11 +105,11 @@ class AnnDataRowIterator(object):
                 row_chunk_size=row_chunk_size,
                 tmp_dir=tmp_dir)
         elif encoding_type.startswith('array'):
-              self._iterator_type = "dense"
-              with h5py.File(h5ad_path, "r") as src:
-                  array_shape = src['X'].shape
-              self.n_rows = array_shape[0]
-              self._chunk_iterator = DenseArrayRowIterator(
+            self._iterator_type = "dense"
+            with h5py.File(h5ad_path, "r") as src:
+                array_shape = src['X'].shape
+            self.n_rows = array_shape[0]
+            self._chunk_iterator = DenseArrayRowIterator(
                   h5_path=h5ad_path,
                   row_chunk_size=row_chunk_size,
                   array_shape=array_shape,
@@ -121,17 +119,16 @@ class AnnDataRowIterator(object):
                 "Do not know how to iterate over anndata "
                 f"with attrs\n{attrs}")
 
-
     def __del__(self):
         if self.tmp_dir is not None:
             _clean_up(self.tmp_dir)
 
     def __iter__(self):
         return self
-    
+
     def __getitem__(self, x):
         return self._chunk_iterator[x]
-    
+
     def __next__(self):
         """
         Return the next chunk of rows.
@@ -143,7 +140,6 @@ class AnnDataRowIterator(object):
         """
         result = next(self._chunk_iterator)
         return result
-
 
     def _initialize_as_csc(
             self,

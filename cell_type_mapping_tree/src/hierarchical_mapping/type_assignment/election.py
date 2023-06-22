@@ -5,9 +5,8 @@ import multiprocessing
 import numpy as np
 import time
 
-from hierarchical_mapping.utils.torch_utils import(
+from hierarchical_mapping.utils.torch_utils import (
     is_torch_available,
-    is_cuda_available,
     use_torch)
 
 from hierarchical_mapping.utils.anndata_utils import (
@@ -115,7 +114,7 @@ def run_type_assignment_on_h5ad_cpu(
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
 
-    results_output_path: 
+    results_output_path:
         Output path for run assignment. If given will save individual chunks of
         the run assignment process to separate files.
 
@@ -358,7 +357,8 @@ def run_type_assignment(
     # each cell in full_query_gene_data
     hierarchy = taxonomy_tree.hierarchy
 
-    result = [{level: None for level in hierarchy} for _ in range(full_query_gene_data.n_cells)]
+    result = [{level: None for level in hierarchy}
+              for _ in range(full_query_gene_data.n_cells)]
 
     # list of levels in the taxonomy (None means consider all clusters)
     level_list = [None] + list(hierarchy)

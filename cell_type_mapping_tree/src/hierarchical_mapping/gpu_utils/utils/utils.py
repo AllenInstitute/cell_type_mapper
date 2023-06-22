@@ -2,6 +2,7 @@ from enum import Enum
 
 try:
     import torch
+    import torch.distributed as dist
 except ImportError:
     pass
 
@@ -49,7 +50,8 @@ class AverageMeter(object):
 
     def __str__(self):
 
-        fmtstr = '{name} [{val' + self.fmt + '} ({avg' + self.fmt + '}) {sum' + self.fmt + '}] '
+        fmtstr = ('{name} [{val' + self.fmt + '} ({avg'
+                  + self.fmt + '}) {sum' + self.fmt + '}] ')
 
         return fmtstr.format(**self.__dict__)
 

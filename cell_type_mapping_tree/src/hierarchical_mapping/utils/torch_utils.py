@@ -1,5 +1,6 @@
 import os
 
+
 def is_torch_available():
     """
     Is torch available
@@ -7,30 +8,30 @@ def is_torch_available():
     if not hasattr(is_torch_available, 'value'):
         value = False
         try:
-            import torch
+            import torch  # noqa: F401
             value = True
-        except:
+        except ImportError:
             pass
         is_torch_available.value = value
     return is_torch_available.value
 
 
 def is_cuda_available():
-   """
-   Is cuda available?
+    """
+    Is cuda available?
 
-   (also: if it is, force multiprocessing to
-   use 'spawn' to start child processes)
-   """
-   if not is_torch_available():
-       return False
-   if not hasattr(is_cuda_available, 'value'):
-       import torch
-       is_cuda_available.value = torch.cuda.is_available()
-       if is_cuda_available.value:
-           import multiprocessing
-           multiprocessing.set_start_method("spawn", force=True)
-   return is_cuda_available.value
+    (also: if it is, force multiprocessing to
+    use 'spawn' to start child processes)
+    """
+    if not is_torch_available():
+        return False
+    if not hasattr(is_cuda_available, 'value'):
+        import torch
+        is_cuda_available.value = torch.cuda.is_available()
+        if is_cuda_available.value:
+            import multiprocessing
+            multiprocessing.set_start_method("spawn", force=True)
+    return is_cuda_available.value
 
 
 def find_num_gpus():

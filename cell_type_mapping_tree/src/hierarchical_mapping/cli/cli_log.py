@@ -36,7 +36,7 @@ class CommandLog(object):
         along to self.info)
         """
         full_msg = f"ENV: {msg}"
-        self.info(msg)
+        self.info(full_msg)
 
     def info(self, msg):
         full_msg = self._prepend_time(msg)

@@ -7,7 +7,7 @@ import tempfile
 import time
 import traceback
 
-from hierarchical_mapping.utils.torch_utils import(
+from hierarchical_mapping.utils.torch_utils import (
     is_torch_available,
     is_cuda_available,
     use_torch)
@@ -71,7 +71,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         allow_none=True,
         description="Optional temporary directory into which assignment "
         "results will be saved from each process.")
-    
+
     extended_result_path = argschema.fields.OutputFile(
         required=True,
         default=None,
@@ -126,8 +126,8 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 def get_assignments(config, type_assignment):
     """Get the assignments from the type assignment output.
-    If extended_results_dir is given, then the results were saved in 
-    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise, 
+    If extended_results_dir is given, then the results were saved in
+    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise,
     the assignments are given in the 'assignments' key in type_assignment.
     """
     tmp_output_dir = config.get("extended_result_dir")
