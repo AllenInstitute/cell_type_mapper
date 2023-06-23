@@ -236,6 +236,9 @@ def _run_mapping(config, tmp_dir, log):
         def label_to_name(self, level, label, name_key='gar'):
             return label
 
+        def level_to_name(self, level_label):
+            return level_label
+
     if config['csv_result_path'] is not None:
         blob_to_csv(
             results_blob=result,

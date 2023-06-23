@@ -45,12 +45,21 @@ def blob_to_csv(
             metadata_path = pathlib.Path(metadata_path)
             dst.write(f'# metadata = {metadata_path.name}\n')
         dst.write(f'# taxonomy hierarchy = {str_hierarchy}\n')
+        readable_hierarchy = [
+            taxonomy_tree.level_to_name(level_label=level_label)
+            for level_label in taxonomy_tree.hierarchy]
+        if readable_hierarchy != taxonomy_tree.hierarchy:
+            str_readable_hierarchy = json.dumps(readable_hierarchy)
+            dst.write(f'# readable taxonomy hierarchy = '
+                      f'{str_readable_hierarchy}\n')
         header = 'cell_id,'
         for level in taxonomy_tree.hierarchy:
-            header += f'{level}_label,{level}_name,'
+            readable_level = taxonomy_tree.level_to_name(
+                level_label=level)
+            header += f'{readable_level}_label,{readable_level}_name,'
             if level == taxonomy_tree.leaf_level:
-                header += f'{level}_alias,'
-            header += f'{level}_{confidence_label},'
+                header += f'{readable_level}_alias,'
+            header += f'{readable_level}_{confidence_label},'
         header = header[:-1] + '\n'
         dst.write(header)
         for cell in results_blob:

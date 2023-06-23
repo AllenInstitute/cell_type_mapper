@@ -18,17 +18,8 @@ def tmp_dir_fixture(tmp_path_factory):
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('with_metadata', [True, False])
-def test_blob_to_csv(tmp_dir_fixture, with_metadata):
-
-    class DummyTree(object):
-        hierarchy = ['level1', 'level3', 'level7']
-        @property
-        def leaf_level(self):
-            return 'level7'
-        def label_to_name(self, level, label, name_key='gar'):
-            return label
-
+@pytest.fixture(scope='module')
+def results_fixture():
     results = [
         {'cell_id': 'a',
          'level1': {'assignment': 'alice',
@@ -53,6 +44,21 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
                     'corr': 0.11723}
         }
     ]
+    return results
+
+
+@pytest.mark.parametrize('with_metadata', [True, False])
+def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
+
+    class DummyTree(object):
+        hierarchy = ['level1', 'level3', 'level7']
+        @property
+        def leaf_level(self):
+            return 'level7'
+        def label_to_name(self, level, label, name_key='gar'):
+            return label
+        def level_to_name(self, level_label):
+            return level_label
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -68,7 +74,7 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
         n_offset = 0
 
     blob_to_csv(
-        results_blob=results,
+        results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
         metadata_path=metadata_path)
@@ -98,7 +104,7 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
     # test again using a different confidence stat
 
     blob_to_csv(
-        results_blob=results,
+        results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
         metadata_path=metadata_path,
@@ -130,7 +136,7 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
 
 
 @pytest.mark.parametrize('with_metadata', [True, False])
-def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata):
+def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixture):
     """
     Test with a name mapping
     """
@@ -171,31 +177,8 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata):
             return 'level7'
         def label_to_name(self, level, label, name_key='gar'):
             return name_mapper[level][label][name_key]
-
-    results = [
-        {'cell_id': 'a',
-         'level1': {'assignment': 'alice',
-                    'confidence': 0.01234567,
-                    'corr': 0.112253},
-         'level3': {'assignment': 'bob',
-                    'confidence': 0.2,
-                    'corr': 0.4},
-         'level7': {'assignment': 'cheryl',
-                    'confidence': 0.245,
-                    'corr': 0.33332}
-        },
-        {'cell_id': 'b',
-         'level1': {'assignment': 'roger',
-                    'confidence': 0.11119,
-                    'corr': 0.1},
-         'level3': {'assignment': 'dodger',
-                    'confidence': 0.3,
-                    'corr': 0.9},
-         'level7': {'assignment': 'brooklyn',
-                    'confidence': 0.5,
-                    'corr': 0.11723}
-        }
-    ]
+        def level_to_name(self, level_label):
+            return level_label
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -211,7 +194,7 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata):
         n_offset = 0
 
     blob_to_csv(
-        results_blob=results,
+        results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
         metadata_path=metadata_path)
@@ -241,7 +224,7 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata):
     # test again using a different confidence stat
 
     blob_to_csv(
-        results_blob=results,
+        results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
         metadata_path=metadata_path,
@@ -269,3 +252,62 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata):
 
     cell1 = 'b,roger,jane,0.1000,dodger,Y,0.9000,brooklyn,cleveland,88,0.1172\n'
     assert actual_lines[3+n_offset] == cell1
+
+
+@pytest.mark.parametrize('with_metadata', [True, False])
+def test_blob_to_csv_level_map(tmp_dir_fixture, with_metadata, results_fixture):
+
+    class DummyTree(object):
+        hierarchy = ['level1', 'level3', 'level7']
+        @property
+        def leaf_level(self):
+            return 'level7'
+        def label_to_name(self, level, label, name_key='gar'):
+            return label
+        def level_to_name(self, level_label):
+            n = level_label.replace('level', '')
+            n = int(n)**2
+            return f'salted_{n}'
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.csv')
+
+    if with_metadata:
+        metadata_path = 'path/to/my/cool_file.txt'
+        n_expected = 6
+        n_offset = 1
+    else:
+        metadata_path = None
+        n_expected = 5
+        n_offset = 0
+
+    blob_to_csv(
+        results_blob=results_fixture,
+        taxonomy_tree=DummyTree(),
+        output_path=csv_path,
+        metadata_path=metadata_path)
+
+    with open(csv_path, 'r') as src:
+        actual_lines = src.readlines()
+    assert len(actual_lines) == n_expected
+
+    if with_metadata:
+        metadata_line = '# metadata = cool_file.txt\n'
+        assert actual_lines[0] == metadata_line
+
+    taxonomy_line = '# taxonomy hierarchy = ["level1", "level3", "level7"]\n'
+    assert actual_lines[0+n_offset] == taxonomy_line
+
+    readable_taxonomy_line = ('# readable taxonomy hierarchy = '
+                              '["salted_1", '
+                              '"salted_9", '
+                              '"salted_49"]\n')
+    assert actual_lines[1+n_offset] == readable_taxonomy_line
+
+    header_line = ('cell_id,'
+                   'salted_1_label,salted_1_name,salted_1_confidence,'
+                   'salted_9_label,salted_9_name,salted_9_confidence,'
+                   'salted_49_label,salted_49_name,salted_49_alias,'
+                   'salted_49_confidence\n')
+    assert actual_lines[2+n_offset] == header_line
