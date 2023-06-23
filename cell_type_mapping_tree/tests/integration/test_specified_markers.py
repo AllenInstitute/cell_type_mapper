@@ -302,18 +302,26 @@ def test_mapping_from_markers(
 
             header_line = 'cell_id'
             for level in hierarchy:
-                header_line += f',{level}_label,{level}_confidence'
+                if level == 'cluster':
+                    header_line += ',cluster_label,cluster_name,cluster_alias,cluster_confidence'
+                else:
+                    header_line += f',{level}_label,{level}_name,{level}_confidence'
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []
             for line in in_file:
                 params = line.strip().split(',')
-                assert len(params) == 2*len(hierarchy)+1
+                assert len(params) == 3*len(hierarchy)+2  # +2 is for cluster alias and cell_id
                 this_cell = result_lookup[params[0]]
                 found_cells.append(params[0])
                 for i_level, level in enumerate(hierarchy):
-                    assert params[1+2*i_level] == this_cell[level]['assignment']
-                    delta = np.abs(this_cell[level]['confidence']-float(params[2+2*i_level]))
+                    assn_idx = 1+3*i_level
+                    conf_idx = 3+3*i_level
+                    if level == 'cluster':
+                        conf_idx += 1
+                    assert params[assn_idx] == this_cell[level]['assignment']
+                    print('params ',params)
+                    delta = np.abs(this_cell[level]['confidence']-float(params[conf_idx]))
                     assert delta < 0.0001
 
             assert len(found_cells) == len(result_lookup)

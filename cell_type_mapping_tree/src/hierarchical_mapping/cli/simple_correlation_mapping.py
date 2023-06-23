@@ -229,6 +229,10 @@ def _run_mapping(config, tmp_dir, log):
         def hierarchy(self):
             return ['cluster']
 
+        @property
+        def leaf_level(self):
+            return 'cluster'
+
         def label_to_name(self, level, label, name_key='gar'):
             return label
 
