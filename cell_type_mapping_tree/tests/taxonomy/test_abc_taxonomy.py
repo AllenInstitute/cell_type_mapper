@@ -26,7 +26,7 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
-    get_alias_mapper,
+    get_label_to_name,
     get_cell_to_cluster_alias)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
@@ -375,11 +375,11 @@ def test_get_tree_above_leaves(
             parent = lookup[child]
             assert child in actual[parent_level][parent]
 
-def test_get_alias_mapper(
+def test_get_label_to_name(
         cluster_membership_fixture,
         alias_fixture):
 
-    actual = get_alias_mapper(
+    actual = get_label_to_name(
         csv_path=cluster_membership_fixture,
         valid_term_set_labels=('cluster',))
 
@@ -398,13 +398,13 @@ def test_get_alias_mapper(
         assert actual[(level, full_label)] == str(alias_fixture[full_label])
 
 
-def test_full_alias_mapper(
+def test_full_label_to_name(
         cluster_membership_fixture,
         term_label_to_name_fixture):
-    mapper = get_alias_mapper(
+    mapper = get_label_to_name(
         csv_path=cluster_membership_fixture,
         valid_term_set_labels=['class', 'subclass', 'supertype', 'cluster'],
-        alias_column_name='cluster_annotation_term_name')
+        name_column='cluster_annotation_term_name')
 
     assert len(mapper) == len(term_label_to_name_fixture)
     assert mapper == term_label_to_name_fixture

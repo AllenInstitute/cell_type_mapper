@@ -16,7 +16,7 @@ from hierarchical_mapping.taxonomy.utils import (
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
-    get_alias_mapper,
+    get_label_to_name,
     get_cell_to_cluster_alias)
 
 
@@ -156,14 +156,14 @@ class TaxonomyTree(object):
             csv_path=cluster_annotation_path,
             hierarchy=hierarchy)
 
-        alias_map = get_alias_mapper(
+        alias_map = get_label_to_name(
             csv_path=cluster_membership_path,
             valid_term_set_labels=(leaf_level,))
 
-        full_name_map = get_alias_mapper(
+        full_name_map = get_label_to_name(
             csv_path=cluster_membership_path,
             valid_term_set_labels=hierarchy,
-            alias_column_name='cluster_annotation_term_name')
+            name_column='cluster_annotation_term_name')
 
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
