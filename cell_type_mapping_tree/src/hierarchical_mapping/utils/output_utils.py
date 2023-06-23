@@ -41,12 +41,17 @@ def blob_to_csv(
         dst.write(f'# taxonomy hierarchy = {str_hierarchy}\n')
         header = 'cell_id,'
         for level in taxonomy_tree.hierarchy:
-            header += f'{level},{level}_confidence,'
+            header += f'{level}_label,{level}_confidence,'
         header = header[:-1] + '\n'
         dst.write(header)
         for cell in results_blob:
             values = [cell['cell_id']]
             for level in taxonomy_tree.hierarchy:
-                values.append(cell[level]['assignment'])
+                label = cell[level]['assignment']
+                name = taxonomy_tree.label_to_name(
+                            level=level,
+                            label=label,
+                            name_key='name')
+                values.append(label)
                 values.append(f"{cell[level]['confidence']:.4f}")
             dst.write(",".join(values)+"\n")

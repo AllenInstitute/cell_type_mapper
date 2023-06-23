@@ -302,7 +302,7 @@ def test_mapping_from_markers(
 
             header_line = 'cell_id'
             for level in hierarchy:
-                header_line += f',{level},{level}_confidence'
+                header_line += f',{level}_label,{level}_confidence'
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []

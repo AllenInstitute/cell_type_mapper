@@ -23,6 +23,8 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
+        def label_to_name(self, level, label, name_key='gar'):
+            return label
 
     results = [
         {'cell_id': 'a',
@@ -74,8 +76,9 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata):
     taxonomy_line = '# taxonomy hierarchy = ["level1", "level3", "level7"]\n'
     assert actual_lines[0+n_offset] == taxonomy_line
 
-    header_line = 'cell_id,level1,level1_confidence,level3,level3_confidence,'
-    header_line += 'level7,level7_confidence\n'
+    header_line = ('cell_id,level1_label,level1_confidence,'
+                   'level3_label,level3_confidence,level7_label,'
+                   'level7_confidence\n')
     assert actual_lines[1+n_offset] == header_line
 
     cell0 = 'a,alice,0.0123,bob,0.2000,cheryl,0.2450\n'
