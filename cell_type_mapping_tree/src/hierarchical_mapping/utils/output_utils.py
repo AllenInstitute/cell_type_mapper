@@ -6,6 +6,8 @@ def blob_to_csv(
         results_blob,
         taxonomy_tree,
         output_path,
+        confidence_key='confidence',
+        confidence_label='confidence',
         metadata_path=None):
     """
     Write a set of results originally formatted for a JSON blob
@@ -27,6 +29,10 @@ def blob_to_csv(
         Hierarchy will be listed as a comment at the top of this file.
     output_path:
         Path to the CSV file that will be written
+    confidence_key:
+        The key with in the blob dict pointing to the confidence stat
+    confidence_label:
+        The name used for the confidence stat in the CSV header
     metadata_path:
         Path to the metadta path going with this output (if any;
         file name will be recorded as a comment at the top of
@@ -44,7 +50,7 @@ def blob_to_csv(
             header += f'{level}_label,{level}_name,'
             if level == taxonomy_tree.leaf_level:
                 header += f'{level}_alias,'
-            header += f'{level}_confidence,'
+            header += f'{level}_{confidence_label},'
         header = header[:-1] + '\n'
         dst.write(header)
         for cell in results_blob:
@@ -65,5 +71,5 @@ def blob_to_csv(
                                 name_key='alias')
                     values.append(alias)
 
-                values.append(f"{cell[level]['confidence']:.4f}")
+                values.append(f"{cell[level][confidence_key]:.4f}")
             dst.write(",".join(values)+"\n")
