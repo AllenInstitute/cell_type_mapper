@@ -173,7 +173,7 @@ def validate_taxonomy_tree(
 
     expected_keys = set(hierarchy)
     expected_keys.add('hierarchy')
-    bad_keys = {'metadata', 'alias_mapping', 'full_name_mapping'}
+    bad_keys = {'metadata', 'name_mapper'}
     these_keys = set(taxonomy_tree.keys())-bad_keys
     if these_keys != expected_keys:
         msg = f"Expect tree to have keys\n {expected_keys}\n"
@@ -202,7 +202,10 @@ def validate_taxonomy_tree(
                     msg = f"node {this_child} "
                     msg += f"(child of {parent_level}:{this_parent} -- "
                     msg += f"type {type(this_child)}) "
-                    msg += f"is not present in the keys at level {child_level}"
+                    msg += "is not present in the keys at "
+                    msg += f"level {child_level}\n"
+                    msg += "e.g. of keys "
+                    msg += f"{list(taxonomy_tree[child_level].keys())[:5]}"
                     raise RuntimeError(msg)
 
                 if this_child in child_to_parent[child_level]:

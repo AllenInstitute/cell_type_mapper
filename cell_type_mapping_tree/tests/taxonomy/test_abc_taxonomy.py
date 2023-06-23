@@ -251,7 +251,6 @@ def cluster_annotation_term_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
         subclass_to_class_fixture,
-        alias_fixture,
         tmp_dir_fixture):
     """
     Simulates the CSV that has the parent-child
@@ -319,8 +318,7 @@ def baseline_tree_fixture(
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
-        subclass_to_class_fixture,
-        alias_fixture):
+        subclass_to_class_fixture):
     data = dict()
     data['hierarchy'] = ['class',
                          'subclass',
@@ -334,14 +332,7 @@ def baseline_tree_fixture(
         this = dict()
         for child_label in lookup:
             parent = lookup[child_label]
-
-            if parent_level == 'supertype':
-                child = str(alias_fixture[child_label])
-            else:
-                child = child_label
-
-            if parent_level == 'cluster':
-                parent = str(alias_fixture[parent])
+            child = child_label
 
             if parent not in this:
                 this[parent] = []
@@ -452,10 +443,10 @@ def test_de_aliasing(
 
     for cluster in set(cell_to_cluster_fixture.values()):
         alias = alias_fixture[cluster]
-        assert test_tree.alias_to_label(str(alias)) == cluster
-
-    with pytest.raises(RuntimeError, match="Do not have a label"):
-        test_tree.alias_to_label('gar')
+        assert test_tree.label_to_name(
+            level='cluster',
+            label=cluster,
+            name_key='alias') == str(alias)
 
 def test_name_mapping(
         cell_metadata_fixture,
@@ -523,4 +514,4 @@ def test_de_aliasing_when_no_map():
               'bbb': ['3']}}
 
     tree = TaxonomyTree(data=data)
-    assert tree.alias_to_label('3') == '3'
+    assert tree.label_to_name(level='cluster', label='3') == '3'
