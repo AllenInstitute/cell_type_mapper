@@ -229,6 +229,9 @@ def _run_mapping(config, tmp_dir, log):
         def hierarchy(self):
             return ['cluster']
 
+        def label_to_name(self, level, label, name_key='gar'):
+            return label
+
     if config['csv_result_path'] is not None:
         blob_to_csv(
             results_blob=result,
