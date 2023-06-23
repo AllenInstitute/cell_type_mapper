@@ -109,6 +109,47 @@ def get_tree_above_leaves(
     return result
 
 
+def get_term_set_map(
+        csv_path):
+    """
+    Infer a mapping from cluster_annotation_term_set_label to
+    cluster_annotation_term_set_name from the
+    cluster_annotation_term.csv file
+
+    Parameters
+    ----------
+    csv_path:
+        Path to the CSV file
+
+    Returns
+    -------
+    A dict mapping cluster_annotation_term_set_label
+    to cluster_annotation_term_set_name
+    """
+    header_lookup = get_header_map(
+        csv_path=csv_path,
+        desired_columns=[
+            'cluster_annotation_term_set_label',
+            'cluster_annotation_term_set_name'])
+    label_idx = header_lookup['cluster_annotation_term_set_label']
+    name_idx = header_lookup['cluster_annotation_term_set_name']
+
+    result = dict()
+    with open(csv_path, 'r') as src:
+        src.readline()
+        for line in src:
+            params = line.strip().split(',')
+            label = params[label_idx]
+            name = params[name_idx]
+            if label in result:
+                if name != result[label]:
+                    raise RuntimeError(
+                        f"label {label} maps to at least two names: "
+                        f"{name} and {result[label]}")
+            result[label] = name
+    return result
+
+
 def get_label_to_name(
         csv_path,
         valid_term_set_labels,
