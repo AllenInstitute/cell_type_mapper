@@ -188,11 +188,12 @@ def cluster_membership_fixture(
     rng = np.random.default_rng(76123)
     columns = [
         'garbage0',
-        'cluster_annotation_term_set_label',
+        'cluster_annotation_term_set_name',
         'garbage1',
         'cluster_alias',
         'garbage2',
         'garbage3',
+        'cluster_annotation_term_set_label',
         'cluster_annotation_term_name',
         'cluster_annotation_term_label',
         'garbage4']
@@ -214,6 +215,8 @@ def cluster_membership_fixture(
                     this += f'{alias_fixture[child]},'
                 elif col == 'cluster_annotation_term_set_label':
                     this += f'{class_name},'
+                elif col == 'cluster_annotation_term_set_name':
+                    this += f'{class_name}_readable,'
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':

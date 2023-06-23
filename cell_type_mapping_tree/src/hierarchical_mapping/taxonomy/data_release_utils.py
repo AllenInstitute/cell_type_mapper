@@ -114,7 +114,7 @@ def get_term_set_map(
     """
     Infer a mapping from cluster_annotation_term_set_label to
     cluster_annotation_term_set_name from the
-    cluster_annotation_term.csv file
+    cluster_to_cluster_annotation_membership_term.csv file
 
     Parameters
     ----------

@@ -200,6 +200,7 @@ def cluster_membership_fixture(
     tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.csv')
     rng = np.random.default_rng(76123)
     columns = [
+        'cluster_annotation_term_set_name',
         'garbage0',
         'cluster_annotation_term_set_label',
         'garbage1',
@@ -227,6 +228,8 @@ def cluster_membership_fixture(
                     this += f'{alias_fixture[child]},'
                 elif col == 'cluster_annotation_term_set_label':
                     this += f'{class_name},'
+                elif col == 'cluster_annotation_term_set_name':
+                    this += f'{class_name}_readable,'
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
@@ -266,6 +269,7 @@ def cluster_annotation_term_fixture(
     #parent_term_set_label is what kind of thing parent is
 
     columns = [
+        'cluster_annotation_term_set_name',
         'garbage0',
         'garbage1',
         'label',
@@ -292,6 +296,8 @@ def cluster_annotation_term_fixture(
                         this += f'{_create_word(rng)},'
                     elif column_name == 'cluster_annotation_term_set_label':
                         this += f'{child_class},'
+                    elif column_name == 'cluster_annotation_term_set_name':
+                        this += f'{child_class}_readable,'
                     elif column_name == 'parent_term_set_label':
                         this += f'{parent_class},'
                     elif column_name == 'parent_term_label':
@@ -480,6 +486,27 @@ def test_name_mapping(
     }
     other_tree = TaxonomyTree(data=other_data)
     assert test_tree.label_to_name('a', 'x') == 'x'
+
+
+def test_hierarchy_mapping(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_tree_fixture,
+        alias_fixture,
+        cell_to_cluster_fixture,
+        term_label_to_name_fixture):
+
+    test_tree = TaxonomyTree.from_data_release(
+            cell_metadata_path=cell_metadata_fixture,
+            cluster_annotation_path=cluster_annotation_term_fixture,
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    print(test_tree._data['hierarchy_mapper'])
+    for level in ['class', 'subclass', 'supertype', 'cluster']:
+        assert test_tree.level_to_name(level_label=level) == f'{level}_readable'
+    assert test_tree.level_to_name(level_label='gar') == 'gar'
 
 def test_abc_dropping(
         cell_metadata_fixture,

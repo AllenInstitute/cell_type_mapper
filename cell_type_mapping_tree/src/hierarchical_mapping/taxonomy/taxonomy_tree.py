@@ -17,7 +17,8 @@ from hierarchical_mapping.taxonomy.utils import (
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
     get_label_to_name,
-    get_cell_to_cluster_alias)
+    get_cell_to_cluster_alias,
+    get_term_set_map)
 
 
 class TaxonomyTree(object):
@@ -42,7 +43,8 @@ class TaxonomyTree(object):
         other_keys = set(other._data.keys())
 
         bad_keys = {'metadata',
-                    'name_mapper'}
+                    'name_mapper',
+                    'hierarchy_mapper'}
 
         these_keys -= bad_keys
         other_keys -= bad_keys
@@ -151,6 +153,11 @@ class TaxonomyTree(object):
         rough_tree = get_tree_above_leaves(
             csv_path=cluster_annotation_path,
             hierarchy=hierarchy)
+
+        hierarchy_level_map = get_term_set_map(
+            csv_path=cluster_membership_path)
+
+        data['hierarchy_mapper'] = hierarchy_level_map
 
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
@@ -440,6 +447,18 @@ class TaxonomyTree(object):
         if name_key not in name_mapper[level][label]:
             return label
         return name_mapper[level][label][name_key]
+
+    def level_to_name(self, level_label):
+        """
+        Map the label for a hierarchy level to its name.
+        If no mapper exists (or the level_label is unknown)
+        just return level_label
+        """
+        if 'hierarchy_mapper' not in self._data:
+            return level_label
+        if level_label not in self._data['hierarchy_mapper']:
+            return level_label
+        return self._data['hierarchy_mapper'][level_label]
 
     def leaves_to_compare(
             self,
