@@ -196,11 +196,21 @@ def run_mapping(config, output_path, log_path=None):
         csv_result["assignments"] = assignments
 
         if config['csv_result_path'] is not None:
+
+            if config['type_assignment']['bootstrap_iteration'] == 1:
+                confidence_key = 'avg_correlation'
+                confidence_label = 'correlation_coefficient'
+            else:
+                confidence_key = 'confidence'
+                confidence_label = 'bootstrapping_probability'
+
             blob_to_csv(
                 results_blob=csv_result.get("assignments"),
                 taxonomy_tree=csv_result.get("taxonomy_tree"),
                 output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'])
+                metadata_path=config['extended_result_path'],
+                confidence_key=confidence_key,
+                confidence_label=confidence_label)
 
         log.info("RAN SUCCESSFULLY")
     except Exception:
