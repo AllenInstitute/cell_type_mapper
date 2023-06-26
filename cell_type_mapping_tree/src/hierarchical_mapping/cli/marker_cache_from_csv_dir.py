@@ -45,6 +45,16 @@ class MarkerCacheInputSchema(argschema.ArgSchema):
         allow_none=False,
         dsecription="Path to the JSON file that will be written.")
 
+    drop_level = argschema.fields.String(
+        required=False,
+        default="CCN20230504_SUPT",
+        allow_none=True,
+        description="If this level exists in the taxonomy, drop "
+        "it before doing type assignment (this is to accommmodate "
+        "the fact that the official taxonomy includes the "
+        "'supertype', even though that level is not used "
+        "during hierarchical type assignment")
+
 
 class MarkerCacheRunner(argschema.ArgSchemaParser):
 
@@ -56,8 +66,11 @@ class MarkerCacheRunner(argschema.ArgSchemaParser):
             taxonomy_tree = TaxonomyTree(
                 data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
-        taxonomy_tree = taxonomy_tree.drop_level(
-            'CCN20230504_SUPT')
+        if 'drop_level' in self.args:
+            if self.args['drop_level'] is not None:
+                if self.args['drop_level'] in taxonomy_tree.hierarchy:
+                    taxonomy_tree = taxonomy_tree.drop_level(
+                        self.args['drop_level'])
 
         raw_markers = marker_lookup_from_tree_and_csv(
             csv_dir=self.args['marker_dir'],

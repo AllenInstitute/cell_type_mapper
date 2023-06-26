@@ -1,4 +1,5 @@
 import pathlib
+import re
 
 
 def marker_lookup_from_tree_and_csv(
@@ -35,6 +36,7 @@ def marker_lookup_from_tree_and_csv(
     level_to_idx = {n: ii+2
                     for ii, n in enumerate(taxonomy_tree.hierarchy)}
 
+    int_re = re.compile('[0-9]+')
     parent_to_path = dict()
     parent_list = taxonomy_tree.all_parents
     for parent_node in parent_list:
@@ -52,7 +54,8 @@ def marker_lookup_from_tree_and_csv(
                 label=parent_node[1],
                 name_key='name')
             prefix = readable_name.split()[0]
-            readable_name = readable_name.replace(f'{prefix} ', '')
+            if len(int_re.findall(prefix)) > 0:
+                readable_name = readable_name.replace(f'{prefix} ', '')
 
             munged = readable_name.replace(' ', '+').replace('/', '__')
             fname = f'marker.{level_idx}.{munged}.csv'
