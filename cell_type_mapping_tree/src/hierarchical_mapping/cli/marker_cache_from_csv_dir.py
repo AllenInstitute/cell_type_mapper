@@ -56,6 +56,9 @@ class MarkerCacheRunner(argschema.ArgSchemaParser):
             taxonomy_tree = TaxonomyTree(
                 data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
+        taxonomy_tree = taxonomy_tree.drop_level(
+            'CCN20230504_SUPT')
+
         raw_markers = marker_lookup_from_tree_and_csv(
             csv_dir=self.args['marker_dir'],
             taxonomy_tree=taxonomy_tree)
