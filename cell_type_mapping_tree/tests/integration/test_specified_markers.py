@@ -148,18 +148,19 @@ def ab_initio_assignment_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once',
-        [(True, True, True, False, False),
-         (True, False, True, False, False),
-         (False, True, True, False, False),
-         (False, False, True, False, False),
-         (False, True, True, False, False),
-         (False, True, True, True, False),
-         (True, True, True, True, False),
-         (True, True, True, True, True),
-         (False, True, True, True, True),
-         (False, True, True, False, True),
-         (True, True, True, False, True)])
+        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
+        [(True, True, True, False, False, False),
+         (True, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, True, True, True, False, False),
+         (True, True, True, True, False, False),
+         (True, True, True, True, True, False),
+         (False, True, True, True, True, False),
+         (False, True, True, False, True, False),
+         (True, True, True, False, True, False),
+         (False, True, True, True, True, True)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -169,9 +170,12 @@ def test_mapping_from_markers(
         use_csv,
         use_tmp_dir,
         use_gpu,
-        just_once):
+        just_once,
+        drop_subclass):
     """
     just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
     """
 
     if use_gpu and not is_torch_available():
@@ -225,6 +229,9 @@ def test_mapping_from_markers(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
     runner = FromSpecifiedMarkersRunner(
         args= [],
         input_data=config)
@@ -257,6 +264,12 @@ def test_mapping_from_markers(
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
+    if drop_subclass:
+        for k in list(expected['marker_genes'].keys()):
+            if k.startswith('subclass'):
+                expected['marker_genes'].pop(k)
+        for cell in expected['results']:
+            cell.pop('subclass')
 
     if not flatten:
         assert actual['marker_genes'] == expected['marker_genes']
@@ -315,6 +328,8 @@ def test_mapping_from_markers(
             assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
             if flatten:
                 hierarchy = ['cluster']
+            elif drop_subclass:
+                hierarchy = ['class', 'cluster']
             else:
                 hierarchy = ['class', 'subclass', 'cluster']
             assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
