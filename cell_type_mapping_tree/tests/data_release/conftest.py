@@ -457,3 +457,31 @@ def bad_marker_gene_csv_dir(
         shutil.copy(src=pth, dst=new_pth)
 
     return marker_dir
+
+
+@pytest.fixture(scope='module')
+def bad_marker_gene_csv_dir_2(
+        marker_gene_csv_dir,
+        tmp_dir_fixture):
+    """
+    Populate a directory with the marker gene files.
+    Intentionally mangle contets of one of the files.
+    Return the path to the dir
+    """
+
+    marker_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture,
+                prefix='marker_gene_lists_'))
+
+    pth_list = [n for n in marker_gene_csv_dir.iterdir()]
+    ct = 0
+    for pth in pth_list:
+        new_pth = marker_dir / pth.name
+        shutil.copy(src=pth, dst=new_pth)
+        ct += 1
+        if ct == 10:
+            with open(new_pth, 'a') as out_file:
+                out_file.write('"blah"\n')
+
+    return marker_dir

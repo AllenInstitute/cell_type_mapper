@@ -96,3 +96,46 @@ def test_marker_creation_cli(
     # the +1 is for 'metadata'
     assert len(actual) == len(expected_marker_lookup_fixture) + 1
     assert 'metadata' in actual
+
+
+def test_marker_creation_cli_mangled_gene(
+        bad_marker_gene_csv_dir_2,
+        expected_marker_lookup_fixture,
+        cluster_membership_fixture,
+        cell_metadata_fixture,
+        cluster_annotation_term_fixture,
+        tmp_dir_fixture):
+    """
+    Test that an error is raised if a marker gene
+    cannot be mapped to EnsemblID
+    """
+
+    taxonomy_tree = TaxonomyTree.from_data_release(
+        cell_metadata_path=cell_metadata_fixture,
+        cluster_membership_path=cluster_membership_fixture,
+        cluster_annotation_path=cluster_annotation_term_fixture,
+        hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    precompute_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_stats_',
+        suffix='.h5')
+
+    with h5py.File(precompute_path, 'w') as dst:
+        dst.create_dataset(
+            'taxonomy_tree',
+            data=taxonomy_tree.to_str().encode('utf-8'))
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_genes_',
+        suffix='.json')
+
+    config = {
+        'precomputed_file_path': precompute_path,
+        'marker_dir': str(bad_marker_gene_csv_dir_2.resolve().absolute()),
+        'output_path': output_path}
+
+    runner = MarkerCacheRunner(args=[], input_data=config)
+    with pytest.raises(RuntimeError, match="genes had no mapping"):
+        runner.run()
