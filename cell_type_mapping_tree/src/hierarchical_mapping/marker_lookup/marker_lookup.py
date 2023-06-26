@@ -52,15 +52,7 @@ def marker_lookup_from_tree_and_csv(
                 label=parent_node[1],
                 name_key='name')
             prefix = readable_name.split()[0]
-
-            try:
-                int(prefix)
-                is_int = True
-            except ValueError:
-                is_int = False
-
-            if is_int:
-                readable_name = readable_name.replace(f'{prefix} ', '')
+            readable_name = readable_name.replace(f'{prefix} ', '')
 
             munged = readable_name.replace(' ', '+').replace('/', '__')
             fname = f'marker.{level_idx}.{munged}.csv'
