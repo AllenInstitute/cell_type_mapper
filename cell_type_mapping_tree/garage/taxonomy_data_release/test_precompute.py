@@ -54,7 +54,7 @@ def main():
         'cluster_annotation_path': cluster_annotation,
         'cluster_membership_path': cluster_membership,
         'hierarchy': hierarchy,
-        'output_path': '/allen/aibs/technology/danielsf/knowledge_base/benchmarking/scratch/precompute_abc.h5'}
+        'output_path': '/allen/aibs/technology/danielsf/knowledge_base/benchmarking/scratch/precompute_abc_230623.h5'}
 
     t0 = time.time()
     runner = PrecomputationRunner(args=[], input_data=config)
