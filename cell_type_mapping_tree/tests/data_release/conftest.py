@@ -2,6 +2,7 @@ import pytest
 
 import numpy as np
 import pathlib
+import shutil
 import tempfile
 
 from hierarchical_mapping.utils.utils import (
@@ -433,10 +434,7 @@ def marker_gene_csv_dir(
 
 @pytest.fixture(scope='module')
 def bad_marker_gene_csv_dir(
-        expected_marker_lookup_fixture,
-        cluster_membership_fixture,
-        cell_metadata_fixture,
-        cluster_annotation_term_fixture,
+        marker_gene_csv_dir,
         tmp_dir_fixture):
     """
     Populate a directory with the marker gene files.
@@ -444,50 +442,18 @@ def bad_marker_gene_csv_dir(
     Return the path to the dir
     """
 
-    taxonomy_tree = TaxonomyTree.from_data_release(
-        cell_metadata_path=cell_metadata_fixture,
-        cluster_membership_path=cluster_membership_fixture,
-        cluster_annotation_path=cluster_annotation_term_fixture,
-        hierarchy=['class', 'subclass', 'supertype', 'cluster'])
-
-    parent_list = taxonomy_tree.all_parents
-
     marker_dir = pathlib.Path(
             tempfile.mkdtemp(
                 dir=tmp_dir_fixture,
                 prefix='marker_gene_lists_'))
 
-    hierarchy = taxonomy_tree.hierarchy
-    hierarchy_to_idx = {None: 1}
-    for idx, h in enumerate(hierarchy[:-1]):
-        hierarchy_to_idx[h] = idx+2
-
+    pth_list = [n for n in marker_gene_csv_dir.iterdir()]
     ct = 0
-    for parent in parent_list:
-        if parent is None:
-            parent_key = 'None'
-            idx = hierarchy_to_idx[parent]
-            munged = 'root'
-        else:
-            parent_key = f'{parent[0]}/{parent[1]}'
-            idx = hierarchy_to_idx[parent[0]]
-            readable_name = taxonomy_tree.label_to_name(
-                level=parent[0],
-                label=parent[1],
-                name_key='name')
-            munged = readable_name.replace(' ', '+').replace('/', '__')
-        if parent_key not in expected_marker_lookup_fixture:
-            continue
-
-        gene_list = expected_marker_lookup_fixture[parent_key]
-
-        file_name = f'marker.{idx}.{munged}.csv'
-        file_path = marker_dir / file_name
+    for pth in pth_list:
         ct += 1
         if ct == 5:
             continue
-        with open(file_path, 'w') as out_file:
-            out_file.write("a header\n")
-            for gene in gene_list:
-                out_file.write(f'"{gene}"\n')
+        new_pth = marker_dir / pth.name
+        shutil.copy(src=pth, dst=new_pth)
+
     return marker_dir
