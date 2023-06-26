@@ -1,7 +1,8 @@
 import pytest
 
-import pathlib
 import numpy as np
+import pathlib
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -14,6 +15,9 @@ from hierarchical_mapping.taxonomy.data_release_utils import (
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
+
+from hierarchical_mapping.data.gene_id_lookup import (
+    gene_id_lookup)
 
 
 def _create_word(rng):
@@ -163,7 +167,11 @@ def term_label_to_name_fixture(
         for child in lookup:
             this_key = (class_name, child)
             assert this_key not in result
-            result[this_key] = f'{class_name}_{child}_readable'
+
+            # add the ' ' and '/' so that we can test the munging
+            # of node names into csv files the way they come out
+            # of CK's R code
+            result[this_key] = f'{class_name} {child}/readable'
     return result 
 
 
@@ -331,3 +339,92 @@ def baseline_tree_fixture(
 
     return TaxonomyTree(data=data)
 
+
+@pytest.fixture(scope='module')
+def expected_marker_lookup_fixture(
+        baseline_tree_fixture):
+    """
+    Return dict of expected marker lookup
+    """
+    parent_list = baseline_tree_fixture.all_parents
+    rng = np.random.default_rng(88122312)
+
+    gene_symbol_list = []
+    for gene_id in gene_id_lookup:
+        if not gene_id.startswith('ENS'):
+            continue
+        gene_symbol_list.append(gene_id_lookup[gene_id]['gene_symbol'])
+
+    true_lookup = dict()
+    for parent in parent_list:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+            if len(baseline_tree_fixture.children(parent[0], parent[1])) < 2:
+                continue
+        n_genes = rng.integers(10, 30)
+        chosen_genes = list(rng.choice(gene_symbol_list,
+                                       n_genes,
+                                       replace=False))
+        chosen_genes.sort()
+        true_lookup[parent_key] = chosen_genes
+
+    return true_lookup
+
+
+@pytest.fixture(scope='module')
+def marker_gene_csv_dir(
+        expected_marker_lookup_fixture,
+        cluster_membership_fixture,
+        cell_metadata_fixture,
+        cluster_annotation_term_fixture,
+        tmp_dir_fixture):
+    """
+    Populate a directory with the marker gene files.
+    Return the path to the dir
+    """
+
+    taxonomy_tree = TaxonomyTree.from_data_release(
+        cell_metadata_path=cell_metadata_fixture,
+        cluster_membership_path=cluster_membership_fixture,
+        cluster_annotation_path=cluster_annotation_term_fixture,
+        hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    parent_list = taxonomy_tree.all_parents
+
+    marker_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture,
+                prefix='marker_gene_lists_'))
+
+    hierarchy = taxonomy_tree.hierarchy
+    hierarchy_to_idx = {None: 1}
+    for idx, h in enumerate(hierarchy[:-1]):
+        hierarchy_to_idx[h] = idx+2
+
+    for parent in parent_list:
+        if parent is None:
+            parent_key = 'None'
+            idx = hierarchy_to_idx[parent]
+            munged = 'root'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+            idx = hierarchy_to_idx[parent[0]]
+            readable_name = taxonomy_tree.label_to_name(
+                level=parent[0],
+                label=parent[1],
+                name_key='name')
+            munged = readable_name.replace(' ', '+').replace('/', '__')
+        if parent_key not in expected_marker_lookup_fixture:
+            continue
+
+        gene_list = expected_marker_lookup_fixture[parent_key]
+
+        file_name = f'marker.{idx}.{munged}.csv'
+        file_path = marker_dir / file_name
+        with open(file_path, 'w') as out_file:
+            out_file.write("a header\n")
+            for gene in gene_list:
+                out_file.write(f'"{gene}"\n')
+    return marker_dir
