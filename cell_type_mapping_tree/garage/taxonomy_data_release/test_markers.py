@@ -1,4 +1,8 @@
+import json
 import pathlib
+
+from hierarchical_mapping.utils.utils import (
+    get_timestamp)
 
 from hierarchical_mapping.gene_id.gene_id_mapper import (
     GeneIdMapper)
@@ -10,8 +14,6 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 def main():
-    marker_dir = pathlib.Path(
-        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/marker_list_on_nodes')
 
     marker_dir = pathlib.Path(
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17_knowledge/nlevel4_marker_index/marker_list_on_nodes')
@@ -58,11 +60,13 @@ def main():
     parent_list = taxonomy_tree.all_parents
 
     print('iterating over marker files')
-    marker_file_names = []
+    parent_to_path = dict()
     for parent_node in parent_list:
         if parent_node is None:
             fname = 'marker.1.root.csv'
+            parent_key = 'None'
         else:
+            parent_key = f'{parent_node[0]}/{parent_node[1]}'
             children = taxonomy_tree.children(parent_node[0], parent_node[1])
             if len(children) < 2:
                 continue
@@ -73,16 +77,17 @@ def main():
             munged = readable_name.replace(' ','+').replace('/','__')
             fname = f'marker.{level_idx}.{munged}.csv'
         fpath = marker_dir / fname
-        marker_file_names.append(fpath)
-        print(fpath)
         if fpath.is_file():
             print(f'found {fname}')
         else:
             raise RuntimeError(f"{fname} does not exist")
+        parent_to_path[parent_key] = fpath
 
+    marker_lookup = dict()
     gene_id_mapper = GeneIdMapper.from_default()
     bad_genes = set()
-    for fpath in marker_file_names:
+    for parent_key in parent_to_path:
+        fpath = parent_to_path[parent_key]
         gene_symbols = []
         with open(fpath, 'r') as src:
             src.readline()
@@ -93,14 +98,24 @@ def main():
                 gene_symbols.append(symbol)
         gene_id = gene_id_mapper.map_gene_identifiers(
             gene_id_list=gene_symbols)
+        marker_lookup[parent_key] = gene_id
         for orig, new in zip(gene_symbols, gene_id):
             if 'nonsense' in new:
                 bad_genes.add(orig)
     bad_genes = list(bad_genes)
     bad_genes.sort()
-    print("Unmappable genes")
-    for g in bad_genes:
-        print(g)
+    if len(bad_genes) > 0:
+        msg = "Unmappable genes\n"
+        for g in bad_genes:
+            msg += f"{g}\n"
+        raise RuntimeError(msg)
+
+    marker_lookup['metadata'] = {
+        'src': str(marker_dir.resolve().absolute()),
+         'accessed_on': get_timestamp()}
+
+    with open('marker_lookup_mouse_230626.json', 'w') as out_file:
+        out_file.write(json.dumps(marker_lookup,indent=2))
 
     print("all done")
 
