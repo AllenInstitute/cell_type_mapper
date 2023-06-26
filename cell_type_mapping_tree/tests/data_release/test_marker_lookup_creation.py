@@ -1,3 +1,5 @@
+import pytest
+
 import h5py
 import json
 
@@ -32,6 +34,24 @@ def test_marker_creation_function(
         csv_dir=marker_gene_csv_dir)
 
     assert actual == expected_marker_lookup_fixture
+
+
+def test_marker_creation_function_bad_dir(
+        bad_marker_gene_csv_dir,
+        cluster_membership_fixture,
+        cell_metadata_fixture,
+        cluster_annotation_term_fixture):
+
+    taxonomy_tree = TaxonomyTree.from_data_release(
+        cell_metadata_path=cell_metadata_fixture,
+        cluster_membership_path=cluster_membership_fixture,
+        cluster_annotation_path=cluster_annotation_term_fixture,
+        hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
+    with pytest.raises(RuntimeError, match="does not exist"):
+        marker_lookup_from_tree_and_csv(
+            taxonomy_tree=taxonomy_tree,
+            csv_dir=bad_marker_gene_csv_dir)
 
 
 def test_marker_creation_cli(
