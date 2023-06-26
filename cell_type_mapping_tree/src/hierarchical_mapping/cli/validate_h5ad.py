@@ -3,6 +3,7 @@ This module defines the CLI tool for validating an H5AD file against our
 normalization and gene_id requirements
 """
 import argschema
+from marshmallow import post_load
 
 from hierarchical_mapping.gene_id.gene_id_mapper import (
     GeneIdMapper)
@@ -36,6 +37,19 @@ class ValidationInputSchema(argschema.ArgSchema):
         "will be written (if necessary). If None, the data "
         "products will be written where ever tempfile.mdtemp "
         "defaults to.")
+
+    @post_load
+    def check_for_output_json(self, data, **kwargs):
+        is_valid = True
+        if 'output_json' not in data:
+            is_valid = False
+        elif data['output_json'] is None:
+            is_valid = False
+
+        if not is_valid:
+            raise RuntimeError(
+                "must specify a path for output_json")
+        return data
 
 
 class ValidationOutputSchema(argschema.ArgSchema):

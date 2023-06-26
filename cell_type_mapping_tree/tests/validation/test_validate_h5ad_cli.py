@@ -112,8 +112,10 @@ def test_validation_cli_of_h5ad(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    output_json = tmp_dir_fixture / f"bad_input_{density}.json"
-    output_json = str(output_json.resolve().absolute())
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"bad_input_{density}_",
+        suffix=".json")
 
     config = {
         'h5ad_path': orig_path,
@@ -199,8 +201,10 @@ def test_validation_cli_of_good_h5ad(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    output_json = tmp_dir_fixture / f"good_input_{density}.json"
-    output_json = str(output_json.resolve().absolute())
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"good_input_{density}_",
+        suffix=".json")
 
     config = {
         'h5ad_path': orig_path,
@@ -223,3 +227,28 @@ def test_validation_cli_of_good_h5ad(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
+
+def test_validation_cli_of_h5ad_missing_output(
+        var_fixture,
+        obs_fixture,
+        x_fixture,
+        tmp_dir_fixture):
+    """
+    Test that an error is raised if output_json is not specified
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="must specify a path for output_json"):
+        ValidateH5adRunner(args=[], input_data=config)
