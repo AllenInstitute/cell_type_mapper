@@ -134,6 +134,11 @@ def ab_initio_assignment_fixture(
             dir=tmp_dir_fixture,
             suffix='.json'))
 
+    # make sure that the from_specified_markers CLI
+    # successfully ignores any metadata entries in the
+    # marker gene lookup file
+    marker_lookup['metadata'] = ['nonsense', 'garbage']
+
     with open(marker_lookup_path, 'w') as out_file:
         out_file.write(json.dumps(marker_lookup))
 
