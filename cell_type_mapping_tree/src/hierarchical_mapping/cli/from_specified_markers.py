@@ -99,6 +99,16 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         "converted to a temporary on disk CSR matrix, how "
         "much memory (in gigabytes) can we use.")
 
+    drop_level = argschema.fields.String(
+        required=False,
+        default="CCN20230504_SUPT",
+        allow_none=True,
+        description="If this level exists in the taxonomy, drop "
+        "it before doing type assignment (this is to accommmodate "
+        "the fact that the official taxonomy includes the "
+        "'supertype', even though that level is not used "
+        "during hierarchical type assignment")
+
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsSchema,
         required=True)
@@ -281,6 +291,10 @@ def _run_mapping(config, tmp_dir, log):
             serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
         reference_gene_names = json.loads(
             in_file["col_names"][()].decode("utf-8"))
+
+    if config['drop_level'] is not None:
+        if config['drop_level'] in taxonomy_tree.hierarchy:
+            taxonomy_tree = taxonomy_tree.drop_level(config['drop_level'])
 
     # ========= query marker cache =========
 
