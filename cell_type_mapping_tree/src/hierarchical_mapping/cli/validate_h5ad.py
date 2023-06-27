@@ -27,7 +27,9 @@ class ValidationInputSchema(argschema.ArgSchema):
         default=None,
         allow_none=False,
         descriptipn="Directory where reformatted h5ad file "
-        "will be written (if necessary)")
+        "will be written (if necessary). Name of file will be "
+        "the same as the name of the input file, but with "
+        "_VALIDATED_{timestamp}.h5ad appended.")
 
     tmp_dir = argschema.fields.OutputDir(
         required=False,

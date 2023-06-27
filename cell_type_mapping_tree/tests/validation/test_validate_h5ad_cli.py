@@ -8,6 +8,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import re
 import scipy.sparse as scipy_sparse
 
 from hierarchical_mapping.utils.utils import (
@@ -129,6 +130,16 @@ def test_validation_cli_of_h5ad(
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
+
+    orig_path = pathlib.Path(orig_path)
+    result_path = pathlib.Path(result_path)
+
+    name_parts = result_path.name.split('_')
+    int_pattern = re.compile('[0-9]+')
+    timestamp = int_pattern.findall(name_parts[-1])[0]
+    base_name = orig_path.name.replace('.h5ad', '')
+    expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
+    assert result_path.name == expected_name
 
     with h5py.File(result_path, 'r') as in_file:
         if density != 'array':

@@ -3,8 +3,8 @@ import shutil
 import warnings
 
 from hierarchical_mapping.utils.utils import (
-    mkstemp_clean,
-    choose_int_dtype)
+    choose_int_dtype,
+    get_timestamp)
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -58,12 +58,9 @@ def validate_h5ad(
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
 
-    new_h5ad_path = mkstemp_clean(
-        dir=output_dir,
-        prefix=f'{h5ad_name}_VALIDATED_',
-        suffix='.h5ad')
-
-    new_h5ad_path = pathlib.Path(new_h5ad_path)
+    output_dir = pathlib.Path(output_dir)
+    timestamp = get_timestamp().replace('-', '')
+    new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
 
     var_original = read_df_from_h5ad(
             h5ad_path=original_h5ad_path,
