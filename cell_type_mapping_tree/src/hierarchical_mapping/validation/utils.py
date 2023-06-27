@@ -91,23 +91,27 @@ def round_x_to_integers(
 
 
 def get_minmax_x_from_h5ad(
-        h5ad_path):
+        h5ad_path,
+        layer='X'):
     """
     Find the minimum and maximum value of the X matrix in an h5ad file.
     """
+
+    layer_key = _layer_to_layer_key(layer)
+
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file['X'].attrs)
+        attrs = dict(in_file[layer_key].attrs)
         if 'encoding-type' not in attrs:
             pass
         elif attrs['encoding-type'] == 'array':
-            return _get_minmax_from_dense(in_file['X'])
+            return _get_minmax_from_dense(in_file[layer_key])
         elif 'csr' in attrs['encoding-type'] \
                 or 'csc' in attrs['encoding-type']:
-            return _get_minmax_from_sparse(in_file['X'])
+            return _get_minmax_from_sparse(in_file[layer_key])
         else:
             pass
 
-    return _get_minmax_x_using_anndata(h5ad_path)
+    return _get_minmax_x_using_anndata(h5ad_path, layer=layer)
 
 
 def map_gene_ids_in_var(
@@ -156,7 +160,8 @@ def map_gene_ids_in_var(
 
 def _get_minmax_x_using_anndata(
         h5ad_path,
-        rows_at_a_time=10000):
+        rows_at_a_time=10000,
+        layer='X'):
     """
     If you cannot intuit how X is encoded in the h5ad file, just use
     anndata's API
@@ -165,6 +170,10 @@ def _get_minmax_x_using_anndata(
     -------
     (min_val, max_val)
     """
+    if layer != 'X':
+        raise NotImplementedError(
+            "No efficient way to get minmax from layers; only X")
+
     max_val = None
     min_val = None
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
