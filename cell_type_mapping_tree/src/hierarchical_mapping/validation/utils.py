@@ -12,24 +12,33 @@ from hierarchical_mapping.utils.utils import (
 
 
 def is_x_integers(
-        h5ad_path):
+        h5ad_path,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
     Returns False otherwise
     """
+    if layer == 'X':
+        layer_key = layer
+    else:
+        layer_key = f'layers/{layer}'
 
     with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+        attrs = dict(src[layer_key].attrs)
+
     encoding_type = attrs['encoding-type']
+
     if encoding_type == 'array':
         return _is_dense_x_integers(
             h5ad_path=h5ad_path,
-            eps=1.0e-10)
+            eps=1.0e-10,
+            layer=layer)
     elif 'csr' in encoding_type or 'csc' in encoding_type:
         return _is_sparse_x_integers(
             h5ad_path=h5ad_path,
-            eps=1.0e-10)
+            eps=1.0e-10,
+            layer=layer)
     else:
         raise RuntimeError(
             "Do not know how to handle encoding-type "
@@ -340,7 +349,8 @@ def _round_sparse_x_to_integers(
 
 def _is_dense_x_integers(
         h5ad_path,
-        eps=1.0e-10):
+        eps=1.0e-10,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
@@ -349,8 +359,13 @@ def _is_dense_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
+    if layer == 'X':
+        layer_key = layer
+    else:
+        layer_key = f'layers/{layer}'
+
     with h5py.File(h5ad_path, 'r') as src:
-        data = src['X']
+        data = src[layer_key]
         if np.issubdtype(data.dtype, np.integer):
             return True
 
@@ -373,7 +388,8 @@ def _is_dense_x_integers(
 
 def _is_sparse_x_integers(
         h5ad_path,
-        eps=1.0e-6):
+        eps=1.0e-6,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
@@ -382,8 +398,13 @@ def _is_sparse_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
+    if layer == 'X':
+        layer_key = layer
+    else:
+        layer_key = f'layers/{layer}'
+
     with h5py.File(h5ad_path, 'r') as src:
-        data = src['X/data']
+        data = src[f'{layer_key}/data']
         if np.issubdtype(data.dtype, np.integer):
             return True
         chunk_size = data.chunks
