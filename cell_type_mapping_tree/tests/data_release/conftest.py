@@ -1,24 +1,9 @@
-"""
-This module will test TaxonomyTree against the serialization scheme
-adopted for the June 2023 ABC Atlas data release
-
-
-probably actually want as input
-cluster_to_cluster_annotation_membership.csv
-    which will include labels and aliases
-cluster_annotation_term.csv
-    which encodes parent-child relationships
-cell_metadata.csv
-    which maps cells to clusters
-
-apparently, alias is the only thing that's stable
-aliases are unique within levels
-but not across levels
-"""
 import pytest
 
-import pathlib
 import numpy as np
+import pathlib
+import shutil
+import tempfile
 
 from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
@@ -26,11 +11,14 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
-    get_alias_mapper,
+    get_label_to_name,
     get_cell_to_cluster_alias)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
+
+from hierarchical_mapping.data.gene_id_lookup import (
+    gene_id_lookup)
 
 
 def _create_word(rng):
@@ -161,7 +149,6 @@ def cell_metadata_fixture(
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
 
-
 @pytest.fixture(scope='module')
 def term_label_to_name_fixture(
         cluster_to_supertype_fixture,
@@ -181,7 +168,11 @@ def term_label_to_name_fixture(
         for child in lookup:
             this_key = (class_name, child)
             assert this_key not in result
-            result[this_key] = f'{class_name}_{child}_readable'
+
+            # add the ' ' and '/' so that we can test the munging
+            # of node names into csv files the way they come out
+            # of CK's R code
+            result[this_key] = f'{class_name} {child}/readable'
     return result 
 
 
@@ -200,6 +191,7 @@ def cluster_membership_fixture(
     tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.csv')
     rng = np.random.default_rng(76123)
     columns = [
+        'cluster_annotation_term_set_name',
         'garbage0',
         'cluster_annotation_term_set_label',
         'garbage1',
@@ -227,6 +219,8 @@ def cluster_membership_fixture(
                     this += f'{alias_fixture[child]},'
                 elif col == 'cluster_annotation_term_set_label':
                     this += f'{class_name},'
+                elif col == 'cluster_annotation_term_set_name':
+                    this += f'{class_name}_readable,'
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
@@ -251,7 +245,6 @@ def cluster_annotation_term_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
         subclass_to_class_fixture,
-        alias_fixture,
         tmp_dir_fixture):
     """
     Simulates the CSV that has the parent-child
@@ -267,6 +260,7 @@ def cluster_annotation_term_fixture(
     #parent_term_set_label is what kind of thing parent is
 
     columns = [
+        'cluster_annotation_term_set_name',
         'garbage0',
         'garbage1',
         'label',
@@ -293,6 +287,8 @@ def cluster_annotation_term_fixture(
                         this += f'{_create_word(rng)},'
                     elif column_name == 'cluster_annotation_term_set_label':
                         this += f'{child_class},'
+                    elif column_name == 'cluster_annotation_term_set_name':
+                        this += f'{child_class}_readable,'
                     elif column_name == 'parent_term_set_label':
                         this += f'{parent_class},'
                     elif column_name == 'parent_term_label':
@@ -319,8 +315,7 @@ def baseline_tree_fixture(
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
-        subclass_to_class_fixture,
-        alias_fixture):
+        subclass_to_class_fixture):
     data = dict()
     data['hierarchy'] = ['class',
                          'subclass',
@@ -334,14 +329,7 @@ def baseline_tree_fixture(
         this = dict()
         for child_label in lookup:
             parent = lookup[child_label]
-
-            if parent_level == 'supertype':
-                child = str(alias_fixture[child_label])
-            else:
-                child = child_label
-
-            if parent_level == 'cluster':
-                parent = str(alias_fixture[parent])
+            child = child_label
 
             if parent not in this:
                 this[parent] = []
@@ -353,174 +341,147 @@ def baseline_tree_fixture(
     return TaxonomyTree(data=data)
 
 
-def test_get_tree_above_leaves(
-        cluster_annotation_term_fixture,
-        cluster_to_supertype_fixture,
-        supertype_to_subclass_fixture,
-        subclass_to_class_fixture):
+@pytest.fixture(scope='module')
+def expected_marker_lookup_fixture(
+        baseline_tree_fixture):
+    """
+    Return dict of expected marker lookup
+    """
+    parent_list = baseline_tree_fixture.all_parents
+    rng = np.random.default_rng(88122312)
 
-    actual = get_tree_above_leaves(
-        csv_path=cluster_annotation_term_fixture,
+    gene_symbol_list = []
+    for gene_id in gene_id_lookup:
+        if not gene_id.startswith('ENS'):
+            continue
+        gene_symbol_list.append(gene_id_lookup[gene_id]['gene_symbol'])
+
+    true_lookup = dict()
+    for parent in parent_list:
+        if parent is None:
+            parent_key = 'None'
+        else:
+            parent_key = f'{parent[0]}/{parent[1]}'
+            if len(baseline_tree_fixture.children(parent[0], parent[1])) < 2:
+                continue
+        n_genes = rng.integers(10, 30)
+        chosen_genes = list(rng.choice(gene_symbol_list,
+                                       n_genes,
+                                       replace=False))
+        chosen_genes.sort()
+        true_lookup[parent_key] = chosen_genes
+
+    return true_lookup
+
+
+@pytest.fixture(scope='module')
+def marker_gene_csv_dir(
+        expected_marker_lookup_fixture,
+        cluster_membership_fixture,
+        cell_metadata_fixture,
+        cluster_annotation_term_fixture,
+        tmp_dir_fixture):
+    """
+    Populate a directory with the marker gene files.
+    Return the path to the dir
+    """
+
+    taxonomy_tree = TaxonomyTree.from_data_release(
+        cell_metadata_path=cell_metadata_fixture,
+        cluster_membership_path=cluster_membership_fixture,
+        cluster_annotation_path=cluster_annotation_term_fixture,
         hierarchy=['class', 'subclass', 'supertype', 'cluster'])
 
-    assert len(actual) == 3
-    assert 'class' in actual
-    assert 'subclass' in actual
-    assert 'supertype' in actual
+    parent_list = taxonomy_tree.all_parents
 
-    for lookup, parent_level in [(cluster_to_supertype_fixture, 'supertype'),
-                                 (supertype_to_subclass_fixture, 'subclass'),
-                                 (subclass_to_class_fixture, 'class')]:
-        for child in lookup:
-            parent = lookup[child]
-            assert child in actual[parent_level][parent]
+    marker_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture,
+                prefix='marker_gene_lists_'))
 
-def test_get_alias_mapper(
-        cluster_membership_fixture,
-        alias_fixture):
+    hierarchy = taxonomy_tree.hierarchy
+    hierarchy_to_idx = {None: 1}
+    for idx, h in enumerate(hierarchy[:-1]):
+        hierarchy_to_idx[h] = idx+2
 
-    actual = get_alias_mapper(
-        csv_path=cluster_membership_fixture,
-        valid_term_set_labels=('cluster',))
-
-    for full_label in alias_fixture:
-        if 'cluster' in full_label:
-            level = 'cluster'
-        elif 'subclass' in full_label:
-            continue
-        elif 'supertype' in full_label:
-            continue
-        elif 'class' in full_label:
-            continue
+    for parent in parent_list:
+        if parent is None:
+            parent_key = 'None'
+            idx = hierarchy_to_idx[parent]
+            munged = 'root'
         else:
-            raise RuntimeError(
-                f"no obvious level for {full_label}")
-        assert actual[(level, full_label)] == str(alias_fixture[full_label])
+            parent_key = f'{parent[0]}/{parent[1]}'
+            idx = hierarchy_to_idx[parent[0]]
+            readable_name = taxonomy_tree.label_to_name(
+                level=parent[0],
+                label=parent[1],
+                name_key='name')
+            munged = readable_name.replace(' ', '+').replace('/', '__')
+        if parent_key not in expected_marker_lookup_fixture:
+            continue
+
+        gene_list = expected_marker_lookup_fixture[parent_key]
+
+        file_name = f'marker.{idx}.{munged}.csv'
+        file_path = marker_dir / file_name
+        with open(file_path, 'w') as out_file:
+            out_file.write("a header\n")
+            for gene in gene_list:
+                out_file.write(f'"{gene}"\n')
+    return marker_dir
 
 
-def test_full_alias_mapper(
-        cluster_membership_fixture,
-        term_label_to_name_fixture):
-    mapper = get_alias_mapper(
-        csv_path=cluster_membership_fixture,
-        valid_term_set_labels=['class', 'subclass', 'supertype', 'cluster'],
-        alias_column_name='cluster_annotation_term_name')
 
-    assert len(mapper) == len(term_label_to_name_fixture)
-    assert mapper == term_label_to_name_fixture
-
-def test_get_cell_to_cluster_alias(
-        cell_metadata_fixture,
-        alias_fixture,
-        cell_to_cluster_fixture):
-
-    actual = get_cell_to_cluster_alias(
-        csv_path=cell_metadata_fixture)
-
-    for cell in cell_to_cluster_fixture:
-        assert actual[cell] == str(alias_fixture[cell_to_cluster_fixture[cell]])
-
-
-def test_all_this(
-        cell_metadata_fixture,
-        cluster_membership_fixture,
-        cluster_annotation_term_fixture,
-        baseline_tree_fixture):
-
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=cell_metadata_fixture,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
-    assert test_tree == baseline_tree_fixture
-
-
-def test_de_aliasing(
-        cell_metadata_fixture,
-        cluster_membership_fixture,
-        cluster_annotation_term_fixture,
-        baseline_tree_fixture,
-        alias_fixture,
-        cell_to_cluster_fixture):
-
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=cell_metadata_fixture,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
-
-
-    for cluster in set(cell_to_cluster_fixture.values()):
-        alias = alias_fixture[cluster]
-        assert test_tree.alias_to_label(str(alias)) == cluster
-
-    with pytest.raises(RuntimeError, match="Do not have a label"):
-        test_tree.alias_to_label('gar')
-
-def test_name_mapping(
-        cell_metadata_fixture,
-        cluster_membership_fixture,
-        cluster_annotation_term_fixture,
-        baseline_tree_fixture,
-        alias_fixture,
-        cell_to_cluster_fixture,
-        term_label_to_name_fixture):
-
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=cell_metadata_fixture,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
-
-
-    for k in term_label_to_name_fixture:
-        assert test_tree.label_to_name(k[0], k[1]) == term_label_to_name_fixture[k]
-    assert test_tree.label_to_name('junk', 'this_label') == 'this_label'
-    assert test_tree.label_to_name('class', 'that_label') == 'that_label'
-
-    other_data = {
-        'hierarchy': ['a', 'b'],
-        'a': {
-            'c': ['d'], 'e': ['f']
-        },
-        'b': {
-            'd': [], 'f': []
-        }
-    }
-    other_tree = TaxonomyTree(data=other_data)
-    assert test_tree.label_to_name('a', 'x') == 'x'
-
-def test_abc_dropping(
-        cell_metadata_fixture,
-        cluster_membership_fixture,
-        cluster_annotation_term_fixture,
-        baseline_tree_fixture,
-        alias_fixture,
-        cell_to_cluster_fixture):
+@pytest.fixture(scope='module')
+def bad_marker_gene_csv_dir(
+        marker_gene_csv_dir,
+        tmp_dir_fixture):
     """
-    Just a smoke test; will check metadata, though
+    Populate a directory with the marker gene files.
+    Intentionally leave out one of the expected files.
+    Return the path to the dir
     """
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=cell_metadata_fixture,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
 
-    new_tree = test_tree.drop_level('supertype')
-    assert new_tree._data['metadata']['dropped_levels'] == ['supertype']
-    assert new_tree.hierarchy == ['class', 'subclass', 'cluster']
-    new_tree = new_tree.drop_level('subclass')
-    assert new_tree._data['metadata']['dropped_levels'] == ['supertype',
-                                                            'subclass']
-    assert new_tree.hierarchy == ['class', 'cluster']
+    marker_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture,
+                prefix='marker_gene_lists_'))
 
-def test_de_aliasing_when_no_map():
-    data = {
-        'hierarchy': ['a', 'b'],
-        'a': {'aa': ['aaa'],
-              'bb': ['bbb']},
-        'b': {'aaa': ['1', '2'],
-              'bbb': ['3']}}
+    pth_list = [n for n in marker_gene_csv_dir.iterdir()]
+    ct = 0
+    for pth in pth_list:
+        ct += 1
+        if ct == 5:
+            continue
+        new_pth = marker_dir / pth.name
+        shutil.copy(src=pth, dst=new_pth)
 
-    tree = TaxonomyTree(data=data)
-    assert tree.alias_to_label('3') == '3'
+    return marker_dir
+
+
+@pytest.fixture(scope='module')
+def bad_marker_gene_csv_dir_2(
+        marker_gene_csv_dir,
+        tmp_dir_fixture):
+    """
+    Populate a directory with the marker gene files.
+    Intentionally mangle contets of one of the files.
+    Return the path to the dir
+    """
+
+    marker_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture,
+                prefix='marker_gene_lists_'))
+
+    pth_list = [n for n in marker_gene_csv_dir.iterdir()]
+    ct = 0
+    for pth in pth_list:
+        new_pth = marker_dir / pth.name
+        shutil.copy(src=pth, dst=new_pth)
+        ct += 1
+        if ct == 10:
+            with open(new_pth, 'a') as out_file:
+                out_file.write('"blah"\n')
+
+    return marker_dir

@@ -8,6 +8,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import re
 import scipy.sparse as scipy_sparse
 
 from hierarchical_mapping.utils.utils import (
@@ -112,8 +113,10 @@ def test_validation_cli_of_h5ad(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    output_json = tmp_dir_fixture / f"bad_input_{density}.json"
-    output_json = str(output_json.resolve().absolute())
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"bad_input_{density}_",
+        suffix=".json")
 
     config = {
         'h5ad_path': orig_path,
@@ -127,6 +130,16 @@ def test_validation_cli_of_h5ad(
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
+
+    orig_path = pathlib.Path(orig_path)
+    result_path = pathlib.Path(result_path)
+
+    name_parts = result_path.name.split('_')
+    int_pattern = re.compile('[0-9]+')
+    timestamp = int_pattern.findall(name_parts[-1])[0]
+    base_name = orig_path.name.replace('.h5ad', '')
+    expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
+    assert result_path.name == expected_name
 
     with h5py.File(result_path, 'r') as in_file:
         if density != 'array':
@@ -199,8 +212,10 @@ def test_validation_cli_of_good_h5ad(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    output_json = tmp_dir_fixture / f"good_input_{density}.json"
-    output_json = str(output_json.resolve().absolute())
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"good_input_{density}_",
+        suffix=".json")
 
     config = {
         'h5ad_path': orig_path,
@@ -223,3 +238,28 @@ def test_validation_cli_of_good_h5ad(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
+
+def test_validation_cli_of_h5ad_missing_output(
+        var_fixture,
+        obs_fixture,
+        x_fixture,
+        tmp_dir_fixture):
+    """
+    Test that an error is raised if output_json is not specified
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+    }
+
+    with pytest.raises(RuntimeError,
+                       match="must specify a path for output_json"):
+        ValidateH5adRunner(args=[], input_data=config)

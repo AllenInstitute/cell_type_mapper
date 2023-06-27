@@ -51,13 +51,17 @@ class GeneIdMapper(object):
 
     def map_gene_identifiers(
             self,
-            gene_id_list):
+            gene_id_list,
+            strict=False):
         """
         Take a list of gene identifiers. Find the set of IDs in this mapper
         that best match the list. If that set is the preferred set of gene
         identifiers, just return this list. If not, map from the current
         gene identification scheme to the preferred gene_identifiers, adding
         nonsense names for the genes that do not map.
+
+        If strict == True, raise an error if there are genes that
+        cannot be mapped.
         """
         if len(gene_id_list) == 0:
             return []
@@ -92,6 +96,11 @@ class GeneIdMapper(object):
                 new_id.append(self.random_name_generator.name())
         if ct_bad > 0:
             msg += f"\n{ct_bad} genes had no mapping."
+            if strict:
+                if self.log is not None:
+                    self.log.error(msg)
+                else:
+                    raise RuntimeError(msg)
 
         if self.log is not None:
             self.log.warn(msg)

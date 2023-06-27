@@ -124,6 +124,8 @@ def create_marker_cache_from_specified_markers(
     missing_query_markers = set()
     missing_reference_markers = set()
     for parent_node in marker_lookup:
+        if parent_node == 'metadata':
+            continue
         marker_set = set(marker_lookup[parent_node])
         these_markers = list(marker_set.intersection(query_gene_set))
 
@@ -281,7 +283,10 @@ def serialize_markers(
         for level in taxonomy_tree.hierarchy[:-1]:
             for node in taxonomy_tree.nodes_at_level(level):
                 grp_key = f"{level}/{node}"
-                ref_idx = src[grp_key]['reference'][()]
+                if len(taxonomy_tree.children(level=level, node=node)) < 2:
+                    ref_idx = []
+                else:
+                    ref_idx = src[grp_key]['reference'][()]
                 marker_gene_lookup[grp_key] = [
                     str(reference_gene_names[ii]) for ii in ref_idx]
 

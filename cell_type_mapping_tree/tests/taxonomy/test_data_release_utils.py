@@ -7,7 +7,8 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean)
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
-    get_header_map)
+    get_header_map,
+    get_term_set_map)
 
 
 @pytest.fixture(scope='module')
@@ -47,3 +48,47 @@ def test_get_header_map(
         get_header_map(
             csv_path=csv_path,
             desired_columns=['a', 'b', 'c'])
+
+
+def test_get_term_set_map(
+        tmp_dir_fixture):
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.csv')
+
+    expected = {
+        'a': 'b',
+        'c': 'd',
+        'e': 'f'
+    }
+
+    with open(csv_path, 'w') as dst:
+        dst.write('garbage,cluster_annotation_term_set_name,garbage,'
+                  'cluster_annotation_term_set_label,garbage\n')
+        for k in expected:
+            v = expected[k]
+            dst.write(f'000,{v},111,{k},2222\n')
+
+    actual = get_term_set_map(csv_path)
+    assert actual == expected
+
+    # check if there are multiple identical entries
+    with open(csv_path, 'w') as dst:
+        dst.write('garbage,cluster_annotation_term_set_name,garbage,'
+                  'cluster_annotation_term_set_label,garbage\n')
+        for k in expected:
+            v = expected[k]
+            dst.write(f'000,{v},111,{k},2222\n')
+        for k in expected:
+            v = expected[k]
+            dst.write(f'000,{v},111,{k},2222\n')
+
+    actual = get_term_set_map(csv_path)
+    assert actual == expected
+
+    # test if there are multiple conflicting entries
+    with open(csv_path, 'a') as dst:
+        dst.write('0,x,1,a,3\n')
+    with pytest.raises(RuntimeError, match='maps to at least two names'):
+        get_term_set_map(csv_path)

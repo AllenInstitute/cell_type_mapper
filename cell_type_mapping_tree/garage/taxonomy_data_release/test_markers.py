@@ -1,17 +1,19 @@
+import json
 import pathlib
+
+from hierarchical_mapping.utils.utils import (
+    get_timestamp)
 
 from hierarchical_mapping.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
-    get_alias_mapper)
+    get_label_to_name)
 
 from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 def main():
-    marker_dir = pathlib.Path(
-        '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17.0_mouse/Templates/marker_list_on_nodes')
 
     marker_dir = pathlib.Path(
         '/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT17_knowledge/nlevel4_marker_index/marker_list_on_nodes')
@@ -44,10 +46,10 @@ def main():
     taxonomy_tree = taxonomy_tree.drop_level("CCN20230504_SUPT")
     print(taxonomy_tree.hierarchy)
 
-    alias_mapper = get_alias_mapper(
+    alias_mapper = get_label_to_name(
         csv_path=cluster_membership,
         valid_term_set_labels=taxonomy_tree.hierarchy,
-        alias_column_name='cluster_annotation_term_name',
+        name_column='cluster_annotation_term_name',
         strict_alias=True)
 
     level_to_idx = {n:ii+2 for ii, n in enumerate(taxonomy_tree.hierarchy)}
@@ -57,12 +59,14 @@ def main():
     bad_ct = 0
     parent_list = taxonomy_tree.all_parents
 
-    expected_file_names = []
-    missing_file_names = []
+    print('iterating over marker files')
+    parent_to_path = dict()
     for parent_node in parent_list:
         if parent_node is None:
             fname = 'marker.1.root.csv'
+            parent_key = 'None'
         else:
+            parent_key = f'{parent_node[0]}/{parent_node[1]}'
             children = taxonomy_tree.children(parent_node[0], parent_node[1])
             if len(children) < 2:
                 continue
@@ -73,30 +77,45 @@ def main():
             munged = readable_name.replace(' ','+').replace('/','__')
             fname = f'marker.{level_idx}.{munged}.csv'
         fpath = marker_dir / fname
-        expected_file_names.append(fname)
         if fpath.is_file():
-            good_ct += 1
             print(f'found {fname}')
         else:
-            bad_ct += 1
-            missing_file_names.append(fname)
-            print(f"{fname} does not exist")
-    print(f"good {good_ct} bad {bad_ct}")
-    missing_file_names.sort()
-    expected_file_names.sort()
-    str_dir = str(marker_dir.resolve().absolute())
-    with open("expected_marker_files.csv", "w") as dst:
-        dst.write("# list of expected file names\n")
-        dst.write(f"# in dir {str_dir}\n")
-        for f in expected_file_names:
-            dst.write(f"{f}\n")
+            raise RuntimeError(f"{fname} does not exist")
+        parent_to_path[parent_key] = fpath
 
-    with open("missing_marker_files.csv", "w") as dst:
-        dst.write("# list of missing file names\n")
-        dst.write(f"# in dir {str_dir}\n")
-        for f in missing_file_names:
-            dst.write(f"{f}\n")
- 
+    marker_lookup = dict()
+    gene_id_mapper = GeneIdMapper.from_default()
+    bad_genes = set()
+    for parent_key in parent_to_path:
+        fpath = parent_to_path[parent_key]
+        gene_symbols = []
+        with open(fpath, 'r') as src:
+            src.readline()
+            for line in src:
+                symbol = line.strip().replace('"','')
+                if ' ' in symbol and symbol.split()[1].startswith('ENS'):
+                    symbol = symbol.split()[0]
+                gene_symbols.append(symbol)
+        gene_id = gene_id_mapper.map_gene_identifiers(
+            gene_id_list=gene_symbols)
+        marker_lookup[parent_key] = gene_id
+        for orig, new in zip(gene_symbols, gene_id):
+            if 'nonsense' in new:
+                bad_genes.add(orig)
+    bad_genes = list(bad_genes)
+    bad_genes.sort()
+    if len(bad_genes) > 0:
+        msg = "Unmappable genes\n"
+        for g in bad_genes:
+            msg += f"{g}\n"
+        raise RuntimeError(msg)
+
+    marker_lookup['metadata'] = {
+        'src': str(marker_dir.resolve().absolute()),
+         'accessed_on': get_timestamp()}
+
+    with open('marker_lookup_mouse_230626.json', 'w') as out_file:
+        out_file.write(json.dumps(marker_lookup,indent=2))
 
     print("all done")
 

@@ -134,6 +134,11 @@ def ab_initio_assignment_fixture(
             dir=tmp_dir_fixture,
             suffix='.json'))
 
+    # make sure that the from_specified_markers CLI
+    # successfully ignores any metadata entries in the
+    # marker gene lookup file
+    marker_lookup['metadata'] = ['nonsense', 'garbage']
+
     with open(marker_lookup_path, 'w') as out_file:
         out_file.write(json.dumps(marker_lookup))
 
@@ -148,14 +153,19 @@ def ab_initio_assignment_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu',
-        [(True, True, True, False),
-         (True, False, True, False),
-         (False, True, True, False),
-         (False, False, True, False),
-         (False, True, True, False),
-         (False, True, True, True),
-         (True, True, True, True)])
+        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
+        [(True, True, True, False, False, False),
+         (True, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, True, True, True, False, False),
+         (True, True, True, True, False, False),
+         (True, True, True, True, True, False),
+         (False, True, True, True, True, False),
+         (False, True, True, False, True, False),
+         (True, True, True, False, True, False),
+         (False, True, True, True, True, True)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -164,7 +174,14 @@ def test_mapping_from_markers(
         flatten,
         use_csv,
         use_tmp_dir,
-        use_gpu):
+        use_gpu,
+        just_once,
+        drop_subclass):
+    """
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
 
     if use_gpu and not is_torch_available():
         return
@@ -206,6 +223,8 @@ def test_mapping_from_markers(
 
     config['precomputed_stats']['path'] = new_stats_path
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -214,6 +233,9 @@ def test_mapping_from_markers(
     config['extended_result_path'] = result_path
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
 
     runner = FromSpecifiedMarkersRunner(
         args= [],
@@ -247,6 +269,12 @@ def test_mapping_from_markers(
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
+    if drop_subclass:
+        for k in list(expected['marker_genes'].keys()):
+            if k.startswith('subclass'):
+                expected['marker_genes'].pop(k)
+        for cell in expected['results']:
+            cell.pop('subclass')
 
     if not flatten:
         assert actual['marker_genes'] == expected['marker_genes']
@@ -259,13 +287,15 @@ def test_mapping_from_markers(
                 if k == 'cell_id':
                     continue
                 assert set(cell[k].keys()) == set(actual_cell[k].keys())
-                assert cell[k]['assignment'] == actual_cell[k]['assignment']
-                for sub_k in ('confidence', 'avg_correlation'):
-                    np.testing.assert_allclose(
-                        [cell[k][sub_k]],
-                        [actual_cell[k][sub_k]],
-                        atol=1.0e-4,
-                        rtol=1.0e-4)
+
+                if config['type_assignment']['bootstrap_iteration'] > 1:
+                    assert cell[k]['assignment'] == actual_cell[k]['assignment']
+                    for sub_k in ('confidence', 'avg_correlation'):
+                        np.testing.assert_allclose(
+                            [cell[k][sub_k]],
+                            [actual_cell[k][sub_k]],
+                            atol=1.0e-4,
+                            rtol=1.0e-4)
     else:
         all_markers = set()
         for k in expected['marker_genes']:
@@ -290,30 +320,48 @@ def test_mapping_from_markers(
 
     # check consistency between extended and csv results
     if use_csv:
+        if config['type_assignment']['bootstrap_iteration'] > 1:
+            stat_label = 'bootstrapping_probability'
+            stat_key = 'confidence'
+        else:
+            stat_label = 'correlation_coefficient'
+            stat_key = 'avg_correlation'
+
         result_lookup = {
             cell['cell_id']: cell for cell in actual['results']}
         with open(csv_path, 'r') as in_file:
             assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
             if flatten:
                 hierarchy = ['cluster']
+            elif drop_subclass:
+                hierarchy = ['class', 'cluster']
             else:
                 hierarchy = ['class', 'subclass', 'cluster']
             assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
 
             header_line = 'cell_id'
             for level in hierarchy:
-                header_line += f',{level},{level}_confidence'
+                if level == 'cluster':
+                    header_line += (',cluster_label,cluster_name,cluster_alias,'
+                                    f'cluster_{stat_label}')
+                else:
+                    header_line += f',{level}_label,{level}_name,{level}_{stat_label}'
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []
             for line in in_file:
                 params = line.strip().split(',')
-                assert len(params) == 2*len(hierarchy)+1
+                assert len(params) == 3*len(hierarchy)+2  # +2 is for cluster alias and cell_id
                 this_cell = result_lookup[params[0]]
                 found_cells.append(params[0])
                 for i_level, level in enumerate(hierarchy):
-                    assert params[1+2*i_level] == this_cell[level]['assignment']
-                    delta = np.abs(this_cell[level]['confidence']-float(params[2+2*i_level]))
+                    assn_idx = 1+3*i_level
+                    conf_idx = 3+3*i_level
+                    if level == 'cluster':
+                        conf_idx += 1
+                    assert params[assn_idx] == this_cell[level]['assignment']
+                    print('params ',params)
+                    delta = np.abs(this_cell[level][stat_key]-float(params[conf_idx]))
                     assert delta < 0.0001
 
             assert len(found_cells) == len(result_lookup)

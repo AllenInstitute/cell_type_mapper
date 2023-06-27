@@ -99,6 +99,16 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         "converted to a temporary on disk CSR matrix, how "
         "much memory (in gigabytes) can we use.")
 
+    drop_level = argschema.fields.String(
+        required=False,
+        default="CCN20230504_SUPT",
+        allow_none=True,
+        description="If this level exists in the taxonomy, drop "
+        "it before doing type assignment (this is to accommmodate "
+        "the fact that the official taxonomy includes the "
+        "'supertype', even though that level is not used "
+        "during hierarchical type assignment")
+
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsSchema,
         required=True)
@@ -196,11 +206,21 @@ def run_mapping(config, output_path, log_path=None):
         csv_result["assignments"] = assignments
 
         if config['csv_result_path'] is not None:
+
+            if config['type_assignment']['bootstrap_iteration'] == 1:
+                confidence_key = 'avg_correlation'
+                confidence_label = 'correlation_coefficient'
+            else:
+                confidence_key = 'confidence'
+                confidence_label = 'bootstrapping_probability'
+
             blob_to_csv(
                 results_blob=csv_result.get("assignments"),
                 taxonomy_tree=csv_result.get("taxonomy_tree"),
                 output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'])
+                metadata_path=config['extended_result_path'],
+                confidence_key=confidence_key,
+                confidence_label=confidence_label)
 
         log.info("RAN SUCCESSFULLY")
     except Exception:
@@ -272,6 +292,10 @@ def _run_mapping(config, tmp_dir, log):
         reference_gene_names = json.loads(
             in_file["col_names"][()].decode("utf-8"))
 
+    if config['drop_level'] is not None:
+        if config['drop_level'] in taxonomy_tree.hierarchy:
+            taxonomy_tree = taxonomy_tree.drop_level(config['drop_level'])
+
     # ========= query marker cache =========
 
     query_marker_tmp = pathlib.Path(
@@ -289,6 +313,8 @@ def _run_mapping(config, tmp_dir, log):
 
         all_markers = set()
         for k in marker_lookup:
+            if k == 'metadata':
+                continue
             all_markers = all_markers.union(set(marker_lookup[k]))
         all_markers = list(all_markers)
         all_markers.sort()

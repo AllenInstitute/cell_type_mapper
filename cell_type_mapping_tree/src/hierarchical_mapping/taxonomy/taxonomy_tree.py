@@ -16,8 +16,9 @@ from hierarchical_mapping.taxonomy.utils import (
 
 from hierarchical_mapping.taxonomy.data_release_utils import (
     get_tree_above_leaves,
-    get_alias_mapper,
-    get_cell_to_cluster_alias)
+    get_label_to_name,
+    get_cell_to_cluster_alias,
+    get_term_set_map)
 
 
 class TaxonomyTree(object):
@@ -29,9 +30,6 @@ class TaxonomyTree(object):
         data is a dict encoding the taxonomy tree.
         Probably, users will not instantiate this class
         directly, instead using one of the classmethods
-
-        alias_mapping maps a (hierarchy_level, alias) tuple
-        to a human-readable label (this is optional)
         """
         self._data = copy.deepcopy(data)
         validate_taxonomy_tree(self._data)
@@ -45,8 +43,8 @@ class TaxonomyTree(object):
         other_keys = set(other._data.keys())
 
         bad_keys = {'metadata',
-                    'alias_mapping',
-                    'full_name_mapping'}
+                    'name_mapper',
+                    'hierarchy_mapper'}
 
         these_keys -= bad_keys
         other_keys -= bad_keys
@@ -156,14 +154,10 @@ class TaxonomyTree(object):
             csv_path=cluster_annotation_path,
             hierarchy=hierarchy)
 
-        alias_map = get_alias_mapper(
-            csv_path=cluster_membership_path,
-            valid_term_set_labels=(leaf_level,))
+        hierarchy_level_map = get_term_set_map(
+            csv_path=cluster_membership_path)
 
-        full_name_map = get_alias_mapper(
-            csv_path=cluster_membership_path,
-            valid_term_set_labels=hierarchy,
-            alias_column_name='cluster_annotation_term_name')
+        data['hierarchy_mapper'] = hierarchy_level_map
 
         data['hierarchy'] = copy.deepcopy(hierarchy)
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
@@ -171,45 +165,68 @@ class TaxonomyTree(object):
             for node in rough_tree[parent_level]:
                 data[parent_level][node] = []
                 for child in rough_tree[parent_level][node]:
-                    if child_level == leaf_level:
-                        child = alias_map[(child_level, child)]
                     data[parent_level][node].append(child)
             for node in data[parent_level]:
                 data[parent_level][node].sort()
 
-        # now add leaves
+        # get mappings between labels and other ways
+        # of referring to taxons
+        cluster_to_alias = get_label_to_name(
+            csv_path=cluster_membership_path,
+            valid_term_set_labels=(leaf_level,),
+            name_column='cluster_alias')
+
+        alias_to_cluster_label = dict()
+        for k in cluster_to_alias:
+            label = k[1]
+            alias = cluster_to_alias[k]
+            if alias in alias_to_cluster_label:
+                raise RuntimeError(
+                    f"alias {alias} maps to clusters "
+                    f"{label} and {alias_to_cluster_label[alias]}")
+            alias_to_cluster_label[alias] = label
+
+        label_to_name = get_label_to_name(
+            csv_path=cluster_membership_path,
+            valid_term_set_labels=hierarchy,
+            name_column='cluster_annotation_term_name')
+
+        # now add leaves (referring to them by their labels)
         leaves = dict()
         for cell in cell_to_alias:
-            leaf = cell_to_alias[cell]
+            alias = cell_to_alias[cell]
+            leaf = alias_to_cluster_label[alias]
             if leaf not in leaves:
                 leaves[leaf] = []
             leaves[leaf].append(cell)
         for leaf in leaves:
             leaves[leaf].sort()
+
         data[hierarchy[-1]] = leaves
 
-        # save a way to go from cluster alias back
-        # to cluster label
-        reverse_alias_mapping = dict()
-        for node in alias_map:
-            if node[1] in reverse_alias_mapping:
-                raise RuntimeError(
-                    f"{node[1]} occurs in alias map twice")
-            alias = alias_map[node]
-            reverse_alias_mapping[alias] = node[1]
-
-        data['alias_mapping'] = reverse_alias_mapping
-
-        formatted_name_map = dict()
-        for k in full_name_map:
+        # create a mapp from [level][node] to all
+        # alternative naming schemes
+        final_name_map = dict()
+        for k in label_to_name:
             level = k[0]
-            node = k[1]
-            name = full_name_map[k]
-            if level not in formatted_name_map:
-                formatted_name_map[level] = dict()
-            formatted_name_map[level][node] = name
+            label = k[1]
+            name = label_to_name[k]
+            if level not in final_name_map:
+                final_name_map[level] = dict()
+            if label not in final_name_map[level]:
+                final_name_map[level][label] = dict()
+            if 'name' in final_name_map[level][label]:
+                if final_name_map[level][label]['name'] != name:
+                    raise RuntimeError(
+                        f"level {level}, label {label} has at least "
+                        f"two names: {name} and "
+                        f"{final_name_map[level][label]['name']}")
+            final_name_map[level][label]['name'] = name
 
-        data['full_name_mapping'] = formatted_name_map
+        # add cluster aliases to final_name_map
+        for k in cluster_to_alias:
+            final_name_map[k[0]][k[1]]['alias'] = cluster_to_alias[k]
+        data['name_mapper'] = final_name_map
 
         return cls(data=data)
 
@@ -401,22 +418,7 @@ class TaxonomyTree(object):
                 "in this taxonomy")
         return self._data[self.leaf_level][leaf_node]
 
-    def alias_to_label(self, alias):
-        """
-        Map from cluster alias back to label (if appropriate)
-
-        If no mapping exists, just return input alias
-        """
-        if 'alias_mapping' not in self._data:
-            return alias
-
-        if alias not in self._data['alias_mapping']:
-            raise RuntimeError(
-                "Do not have a label associated with alias: "
-                f"'{alias}'")
-        return self._data['alias_mapping'][alias]
-
-    def label_to_name(self, level, label):
+    def label_to_name(self, level, label, name_key='name'):
         """
         Parameters
         ----------
@@ -424,6 +426,8 @@ class TaxonomyTree(object):
             the level in the hierarchy
         label:
             the machine readable label of the node
+        name_key:
+            the alternative name to return (e.g. 'name' or 'alias')
 
         Returns
         -------
@@ -433,14 +437,28 @@ class TaxonomyTree(object):
         ----
         if mapping is impossible, just return label
         """
-        if 'full_name_mapping' not in self._data:
+        if 'name_mapper' not in self._data:
             return label
-        if level not in self._data['full_name_mapping']:
+        name_mapper = self._data['name_mapper']
+        if level not in name_mapper:
             return label
-        this_level = self._data['full_name_mapping'][level]
-        if label not in this_level:
+        if label not in name_mapper[level]:
             return label
-        return this_level[label]
+        if name_key not in name_mapper[level][label]:
+            return label
+        return name_mapper[level][label][name_key]
+
+    def level_to_name(self, level_label):
+        """
+        Map the label for a hierarchy level to its name.
+        If no mapper exists (or the level_label is unknown)
+        just return level_label
+        """
+        if 'hierarchy_mapper' not in self._data:
+            return level_label
+        if level_label not in self._data['hierarchy_mapper']:
+            return level_label
+        return self._data['hierarchy_mapper'][level_label]
 
     def leaves_to_compare(
             self,

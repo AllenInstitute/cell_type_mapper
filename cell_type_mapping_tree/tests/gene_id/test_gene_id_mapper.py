@@ -3,6 +3,7 @@ import pytest
 from hierarchical_mapping.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
+from hierarchical_mapping.cli.cli_log import CommandLog
 
 @pytest.fixture
 def map_data_fixture():
@@ -55,6 +56,27 @@ def test_gene_id_mapper(map_data_fixture):
     assert 'nonsense_3' in actual[3]
     assert actual[4] == 'gene_3'
     assert actual[5] == 'gene_2'
+
+
+def test_gene_id_mapper_strict(map_data_fixture):
+    """
+    Test that an error is raised if strict == True and
+    you cannot map all gene identifiers
+    """
+    mapper = GeneIdMapper(data=map_data_fixture)
+
+    good = ["gene_1", "gene_0", "gene_3", "gene_1"]
+    actual = mapper.map_gene_identifiers(good, strict=True)
+    assert actual == good
+
+    names = ["charlie", "alice", "zachary", "mark", "robert"]
+    with pytest.raises(RuntimeError, match="genes had no mapping"):
+        mapper.map_gene_identifiers(names, strict=True)
+
+    mapper = GeneIdMapper(data=map_data_fixture, log=CommandLog())
+    names = ["charlie", "alice", "zachary", "mark", "robert"]
+    with pytest.raises(RuntimeError, match="genes had no mapping"):
+        mapper.map_gene_identifiers(names, strict=True)
 
 
 def test_bad_gene_mapping(map_data_fixture):
