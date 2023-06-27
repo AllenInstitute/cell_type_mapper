@@ -105,14 +105,18 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density", ("csr", "csc", "array"))
+        "density,as_layer",
+        itertools.product(
+         ("csr", "csc", "array"),
+         (True, False)))
 def test_validation_of_h5ad(
         var_fixture,
         obs_fixture,
         x_fixture,
         map_data_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        as_layer):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -120,15 +124,26 @@ def test_validation_of_h5ad(
         suffix='.h5ad')
 
     if density == "array":
-        x = x_fixture
+        data = x_fixture
     elif density == "csr":
-        x = scipy_sparse.csr_matrix(x_fixture)
+        data = scipy_sparse.csr_matrix(x_fixture)
     elif density == "csc":
-        x = scipy_sparse.csc_matrix(x_fixture)
+        data = scipy_sparse.csc_matrix(x_fixture)
     else:
         raise RuntimeError(f"unknown density {density}")
 
-    a_data = anndata.AnnData(X=x, var=var_fixture, obs=obs_fixture)
+    if as_layer:
+        x = np.zeros(x_fixture.shape)
+        layers = {'garbage': data}
+    else:
+        x = data
+        layers = None
+
+    a_data = anndata.AnnData(
+        X=x,
+        var=var_fixture,
+        obs=obs_fixture,
+        layers=layers)
     a_data.write_h5ad(orig_path)
 
     md50 = hashlib.md5()
@@ -137,11 +152,17 @@ def test_validation_of_h5ad(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
+    if as_layer:
+        layer = 'garbage'
+    else:
+        layer = 'X'
+
     result_path = validate_h5ad(
         h5ad_path=orig_path,
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        layer=layer)
 
     assert result_path is not None
 
