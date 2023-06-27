@@ -250,6 +250,75 @@ def test_validation_of_good_h5ad(
 
     assert md50.hexdigest() == md51.hexdigest()
 
+@pytest.mark.parametrize(
+        "density", ("csr", "csc", "array"))
+def test_validation_of_good_h5ad_in_layer(
+        good_var_fixture,
+        obs_fixture,
+        good_x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        density):
+    """
+    Test that new file is written if otherwise
+    good cell by gene data is in non-X layer
+    """
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    if density == "array":
+        data = good_x_fixture
+    elif density == "csr":
+        data = scipy_sparse.csr_matrix(good_x_fixture)
+    elif density == "csc":
+        data = scipy_sparse.csc_matrix(good_x_fixture)
+    else:
+        raise RuntimeError(f"unknown density {density}")
+
+    a_data = anndata.AnnData(
+        X=np.zeros(good_x_fixture.shape),
+        var=good_var_fixture,
+        obs=obs_fixture,
+        layers={'garbage': data})
+    a_data.write_h5ad(orig_path)
+
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    result_path = validate_h5ad(
+        h5ad_path=orig_path,
+        output_dir=tmp_dir_fixture,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture,
+        layer='garbage')
+
+    assert result_path is not None
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
+
+    actual = anndata.read_h5ad(result_path, backed='r')
+    pd.testing.assert_frame_equal(
+        good_var_fixture,
+        actual.var)
+
+    actual_x = actual.X[()]
+    if density != "array":
+        actual_x = actual_x.toarray()
+    np.testing.assert_allclose(
+        good_x_fixture,
+        actual_x,
+        atol=0.0,
+        rtol=1.0e-6)
 
 @pytest.mark.parametrize(
         "density,output_dtype",
