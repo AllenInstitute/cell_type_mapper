@@ -341,7 +341,6 @@ def test_is_x_integers(
         assert not actual
 
 
-
 @pytest.mark.parametrize(
         'is_sparse, is_int',
         itertools.product((True, False), (True, False)))

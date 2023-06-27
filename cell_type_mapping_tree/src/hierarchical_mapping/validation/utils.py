@@ -19,10 +19,7 @@ def is_x_integers(
 
     Returns False otherwise
     """
-    if layer == 'X':
-        layer_key = layer
-    else:
-        layer_key = f'layers/{layer}'
+    layer_key = _layer_to_layer_key(layer)
 
     with h5py.File(h5ad_path, 'r') as src:
         attrs = dict(src[layer_key].attrs)
@@ -359,10 +356,7 @@ def _is_dense_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
-    if layer == 'X':
-        layer_key = layer
-    else:
-        layer_key = f'layers/{layer}'
+    layer_key = _layer_to_layer_key(layer)
 
     with h5py.File(h5ad_path, 'r') as src:
         data = src[layer_key]
@@ -398,10 +392,7 @@ def _is_sparse_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
-    if layer == 'X':
-        layer_key = layer
-    else:
-        layer_key = f'layers/{layer}'
+    layer_key = _layer_to_layer_key(layer)
 
     with h5py.File(h5ad_path, 'r') as src:
         data = src[f'{layer_key}/data']
@@ -421,3 +412,11 @@ def _is_sparse_x_integers(
                 return False
 
     return True
+
+
+def _layer_to_layer_key(layer):
+    if layer == 'X':
+        layer_key = layer
+    else:
+        layer_key = f'layers/{layer}'
+    return layer_key
