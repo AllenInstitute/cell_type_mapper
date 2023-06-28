@@ -17,6 +17,9 @@ from hierarchical_mapping.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from hierarchical_mapping.utils.anndata_utils import (
+    read_uns_from_h5ad)
+
 from hierarchical_mapping.utils.output_utils import (
     blob_to_csv)
 
@@ -211,7 +214,7 @@ def run_mapping(config, output_path, log_path=None):
                 confidence_key = 'avg_correlation'
                 confidence_label = 'correlation_coefficient'
             else:
-                confidence_key = 'confidence'
+                confidence_key = 'bootstrapping_probability'
                 confidence_label = 'bootstrapping_probability'
 
             blob_to_csv(
@@ -235,6 +238,11 @@ def run_mapping(config, output_path, log_path=None):
             log.write_log(log_path)
         output["config"] = config
         output["log"] = log.log
+
+        uns = read_uns_from_h5ad(config["query_path"])
+        if "AIBS_CDM_gene_mapping" in uns:
+            output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
+
         with open(output_path, "w") as out_file:
             out_file.write(json.dumps(output, indent=2))
 

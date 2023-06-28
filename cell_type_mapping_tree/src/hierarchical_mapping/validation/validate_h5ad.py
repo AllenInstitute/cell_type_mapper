@@ -8,7 +8,10 @@ from hierarchical_mapping.utils.utils import (
 
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad,
-    write_df_to_h5ad)
+    write_df_to_h5ad,
+    copy_layer_to_x,
+    read_uns_from_h5ad,
+    write_uns_to_h5ad)
 
 from hierarchical_mapping.validation.utils import (
     is_x_integers,
@@ -23,7 +26,8 @@ def validate_h5ad(
         gene_id_mapper,
         log=None,
         expected_max=20,
-        tmp_dir=None):
+        tmp_dir=None,
+        layer='X'):
     """
     Perform validation transformations on h5ad file.
 
@@ -44,6 +48,10 @@ def validate_h5ad(
         data is incorrect
     tmp_dir:
        Dir where scratch data products can be written if needed
+    layer:
+        The layer in the source h5ad file where the cell by gene
+        data will be retrieved. Regardless, it will be written to
+        'X' in the validated file.
 
     Returns
     -------
@@ -51,9 +59,14 @@ def validate_h5ad(
     Returns None if no action was taken
     """
 
+    # somewhere in here, check to see if we are working on a layer;
+    # if that happens, just go ahead and copy and set current_h5ad_path
+    # to new_h5ad_path
+
     output_path = None
 
     original_h5ad_path = pathlib.Path(h5ad_path)
+    current_h5ad_path = original_h5ad_path
 
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
@@ -62,17 +75,26 @@ def validate_h5ad(
     timestamp = get_timestamp().replace('-', '')
     new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
 
+    if layer != 'X':
+        # Copy data into new file, moving cell by gene data from
+        # layer to X
+        copy_layer_to_x(
+            original_h5ad_path=original_h5ad_path,
+            new_h5ad_path=new_h5ad_path,
+            layer=layer)
+        output_path = new_h5ad_path
+        current_h5ad_path = new_h5ad_path
+
     var_original = read_df_from_h5ad(
-            h5ad_path=original_h5ad_path,
+            h5ad_path=current_h5ad_path,
             df_name='var')
 
     mapped_var = map_gene_ids_in_var(
         var_df=var_original,
         gene_id_mapper=gene_id_mapper)
 
-    is_int = is_x_integers(h5ad_path=original_h5ad_path)
-
-    x_minmax = get_minmax_x_from_h5ad(h5ad_path=original_h5ad_path)
+    is_int = is_x_integers(h5ad_path=current_h5ad_path)
+    x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
 
     if x_minmax[1] < expected_max:
         msg = "VALIDATION: CDM expects raw counts data. The maximum value "
@@ -86,15 +108,18 @@ def validate_h5ad(
             warnings.warn(msg)
 
     if mapped_var is not None or not is_int:
-        output_path = new_h5ad_path
+        # Copy data over, if it has not already been copied
+        if output_path is None:
+            shutil.copy(
+                src=h5ad_path,
+                dst=new_h5ad_path)
 
+            output_path = new_h5ad_path
+
+    if output_path is not None:
         if log is not None:
-            msg = f"VALIDATION: copying {h5ad_path} to {new_h5ad_path}"
+            msg = f"VALIDATION: copyied {h5ad_path} to {new_h5ad_path}"
             log.info(msg)
-
-        shutil.copy(
-            src=h5ad_path,
-            dst=new_h5ad_path)
 
     if mapped_var is not None:
         if log is not None:
@@ -102,10 +127,20 @@ def validate_h5ad(
             msg += f"{original_h5ad_path} to include "
             msg += "proper gene identifiers"
             log.info(msg)
+
         write_df_to_h5ad(
             h5ad_path=new_h5ad_path,
             df_name='var',
             df_value=mapped_var)
+
+        gene_mapping = {
+            orig: new
+            for orig, new in zip(var_original.index.values,
+                                 mapped_var.index.values)}
+
+        uns = read_uns_from_h5ad(new_h5ad_path)
+        uns['AIBS_CDM_gene_mapping'] = gene_mapping
+        write_uns_to_h5ad(new_h5ad_path, uns)
 
     if not is_int:
         output_dtype = choose_int_dtype(x_minmax)

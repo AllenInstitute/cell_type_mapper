@@ -12,24 +12,30 @@ from hierarchical_mapping.utils.utils import (
 
 
 def is_x_integers(
-        h5ad_path):
+        h5ad_path,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
     Returns False otherwise
     """
+    layer_key = _layer_to_layer_key(layer)
 
     with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+        attrs = dict(src[layer_key].attrs)
+
     encoding_type = attrs['encoding-type']
+
     if encoding_type == 'array':
         return _is_dense_x_integers(
             h5ad_path=h5ad_path,
-            eps=1.0e-10)
+            eps=1.0e-10,
+            layer=layer)
     elif 'csr' in encoding_type or 'csc' in encoding_type:
         return _is_sparse_x_integers(
             h5ad_path=h5ad_path,
-            eps=1.0e-10)
+            eps=1.0e-10,
+            layer=layer)
     else:
         raise RuntimeError(
             "Do not know how to handle encoding-type "
@@ -85,23 +91,27 @@ def round_x_to_integers(
 
 
 def get_minmax_x_from_h5ad(
-        h5ad_path):
+        h5ad_path,
+        layer='X'):
     """
     Find the minimum and maximum value of the X matrix in an h5ad file.
     """
+
+    layer_key = _layer_to_layer_key(layer)
+
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file['X'].attrs)
+        attrs = dict(in_file[layer_key].attrs)
         if 'encoding-type' not in attrs:
             pass
         elif attrs['encoding-type'] == 'array':
-            return _get_minmax_from_dense(in_file['X'])
+            return _get_minmax_from_dense(in_file[layer_key])
         elif 'csr' in attrs['encoding-type'] \
                 or 'csc' in attrs['encoding-type']:
-            return _get_minmax_from_sparse(in_file['X'])
+            return _get_minmax_from_sparse(in_file[layer_key])
         else:
             pass
 
-    return _get_minmax_x_using_anndata(h5ad_path)
+    return _get_minmax_x_using_anndata(h5ad_path, layer=layer)
 
 
 def map_gene_ids_in_var(
@@ -150,7 +160,8 @@ def map_gene_ids_in_var(
 
 def _get_minmax_x_using_anndata(
         h5ad_path,
-        rows_at_a_time=10000):
+        rows_at_a_time=10000,
+        layer='X'):
     """
     If you cannot intuit how X is encoded in the h5ad file, just use
     anndata's API
@@ -159,6 +170,10 @@ def _get_minmax_x_using_anndata(
     -------
     (min_val, max_val)
     """
+    if layer != 'X':
+        raise NotImplementedError(
+            "No efficient way to get minmax from layers; only X")
+
     max_val = None
     min_val = None
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
@@ -340,7 +355,8 @@ def _round_sparse_x_to_integers(
 
 def _is_dense_x_integers(
         h5ad_path,
-        eps=1.0e-10):
+        eps=1.0e-10,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
@@ -349,8 +365,10 @@ def _is_dense_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
+    layer_key = _layer_to_layer_key(layer)
+
     with h5py.File(h5ad_path, 'r') as src:
-        data = src['X']
+        data = src[layer_key]
         if np.issubdtype(data.dtype, np.integer):
             return True
 
@@ -373,7 +391,8 @@ def _is_dense_x_integers(
 
 def _is_sparse_x_integers(
         h5ad_path,
-        eps=1.0e-6):
+        eps=1.0e-6,
+        layer='X'):
     """
     Returns True if the values in X are integers (or, effectively integers).
 
@@ -382,8 +401,10 @@ def _is_sparse_x_integers(
     eps governs how close a float can be to an integer
     and still be called an integer
     """
+    layer_key = _layer_to_layer_key(layer)
+
     with h5py.File(h5ad_path, 'r') as src:
-        data = src['X/data']
+        data = src[f'{layer_key}/data']
         if np.issubdtype(data.dtype, np.integer):
             return True
         chunk_size = data.chunks
@@ -400,3 +421,11 @@ def _is_sparse_x_integers(
                 return False
 
     return True
+
+
+def _layer_to_layer_key(layer):
+    if layer == 'X':
+        layer_key = layer
+    else:
+        layer_key = f'layers/{layer}'
+    return layer_key

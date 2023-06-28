@@ -339,3 +339,84 @@ def test_is_x_integers(
         assert actual
     else:
         assert not actual
+
+
+@pytest.mark.parametrize(
+        'is_sparse, is_int',
+        itertools.product((True, False), (True, False)))
+def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
+    """
+    Test that is_x_integers works on different
+    layers in the h5ad file
+    """
+
+    rng = np.random.default_rng(223123)
+    n_rows = 112
+    n_cols = 73
+    x = rng.random((n_rows, n_cols))
+    layer = np.zeros(n_rows*n_cols, dtype=float)
+    chosen = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//3, replace=False)
+    if is_int:
+        layer[chosen] = rng.integers(111, 8888, len(chosen)).astype(float)
+    else:
+        layer[chosen] = rng.random(len(chosen))
+    layer = layer.reshape((n_rows, n_cols))
+    if is_sparse:
+        layer = scipy_sparse.csr_matrix(layer)
+
+    a_data = anndata.AnnData(X=x, layers={'garbage': layer})
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a_data.write_h5ad(h5ad_path)
+
+    if is_int:
+        assert is_x_integers(h5ad_path , layer='garbage')
+    else:
+        assert not is_x_integers(h5ad_path, layer='garbage')
+
+
+@pytest.mark.parametrize(
+        'is_sparse',
+        (True, False))
+def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
+    """
+    Test that is_x_integers works on different
+    layers in the h5ad file
+    """
+
+    min_val = -99.9
+    max_val = 89.9
+
+    rng = np.random.default_rng(223123)
+    n_rows = 112
+    n_cols = 73
+    x = np.zeros((n_rows, n_cols))
+    layer = np.zeros(n_rows*n_cols, dtype=float)
+    chosen = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//3, replace=False)
+
+    layer[chosen] = min_val+1.0+(max_val-1.0-min_val)*rng.random(len(chosen))
+
+    layer[4] = min_val
+    layer[5] = max_val
+
+    layer = layer.reshape((n_rows, n_cols))
+    if is_sparse:
+        layer = scipy_sparse.csr_matrix(layer)
+
+    a_data = anndata.AnnData(X=x, layers={'garbage': layer})
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a_data.write_h5ad(h5ad_path)
+
+    minmax = get_minmax_x_from_h5ad(h5ad_path, layer='garbage')
+    np.testing.assert_allclose(
+        minmax,
+        (min_val, max_val),
+        atol=0.0,
+        rtol=1.0e-6)

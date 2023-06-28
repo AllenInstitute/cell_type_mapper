@@ -169,6 +169,7 @@ def ab_initio_assignment_fixture(
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
         taxonomy_tree_dict,
         tmp_dir_fixture,
         flatten,
@@ -290,7 +291,7 @@ def test_mapping_from_markers(
 
                 if config['type_assignment']['bootstrap_iteration'] > 1:
                     assert cell[k]['assignment'] == actual_cell[k]['assignment']
-                    for sub_k in ('confidence', 'avg_correlation'):
+                    for sub_k in ('bootstrapping_probability', 'avg_correlation'):
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
@@ -308,7 +309,7 @@ def test_mapping_from_markers(
         for cell in actual['results']:
             assert 'cluster' in cell
             assert 'assignment' in cell['cluster']
-            assert 'confidence' in cell['cluster']
+            assert 'bootstrapping_probability' in cell['cluster']
             assert 'avg_correlation' in cell['cluster']
             assert cell['cluster']['assignment'] in valid_clusters
 
@@ -322,7 +323,7 @@ def test_mapping_from_markers(
     if use_csv:
         if config['type_assignment']['bootstrap_iteration'] > 1:
             stat_label = 'bootstrapping_probability'
-            stat_key = 'confidence'
+            stat_key = 'bootstrapping_probability'
         else:
             stat_label = 'correlation_coefficient'
             stat_key = 'avg_correlation'
@@ -366,5 +367,9 @@ def test_mapping_from_markers(
 
             assert len(found_cells) == len(result_lookup)
             assert set(found_cells) == set(result_lookup.keys())
+
+    query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
+    input_uns = query_adata.uns
+    assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
 
     os.environ[env_var] = ''

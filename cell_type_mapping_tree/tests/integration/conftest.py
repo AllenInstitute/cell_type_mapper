@@ -250,7 +250,8 @@ def raw_query_h5ad_fixture(
 
     a_data = anndata.AnnData(
         X=raw_query_cell_x_gene_fixture,
-        var=var)
+        var=var,
+        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}})
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
