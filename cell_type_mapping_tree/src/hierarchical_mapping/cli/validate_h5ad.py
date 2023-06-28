@@ -3,6 +3,8 @@ This module defines the CLI tool for validating an H5AD file against our
 normalization and gene_id requirements
 """
 import argschema
+import traceback
+import pathlib
 from marshmallow import post_load
 
 from hierarchical_mapping.gene_id.gene_id_mapper import (
@@ -21,6 +23,18 @@ class ValidationInputSchema(argschema.ArgSchema):
         default=None,
         allow_none=False,
         description="Path to the h5ad file to be validated")
+
+    valid_h5ad_path = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to the valid h5ad file")
+
+    log_path = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to the log file to be written")
 
     layer = argschema.fields.String(
         required=False,
@@ -96,25 +110,40 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
     def run(self):
         command_log = CommandLog()
-        gene_id_mapper = GeneIdMapper.from_default(log=command_log)
-        result_path = validate_h5ad(
-             h5ad_path=self.args['h5ad_path'],
-             output_dir=self.args['output_dir'],
-             layer=self.args['layer'],
-             gene_id_mapper=gene_id_mapper,
-             log=command_log,
-             tmp_dir=self.args['tmp_dir'])
+        log_path = self.args['log_path']
+        if log_path is not None:
+            log_path = pathlib.Path(log_path)
 
-        output_manifest = dict()
-        if result_path is None:
-            output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
-        else:
-            result_path = str(result_path.resolve().absolute())
-            output_manifest['valid_h5ad_path'] = result_path
+        try:
+            gene_id_mapper = GeneIdMapper.from_default(log=command_log)
+            result_path = validate_h5ad(
+                h5ad_path=self.args['h5ad_path'],
+                output_dir=self.args['output_dir'],
+                layer=self.args['layer'],
+                gene_id_mapper=gene_id_mapper,
+                log=command_log,
+                tmp_dir=self.args['tmp_dir'],
+                valid_h5ad_path=self.args["valid_h5ad_path"])
 
-        output_manifest['log_messages'] = command_log.log
-        output_manifest['config'] = self.args
-        self.output(output_manifest, indent=2)
+            output_manifest = dict()
+            if result_path is None:
+                output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
+            else:
+                result_path = str(result_path.resolve().absolute())
+                output_manifest['valid_h5ad_path'] = result_path
+
+            output_manifest['log_messages'] = command_log.log
+            output_manifest['config'] = self.args
+            self.output(output_manifest, indent=2)
+        except Exception:
+            traceback_msg = "an ERROR occurred ===="
+            traceback_msg += f"\n{traceback.format_exc()}\n"
+            command_log.add_msg(traceback_msg)
+            raise
+        finally:
+            command_log.info("CLEANING UP")
+            if log_path is not None:
+                command_log.write_log(log_path)
 
 
 def main():

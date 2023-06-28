@@ -27,7 +27,8 @@ def validate_h5ad(
         log=None,
         expected_max=20,
         tmp_dir=None,
-        layer='X'):
+        layer='X',
+        valid_h5ad_path=None):
     """
     Perform validation transformations on h5ad file.
 
@@ -71,9 +72,12 @@ def validate_h5ad(
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
 
-    output_dir = pathlib.Path(output_dir)
-    timestamp = get_timestamp().replace('-', '')
-    new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    if valid_h5ad_path is None:
+        output_dir = pathlib.Path(output_dir)
+        timestamp = get_timestamp().replace('-', '')
+        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    else:
+        new_h5ad_path = valid_h5ad_path
 
     if layer != 'X':
         # Copy data into new file, moving cell by gene data from
