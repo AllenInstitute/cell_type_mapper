@@ -94,6 +94,12 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to CSV file where output file will be "
         "written (if None, no CSV will be produced).")
 
+    log_path = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to the log file to be written")
+
     max_gb = argschema.fields.Float(
         required=False,
         default=100.0,
@@ -139,7 +145,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         run_mapping(
             config=self.args,
             output_path=self.args['extended_result_path'],
-            log_path=None)
+            log_path=self.args['log_path'])
 
 
 def get_assignments(config, type_assignment):
