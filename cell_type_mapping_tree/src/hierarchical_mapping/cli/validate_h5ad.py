@@ -22,6 +22,15 @@ class ValidationInputSchema(argschema.ArgSchema):
         allow_none=False,
         description="Path to the h5ad file to be validated")
 
+    layer = argschema.fields.String(
+        required=False,
+        default='X',
+        allow_none=False,
+        description="Layer in the h5ad file where cell by gene "
+        "data is found. If not 'X', layer is relative to 'layers/'. "
+        "Regardless, validated data will be written to 'X' matrix "
+        "in new h5ad file.")
+
     output_dir = argschema.fields.OutputDir(
         required=True,
         default=None,
@@ -91,6 +100,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
         result_path = validate_h5ad(
              h5ad_path=self.args['h5ad_path'],
              output_dir=self.args['output_dir'],
+             layer=self.args['layer'],
              gene_id_mapper=gene_id_mapper,
              log=command_log,
              tmp_dir=self.args['tmp_dir'])

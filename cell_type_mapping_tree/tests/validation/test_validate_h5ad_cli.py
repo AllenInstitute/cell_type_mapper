@@ -84,13 +84,15 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density", ("csr", "csc", "array"))
+        "density,as_layer",
+        itertools.product(("csr", "csc", "array"), (True, False)))
 def test_validation_cli_of_h5ad(
         var_fixture,
         obs_fixture,
         x_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        as_layer):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -98,15 +100,28 @@ def test_validation_cli_of_h5ad(
         suffix='.h5ad')
 
     if density == "array":
-        x = x_fixture
+        data = x_fixture
     elif density == "csr":
-        x = scipy_sparse.csr_matrix(x_fixture)
+        data = scipy_sparse.csr_matrix(x_fixture)
     elif density == "csc":
-        x = scipy_sparse.csc_matrix(x_fixture)
+        data = scipy_sparse.csc_matrix(x_fixture)
     else:
         raise RuntimeError(f"unknown density {density}")
 
-    a_data = anndata.AnnData(X=x, var=var_fixture, obs=obs_fixture)
+    if as_layer:
+        x = np.zeros(x_fixture.shape)
+        layers = {'garbage': data}
+        layer = 'garbage'
+    else:
+        x = data
+        layers = None
+        layer = 'X'
+
+    a_data = anndata.AnnData(
+        X=x,
+        var=var_fixture,
+        obs=obs_fixture,
+        layers=layers)
     a_data.write_h5ad(orig_path)
 
     md50 = hashlib.md5()
@@ -122,9 +137,10 @@ def test_validation_cli_of_h5ad(
         'h5ad_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
-        'output_json': output_json
+        'output_json': output_json,
+        'layer': layer
     }
-    
+
     runner = ValidateH5adRunner(args=[], input_data=config)
     runner.run()
 
@@ -150,13 +166,43 @@ def test_validation_cli_of_h5ad(
 
     actual = anndata.read_h5ad(result_path, backed='r')
     pd.testing.assert_frame_equal(obs_fixture, actual.obs)
-    actual_x = actual.X[()]
+    actual_x = actual.X
+
     if density != "array":
+
+        # Sometimes X comes out as a scipy.sparse matrix,
+        # sometimes it is an anndata SparseDataset. Unclear
+        # why.
+        if not hasattr(actual_x, 'toarray'):
+           actual_x = actual_x[()]
         actual_x = actual_x.toarray()
+
+        # check that we can at least read back the
+        # sparse matrix using scipy library
+        if density == "csr":
+            scipy_type = scipy_sparse.csr_matrix
+        else:
+            scipy_type = scipy_sparse.csc_matrix
+        with h5py.File(result_path, "r") as src:
+            brute_x = scipy_type(
+                (src['X/data'][()],
+                 src['X/indices'][()],
+                 src['X/indptr'][()]),
+                shape=x_fixture.shape)
+        brute_x = brute_x.toarray()
+
+    else:
+        brute_x = None
+
     assert not np.allclose(actual_x, x_fixture)
-    assert np.array_equal(
+    np.testing.assert_array_equal(
         actual_x,
         np.round(x_fixture).astype(int))
+
+    if brute_x is not None:
+        np.testing.assert_array_equal(
+            brute_x,
+            np.round(x_fixture).astype(int))
 
     actual_var = actual.var
     assert len(actual_var.columns) == 2
@@ -223,7 +269,7 @@ def test_validation_cli_of_good_h5ad(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json
     }
-    
+
     runner = ValidateH5adRunner(args=[], input_data=config)
     runner.run()
 
@@ -263,3 +309,121 @@ def test_validation_cli_of_h5ad_missing_output(
     with pytest.raises(RuntimeError,
                        match="must specify a path for output_json"):
         ValidateH5adRunner(args=[], input_data=config)
+
+
+@pytest.mark.parametrize(
+        "density", ("csr", "csc", "array"))
+def test_validation_cli_of_good_h5ad_in_layer(
+        good_var_fixture,
+        obs_fixture,
+        good_x_fixture,
+        tmp_dir_fixture,
+        density):
+    """
+    Test behavior of validation CLI when the data is good
+    but it is in a non-X layer.
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    if density == "array":
+        data = good_x_fixture
+    elif density == "csr":
+        data = scipy_sparse.csr_matrix(good_x_fixture)
+    elif density == "csc":
+        data = scipy_sparse.csc_matrix(good_x_fixture)
+    else:
+        raise RuntimeError(f"unknown density {density}")
+
+    a_data = anndata.AnnData(
+        X=np.zeros(data.shape),
+        var=good_var_fixture,
+        obs=obs_fixture,
+        layers={'garbage': data})
+
+    a_data.write_h5ad(orig_path)
+
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"good_input_{density}_",
+        suffix=".json")
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_json': output_json,
+        'layer': 'garbage'
+    }
+
+    runner = ValidateH5adRunner(args=[], input_data=config)
+    runner.run()
+
+    output_manifest = json.load(open(output_json, 'rb'))
+    result_path = output_manifest['valid_h5ad_path']
+
+    assert result_path != orig_path
+
+    actual = anndata.read_h5ad(result_path)
+    pd.testing.assert_frame_equal(
+        actual.var,
+        good_var_fixture)
+    pd.testing.assert_frame_equal(
+        actual.obs,
+        obs_fixture)
+
+    actual_x = actual.X
+
+    if density != "array":
+
+        # Sometimes X comes out as a scipy.sparse matrix,
+        # sometimes it is an anndata SparseDataset. Unclear
+        # why.
+        if not hasattr(actual_x, 'toarray'):
+           actual_x = actual_x[()]
+        actual_x = actual_x.toarray()
+
+        # check that we can at least read back the
+        # sparse matrix using scipy library
+        if density == "csr":
+            scipy_type = scipy_sparse.csr_matrix
+        else:
+            scipy_type = scipy_sparse.csc_matrix
+        with h5py.File(result_path, "r") as src:
+            brute_x = scipy_type(
+                (src['X/data'][()],
+                 src['X/indices'][()],
+                 src['X/indptr'][()]),
+                shape=data.shape)
+        brute_x = brute_x.toarray()
+
+    else:
+        brute_x = None
+
+    np.testing.assert_allclose(
+        actual_x,
+        good_x_fixture,
+        atol=0.0,
+        rtol=1.0e-6)
+
+    if brute_x is not None:
+
+        np.testing.assert_allclose(
+            brute_x,
+            good_x_fixture,
+            atol=0.0,
+            rtol=1.0e-6)
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
