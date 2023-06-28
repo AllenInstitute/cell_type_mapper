@@ -14,7 +14,9 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad,
     write_df_to_h5ad,
-    copy_layer_to_x)
+    copy_layer_to_x,
+    read_uns_from_h5ad,
+    write_uns_to_h5ad)
 
 
 @pytest.fixture(scope='module')
@@ -189,3 +191,31 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
                     assert b == t
                 else:
                     assert (b==t).all()
+
+
+def test_read_write_uns_from_h5ad(tmp_dir_fixture):
+    """
+    Test utility to read unstructured metadata from
+    h5ad file.
+
+    And utility to write unstructured metadata to h5ad file
+    """
+    uns = {'a': 1, 'b': 2}
+    a_data = anndata.AnnData(
+        X=np.random.random_sample((12, 27)),
+        uns=uns)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a_data.write_h5ad(h5ad_path)
+
+    actual = read_uns_from_h5ad(h5ad_path)
+    assert actual == uns
+
+    uns['c'] = 'abcdefg'
+    write_uns_to_h5ad(h5ad_path, uns)
+
+    b_data = anndata.read_h5ad(h5ad_path, backed='r')
+    assert b_data.uns == uns

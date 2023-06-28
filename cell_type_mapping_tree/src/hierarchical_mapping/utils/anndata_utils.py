@@ -25,6 +25,27 @@ def write_df_to_h5ad(h5ad_path, df_name, df_value):
             write_elem(dst, k=df_name, elem=df_value)
 
 
+def read_uns_from_h5ad(h5ad_path):
+    """
+    Read the unstructured metadata dict
+    from the h5ad file at h5ad_path
+    """
+    with h5py.File(h5ad_path, 'r') as src:
+        return read_elem(src['uns'])
+
+
+def write_uns_to_h5ad(h5ad_path, uns_value):
+    """
+    Write the data in un_value to the element uns in the
+    specified h5ad_path
+    """
+    with h5py.File(h5ad_path, 'a') as dst:
+        try:
+            write_elem(dst, key='uns', val=uns_value)
+        except TypeError:
+            write_elem(dst, k='uns', elem=uns_value)
+
+
 def copy_layer_to_x(
         original_h5ad_path,
         new_h5ad_path,
