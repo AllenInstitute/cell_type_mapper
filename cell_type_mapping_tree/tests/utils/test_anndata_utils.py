@@ -219,3 +219,22 @@ def test_read_write_uns_from_h5ad(tmp_dir_fixture):
 
     b_data = anndata.read_h5ad(h5ad_path, backed='r')
     assert b_data.uns == uns
+
+
+def test_read_empty_uns(tmp_dir_fixture):
+    """
+    Make sure that reading uns from an h5ad file that
+    does not have one results in an empty dict (instead
+    of, say, None)
+    """
+    a_data = anndata.AnnData(
+        X=np.zeros((5,4)),
+        obs=pd.DataFrame([{'a':ii} for ii in range(5)]),
+        var=pd.DataFrame([{'b':ii} for ii in range(4)]))
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+    actual = read_uns_from_h5ad(h5ad_path)
+    assert isinstance(actual, dict)
+    assert len(actual) == 0
