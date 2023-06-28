@@ -340,8 +340,8 @@ def test_cli_pipeline(
             assert k in in_file
             assert len(in_file[k][()]) > 0
 
-    log = json.load(open(log_path, 'rb'))
-    assert isinstance(log, list)
+    with open(log_path, 'r') as src:
+        log = src.readlines()
     assert len(log) > 0
 
     results = json.load(open(output_path, 'rb'))
@@ -396,7 +396,8 @@ def test_cli_pipeline(
         output_path=output_path,
         log_path=log_path)
 
-    log = json.load(open(log_path, 'rb'))
+    with open(log_path, 'r') as src:
+        log = src.readlines()
     assert isinstance(log, list)
     assert len(log) > 0
 
@@ -549,14 +550,13 @@ def test_cli_error_log(
             output_path=output_path,
             log_path=log_path)
 
-    log = json.load(open(log_path, 'rb'))
-
-    found_error = False
-    found_clean = False
-    for line in log:
-        if 'an ERROR occurred ====' in line:
-            found_error = True
-        if 'CLEANING UP' in line:
-            found_clean = True
+    with open(log_path, 'r') as log:
+        found_error = False
+        found_clean = False
+        for line in log:
+            if 'an ERROR occurred ====' in line:
+                found_error = True
+            if 'CLEANING UP' in line:
+                found_clean = True
     assert found_error
     assert found_clean
