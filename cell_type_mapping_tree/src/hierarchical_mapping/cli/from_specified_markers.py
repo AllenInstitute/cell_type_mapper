@@ -211,7 +211,7 @@ def run_mapping(config, output_path, log_path=None):
                 confidence_key = 'avg_correlation'
                 confidence_label = 'correlation_coefficient'
             else:
-                confidence_key = 'confidence'
+                confidence_key = 'bootstrapping_probability'
                 confidence_label = 'bootstrapping_probability'
 
             blob_to_csv(

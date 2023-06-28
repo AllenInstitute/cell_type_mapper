@@ -213,7 +213,7 @@ def test_tautological_assignment(
         assert l2 in taxonomy_dict_fixture['level_1'][l1]
         for k in ('cluster', 'level_1', 'level_2'):
             np.testing.assert_allclose(
-                el[k]['confidence'],
+                el[k]['bootstrapping_probability'],
                 1.0,
                 atol=0.0,
                 rtol=1.0e-6)

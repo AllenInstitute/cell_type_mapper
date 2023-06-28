@@ -128,9 +128,9 @@ def run_type_assignment_on_h5ad_cpu(
     Dict will look like
         {'cell_id': id_of_cell,
          taxonomy_level1 : {'assignment': chosen_node,
-                           'confidence': fraction_of_votes},
+                            'bootstrapping_probability': fraction_of_votes},
          taxonomy_level2 : {'assignment': chosen_node,
-                           'confidence': fraction_of_votes},
+                            'bootstrapping_probability': fraction_of_votes},
          ...}
     """
     if log is not None:
@@ -350,7 +350,7 @@ def run_type_assignment(
 
     Dict will look like
         {taxonomy_level : {'assignment': chosen_node,
-                           'confidence': fraction_of_votes}}
+                           'bootstrapping_probability': fraction_of_votes}}
     """
 
     # create effectively empty list of dicts to
@@ -415,7 +415,7 @@ def run_type_assignment(
             if len(possible_children) > 1:
                 t = time.time()
                 (assignment,
-                 confidence,
+                 bootstrapping_probability,
                  avg_corr) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_matrix=leaf_node_matrix,
@@ -431,7 +431,7 @@ def run_type_assignment(
 
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
-                confidence = [1.0]*chosen_query_data.n_cells
+                bootstrapping_probability = [1.0]*chosen_query_data.n_cells
                 avg_corr = [1.0]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
@@ -457,14 +457,16 @@ def run_type_assignment(
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type, conf, corr in zip(chosen_idx,
-                                                         assignment,
-                                                         confidence,
-                                                         avg_corr):
+            for i_cell, assigned_type, prob, corr in zip(
+                            chosen_idx,
+                            assignment,
+                            bootstrapping_probability,
+                            avg_corr):
 
-                result[i_cell][child_level] = {'assignment': assigned_type,
-                                               'confidence': conf,
-                                               'avg_correlation': corr}
+                result[i_cell][child_level] = {
+                    'assignment': assigned_type,
+                    'bootstrapping_probability': prob,
+                    'avg_correlation': corr}
 
     return result
 
@@ -551,7 +553,7 @@ def _run_type_assignment(
 
     t = time.time()
     (result,
-     confidence,
+     bootstrapping_probability,
      avg_corr) = choose_node(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
@@ -563,7 +565,7 @@ def _run_type_assignment(
         timers=timers)
     update_timer("choose_node", t, timers)
 
-    return result, confidence, avg_corr
+    return result, bootstrapping_probability, avg_corr
 
 
 def choose_node(

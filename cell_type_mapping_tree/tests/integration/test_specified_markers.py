@@ -290,7 +290,7 @@ def test_mapping_from_markers(
 
                 if config['type_assignment']['bootstrap_iteration'] > 1:
                     assert cell[k]['assignment'] == actual_cell[k]['assignment']
-                    for sub_k in ('confidence', 'avg_correlation'):
+                    for sub_k in ('bootstrapping_probability', 'avg_correlation'):
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
@@ -308,7 +308,7 @@ def test_mapping_from_markers(
         for cell in actual['results']:
             assert 'cluster' in cell
             assert 'assignment' in cell['cluster']
-            assert 'confidence' in cell['cluster']
+            assert 'bootstrapping_probability' in cell['cluster']
             assert 'avg_correlation' in cell['cluster']
             assert cell['cluster']['assignment'] in valid_clusters
 
@@ -322,7 +322,7 @@ def test_mapping_from_markers(
     if use_csv:
         if config['type_assignment']['bootstrap_iteration'] > 1:
             stat_label = 'bootstrapping_probability'
-            stat_key = 'confidence'
+            stat_key = 'bootstrapping_probability'
         else:
             stat_label = 'correlation_coefficient'
             stat_key = 'avg_correlation'
