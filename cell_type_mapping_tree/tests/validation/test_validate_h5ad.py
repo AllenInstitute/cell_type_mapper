@@ -201,6 +201,17 @@ def test_validation_of_h5ad(
 
     assert md50.hexdigest() == md51.hexdigest()
 
+    # test that gene ID mapping is in unstructured
+    # metadata
+    uns = actual.uns
+    assert 'AIBS_CDM_gene_mapping' in uns
+
+    old_genes = list(var_fixture.index.values)
+    new_genes = list(actual.var.index.values)
+    for old, new in zip(old_genes, new_genes):
+        assert uns['AIBS_CDM_gene_mapping'][old] == new
+    assert len(uns['AIBS_CDM_gene_mapping']) == len(old_genes)
+
 
 @pytest.mark.parametrize(
         "density", ("csr", "csc", "array"))
@@ -319,6 +330,12 @@ def test_validation_of_good_h5ad_in_layer(
         actual_x,
         atol=0.0,
         rtol=1.0e-6)
+
+    # test that gene ID mapping is not in unstructured
+    # metadata
+    uns = actual.uns
+    assert 'AIBS_CDM_gene_mapping' not in uns
+
 
 @pytest.mark.parametrize(
         "density,output_dtype",

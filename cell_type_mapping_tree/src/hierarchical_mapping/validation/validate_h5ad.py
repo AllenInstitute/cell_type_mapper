@@ -9,7 +9,9 @@ from hierarchical_mapping.utils.utils import (
 from hierarchical_mapping.utils.anndata_utils import (
     read_df_from_h5ad,
     write_df_to_h5ad,
-    copy_layer_to_x)
+    copy_layer_to_x,
+    read_uns_from_h5ad,
+    write_uns_to_h5ad)
 
 from hierarchical_mapping.validation.utils import (
     is_x_integers,
@@ -130,6 +132,15 @@ def validate_h5ad(
             h5ad_path=new_h5ad_path,
             df_name='var',
             df_value=mapped_var)
+
+        gene_mapping = {
+            orig: new
+            for orig, new in zip(var_original.index.values,
+                                 mapped_var.index.values)}
+
+        uns = read_uns_from_h5ad(new_h5ad_path)
+        uns['AIBS_CDM_gene_mapping'] = gene_mapping
+        write_uns_to_h5ad(new_h5ad_path, uns)
 
     if not is_int:
         output_dtype = choose_int_dtype(x_minmax)
