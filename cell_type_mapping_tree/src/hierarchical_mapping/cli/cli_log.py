@@ -1,5 +1,4 @@
 import anndata
-import json
 import numpy as np
 import sys
 import time
@@ -62,8 +61,9 @@ class CommandLog(object):
         return self._log
 
     def write_log(self, output_path):
-        with open(output_path, 'w') as out_file:
-            out_file.write(json.dumps(self.log, indent=2))
+        with open(output_path, 'a') as out_file:
+            for line in self.log:
+                out_file.write(line)
 
     def log_software_env(self):
         """
