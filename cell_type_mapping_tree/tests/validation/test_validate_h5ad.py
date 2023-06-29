@@ -19,12 +19,14 @@ from hierarchical_mapping.gene_id.gene_id_mapper import (
 from hierarchical_mapping.validation.validate_h5ad import (
     validate_h5ad)
 
+
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('validating_h5ad_'))
     yield tmp_dir
     _clean_up(tmp_dir)
+
 
 @pytest.fixture
 def map_data_fixture():
@@ -58,6 +60,7 @@ def var_fixture():
 
     return pd.DataFrame(records).set_index('gene_id')
 
+
 @pytest.fixture
 def good_var_fixture():
     records = [
@@ -89,6 +92,7 @@ def x_fixture(var_fixture, obs_fixture):
         for i_col in chosen:
             data[i_row, i_col] = rng.random()*10.0+1.4
     return data
+
 
 @pytest.fixture
 def good_x_fixture(var_fixture, obs_fixture):
@@ -157,7 +161,7 @@ def test_validation_of_h5ad(
     else:
         layer = 'X'
 
-    result_path = validate_h5ad(
+    result_path, _ = validate_h5ad(
         h5ad_path=orig_path,
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
@@ -246,7 +250,7 @@ def test_validation_of_good_h5ad(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path = validate_h5ad(
+    result_path, _ = validate_h5ad(
         h5ad_path=orig_path,
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
@@ -260,6 +264,7 @@ def test_validation_of_good_h5ad(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
 
 @pytest.mark.parametrize(
         "density", ("csr", "csc", "array"))
@@ -301,7 +306,7 @@ def test_validation_of_good_h5ad_in_layer(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path = validate_h5ad(
+    result_path, _ = validate_h5ad(
         h5ad_path=orig_path,
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
@@ -394,7 +399,7 @@ def test_validation_of_h5ad_diverse_dtypes(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path = validate_h5ad(
+    result_path, _ = validate_h5ad(
         h5ad_path=orig_path,
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,

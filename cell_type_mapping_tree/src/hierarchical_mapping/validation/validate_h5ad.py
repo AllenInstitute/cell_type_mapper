@@ -64,6 +64,8 @@ def validate_h5ad(
     # if that happens, just go ahead and copy and set current_h5ad_path
     # to new_h5ad_path
 
+    has_warnings = False
+
     output_path = None
 
     original_h5ad_path = pathlib.Path(h5ad_path)
@@ -110,6 +112,7 @@ def validate_h5ad(
             log.warn(msg)
         else:
             warnings.warn(msg)
+        has_warnings = True
 
     if mapped_var is not None or not is_int:
         # Copy data over, if it has not already been copied
@@ -145,6 +148,7 @@ def validate_h5ad(
         uns = read_uns_from_h5ad(new_h5ad_path)
         uns['AIBS_CDM_gene_mapping'] = gene_mapping
         write_uns_to_h5ad(new_h5ad_path, uns)
+        has_warnings = True
 
     if not is_int:
         output_dtype = choose_int_dtype(x_minmax)
@@ -159,6 +163,7 @@ def validate_h5ad(
             h5ad_path=new_h5ad_path,
             tmp_dir=tmp_dir,
             output_dtype=output_dtype)
+        has_warnings = True
 
     if log is not None:
         msg = f"DONE VALIDATING {h5ad_path}; "
@@ -172,4 +177,4 @@ def validate_h5ad(
         if new_h5ad_path.exists():
             new_h5ad_path.unlink()
 
-    return output_path
+    return output_path, has_warnings

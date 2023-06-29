@@ -116,7 +116,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
         try:
             gene_id_mapper = GeneIdMapper.from_default(log=command_log)
-            result_path = validate_h5ad(
+            result_path, has_warnings = validate_h5ad(
                 h5ad_path=self.args['h5ad_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
@@ -135,6 +135,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
             output_manifest['log_messages'] = command_log.log
             output_manifest['config'] = self.args
             self.output(output_manifest, indent=2)
+            self.has_warnings = has_warnings
         except Exception:
             traceback_msg = "an ERROR occurred ===="
             traceback_msg += f"\n{traceback.format_exc()}\n"
