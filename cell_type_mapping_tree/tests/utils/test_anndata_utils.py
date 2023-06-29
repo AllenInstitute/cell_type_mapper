@@ -47,7 +47,8 @@ def test_read_df(
     ad = anndata.AnnData(
         X=np.random.random((3,4)),
         obs=obs,
-        var=var)
+        var=var,
+        dtype=float)
 
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('anndata_reader'))
@@ -87,7 +88,8 @@ def test_write_df(
     ad = anndata.AnnData(
         X=np.random.random((3,4)),
         obs=obs,
-        var=var)
+        var=var,
+        dtype=float)
 
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('anndata_reader'))
@@ -148,7 +150,8 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
         X=x,
         obs=obs,
         var=var,
-        layers={'garbage': layer})
+        layers={'garbage': layer},
+        dtype=x.dtype)
 
     baseline_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -203,7 +206,8 @@ def test_read_write_uns_from_h5ad(tmp_dir_fixture):
     uns = {'a': 1, 'b': 2}
     a_data = anndata.AnnData(
         X=np.random.random_sample((12, 27)),
-        uns=uns)
+        uns=uns,
+        dtype=float)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -230,7 +234,8 @@ def test_read_empty_uns(tmp_dir_fixture):
     a_data = anndata.AnnData(
         X=np.zeros((5,4)),
         obs=pd.DataFrame([{'a':ii} for ii in range(5)]),
-        var=pd.DataFrame([{'b':ii} for ii in range(4)]))
+        var=pd.DataFrame([{'b':ii} for ii in range(4)]),
+        dtype=float)
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')

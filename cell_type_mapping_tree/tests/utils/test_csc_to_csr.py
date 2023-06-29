@@ -53,7 +53,8 @@ def csc_fixture(
             suffix='.h5ad'))
 
     a = anndata.AnnData(
-            X=scipy_sparse.csc_matrix(x_array_fixture))
+            X=scipy_sparse.csc_matrix(x_array_fixture),
+            dtype=x_array_fixture.dtype)
     a.write_h5ad(h5ad_path)
     with h5py.File(h5ad_path, 'r') as src:
         attrs = dict(src['X'].attrs)

@@ -135,7 +135,8 @@ def query_h5ad_fixture(
     a = anndata.AnnData(
             X=query_x_fixture,
             obs=var_and_obs[1],
-            var=var_and_obs[0])
+            var=var_and_obs[0],
+            dtype=query_x_fixture.dtype)
     a.write_h5ad(h5ad_path)
     return h5ad_path
 
@@ -154,7 +155,8 @@ def query_h5ad_fixture_raw(
     a = anndata.AnnData(
             X=query_raw_fixture,
             obs=var_and_obs[1],
-            var=var_and_obs[0])
+            var=var_and_obs[0],
+            dtype=query_raw_fixture.dtype)
     a.write_h5ad(h5ad_path)
     return h5ad_path
 
