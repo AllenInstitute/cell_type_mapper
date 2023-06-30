@@ -79,7 +79,7 @@ def validate_h5ad(
         timestamp = get_timestamp().replace('-', '')
         new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
     else:
-        new_h5ad_path = valid_h5ad_path
+        new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
     if layer != 'X':
         # Copy data into new file, moving cell by gene data from
