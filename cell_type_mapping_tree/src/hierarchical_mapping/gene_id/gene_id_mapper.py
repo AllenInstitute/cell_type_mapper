@@ -83,8 +83,8 @@ class GeneIdMapper(object):
         if map_from is None:
             return gene_id_list
 
-        msg = f"Your gene IDs appear to be of type '{map_from}'\n"
-        msg += f"Mapping them to {self.preferred_type}."
+        msg = f"Your gene IDs appear to be of type '{map_from}'"
+        msg += f" Mapping them to {self.preferred_type}."
 
         new_id = []
         ct_bad = 0

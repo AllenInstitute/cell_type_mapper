@@ -63,7 +63,7 @@ class CommandLog(object):
     def write_log(self, output_path):
         with open(output_path, 'a') as out_file:
             for line in self.log:
-                out_file.write(line)
+                out_file.write(line + "\n")
 
     def log_software_env(self):
         """
