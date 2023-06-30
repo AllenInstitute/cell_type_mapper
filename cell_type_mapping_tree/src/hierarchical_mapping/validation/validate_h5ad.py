@@ -168,7 +168,7 @@ def validate_h5ad(
     if log is not None:
         msg = f"DONE VALIDATING {h5ad_path}; "
         if output_path is not None:
-            msg += f"reformatted file written to \n{output_path}\n"
+            msg += f"reformatted file written to {output_path}\n"
         else:
             msg += "no changes required"
         log.info(msg)
