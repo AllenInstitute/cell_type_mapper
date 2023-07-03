@@ -319,7 +319,7 @@ class TaxonomyTree(object):
 
     def parents(self, level, node):
         """
-        return a dict listing all the descendants of
+        return a dict listing all the ancestors of
         (level, node)
         """
         this = dict()
