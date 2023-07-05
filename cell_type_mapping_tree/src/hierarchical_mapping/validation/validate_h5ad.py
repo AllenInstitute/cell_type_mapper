@@ -28,6 +28,7 @@ def validate_h5ad(
         expected_max=20,
         tmp_dir=None,
         layer='X',
+        normalize_to_int=True,
         valid_h5ad_path=None):
     """
     Perform validation transformations on h5ad file.
@@ -53,6 +54,9 @@ def validate_h5ad(
         The layer in the source h5ad file where the cell by gene
         data will be retrieved. Regardless, it will be written to
         'X' in the validated file.
+    normalize_to_int:
+        If True, cast the cell by gene matrix to an integer.
+        If False, leave it untouched relative to input.
 
     Returns
     -------
@@ -99,7 +103,12 @@ def validate_h5ad(
         var_df=var_original,
         gene_id_mapper=gene_id_mapper)
 
-    is_int = is_x_integers(h5ad_path=current_h5ad_path)
+    cast_to_int = False
+    if normalize_to_int:
+        is_int = is_x_integers(h5ad_path=current_h5ad_path)
+        if not is_int:
+            cast_to_int = True
+
     x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
 
     if x_minmax[1] < expected_max:
@@ -114,7 +123,7 @@ def validate_h5ad(
             warnings.warn(msg)
         has_warnings = True
 
-    if mapped_var is not None or not is_int:
+    if mapped_var is not None or cast_to_int:
         # Copy data over, if it has not already been copied
         if output_path is None:
             shutil.copy(
@@ -150,7 +159,7 @@ def validate_h5ad(
         write_uns_to_h5ad(new_h5ad_path, uns)
         has_warnings = True
 
-    if not is_int:
+    if cast_to_int:
         output_dtype = choose_int_dtype(x_minmax)
 
         msg = "VALIDATION: rounding X matrix of "

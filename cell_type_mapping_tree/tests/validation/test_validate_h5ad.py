@@ -109,9 +109,10 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer",
+        "density,as_layer,normalize_to_int",
         itertools.product(
          ("csr", "csc", "array"),
+         (True, False),
          (True, False)))
 def test_validation_of_h5ad(
         var_fixture,
@@ -120,7 +121,8 @@ def test_validation_of_h5ad(
         map_data_fixture,
         tmp_dir_fixture,
         density,
-        as_layer):
+        as_layer,
+        normalize_to_int):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -166,26 +168,36 @@ def test_validation_of_h5ad(
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
         tmp_dir=tmp_dir_fixture,
-        layer=layer)
+        layer=layer,
+        normalize_to_int=normalize_to_int)
 
     assert result_path is not None
 
-    with h5py.File(result_path, 'r') as in_file:
-        if density != 'array':
-            data_key = 'X/data'
-        else:
-            data_key = 'X'
-        assert in_file[data_key].dtype == np.uint8
+    if normalize_to_int:
+        with h5py.File(result_path, 'r') as in_file:
+            if density != 'array':
+                data_key = 'X/data'
+            else:
+                data_key = 'X'
+            assert in_file[data_key].dtype == np.uint8
 
     actual = anndata.read_h5ad(result_path, backed='r')
     pd.testing.assert_frame_equal(obs_fixture, actual.obs)
     actual_x = actual.X[()]
     if density != "array":
         actual_x = actual_x.toarray()
-    assert not np.allclose(actual_x, x_fixture)
-    assert np.array_equal(
-        actual_x,
-        np.round(x_fixture).astype(int))
+
+    if normalize_to_int:
+        assert not np.allclose(actual_x, x_fixture)
+        assert np.array_equal(
+            actual_x,
+            np.round(x_fixture).astype(int))
+    else:
+        assert np.allclose(
+            actual_x,
+            x_fixture,
+            atol=0.0,
+            rtol=1.0e-6)
 
     actual_var = actual.var
     assert len(actual_var.columns) == 2
@@ -265,6 +277,55 @@ def test_validation_of_good_h5ad(
 
     assert md50.hexdigest() == md51.hexdigest()
 
+
+@pytest.mark.parametrize(
+        "density", ("csr", "csc", "array"))
+def test_validation_of_h5ad_ignoring_norm(
+        good_var_fixture,
+        obs_fixture,
+        x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        density):
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    if density == "array":
+        x = x_fixture
+    elif density == "csr":
+        x = scipy_sparse.csr_matrix(x_fixture)
+    elif density == "csc":
+        x = scipy_sparse.csc_matrix(x_fixture)
+    else:
+        raise RuntimeError(f"unknown density {density}")
+
+    a_data = anndata.AnnData(X=x, var=good_var_fixture, obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    result_path, _ = validate_h5ad(
+        h5ad_path=orig_path,
+        output_dir=tmp_dir_fixture,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture,
+        normalize_to_int=False)
+
+    assert result_path is None
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
 
 @pytest.mark.parametrize(
         "density", ("csr", "csc", "array"))
