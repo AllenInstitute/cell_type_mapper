@@ -84,15 +84,16 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer",
-        itertools.product(("csr", "csc", "array"), (True, False)))
+        "density,as_layer,normalize_to_int",
+        itertools.product(("csr", "csc", "array"), (True, False), (True, False)))
 def test_validation_cli_of_h5ad(
         var_fixture,
         obs_fixture,
         x_fixture,
         tmp_dir_fixture,
         density,
-        as_layer):
+        as_layer,
+        normalize_to_int):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -138,7 +139,8 @@ def test_validation_cli_of_h5ad(
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'layer': layer
+        'layer': layer,
+        'normalize_to_int': normalize_to_int
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
@@ -157,12 +159,13 @@ def test_validation_cli_of_h5ad(
     expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
 
-    with h5py.File(result_path, 'r') as in_file:
-        if density != 'array':
-            data_key = 'X/data'
-        else:
-            data_key = 'X'
-        assert in_file[data_key].dtype == np.uint8
+    if normalize_to_int:
+        with h5py.File(result_path, 'r') as in_file:
+            if density != 'array':
+                data_key = 'X/data'
+            else:
+                data_key = 'X'
+            assert in_file[data_key].dtype == np.uint8
 
     actual = anndata.read_h5ad(result_path, backed='r')
     pd.testing.assert_frame_equal(obs_fixture, actual.obs)
@@ -194,15 +197,29 @@ def test_validation_cli_of_h5ad(
     else:
         brute_x = None
 
-    assert not np.allclose(actual_x, x_fixture)
-    np.testing.assert_array_equal(
-        actual_x,
-        np.round(x_fixture).astype(int))
-
-    if brute_x is not None:
+    if normalize_to_int:
+        assert not np.allclose(actual_x, x_fixture)
         np.testing.assert_array_equal(
-            brute_x,
+            actual_x,
             np.round(x_fixture).astype(int))
+
+        if brute_x is not None:
+            np.testing.assert_array_equal(
+                brute_x,
+                np.round(x_fixture).astype(int))
+    else:
+        np.testing.assert_allclose(
+            actual_x,
+            x_fixture,
+            atol=0.0,
+            rtol=10.e-6)
+
+        if brute_x is not None:
+            np.testing.assert_allclose(
+                brute_x,
+                x_fixture,
+                atol=0.0,
+                rtol=1.0e-7)
 
     actual_var = actual.var
     assert len(actual_var.columns) == 2
@@ -286,6 +303,65 @@ def test_validation_cli_of_good_h5ad(
     assert md50.hexdigest() == md51.hexdigest()
 
 
+@pytest.mark.parametrize(
+        "density", ("csr", "csc", "array"))
+def test_validation_cli_of_h5ad_preserve_norm(
+        good_var_fixture,
+        obs_fixture,
+        x_fixture,
+        tmp_dir_fixture,
+        density):
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    if density == "array":
+        x = x_fixture
+    elif density == "csr":
+        x = scipy_sparse.csr_matrix(x_fixture)
+    elif density == "csc":
+        x = scipy_sparse.csc_matrix(x_fixture)
+    else:
+        raise RuntimeError(f"unknown density {density}")
+
+    a_data = anndata.AnnData(X=x, var=good_var_fixture, obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"good_input_{density}_",
+        suffix=".json")
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_json': output_json,
+        'normalize_to_int': False
+    }
+
+    runner = ValidateH5adRunner(args=[], input_data=config)
+    runner.run()
+
+    output_manifest = json.load(open(output_json, 'rb'))
+    result_path = output_manifest['valid_h5ad_path']
+
+    assert result_path == orig_path
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
+
+
 def test_validation_cli_of_h5ad_missing_output(
         var_fixture,
         obs_fixture,
@@ -312,13 +388,16 @@ def test_validation_cli_of_h5ad_missing_output(
 
 
 @pytest.mark.parametrize(
-        "density", ("csr", "csc", "array"))
+        "density,preserve_norm",
+        itertools.product(("csr", "csc", "array"), (True, False)))
 def test_validation_cli_of_good_h5ad_in_layer(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
+        x_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        preserve_norm):
     """
     Test behavior of validation CLI when the data is good
     but it is in a non-X layer.
@@ -329,12 +408,17 @@ def test_validation_cli_of_good_h5ad_in_layer(
         prefix='orig_',
         suffix='.h5ad')
 
+    if preserve_norm:
+        baseline_data = x_fixture
+    else:
+        baseline_data = good_x_fixture
+
     if density == "array":
-        data = good_x_fixture
+        data = baseline_data
     elif density == "csr":
-        data = scipy_sparse.csr_matrix(good_x_fixture)
+        data = scipy_sparse.csr_matrix(baseline_data)
     elif density == "csc":
-        data = scipy_sparse.csc_matrix(good_x_fixture)
+        data = scipy_sparse.csc_matrix(baseline_data)
     else:
         raise RuntimeError(f"unknown density {density}")
 
@@ -360,7 +444,8 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'layer': 'garbage'
+        'layer': 'garbage',
+        'normalize_to_int': not preserve_norm
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
@@ -409,7 +494,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
 
     np.testing.assert_allclose(
         actual_x,
-        good_x_fixture,
+        baseline_data,
         atol=0.0,
         rtol=1.0e-6)
 
@@ -417,7 +502,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
 
         np.testing.assert_allclose(
             brute_x,
-            good_x_fixture,
+            baseline_data,
             atol=0.0,
             rtol=1.0e-6)
 
