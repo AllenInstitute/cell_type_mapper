@@ -30,22 +30,13 @@ def tmp_dir_fixture(
 def map_data_fixture():
 
     data = {
-        "gene_0": {
-            "name": "alice",
-            "nickname": "allie"
-        },
-        "gene_1": {
-            "name": "robert"
-        },
-        "gene_2": {
-            "nickname": "hammer"
-        },
-        "gene_3": {
-            "name": "charlie",
-            "nickname": "chuck"
-        }
+        "alice": "ENSG0",
+        "allie": "ENSG0",
+        "robert": "ENSG1",
+        "hammer": "ENSG2",
+        "charlie": "ENSG3",
+        "chuck": "ENSG3"
     }
-
     return data
 
 
@@ -74,13 +65,13 @@ def test_var_mapping(
         pd.DataFrame(records).set_index('gene_identifier'))
 
     expected_records = [
-        {'EnsemblID_VALIDATED': 'gene_0',
+        {'EnsemblID_VALIDATED': 'ENSG0',
           'gene_identifier': 'allie',
           'garbage': 'x'},
-        {'EnsemblID_VALIDATED': 'gene_3',
+        {'EnsemblID_VALIDATED': 'ENSG3',
          'gene_identifier': 'chuck',
          'garbage': 'y'},
-        {'EnsemblID_VALIDATED': 'nonsense_0_xxx',
+        {'EnsemblID_VALIDATED': 'unmapped_0_xxx',
          'gene_identifier': 'zack',
          'garbage': 'z'}
     ]
@@ -118,13 +109,13 @@ def test_var_mapping_column_name_taken(
         pd.DataFrame(records).set_index('EnsemblID_VALIDATED'))
 
     expected_records = [
-        {'EnsemblID_VALIDATED_0': 'gene_0',
+        {'EnsemblID_VALIDATED_0': 'ENSG0',
           'EnsemblID_VALIDATED': 'allie',
           'garbage': 'x'},
-        {'EnsemblID_VALIDATED_0': 'gene_3',
+        {'EnsemblID_VALIDATED_0': 'ENSG3',
          'EnsemblID_VALIDATED': 'chuck',
          'garbage': 'y'},
-        {'EnsemblID_VALIDATED_0': 'nonsense_0_xxx',
+        {'EnsemblID_VALIDATED_0': 'unmapped_0_xxx',
          'EnsemblID_VALIDATED': 'zack',
          'garbage': 'z'}
     ]
@@ -139,9 +130,9 @@ def test_var_mapping_column_no_op(
     """
 
     records = [
-        {'gene_identifier': 'gene_0', 'garbage': 'x'},
-        {'gene_identifier': 'gene_3', 'garbage': 'y'},
-        {'gene_identifier': 'gene_1', 'garbage': 'z'}
+        {'gene_identifier': 'ENSG0', 'garbage': 'x'},
+        {'gene_identifier': 'ENSG3', 'garbage': 'y'},
+        {'gene_identifier': 'ENSG1', 'garbage': 'z'}
     ]
 
     var_orig = pd.DataFrame(records).set_index('gene_identifier')

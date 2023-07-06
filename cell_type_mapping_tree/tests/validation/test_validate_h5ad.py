@@ -32,20 +32,12 @@ def tmp_dir_fixture(tmp_path_factory):
 def map_data_fixture():
 
     data = {
-        "gene_0": {
-            "name": "alice",
-            "nickname": "allie"
-        },
-        "gene_1": {
-            "name": "robert"
-        },
-        "gene_2": {
-            "nickname": "hammer"
-        },
-        "gene_3": {
-            "name": "charlie",
-            "nickname": "chuck"
-        }
+        "alice": "ENSG0",
+        "allie": "ENSG0",
+        "robert": "ENSG1",
+        "hammer": "ENSG2",
+        "charlie": "ENSG3",
+        "chuck": "ENSG3"
     }
 
     return data
@@ -64,10 +56,10 @@ def var_fixture():
 @pytest.fixture
 def good_var_fixture():
     records = [
-        {'gene_id': 'gene_2', 'val': 'ab'},
-        {'gene_id': 'gene_3', 'val': 'cd'},
-        {'gene_id': 'gene_1', 'val': 'xy'},
-        {'gene_id': 'gene_0', 'val': 'uw'}]
+        {'gene_id': 'ENSG2', 'val': 'ab'},
+        {'gene_id': 'ENSG3', 'val': 'cd'},
+        {'gene_id': 'ENSG1', 'val': 'xy'},
+        {'gene_id': 'ENSG0', 'val': 'uw'}]
 
     return pd.DataFrame(records).set_index('gene_id')
 
@@ -205,10 +197,10 @@ def test_validation_of_h5ad(
     assert list(actual_var['val'].values) == list(var_fixture.val.values)
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
-    assert actual_idx[0] == "gene_1"
-    assert "nonsense" in actual_idx[1]
-    assert actual_idx[2] == "gene_0"
-    assert "nonsense" in actual_idx[3]
+    assert actual_idx[0] == "ENSG1"
+    assert "unmapped" in actual_idx[1]
+    assert actual_idx[2] == "ENSG0"
+    assert actual_idx[3] == "ENSG2"
 
     # make sure input file did not change
     md51 = hashlib.md5()

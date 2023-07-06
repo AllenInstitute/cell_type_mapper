@@ -230,7 +230,7 @@ def test_validation_cli_of_h5ad(
     assert actual_idx[0] == "ENSMUSG00000000318"
     assert actual_idx[1] == "ENSMUSG00000000320"
     assert actual_idx[2] == "ENSMUSG00000000326"
-    assert "nonsense" in actual_idx[3]
+    assert "unmapped" in actual_idx[3]
 
     # make sure input file did not change
     md51 = hashlib.md5()

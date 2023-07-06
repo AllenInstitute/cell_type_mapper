@@ -137,5 +137,5 @@ def test_marker_creation_cli_mangled_gene(
         'output_path': output_path}
 
     runner = MarkerCacheRunner(args=[], input_data=config)
-    with pytest.raises(RuntimeError, match="genes had no mapping"):
+    with pytest.raises(RuntimeError, match="could not be mapped"):
         runner.run()

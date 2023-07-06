@@ -351,10 +351,12 @@ def expected_marker_lookup_fixture(
     rng = np.random.default_rng(88122312)
 
     gene_symbol_list = []
+    used_ens = set()
     for gene_id in gene_id_lookup:
-        if not gene_id.startswith('ENS'):
+        if gene_id_lookup[gene_id] in used_ens:
             continue
-        gene_symbol_list.append(gene_id_lookup[gene_id]['gene_symbol'])
+        used_ens.add(gene_id_lookup[gene_id])
+        gene_symbol_list.append(gene_id)
 
     true_lookup = dict()
     for parent in parent_list:
