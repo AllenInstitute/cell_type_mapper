@@ -84,7 +84,7 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,normalize_to_int",
+        "density,as_layer,round_to_int",
         itertools.product(("csr", "csc", "array"), (True, False), (True, False)))
 def test_validation_cli_of_h5ad(
         var_fixture,
@@ -93,7 +93,7 @@ def test_validation_cli_of_h5ad(
         tmp_dir_fixture,
         density,
         as_layer,
-        normalize_to_int):
+        round_to_int):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -140,7 +140,7 @@ def test_validation_cli_of_h5ad(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': layer,
-        'normalize_to_int': normalize_to_int
+        'round_to_int': round_to_int
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
@@ -159,7 +159,7 @@ def test_validation_cli_of_h5ad(
     expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
 
-    if normalize_to_int:
+    if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
             if density != 'array':
                 data_key = 'X/data'
@@ -197,7 +197,7 @@ def test_validation_cli_of_h5ad(
     else:
         brute_x = None
 
-    if normalize_to_int:
+    if round_to_int:
         assert not np.allclose(actual_x, x_fixture)
         np.testing.assert_array_equal(
             actual_x,
@@ -343,7 +343,7 @@ def test_validation_cli_of_h5ad_preserve_norm(
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'normalize_to_int': False
+        'round_to_int': False
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
@@ -445,7 +445,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': 'garbage',
-        'normalize_to_int': not preserve_norm
+        'round_to_int': not preserve_norm
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)

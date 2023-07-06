@@ -45,7 +45,7 @@ class ValidationInputSchema(argschema.ArgSchema):
         "Regardless, validated data will be written to 'X' matrix "
         "in new h5ad file.")
 
-    normalize_to_int = argschema.fields.Bool(
+    round_to_int = argschema.fields.Bool(
         required=False,
         default=True,
         allow_none=False,
@@ -132,7 +132,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 log=command_log,
                 tmp_dir=self.args['tmp_dir'],
                 valid_h5ad_path=self.args["valid_h5ad_path"],
-                normalize_to_int=self.args["normalize_to_int"])
+                round_to_int=self.args["round_to_int"])
 
             output_manifest = dict()
             if result_path is None:

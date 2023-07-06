@@ -109,7 +109,7 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,normalize_to_int",
+        "density,as_layer,round_to_int",
         itertools.product(
          ("csr", "csc", "array"),
          (True, False),
@@ -122,7 +122,7 @@ def test_validation_of_h5ad(
         tmp_dir_fixture,
         density,
         as_layer,
-        normalize_to_int):
+        round_to_int):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -169,11 +169,11 @@ def test_validation_of_h5ad(
         gene_id_mapper=gene_id_mapper,
         tmp_dir=tmp_dir_fixture,
         layer=layer,
-        normalize_to_int=normalize_to_int)
+        round_to_int=round_to_int)
 
     assert result_path is not None
 
-    if normalize_to_int:
+    if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
             if density != 'array':
                 data_key = 'X/data'
@@ -187,7 +187,7 @@ def test_validation_of_h5ad(
     if density != "array":
         actual_x = actual_x.toarray()
 
-    if normalize_to_int:
+    if round_to_int:
         assert not np.allclose(actual_x, x_fixture)
         assert np.array_equal(
             actual_x,
@@ -316,7 +316,7 @@ def test_validation_of_h5ad_ignoring_norm(
         output_dir=tmp_dir_fixture,
         gene_id_mapper=gene_id_mapper,
         tmp_dir=tmp_dir_fixture,
-        normalize_to_int=False)
+        round_to_int=False)
 
     assert result_path is None
 

@@ -28,7 +28,7 @@ def validate_h5ad(
         expected_max=20,
         tmp_dir=None,
         layer='X',
-        normalize_to_int=True,
+        round_to_int=True,
         valid_h5ad_path=None):
     """
     Perform validation transformations on h5ad file.
@@ -54,7 +54,7 @@ def validate_h5ad(
         The layer in the source h5ad file where the cell by gene
         data will be retrieved. Regardless, it will be written to
         'X' in the validated file.
-    normalize_to_int:
+    round_to_int:
         If True, cast the cell by gene matrix to an integer.
         If False, leave it untouched relative to input.
 
@@ -104,7 +104,7 @@ def validate_h5ad(
         gene_id_mapper=gene_id_mapper)
 
     cast_to_int = False
-    if normalize_to_int:
+    if round_to_int:
         is_int = is_x_integers(h5ad_path=current_h5ad_path)
         if not is_int:
             cast_to_int = True
