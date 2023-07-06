@@ -392,7 +392,7 @@ def test_tree_to_str(drop_cells):
         if drop_cells and k == taxonomy_tree.leaf_level:
             assert set(tree_data[k].keys()) == set(tree_str_rehydrated[k].keys())
             for leaf in tree_str_rehydrated[k]:
-                assert tree_str_rehydrated[k][leaf] is None
+                assert tree_str_rehydrated[k][leaf] == []
         else:
             assert tree_data[k] == tree_str_rehydrated[k]
 
@@ -400,3 +400,7 @@ def test_tree_to_str(drop_cells):
     for leaf in tree_data['leaf']:
         expected = tree_data['leaf'][leaf]
         assert taxonomy_tree.children(level='leaf', node=leaf) == expected
+
+    # try re-instantiating tree without cells
+    new_tree = TaxonomyTree(data=json.loads(tree_str))
+    assert set(new_tree.all_leaves) == set(taxonomy_tree.all_leaves)

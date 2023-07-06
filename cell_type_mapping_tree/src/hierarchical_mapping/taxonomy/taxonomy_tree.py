@@ -240,7 +240,7 @@ class TaxonomyTree(object):
         if drop_cells:
             out_dict = copy.deepcopy(self._data)
             for leaf in out_dict[self.leaf_level]:
-                out_dict[self.leaf_level][leaf] = None
+                out_dict[self.leaf_level][leaf] = []
         else:
             out_dict = self._data
 

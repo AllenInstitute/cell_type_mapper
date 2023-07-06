@@ -211,7 +211,9 @@ def run_mapping(config, output_path, log_path=None):
         assignments = get_assignments(config, type_assignment)
         output["results"] = assignments
         output["marker_genes"] = type_assignment["marker_genes"]
-        csv_result["taxonomy_tree"] = type_assignment["taxonomy_tree"]
+        output["taxonomy_tree"] = \
+            type_assignment["metadata_taxonomy_tree"].to_str()
+        csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
         csv_result["assignments"] = assignments
 
         if config['csv_result_path'] is not None:
@@ -306,6 +308,12 @@ def _run_mapping(config, tmp_dir, log):
         reference_gene_names = json.loads(
             in_file["col_names"][()].decode("utf-8"))
 
+    # Save the tree as it was originally read in, without flattening
+    # dropping of levels. This is what will be saved in the output
+    # metadata.
+    tree_for_metadata = TaxonomyTree(
+        data=json.loads(taxonomy_tree.to_str(drop_cells=True)))
+
     if config['drop_level'] is not None:
         if config['drop_level'] in taxonomy_tree.hierarchy:
             taxonomy_tree = taxonomy_tree.drop_level(config['drop_level'])
@@ -377,7 +385,8 @@ def _run_mapping(config, tmp_dir, log):
 
     return {'assignments': result,
             'marker_genes': marker_gene_lookup,
-            "taxonomy_tree": taxonomy_tree}
+            "mapping_taxonomy_tree": taxonomy_tree,
+            "metadata_taxonomy_tree": tree_for_metadata}
 
 
 def main():
