@@ -1,3 +1,4 @@
+import json
 import re
 import warnings
 
@@ -59,6 +60,9 @@ class GeneIdMapper(object):
         if len(gene_id_list) == 0:
             return []
 
+        if strict:
+            bad_genes = []
+
         mapped_genes = 0
         unmappable_genes = 0
         output = []
@@ -72,6 +76,9 @@ class GeneIdMapper(object):
                 else:
                     output.append(self.random_name_generator.name())
                     unmappable_genes += 1
+                    if strict:
+                        bad_genes.append(input_gene)
+
         if mapped_genes + unmappable_genes > 0:
             msg = "Not all of your gene identifiers were "
             msg += f"{self.preferred_type}; "
@@ -80,6 +87,8 @@ class GeneIdMapper(object):
                 msg += f"; {unmappable_genes} "
                 msg += f"could not be mapped to {self.preferred_type}"
             if unmappable_genes > 0 and strict:
+                msg += "\nunmappable genes were\n"
+                msg += f"{json.dumps(bad_genes,indent=2)}"
                 if self.log is not None:
                     self.log.error(msg)
                 else:
