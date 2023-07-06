@@ -1,3 +1,4 @@
+import re
 import warnings
 
 import hierarchical_mapping.utils.utils as utils
@@ -13,33 +14,25 @@ class GeneIdMapper(object):
             data,
             log=None):
         """
-        data is a dict. The keys are gene_identifier (the preferred
-        way to refer to genes). Each gene_identifiers maps to a dict
-        that lists the other ways to refer to that gene).
+        data is a dict. The keys are non-canonical gene identifiers
+        (i.e. gene symbols or NCBI identifiers). The values are the
+        corresponding EnsemblIDs.
         """
+        self._ens_pattern = re.compile('ENS[A-Z]+[0-9]+')
         self.random_name_generator = RandomNameGenerator()
-
-        self._preferred_type = "EnsemblID"
-        self.preferred_gene_id = set(
-            data.keys())
-
+        self._lookup = data
         self.log = log
+        self._preferred_type = "EnsemblID"
 
-        # create a reverse lookup between alternative gene IDs and
-        # the preferred gene ID
-        self.other_gene_id = dict()
-        for preferred in self.preferred_gene_id:
-            gene = data[preferred]
-            for other in gene:
-                if other not in self.other_gene_id:
-                    self.other_gene_id[other] = dict()
-                if gene[other] in self.other_gene_id:
-                    raise RuntimeError(
-                        f"{other}.{gene[other]} maps to more than one "
-                        "gene_identifier: "
-                        f"{self.other_gene_id[other][gene[other]]} and "
-                        f"{preferred}")
-                self.other_gene_id[other][gene[other]] = preferred
+    def _is_ensembl(self, gene_id):
+        """
+        gene_id is a string. Return a boolean indicating whether
+        or not it is an EnsemblID
+        """
+        match = self._ens_pattern.fullmatch(gene_id)
+        if match is None:
+            return False
+        return True
 
     @classmethod
     def from_default(cls, log=None):
@@ -66,48 +59,37 @@ class GeneIdMapper(object):
         if len(gene_id_list) == 0:
             return []
 
-        gene_id_set = set(gene_id_list)
-        n_max = len(gene_id_set.intersection(self.preferred_gene_id))
-        map_from = None
-        for other_id_type in self.other_gene_id:
-            this_set = set(self.other_gene_id[other_id_type].keys())
-            n_intersection = len(gene_id_set.intersection(this_set))
-            if n_intersection > n_max:
-                map_from = other_id_type
-                n_max = n_intersection
-
-        if n_max == 0:
-            raise RuntimeError(
-                "You gene identifiers did not match any known schema")
-
-        if map_from is None:
-            return gene_id_list
-
-        msg = f"Your gene IDs appear to be of type '{map_from}'"
-        msg += f" Mapping them to {self.preferred_type}."
-
-        new_id = []
-        ct_bad = 0
-        for g in gene_id_list:
-            if g in self.other_gene_id[map_from]:
-                new_id.append(self.other_gene_id[map_from][g])
+        mapped_genes = 0
+        unmappable_genes = 0
+        output = []
+        for input_gene in gene_id_list:
+            if self._is_ensembl(input_gene):
+                output.append(input_gene)
             else:
-                ct_bad += 1
-                new_id.append(self.random_name_generator.name())
-        if ct_bad > 0:
-            msg += f"\n{ct_bad} genes had no mapping."
-            if strict:
+                if input_gene in self._lookup:
+                    output.append(self._lookup[input_gene])
+                    mapped_genes += 1
+                else:
+                    output.append(self.random_name_generator.name())
+                    unmappable_genes += 1
+        if mapped_genes + unmappable_genes > 0:
+            msg = "Not all of your gene identifiers were "
+            msg += f"{self.preferred_type}; "
+            msg += f"{mapped_genes} were mapped to {self.preferred_type}"
+            if unmappable_genes > 0:
+                msg += f"; {unmappable_genes} "
+                msg += f"could not be mapped to {self.preferred_type}"
+            if unmappable_genes > 0 and strict:
                 if self.log is not None:
                     self.log.error(msg)
                 else:
                     raise RuntimeError(msg)
-
-        if self.log is not None:
-            self.log.warn(msg)
-        else:
-            warnings.warn(msg)
-
-        return new_id
+            else:
+                if self.log is not None:
+                    self.log.warn(msg)
+                else:
+                    warnings.warn(msg)
+        return output
 
 
 class RandomNameGenerator(object):
@@ -121,6 +103,6 @@ class RandomNameGenerator(object):
         """
         Get a locally unique nonsense name
         """
-        name = f"nonsense_{self.ct}_{utils.get_timestamp()}"
+        name = f"unmapped_{self.ct}_{utils.get_timestamp()}"
         self.ct += 1
         return name
