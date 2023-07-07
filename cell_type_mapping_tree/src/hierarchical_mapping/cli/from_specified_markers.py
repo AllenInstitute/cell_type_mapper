@@ -212,7 +212,7 @@ def run_mapping(config, output_path, log_path=None):
         output["results"] = assignments
         output["marker_genes"] = type_assignment["marker_genes"]
         output["taxonomy_tree"] = \
-            type_assignment["metadata_taxonomy_tree"].to_str()
+            json.loads(type_assignment["metadata_taxonomy_tree"].to_str())
         csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
         csv_result["assignments"] = assignments
 

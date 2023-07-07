@@ -249,6 +249,7 @@ def test_mapping_from_markers(
     # make sure taxonomy tree was recorded in metadata
     expected_tree = TaxonomyTree(
         data=taxonomy_tree_dict).to_str(drop_cells=True)
+    expected_tree = json.loads(expected_tree)
     assert actual['taxonomy_tree'] == expected_tree
 
     gpu_msg = 'Running GPU implementation of type assignment.'
