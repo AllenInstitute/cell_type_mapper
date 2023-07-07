@@ -77,6 +77,20 @@ class MarkerCacheRunner(argschema.ArgSchemaParser):
             taxonomy_tree=taxonomy_tree)
 
         gene_id_mapper = GeneIdMapper.from_default()
+
+        # check mapping for all marker genes;
+        # this is just to provoke a more complete error message
+        # in the event that there are ambiguous gene symbols
+        # at multiple levels
+        all_markers = set()
+        for k in raw_markers:
+            all_markers = all_markers.union(set(raw_markers[k]))
+        all_markers = list(all_markers)
+        all_markers.sort()
+        gene_id_mapper.map_gene_identifiers(
+            gene_id_list=all_markers,
+            strict=True)
+
         result = dict()
         for k in raw_markers:
             new_markers = gene_id_mapper.map_gene_identifiers(
