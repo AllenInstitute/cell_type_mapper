@@ -72,12 +72,6 @@ def marker_lookup_from_tree_and_csv(
             src.readline()
             for line in src:
                 symbol = line.strip().replace('"', '')
-
-                # some of the genes in the CSV tables have the
-                # EnsemblID erroneously listed as a part of the
-                # symbol
-                if ' ' in symbol and symbol.split()[1].startswith('ENS'):
-                    symbol = symbol.split()[0]
                 gene_symbols.append(symbol)
 
         marker_lookup[parent_key] = gene_symbols

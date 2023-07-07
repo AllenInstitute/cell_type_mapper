@@ -7,55 +7,45 @@ from hierarchical_mapping.cli.cli_log import CommandLog
 
 @pytest.fixture
 def map_data_fixture():
-
     data = {
-        "gene_0": {
-            "name": "alice",
-            "nickname": "allie"
-        },
-        "gene_1": {
-            "name": "robert"
-        },
-        "gene_2": {
-            "nickname": "hammer"
-        },
-        "gene_3": {
-            "name": "charlie",
-            "nickname": "chuck"
-        }
+        "alice": "ENSG0",
+        "allie": "ENSG0",
+        "robert": "ENSG1",
+        "hammer": "ENSG2",
+        "charlie": "ENSG3",
+        "chuck": "ENSG3"
     }
 
     return data
 
-def test_gene_id_mapper(map_data_fixture):
+def test_gene_id_mapper_class(map_data_fixture):
     """
     Test that gene_id_mapper maps genes as expected
     """
     mapper = GeneIdMapper(data=map_data_fixture)
 
-    good = ["gene_1", "gene_0", "gene_3", "gene_1"]
+    good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
     actual = mapper.map_gene_identifiers(good)
     assert actual == good
 
     names = ["charlie", "alice", "zachary", "mark", "robert"]
     actual = mapper.map_gene_identifiers(names)
     assert len(actual) == 5
-    assert actual[0] == 'gene_3'
-    assert actual[1] == 'gene_0'
-    assert 'nonsense_0' in actual[2]
-    assert 'nonsense_1' in actual[3]
-    assert actual[4] == 'gene_1'
+    assert actual[0] == 'ENSG3'
+    assert actual[1] == 'ENSG0'
+    assert 'unmapped_0' in actual[2]
+    assert 'unmapped_1' in actual[3]
+    assert actual[4] == 'ENSG1'
 
-    # will choose 'nicknames', since they are more common than names here
-    nicknames = ["alice", "hammer", "allie", "robert", "chuck", "hammer"]
+    nicknames = ["alice", "hammer", "allie", "kyle", "chuck", "hammer"]
     actual = mapper.map_gene_identifiers(nicknames)
     assert len(actual) == 6
-    assert 'nonsense_2' in actual[0]
-    assert actual[1] == 'gene_2'
-    assert actual[2] == 'gene_0'
-    assert 'nonsense_3' in actual[3]
-    assert actual[4] == 'gene_3'
-    assert actual[5] == 'gene_2'
+    assert actual[0] == 'ENSG0'
+    assert actual[1] == 'ENSG2'
+    assert actual[2] == 'ENSG0'
+    assert 'unmapped_2' in actual[3]
+    assert actual[4] == 'ENSG3'
+    assert actual[5] == 'ENSG2'
 
 
 def test_gene_id_mapper_strict(map_data_fixture):
@@ -65,28 +55,18 @@ def test_gene_id_mapper_strict(map_data_fixture):
     """
     mapper = GeneIdMapper(data=map_data_fixture)
 
-    good = ["gene_1", "gene_0", "gene_3", "gene_1"]
+    good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
     actual = mapper.map_gene_identifiers(good, strict=True)
     assert actual == good
 
     names = ["charlie", "alice", "zachary", "mark", "robert"]
-    with pytest.raises(RuntimeError, match="genes had no mapping"):
+    with pytest.raises(RuntimeError, match="could not be mapped"):
         mapper.map_gene_identifiers(names, strict=True)
 
     mapper = GeneIdMapper(data=map_data_fixture, log=CommandLog())
     names = ["charlie", "alice", "zachary", "mark", "robert"]
-    with pytest.raises(RuntimeError, match="genes had no mapping"):
+    with pytest.raises(RuntimeError, match="could not be mapped"):
         mapper.map_gene_identifiers(names, strict=True)
-
-
-def test_bad_gene_mapping(map_data_fixture):
-    """
-    Test error when cannot map genes
-    """
-    mapper = GeneIdMapper(data=map_data_fixture)
-    names = ["zack", "tyler", "miguel"]
-    with pytest.raises(RuntimeError, match="did not match any known schema"):
-        mapper.map_gene_identifiers(names)
 
 def test_from_default():
     """
@@ -94,3 +74,18 @@ def test_from_default():
     """
     mapper = GeneIdMapper.from_default()
     assert isinstance(mapper, GeneIdMapper)
+
+
+def test_is_ens():
+    """
+    Test that mapper can correctly identify if an ID is an
+    EnsemblID
+    """
+    mapper = GeneIdMapper.from_default()
+    assert mapper._is_ensembl('ENSF6')
+    assert mapper._is_ensembl('ENSFBBD883346')
+    assert not mapper._is_ensembl('ENS7')
+    assert not mapper._is_ensembl('ENSGabc8899')
+    assert not mapper._is_ensembl('XYENSG8812')
+    assert not mapper._is_ensembl('ENS781abcd')
+    assert not mapper._is_ensembl('ENSG')

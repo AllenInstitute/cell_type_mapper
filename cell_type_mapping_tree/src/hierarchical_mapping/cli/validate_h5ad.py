@@ -45,6 +45,14 @@ class ValidationInputSchema(argschema.ArgSchema):
         "Regardless, validated data will be written to 'X' matrix "
         "in new h5ad file.")
 
+    round_to_int = argschema.fields.Bool(
+        required=False,
+        default=True,
+        allow_none=False,
+        description="If True, the X matrix of the validated h5ad file "
+        "will be a form of integer. If False, it will contain the same "
+        "cell by gene data as the input h5ad file.")
+
     output_dir = argschema.fields.OutputDir(
         required=True,
         default=None,
@@ -123,7 +131,8 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 gene_id_mapper=gene_id_mapper,
                 log=command_log,
                 tmp_dir=self.args['tmp_dir'],
-                valid_h5ad_path=self.args["valid_h5ad_path"])
+                valid_h5ad_path=self.args["valid_h5ad_path"],
+                round_to_int=self.args["round_to_int"])
 
             output_manifest = dict()
             if result_path is None:

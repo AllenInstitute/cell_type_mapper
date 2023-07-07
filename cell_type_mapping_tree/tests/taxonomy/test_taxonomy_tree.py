@@ -355,3 +355,52 @@ def test_parents_method():
     actual = taxonomy_tree.parents('b', '2')
     expected = {'a': 'aa'}
     assert actual == expected
+
+
+@pytest.mark.parametrize("drop_cells", (True, False))
+def test_tree_to_str(drop_cells):
+    tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': list(['l2b', 'l2d']),
+                   'l1b': list(['l2a', 'l2c', 'l2e']),
+                   'l1c': list(['l2f',])
+                  },
+        'level2': {'l2a': ['l3b',],
+                   'l2b': ['l3a', 'l3c'],
+                   'l2c': ['l3e',],
+                   'l2d': ['l3d', 'l3f', 'l3h'],
+                   'l2e': ['l3g',],
+                   'l2f': ['l3i',]},
+        'level3': {'l3a': [str(ii) for ii in range(3)],
+                   'l3b': [str(ii) for ii in range(3, 7)],
+                   'l3c': [str(ii) for ii in range(7, 9)],
+                   'l3d': [str(ii) for ii in range(9, 13)],
+                   'l3e': [str(ii) for ii in range(13, 15)],
+                   'l3f': [str(ii) for ii in range(15, 19)],
+                   'l3g': [str(ii) for ii in range(19, 21)],
+                   'l3h': [str(ii) for ii in range(21, 23)],
+                   'l3i': ['23',]},
+        'leaf': {str(k): list(range(26*k, 26*(k+1)))
+                 for k in range(24)}}
+
+    taxonomy_tree = TaxonomyTree(data=tree_data)
+    tree_str = taxonomy_tree.to_str(drop_cells=drop_cells)
+
+    tree_str_rehydrated = json.loads(tree_str)
+    assert set(tree_data.keys()) == set(tree_str_rehydrated.keys())
+    for k in tree_data:
+        if drop_cells and k == taxonomy_tree.leaf_level:
+            assert set(tree_data[k].keys()) == set(tree_str_rehydrated[k].keys())
+            for leaf in tree_str_rehydrated[k]:
+                assert tree_str_rehydrated[k][leaf] == []
+        else:
+            assert tree_data[k] == tree_str_rehydrated[k]
+
+    # make sure tree was not changed in place
+    for leaf in tree_data['leaf']:
+        expected = tree_data['leaf'][leaf]
+        assert taxonomy_tree.children(level='leaf', node=leaf) == expected
+
+    # try re-instantiating tree without cells
+    new_tree = TaxonomyTree(data=json.loads(tree_str))
+    assert set(new_tree.all_leaves) == set(taxonomy_tree.all_leaves)

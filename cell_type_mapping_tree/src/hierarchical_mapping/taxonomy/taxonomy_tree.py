@@ -230,11 +230,21 @@ class TaxonomyTree(object):
 
         return cls(data=data)
 
-    def to_str(self, indent=None):
+    def to_str(self, indent=None, drop_cells=False):
         """
         Return JSON-serialized dict of this taxonomy
+
+        If drop_cells == True, then do not serialize the mapping
+        from leaf node to cells
         """
-        return json.dumps(json_clean_dict(self._data), indent=indent)
+        if drop_cells:
+            out_dict = copy.deepcopy(self._data)
+            for leaf in out_dict[self.leaf_level]:
+                out_dict[self.leaf_level][leaf] = []
+        else:
+            out_dict = self._data
+
+        return json.dumps(json_clean_dict(out_dict), indent=indent)
 
     def flatten(self):
         """

@@ -246,6 +246,11 @@ def test_mapping_from_markers(
 
     actual = json.load(open(result_path, 'rb'))
 
+    # make sure taxonomy tree was recorded in metadata
+    expected_tree = TaxonomyTree(
+        data=taxonomy_tree_dict).to_str(drop_cells=True)
+    assert actual['taxonomy_tree'] == expected_tree
+
     gpu_msg = 'Running GPU implementation of type assignment.'
     cpu_msg = 'Running CPU implementation of type assignment.'
     found_gpu = False
@@ -266,7 +271,8 @@ def test_mapping_from_markers(
     else:
         assert found_cpu
 
-    # this is only expectd if flatten == False
+    # only expect detailed matching with this dataset if
+    # flatten is False
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
