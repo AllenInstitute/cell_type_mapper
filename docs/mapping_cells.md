@@ -8,7 +8,7 @@ pointed out and explained.
 
 ## General pipeline
 
-There are three steps to running this pipeline
+There are four steps to running this pipeline
 
 - Computing the average gene expression profile per cell type cluster in
 the cell type taxonomy. **This step only needs to be run once per reference
@@ -16,6 +16,10 @@ dataset and produces a file that can be reused multiple times.**
 - Identifying marker genes corresponding to the parent nodes in the cell type
 taxonomy. **This step only needs to be run once per reference dataset and
 produces a file that can be used multiple times.**
+- "Validating" the unlabeled dataset. This step converts gene symbols to
+Ensembl IDs and (optionally) validates that the cell by gene expression
+matrix is a set of raw count integers (you can skip this last step and use
+the native normalization of your unlabeld h5ad file; more on that below).
 - Mapping unlabeled data onto the reference taxonomy using the executable
 provided [here.](../src/hierarchical_mapping/cli/from_specified_markers.py)
 
