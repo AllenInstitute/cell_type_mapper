@@ -45,6 +45,8 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import TaxonomyTree
 tree = TaxonomyTree(
             data=json.loads(hdf5_handle['taxonomy_tree'][()].decode('utf-8')))
 ```
+**Note:** that this encoding includes a mapping from cell type cluster (the
+leaf level of the taxonomy tree) to individual cells in the reference dataset).
 
 ### Encoding marker genes
 
