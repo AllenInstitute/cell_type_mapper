@@ -27,7 +27,7 @@ with the actual cell type taxonomy, is stored in an HDF5 file which can
 be passed to the actuall cell type mapping exectuable as a config parameter.
 An example script for creating this HDF5 file using the data from the
 summer 2023 ABC Atlas release is provided
-(here.)[../examples/precompute_stats_from_abc_release_data.py]
+(here)[../examples/precompute_stats_from_abc_release_data.py].
 The resulting HDF5 file contains the following datasets.
 
 - `metadata`: the JSON serialization of metadata encoding how and when
