@@ -20,16 +20,16 @@ import pytest
 import pathlib
 import numpy as np
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.taxonomy.data_release_utils import (
+from cell_type_mapper.taxonomy.data_release_utils import (
     get_tree_above_leaves,
     get_label_to_name,
     get_cell_to_cluster_alias)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 

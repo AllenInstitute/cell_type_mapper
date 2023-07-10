@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from unittest.mock import patch
 
-from hierarchical_mapping.diff_exp.scores import (
+from cell_type_mapper.diff_exp.scores import (
     score_differential_genes,
     penetrance_tests)
 
@@ -140,7 +140,7 @@ def test_score_differential_genes_quantitatively(
     def new_p_values(*args, **kwargs):
         return p_values_fixture
 
-    module_name = 'hierarchical_mapping.diff_exp.scores'
+    module_name = 'cell_type_mapper.diff_exp.scores'
     with patch(f'{module_name}.penetrance_tests', new_penetrance):
         with patch(f'{module_name}.diffexp_p_values', new_p_values):
             (scores,

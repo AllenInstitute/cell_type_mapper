@@ -7,11 +7,11 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.utils.anndata_utils import (
+from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
     write_df_to_h5ad,
     copy_layer_to_x,

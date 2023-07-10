@@ -4,9 +4,9 @@ import numpy as np
 import json
 import itertools
 
-from hierarchical_mapping.utils.utils import json_clean_dict
+from cell_type_mapper.utils.utils import json_clean_dict
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     compute_row_order,

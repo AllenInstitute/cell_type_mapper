@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from hierarchical_mapping.corr.utils import (
+from cell_type_mapper.corr.utils import (
     match_genes)
 
 

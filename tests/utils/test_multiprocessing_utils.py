@@ -2,7 +2,7 @@ import pytest
 
 import multiprocessing
 
-from hierarchical_mapping.utils.multiprocessing_utils import (
+from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list,
     winnow_process_dict)
 

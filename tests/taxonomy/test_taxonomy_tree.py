@@ -4,10 +4,10 @@ import numpy as np
 import json
 import itertools
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 

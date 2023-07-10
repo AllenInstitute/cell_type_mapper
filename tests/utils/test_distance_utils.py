@@ -3,10 +3,10 @@ import pytest
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
 
-from hierarchical_mapping.utils.torch_utils import(
+from cell_type_mapper.utils.torch_utils import(
     is_torch_available)
 
-from hierarchical_mapping.utils.distance_utils import (
+from cell_type_mapper.utils.distance_utils import (
     correlation_distance,
     _correlation_nearest_neighbors_cpu,
     _correlation_nearest_neighbors_gpu,

@@ -12,11 +12,11 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.cli.precompute_stats import (
+from cell_type_mapper.cli.precompute_stats import (
     PrecomputationRunner)
 
 

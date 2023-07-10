@@ -1,9 +1,9 @@
 import pytest
 
-from hierarchical_mapping.gene_id.gene_id_mapper import (
+from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
-from hierarchical_mapping.cli.cli_log import CommandLog
+from cell_type_mapper.cli.cli_log import CommandLog
 
 @pytest.fixture
 def map_data_fixture():

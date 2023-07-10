@@ -2,10 +2,10 @@ import pytest
 
 import numpy as np
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from hierarchical_mapping.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers import (
     can_we_make_sparse,
     sparse_markers_from_arrays,
     SparseMarkers)

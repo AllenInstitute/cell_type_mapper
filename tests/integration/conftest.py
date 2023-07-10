@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 

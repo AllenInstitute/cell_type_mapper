@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     merge_index_list,
     choose_int_dtype)
 

@@ -3,7 +3,7 @@ import pytest
 from itertools import product
 import numpy as np
 
-from hierarchical_mapping.binary_array.utils import (
+from cell_type_mapper.binary_array.utils import (
     binarize_boolean_array,
     unpack_binarized_boolean_array,
     unpack_binarized_boolean_array_2D)

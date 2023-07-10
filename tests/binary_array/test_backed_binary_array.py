@@ -4,15 +4,15 @@ import h5py
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import(
+from cell_type_mapper.utils.utils import(
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     n_int_from_n_cols,
     BinarizedBooleanArray)
 
-from hierarchical_mapping.binary_array.backed_binary_array import (
+from cell_type_mapper.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
 

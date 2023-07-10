@@ -9,14 +9,14 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.gene_id.gene_id_mapper import (
+from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
-from hierarchical_mapping.validation.validate_h5ad import (
+from cell_type_mapper.validation.validate_h5ad import (
     validate_h5ad)
 
 

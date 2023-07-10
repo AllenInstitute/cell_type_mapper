@@ -1,14 +1,14 @@
 import h5py
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.type_assignment.utils import (
+from cell_type_mapper.type_assignment.utils import (
     reconcile_taxonomy_and_markers)
 
 

@@ -7,17 +7,17 @@ import pathlib
 import shutil
 import tempfile
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from hierarchical_mapping.marker_selection.marker_array import (
+from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers import (
     add_sparse_markers_to_h5)
 
 

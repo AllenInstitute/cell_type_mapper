@@ -12,50 +12,50 @@ import scipy.sparse as scipy_sparse
 import tempfile
 import os
 
-from hierarchical_mapping.utils.torch_utils import (
+from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
     get_all_leaf_pairs)
 
-from hierarchical_mapping.diff_exp.scores import (
+from cell_type_mapper.diff_exp.scores import (
     diffexp_score)
 
-from hierarchical_mapping.diff_exp.markers import (
+from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
-from hierarchical_mapping.type_assignment.matching import (
+from cell_type_mapper.type_assignment.matching import (
     get_leaf_means,
     assemble_query_data)
 
-from hierarchical_mapping.type_assignment.election import (
+from cell_type_mapper.type_assignment.election import (
     choose_node,
     run_type_assignment)
 
-from hierarchical_mapping.type_assignment.election import (
+from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
 
 if is_torch_available():
-    from hierarchical_mapping.gpu_utils.type_assignment.election import (
+    from cell_type_mapper.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
 
-from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 

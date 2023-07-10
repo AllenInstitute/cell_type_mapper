@@ -10,36 +10,36 @@ import pandas as pd
 import pathlib
 import tempfile
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.utils.torch_utils import (
+from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from hierarchical_mapping.diff_exp.markers import (
+from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     serialize_markers)
 
-from hierarchical_mapping.type_assignment.election_runner import (
+from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.hierarchical_mapping import (
+from cell_type_mapper.cli.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
 
-from hierarchical_mapping.cli.from_specified_markers import (
+from cell_type_mapper.cli.from_specified_markers import (
     run_mapping as from_marker_run_mapping)
 
-from hierarchical_mapping.cli.from_specified_markers import (
+from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
 

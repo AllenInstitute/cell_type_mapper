@@ -4,14 +4,14 @@ from itertools import product
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.binary_array.utils import (
+from cell_type_mapper.binary_array.utils import (
     unpack_binarized_boolean_array)
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray,
     n_int_from_n_cols)
 

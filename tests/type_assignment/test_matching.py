@@ -6,20 +6,20 @@ import json
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     convert_tree_to_leaves)
 
-from hierarchical_mapping.type_assignment.matching import (
+from cell_type_mapper.type_assignment.matching import (
     assemble_query_data)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 

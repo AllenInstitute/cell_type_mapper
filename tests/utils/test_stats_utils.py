@@ -1,13 +1,13 @@
 import numpy as np
 
-from hierarchical_mapping.utils.stats_utils import (
+from cell_type_mapper.utils.stats_utils import (
     summary_stats_for_chunk,
     welch_t_test)
 
-from hierarchical_mapping.cell_by_gene.utils import (
+from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
 
-from hierarchical_mapping.cell_by_gene.cell_by_gene import (
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
 

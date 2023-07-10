@@ -10,18 +10,18 @@ import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
 
-from hierarchical_mapping.corr.utils import (
+from cell_type_mapper.corr.utils import (
     match_genes)
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.corr.correlate_cells import (
+from cell_type_mapper.corr.correlate_cells import (
     correlate_cells,
     corrmap_cells,
     _prep_data)
 
-from hierarchical_mapping.cell_by_gene.utils import (
+from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
 
 

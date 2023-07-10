@@ -11,11 +11,11 @@ import pathlib
 import re
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.cli.validate_h5ad import (
+from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
 
