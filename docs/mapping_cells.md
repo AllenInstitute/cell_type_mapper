@@ -38,15 +38,31 @@ cluster labels to the corresponding row indices in the numerical datasets.
 in the numerical datasets to Ensembl gene identifiers.
 - `taxonomy_tree`: the JSON serialization of a dict encoding the cell type
 taxonomy tree to which data will be mapped. The contents of this dict match that of the taxonomy tree encoded in the cell type mapping output file and documented
-[here.](output.md#taxonomy_tree) It can be loaded into a Python
-object with
-```
-from hierarchical_mapping.taxonomy.taxonomy_tree import TaxonomyTree
-tree = TaxonomyTree(
-            data=json.loads(hdf5_handle['taxonomy_tree'][()].decode('utf-8')))
-```
-**Note:** that this encoding includes a mapping from cell type cluster (the
-leaf level of the taxonomy tree) to individual cells in the reference dataset).
+[here.](output.md#taxonomy_tree) **Note:** that this encoding includes a
+mapping from cell type cluster (the leaf level of the taxonomy tree) to
+individual cells in the reference dataset.
+
+#### Numerical datasets
+
+The following datasets represent numerical statistics about the cell type
+clusters and are indexed according to `cluster_to_row` and `col_names`. Not
+all of these statistics are used at present. They are calculated in anticipation
+of a future release in which this library will be able to identify marker genes
+in the reference dataset without relying on legacy R code.
+
+- `n_cells`: The number of cells in each cluster. `n_cells[ii]` is the number
+of cells in the cluster with name `cluster_to_row[name] == ii`.
+- `sum`: An (`n_clusters`, `n_genes`) array indicating the sum of `log2(CPM+1)`
+values for each gene in each cluster (i.e. raw counts are converted to
+`log2(CPM+1)` and then summed). Rows are indexed according to `cluster_to_row`.
+Columns are indexed according to `col_names`.
+- `sumsq`: like `sum`, except it represents the sum of the squares of the
+`log2(CPM+1)` expression values (for use in estimating the variance).
+- `gt0`: A (`n_clusters`, `n_genes`) array indicating how many cells had raw
+expression greater than zero in each gene for each cluster.
+- `gt1`: A (`n_clusters`, `n_genes`) array indicating how many cells had raw
+expression greater than unity in each gene for each cluster.
+- `ge1`: A (`n_clusters`, `n_genes`) array indicating how many cells ahd
+raw expression greater than or equql to unity in each geen for each cluster.
 
 ### Encoding marker genes
-
