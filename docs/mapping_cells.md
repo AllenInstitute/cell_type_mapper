@@ -85,5 +85,5 @@ python -m hierarchical_mapping.cli.marker_cache_from_csv_dir --help
 ```
 **Note:**Because we encode the cell type taxonomy in the precomputed stats
 HDF5 file documented
-[above](#Computing the average gene expression profile per cell type cluster),
+[above](mapping_cells.md#Computing the average gene expression profile per cell type cluster),
 the path to that file is a config parameter of this tool.
