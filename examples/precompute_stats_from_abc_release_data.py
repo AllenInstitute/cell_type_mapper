@@ -9,6 +9,8 @@ It takes an hour or two to run.
 from hierarchical_mapping.cli.precompute_stats import (
     PrecomputationRunner)
 
+from hierarchical_mapping.utils.utils import get_timestamp
+
 import pathlib
 import time
 
@@ -58,6 +60,8 @@ def main():
 
     h5ad_list = h5ad_list_1+h5ad_list_2
 
+    output_path = f"precompute_abc_{get_timestamp().replace('-','')}.h5"
+
     config = {
         'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
@@ -65,12 +69,13 @@ def main():
         'cluster_annotation_path': cluster_annotation,
         'cluster_membership_path': cluster_membership,
         'hierarchy': hierarchy,
-        'output_path': '/allen/aibs/technology/danielsf/knowledge_base/benchmarking/scratch/precompute_abc_230623.h5'}
+        'output_path': output_path}
 
     t0 = time.time()
     runner = PrecomputationRunner(args=[], input_data=config)
     runner.run()
     dur = time.time()-t0
+    print(f"wrote {output_path}")
     print(f"that took {dur:.2e} seconds")
 
 
