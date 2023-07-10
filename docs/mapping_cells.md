@@ -66,3 +66,24 @@ expression greater than unity in each gene for each cluster.
 raw expression greater than or equql to unity in each geen for each cluster.
 
 ### Encoding marker genes
+
+At present, this library does not contain functionality for identifying the
+marker genes needed to map unlabeled data onto the cell type taxonomy.
+Hopefully, that functionality will come in a (near) future release. Until then,
+our workflow is to have Changkyu Lee at the Allen Institute use his R library
+to identify the marker genes, and then ingest his result into the file format
+that this library expects. The expected form is a JSON serialized dict whose
+contents are documented [here.](output.md#marker_genes) Changkyu's R code
+produces a directory containing a series of CSV files, each listing the marker
+genes for a parent node in the cell type taxonomy. We provide a tool to
+combine these files into a single dict (and transform the gene sybols output
+by the R code into Ensembl identifiers)
+[here.](../src/hierarchical_mapping/cli/marker_cache_from_csv_dir.py)
+To see the call signature and config parameters for that tool, run
+```
+python -m hierarchical_mapping.cli.marker_cache_from_csv_dir --help
+```
+**Note:**Because we encode the cell type taxonomy in the precomputed stats
+HDF5 file documented
+[above](#Computing the average gene expression profile per cell type cluster),
+the path to that file is a config parameter of this tool.

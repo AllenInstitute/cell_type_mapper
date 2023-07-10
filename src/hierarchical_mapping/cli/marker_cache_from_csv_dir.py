@@ -46,7 +46,9 @@ class MarkerCacheInputSchema(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
-        dsecription="Path to the JSON file that will be written.")
+        description="Path to the marker lookpu file that will be written. "
+        "Note: the output_json config param is boilerplate mandated by "
+        "argschema and not relevant to the use of this tool.")
 
     drop_level = argschema.fields.String(
         required=False,
