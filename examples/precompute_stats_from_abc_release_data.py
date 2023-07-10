@@ -1,6 +1,15 @@
+"""
+This script creates the precomputed_stats.h5 file from the ABC Atlas
+release data as it was store on the local Allen Institute cluster
+circa June 30 2023.
+
+It takes an hour or two to run.
+"""
+
 from hierarchical_mapping.cli.precompute_stats import (
     PrecomputationRunner)
 
+from hierarchical_mapping.utils.utils import get_timestamp
 
 import pathlib
 import time
@@ -11,6 +20,8 @@ def main():
         "/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian/ABC_handoff/metadata")
     assert data_dir.is_dir()
 
+    # Paths to CSV files encoding the cell types taxonomy
+
     cluster_annotation = data_dir / "WMB-taxonomy/20230630/cluster_annotation_term.csv"
     assert cluster_annotation.is_file()
 
@@ -19,24 +30,26 @@ def main():
 
     cell_metadata = data_dir / "WMB-10X/20230630/cell_metadata.csv"
     assert cell_metadata.is_file()
-    cell_metadata = str(cell_metadata.resolve().absolute())
 
+    cell_metadata = str(cell_metadata.resolve().absolute())
     cluster_membership = str(cluster_membership.resolve().absolute())
     cluster_annotation = str(cluster_annotation.resolve().absolute())
+
+    # hierarchy of the levels in the cell types taxonomy
     hierarchy=[
             "CCN20230504_CLAS",
             "CCN20230504_SUBC",
             "CCN20230504_SUPT",
             "CCN20230504_CLUS"]
 
+    # assemble a list of all of the h5ad files containing all of the
+    # raw counts cell by gene expression matrices for the data release
     h5ad_dir_1 = pathlib.Path(
         "/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian/ABC_handoff/expression_matrices/WMB-10Xv2/20230630")
     h5ad_list_1 = [
         str(n.resolve().absolute())
         for n in h5ad_dir_1.iterdir()
         if n.name.endswith('raw.h5ad')]
-
-    print(h5ad_list_1)
 
     h5ad_dir_2 = pathlib.Path(
         "/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian/ABC_handoff/expression_matrices/WMB-10Xv3/20230630")
@@ -47,6 +60,8 @@ def main():
 
     h5ad_list = h5ad_list_1+h5ad_list_2
 
+    output_path = f"precompute_abc_{get_timestamp().replace('-','')}.h5"
+
     config = {
         'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
@@ -54,12 +69,13 @@ def main():
         'cluster_annotation_path': cluster_annotation,
         'cluster_membership_path': cluster_membership,
         'hierarchy': hierarchy,
-        'output_path': '/allen/aibs/technology/danielsf/knowledge_base/benchmarking/scratch/precompute_abc_230623.h5'}
+        'output_path': output_path}
 
     t0 = time.time()
     runner = PrecomputationRunner(args=[], input_data=config)
     runner.run()
     dur = time.time()-t0
+    print(f"wrote {output_path}")
     print(f"that took {dur:.2e} seconds")
 
 
