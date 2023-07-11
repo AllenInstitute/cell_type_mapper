@@ -125,8 +125,11 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
-        description="Normalization of the query dataset "
-        "(must be 'raw' or 'log2CPM')")
+        description="Normalization of the query dataset. "
+        "Must be 'raw' or 'log2CPM'. If 'raw', the code will "
+        "convert the data to log2(CPM+1) before mapping. "
+        "If 'log2CPM', the code will use the query data as-is "
+        "without applying further normalization.")
 
     rng_seed = argschema.fields.Int(
         required=False,
