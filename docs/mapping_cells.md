@@ -222,3 +222,24 @@ level), run the above code with
 --type_assignment.bootstrap_iteration 1
 --type_assignment.bootstrap_factor 1.0
 ```
+
+#### Running programmatically
+
+This module uses the
+[argschema library](https://github.com/AllenInstitute/argschema)
+to manage configuration parameters. If you want to run this mapping tool
+from within a python script, run
+
+```
+from hierarchical_mapping.cli.from_specified_markers import (
+    FromSpecifiedMarkersRunner)
+
+runner = FromSpecifiedMarkersRunner(
+    args=[],
+    input_data=dict_containing_config_parameters)
+
+runner.run()
+```
+
+The `args=[]` is important to prevent the `runner` from trying to grab
+configuration parameters from the command line.
