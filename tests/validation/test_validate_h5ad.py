@@ -101,9 +101,10 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int",
+        "density,as_layer,round_to_int,specify_path",
         itertools.product(
          ("csr", "csc", "array"),
+         (True, False),
          (True, False),
          (True, False)))
 def test_validation_of_h5ad(
@@ -114,7 +115,8 @@ def test_validation_of_h5ad(
         tmp_dir_fixture,
         density,
         as_layer,
-        round_to_int):
+        round_to_int,
+        specify_path):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -155,15 +157,27 @@ def test_validation_of_h5ad(
     else:
         layer = 'X'
 
+    if specify_path:
+        output_dir = None
+        valid_h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
+    else:
+        output_dir = tmp_dir_fixture
+        valid_h5ad_path = None
+
     result_path, _ = validate_h5ad(
         h5ad_path=orig_path,
-        output_dir=tmp_dir_fixture,
+        output_dir=output_dir,
+        valid_h5ad_path=valid_h5ad_path,
         gene_id_mapper=gene_id_mapper,
         tmp_dir=tmp_dir_fixture,
         layer=layer,
         round_to_int=round_to_int)
 
     assert result_path is not None
+    if specify_path:
+        assert str(result_path.resolve().absolute()) == valid_h5ad_path
 
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
@@ -466,3 +480,24 @@ def test_validation_of_h5ad_diverse_dtypes(
         else:
             data_key = 'X'
         assert in_file[data_key].dtype == output_dtype
+
+
+def test_validation_of_h5ad_errors():
+    """
+    Check that you cannot specify both valid_h5ad_path and output_dir
+    """
+    with pytest.raises(RuntimeError, match="Cannot specify both"):
+        validate_h5ad(
+            h5ad_path='silly',
+            gene_id_mapper='nonsense',
+            tmp_dir=None,
+            output_dir='foo',
+            valid_h5ad_path='bar')
+
+    with pytest.raises(RuntimeError, match="Must specify one of either"):
+        validate_h5ad(
+            h5ad_path='silly',
+            gene_id_mapper='nonsense',
+            tmp_dir=None,
+            output_dir=None,
+            valid_h5ad_path=None)

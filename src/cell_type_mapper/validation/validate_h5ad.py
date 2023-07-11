@@ -22,13 +22,13 @@ from cell_type_mapper.validation.utils import (
 
 def validate_h5ad(
         h5ad_path,
-        output_dir,
         gene_id_mapper,
         log=None,
         expected_max=20,
         tmp_dir=None,
         layer='X',
         round_to_int=True,
+        output_dir=None,
         valid_h5ad_path=None):
     """
     Perform validation transformations on h5ad file.
@@ -37,8 +37,6 @@ def validate_h5ad(
     ----------
     h5ad_path:
         Path to the source h5ad file
-    output_dir:
-        Dir where new h5ad file can be written (if necessary)
     gene_id_mapper:
         the GeneIdMapper that will handle the mapping of gene
         identifiers into the expected form.
@@ -57,12 +55,36 @@ def validate_h5ad(
     round_to_int:
         If True, cast the cell by gene matrix to an integer.
         If False, leave it untouched relative to input.
+    valid_h5ad_path:
+        Where to write the output file
+    output_dir:
+        Dir where new h5ad file can be written (if necessary)
+
 
     Returns
     -------
     Path to validated h5ad (if relevant).
     Returns None if no action was taken
+
+    Notes
+    -----
+    If valid_h5ad_path is specified, this is where the validated file
+    will be written. If output_dir is specified, a new file will
+    be written with a name like
+
+    output_file/input_file_name_VALIDATED_{timestamp}.h5ad
+
+    Both valid_h5ad_path and output_dir cannot be non-None
     """
+
+    if valid_h5ad_path is not None and output_dir is not None:
+        raise RuntimeError(
+            "Cannot specify both valid_h5ad_path and output_dir; "
+            "only specify one")
+
+    if valid_h5ad_path is None and output_dir is None:
+        raise RuntimeError(
+            "Must specify one of either valid_h5ad_path or output_dir")
 
     # somewhere in here, check to see if we are working on a layer;
     # if that happens, just go ahead and copy and set current_h5ad_path

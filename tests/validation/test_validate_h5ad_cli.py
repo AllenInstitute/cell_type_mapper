@@ -84,8 +84,12 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int",
-        itertools.product(("csr", "csc", "array"), (True, False), (True, False)))
+        "density,as_layer,round_to_int,specify_path",
+        itertools.product(
+        ("csr", "csc", "array"),
+        (True, False),
+        (True, False),
+        (True, False)))
 def test_validation_cli_of_h5ad(
         var_fixture,
         obs_fixture,
@@ -93,7 +97,8 @@ def test_validation_cli_of_h5ad(
         tmp_dir_fixture,
         density,
         as_layer,
-        round_to_int):
+        round_to_int,
+        specify_path):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -134,9 +139,19 @@ def test_validation_cli_of_h5ad(
         prefix=f"bad_input_{density}_",
         suffix=".json")
 
+    if specify_path:
+        output_dir = None
+        valid_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
+    else:
+        output_dir = str(tmp_dir_fixture.resolve().absolute())
+        valid_path = None
+
     config = {
         'h5ad_path': orig_path,
-        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_dir': output_dir,
+        'valid_h5ad_path': valid_path,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': layer,
@@ -156,7 +171,10 @@ def test_validation_cli_of_h5ad(
     int_pattern = re.compile('[0-9]+')
     timestamp = int_pattern.findall(name_parts[-1])[0]
     base_name = orig_path.name.replace('.h5ad', '')
-    expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
+    if specify_path:
+        expected_name = pathlib.Path(valid_path).name
+    else:
+        expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
 
     if round_to_int:

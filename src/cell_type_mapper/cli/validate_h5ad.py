@@ -59,9 +59,9 @@ class ValidationInputSchema(argschema.ArgSchema):
         "cell by gene data as the input h5ad file.")
 
     output_dir = argschema.fields.OutputDir(
-        required=True,
+        required=False,
         default=None,
-        allow_none=False,
+        allow_none=True,
         descriptipn="Directory where reformatted h5ad file "
         "will be written (if valid_h5ad_path not specified). "
         "Name of file will be the same as the name of the input "
@@ -87,6 +87,22 @@ class ValidationInputSchema(argschema.ArgSchema):
         if not is_valid:
             raise RuntimeError(
                 "must specify a path for output_json")
+        return data
+
+    @post_load
+    def check_output_destination(self, data, **kwargs):
+        """
+        Check that one and only one of valid_h5ad_path and output_dir
+        are specified
+        """
+        output_dir = data['output_dir']
+        valid_path = data['valid_h5ad_path']
+        if output_dir is None and valid_path is None:
+            raise RuntimeError(
+                "Must specify one of either output_dir or valid_h5ad_path")
+        if output_dir is not None and valid_path is not None:
+            raise RuntimeError(
+                "Can only specify one of output_dir or valid_h5ad_path")
         return data
 
 
