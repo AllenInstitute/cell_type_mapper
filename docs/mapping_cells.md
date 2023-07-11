@@ -176,7 +176,7 @@ used in the taxonomy you created in step (1).
 - `flatten`: a boolean. If `true`, then flatten the cell type taxonomy and fit directly to the
 leaf level nodes without traversing the tree.
 - `precomputed_stats.path`: the path to the HDF5 file created in step (1).
-- `query_markers.serialized_marker_lookup`: the path to the JSON file created in step (2).
+- `query_markers.serialized_lookup`: the path to the JSON file created in step (2).
 - `type_assignment.normalization`: either 'raw' or 'log2CPM'. Indicates the normalization of
 the cell by gene data in `query_path`. If 'raw', the code will convert it to `log2(CPM+1)`
 internally before actually mapping.
