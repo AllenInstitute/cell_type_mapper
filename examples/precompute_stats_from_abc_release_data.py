@@ -11,10 +11,17 @@ from cell_type_mapper.cli.precompute_stats import (
 
 from cell_type_mapper.utils.utils import get_timestamp
 
+import argparse
 import pathlib
 import time
 
 def main():
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output_path', type=str, default=None)
+    args = parser.parse_args()
+    if args.output_path is None:
+        raise RuntimeError("Must specify --output_path")
 
     data_dir = pathlib.Path(
         "/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian/ABC_handoff/metadata")
@@ -69,13 +76,13 @@ def main():
         'cluster_annotation_path': cluster_annotation,
         'cluster_membership_path': cluster_membership,
         'hierarchy': hierarchy,
-        'output_path': output_path}
+        'output_path': args.output_path}
 
     t0 = time.time()
     runner = PrecomputationRunner(args=[], input_data=config)
     runner.run()
     dur = time.time()-t0
-    print(f"wrote {output_path}")
+    print(f"wrote {args.output_path}")
     print(f"that took {dur:.2e} seconds")
 
 
