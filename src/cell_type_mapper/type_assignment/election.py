@@ -554,7 +554,8 @@ def _run_type_assignment(
     t = time.time()
     (result,
      bootstrapping_probability,
-     avg_corr) = choose_node(
+     avg_corr,
+     _) = choose_node(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
@@ -575,6 +576,7 @@ def choose_node(
          bootstrap_factor,
          bootstrap_iteration,
          rng,
+         n_runners_up=10,
          gpu_index=0,
          timers=None):
     """
@@ -592,6 +594,8 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
+    n_runners_up:
+        Number of runner up cell types to be returned
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
@@ -602,6 +606,8 @@ def choose_node(
     Array of vote fractions
 
     Array of the average correlation value of the chosen nearest neighbors
+
+    Array of runner up cell types
     """
 
     t = time.time()
@@ -617,17 +623,23 @@ def choose_node(
 
     update_timer("tally_votes", t, timers)
 
-    chosen_type = np.argmax(votes, axis=1)
-    idx_array = np.arange(votes.shape[0])
+    sorted_by_votes = np.argsort(-1*votes, axis=1)
+    sorted_by_votes = sorted_by_votes[:, :n_runners_up]
+
+    idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
+                             for ii in range(sorted_by_votes.shape[0])])
 
     t = time.time()
-    result = [reference_types[ii] for ii in chosen_type]
-    n_votes = votes[idx_array, chosen_type]
-    vote_fractions = n_votes / bootstrap_iteration
-    avg_corr = corr_sum[idx_array, chosen_type] / n_votes
+    result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
+    n_votes = votes[idx_array_2d, sorted_by_votes]
+    vote_fractions = n_votes[:, 0] / bootstrap_iteration
+
+    avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / n_votes
+    avg_corr = avg_corr[:, 0]
+
     update_timer("choose_node_p2", t, timers)
 
-    return (np.array(result), vote_fractions, avg_corr)
+    return (np.array(result), vote_fractions, avg_corr, None)
 
 
 def tally_votes(

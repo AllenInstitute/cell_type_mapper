@@ -173,7 +173,8 @@ def test_running_single_election(
 
         (result,
          confidence,
-         avg_corr) = choose_node(
+         avg_corr,
+         _) = choose_node(
             query_gene_data=data_for_election['query_data'].data,
             reference_gene_data=data_for_election['reference_data'].data,
             reference_types=data_for_election['reference_types'],

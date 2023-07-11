@@ -194,7 +194,8 @@ def test_choose_node_smoke(
 
     (result,
      confidence,
-     avg_corr) = choose_node(
+     avg_corr,
+     _) = choose_node(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         reference_types=reference_types,
@@ -229,7 +230,8 @@ def test_confidence_result():
     with patch(to_replace, new=dummy_tally_votes):
         (results,
          confidence,
-         avg_corr) = choose_node(
+         avg_corr,
+         _) = choose_node(
             query_gene_data=None,
             reference_gene_data=None,
             reference_types=reference_types,
@@ -257,3 +259,36 @@ def test_confidence_result():
         expected_avg_corr,
         atol=0.0,
         rtol=1.0e-6)
+
+
+def test_runners_up():
+    """
+    Test that choose_node correctly selects the
+    N runners up cell types.
+    """
+
+    reference_types = ['a', 'b', 'c']
+    rng = np.random.default_rng(223112)
+    mock_votes = np.array(
+            [[2, 3, 1, 0],
+             [4, 1, 0, 2],
+             [0, 3, 5, 1],
+             [4, 3, 1, 0]])
+    mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
+
+    def dummy_tally_votes(*args, **kwargs):
+        return (mock_votes, mock_corr_sum)
+
+    to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
+    with patch(to_replace, new=dummy_tally_votes):
+        (results,
+         confidence,
+         avg_corr,
+         runners_up) = choose_node(
+            query_gene_data=None,
+            reference_gene_data=None,
+            reference_types=reference_types,
+            bootstrap_factor=None,
+            bootstrap_iteration=5,
+            n_runners_up=2,
+            rng=None)
