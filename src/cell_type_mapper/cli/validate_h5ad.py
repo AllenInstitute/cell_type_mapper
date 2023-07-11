@@ -28,13 +28,18 @@ class ValidationInputSchema(argschema.ArgSchema):
         required=False,
         default=None,
         allow_none=True,
-        description="Path to the valid h5ad file")
+        description="Path to the valid h5ad file that will be "
+        "written by this tool. If this is not specified, the tool "
+        "will write the file to the location specified by the "
+        "output_dir config parameter, appending "
+        "_VALIDATED_{timestamp} to the name of the input file.")
 
     log_path = argschema.fields.String(
         required=False,
         default=None,
         allow_none=True,
-        description="Path to the log file to be written")
+        description="Optional path to a log file where this tool "
+        "will record logging messages produced during validation.")
 
     layer = argschema.fields.String(
         required=False,
@@ -58,9 +63,9 @@ class ValidationInputSchema(argschema.ArgSchema):
         default=None,
         allow_none=False,
         descriptipn="Directory where reformatted h5ad file "
-        "will be written (if necessary). Name of file will be "
-        "the same as the name of the input file, but with "
-        "_VALIDATED_{timestamp}.h5ad appended.")
+        "will be written (if valid_h5ad_path not specified). "
+        "Name of file will be the same as the name of the input "
+        "file, but with _VALIDATED_{timestamp}.h5ad appended.")
 
     tmp_dir = argschema.fields.OutputDir(
         required=False,
@@ -68,7 +73,7 @@ class ValidationInputSchema(argschema.ArgSchema):
         allow_none=True,
         description="Directory where temporary data products "
         "will be written (if necessary). If None, the data "
-        "products will be written where ever tempfile.mdtemp "
+        "products will be written where ever tempfile.mkdtemp "
         "defaults to.")
 
     @post_load
