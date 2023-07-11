@@ -216,12 +216,14 @@ python -m cell_type_mapper.cli.from_specified_markers --input_json path/to/confi
 #### "Flat" Correlation mapping
 
 To run the `MapMyCell` Correlation Mapping algorithm (i.e. mapping onto a tree with only one taxonomic
-level), run the above code with
+level; no bootstrapping), run the above code with
 ```
 --flatten true
 --type_assignment.bootstrap_iteration 1
 --type_assignment.bootstrap_factor 1.0
 ```
+This will be an order of magnitude faster than running full hierarchical mapping because there
+are many fewer nearest neighbor searches to do.
 
 To run "legacy" flat mapping (flat mapping that uses bootstrapping) run with
 ```
@@ -234,7 +236,7 @@ To run "legacy" flat mapping (flat mapping that uses bootstrapping) run with
 use every marker gene, running legacy flat mapping is no faster (and can even
 be slower) than hierarchcal mapping. This because, with hierarchical mapping, as
 you descend the taxonomy tree, you need drammatically fewer marker genes, which
-speeds up the linear algebra calculations going on within the algorithm.
+speeds up the nearest neighbor searches going on within the algorithm.
 
 #### Running programmatically
 
