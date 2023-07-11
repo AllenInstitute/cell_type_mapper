@@ -1,6 +1,6 @@
 # Output file contents
 
-`hierarchical_mapping.cli.from_specified_markers` produces two output files.
+`cell_type_mapper.cli.from_specified_markers` produces two output files.
 An optional CSV output file, and an "extended" JSON output file (though this
 file is actually the one that is always created). The JSON file contains all
 of the data in the CSV file along with some extra confidence metrics and
@@ -79,7 +79,7 @@ data was mapped. It can be interpreted as is or used to instantiate a
 `TaxonomyTree` object with
 
 ```
-from hierarchical_mapping.taxonomy.taxonomy_tree import TaxonomyTree
+from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
 tree = TaxonomyTree(data=results_dict['taxonomy_tree'])
 ```
 
