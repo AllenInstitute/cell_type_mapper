@@ -18,8 +18,8 @@ taxonomy. **This step only needs to be run once per reference dataset and
 produces a file that can be used multiple times.**
 3. "Validating" the unlabeled dataset. This step converts gene symbols to
 Ensembl IDs and (optionally) validates that the cell by gene expression
-matrix is a set of raw count integers (you can skip this last step and use
-the native normalization of your unlabeld h5ad file; more on that below).
+matrix is a set of raw count integers. There is a configuration you can
+use if you already trust the normalization of your data; more on that below.
 4. Mapping unlabeled data onto the reference taxonomy using the executable
 provided [here.](../src/cell_type_mapper/cli/from_specified_markers.py)
 
@@ -74,7 +74,7 @@ expression greater than zero in each gene for each cluster.
 - `gt1`: A (`n_clusters`, `n_genes`) array indicating how many cells had raw
 expression greater than unity in each gene for each cluster.
 - `ge1`: A (`n_clusters`, `n_genes`) array indicating how many cells ahd
-raw expression greater than or equql to unity in each geen for each cluster.
+raw expression greater than or equal to unity in each geen for each cluster.
 
 ### (2) Encoding marker genes
 
@@ -98,7 +98,7 @@ To see the call signature and config parameters for that tool, run
 ```
 python -m cell_type_mapper.cli.marker_cache_from_csv_dir --help
 ```
-**Note:**Because we encode the cell type taxonomy in the precomputed stats
+**Note:** Because we encode the cell type taxonomy in the precomputed stats
 HDF5 file documented
 [above](#computing-the-average-gene-expression-profile-per-cell-type-cluster),
 the path to that file is a config parameter of this tool.
@@ -116,7 +116,7 @@ tool, namely that
 
 - All genes are identified with Ensembl IDs
 - Cell by gene expression data to be mapped are stored in the `X`
-layer of the unlabled h5ad file
+layer of the unlabeled h5ad file
 - Cell by gene expression data are raw counts expressed as integers
 
 The first two requirements are non-negotiable. The third requirement can
@@ -124,7 +124,7 @@ be circumvented if your data is already log2 normalized and you want to use
 your normalization.
 
 There is a command line tool to take an arbitrary H5AD file and transform
-it so that it meets the above requirements. To see it's call signature, run
+it so that it meets the above requirements. To see its call signature, run
 
 ```
 python -m cell_type_mapper.cli.validate_h5ad
@@ -163,7 +163,7 @@ The parameters that are used are:
 - `query_path`: the path to the validated H5AD file produced in step (3).
 - `extended_result_path`: the path to the [extended output file.](output.md#json-output-file)
 - `csv_result_path`: the optional path to the [CSV output file](output.md#csv-output-file)
-- `log_path`: the optinal path to a text file containing log messages from the mapping run
+- `log_path`: the optional path to a text file containing log messages from the mapping run
 (log messages will also be recorded in the extended output file).
 - `max_gb`: available GB of memory for use when converting the input H5AD from a CSC sparse
 matrix to a CSR sparse matrix (irrelevant if the input H5AD file is already in CSR or dense
@@ -176,8 +176,9 @@ used in the taxonomy you created in step (1).
 leaf level nodes without traversing the tree.
 - `precomputed_stats.path`: the path to the HDF5 file created in step (1).
 - `query_markers.serialized_marker_lookup`: the path to the JSON file created in step (2).
-- `type_assignment.normalization`: either 'raw' or 'log2CPM`. Indicates the normalization of
-the cell by gene data in `query_path`. If 'raw', the code will convert it to `log2(CPM+1)`.
+- `type_assignment.normalization`: either 'raw' or 'log2CPM'. Indicates the normalization of
+the cell by gene data in `query_path`. If 'raw', the code will convert it to `log2(CPM+1)`
+internally before actually mapping.
 - `type_assignment.bootstrap_iteration`: the number of bootstrapping iterations to run
 at each node of the taxonomy tree.
 - `type_assignment.bootstrap_factor`: The factor by which to downsample the population of
