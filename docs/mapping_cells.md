@@ -223,6 +223,19 @@ level), run the above code with
 --type_assignment.bootstrap_factor 1.0
 ```
 
+To run "legacy" flat mapping (flat mapping that uses bootstrapping) run with
+```
+--flatten true
+--type_assignment.bootstrap_iteration 100
+--type_assignment.bootstrap_factor 0.9
+```
+
+**Note:** because flattening the taxonomy causes every bootstrap iteration to
+use every marker gene, running legacy flat mapping is no faster (and can even
+be slower) than hierarchcal mapping. This because, with hierarchical mapping, as
+you descend the taxonomy tree, you need drammatically fewer marker genes, which
+speeds up the linear algebra calculations going on within the algorithm.
+
 #### Running programmatically
 
 This module uses the
