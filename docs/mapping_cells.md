@@ -163,6 +163,7 @@ The parameters that are used are:
 - `query_path`: the path to the validated H5AD file produced in step (3).
 - `extended_result_path`: the path to the [extended output file.](output.md#json-output-file)
 - `csv_result_path`: the optional path to the [CSV output file](output.md#csv-output-file)
+- `tmp_dir`: directory where temporary data files can be written. This is especially important if your data is stored in a slow network mounted file system. Specifying a faster drive here will tell the code to copy the data into the faster drive before working on it, which can increase speed significantly. Just make sure that your `tmp_dir` has enough space to store an entire copy of your query data.
 - `log_path`: the optional path to a text file containing log messages from the mapping run
 (log messages will also be recorded in the extended output file).
 - `max_gb`: available GB of memory for use when converting the input H5AD from a CSC sparse
