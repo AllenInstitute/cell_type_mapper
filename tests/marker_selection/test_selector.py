@@ -7,39 +7,39 @@ import json
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.utils.multiprocessing_utils import (
+from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_all_leaf_pairs)
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from hierarchical_mapping.marker_selection.marker_array import (
+from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.marker_selection.selection import (
+from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
 
-from hierarchical_mapping.marker_selection.selection_pipeline import (
+from cell_type_mapper.marker_selection.selection_pipeline import (
     _marker_selection_worker,
     select_all_markers)
 
-from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     create_marker_cache_from_specified_markers,
     serialize_markers,
     write_query_markers_to_h5)
 
-from hierarchical_mapping.cli.cli_log import CommandLog
+from cell_type_mapper.cli.cli_log import CommandLog
 
 
 @pytest.fixture(scope='module')

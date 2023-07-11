@@ -4,11 +4,11 @@ import numpy as np
 import os
 from unittest.mock import patch
 
-from hierarchical_mapping.utils.torch_utils import (
+from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
 
-from hierarchical_mapping.type_assignment.election import (
+from cell_type_mapper.type_assignment.election import (
     tally_votes,
     choose_node)
 
@@ -84,7 +84,7 @@ def test_tally_votes_mocked_result():
         return (np.array(mock_votes[dummy_nn.ct]),
                 np.array(mock_corr[dummy_nn.ct]))
 
-    to_replace = 'hierarchical_mapping.utils.distance_utils.'
+    to_replace = 'cell_type_mapper.utils.distance_utils.'
     to_replace += 'correlation_nearest_neighbors'
     with patch(to_replace, new=dummy_nn):
         (actual_votes,
@@ -225,7 +225,7 @@ def test_confidence_result():
     def dummy_tally_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
-    to_replace = 'hierarchical_mapping.type_assignment.election.tally_votes'
+    to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
     with patch(to_replace, new=dummy_tally_votes):
         (results,
          confidence,

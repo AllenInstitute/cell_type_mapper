@@ -2,11 +2,11 @@ import pytest
 
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.utils.output_utils import (
+from cell_type_mapper.utils.output_utils import (
     blob_to_csv)
 
 

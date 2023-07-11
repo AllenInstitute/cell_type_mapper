@@ -2,14 +2,14 @@ import pytest
 
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.cli.cli_log import (
+from cell_type_mapper.cli.cli_log import (
     CommandLog)
 
-from hierarchical_mapping.file_tracker.file_tracker import (
+from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
 
 @pytest.fixture(scope='module')

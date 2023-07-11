@@ -8,36 +8,36 @@ import pathlib
 import json
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree,
     get_all_pairs,
     convert_tree_to_leaves)
 
-from hierarchical_mapping.diff_exp.scores import (
+from cell_type_mapper.diff_exp.scores import (
     read_precomputed_stats,
     score_differential_genes)
 
-from hierarchical_mapping.diff_exp.markers import (
+from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from hierarchical_mapping.binary_array.backed_binary_array import (
+from cell_type_mapper.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
-from hierarchical_mapping.marker_selection.marker_array import (
+from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.marker_selection.selection import (
+from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
 
 

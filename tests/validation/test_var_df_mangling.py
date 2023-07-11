@@ -6,14 +6,14 @@ import pandas as pd
 import pathlib
 from unittest.mock import patch
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.gene_id.gene_id_mapper import (
+from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
-from hierarchical_mapping.validation.utils import (
+from cell_type_mapper.validation.utils import (
     map_gene_ids_in_var)
 
 
@@ -53,7 +53,7 @@ def test_var_mapping(
     def new_timestamp():
         return 'xxx'
 
-    with patch('hierarchical_mapping.utils.utils.get_timestamp', new=new_timestamp):
+    with patch('cell_type_mapper.utils.utils.get_timestamp', new=new_timestamp):
         gene_id_mapper = GeneIdMapper(data=map_data_fixture)
         new_var = map_gene_ids_in_var(
             var_df=var_orig,
@@ -97,7 +97,7 @@ def test_var_mapping_column_name_taken(
     def new_timestamp():
         return 'xxx'
 
-    with patch('hierarchical_mapping.utils.utils.get_timestamp', new=new_timestamp):
+    with patch('cell_type_mapper.utils.utils.get_timestamp', new=new_timestamp):
         gene_id_mapper = GeneIdMapper(data=map_data_fixture)
         new_var = map_gene_ids_in_var(
             var_df=var_orig,

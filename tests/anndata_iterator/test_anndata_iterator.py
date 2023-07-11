@@ -6,11 +6,11 @@ import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.anndata_iterator.anndata_iterator import (
+from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 

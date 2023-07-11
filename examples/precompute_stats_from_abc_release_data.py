@@ -6,10 +6,10 @@ circa June 30 2023.
 It takes an hour or two to run.
 """
 
-from hierarchical_mapping.cli.precompute_stats import (
+from cell_type_mapper.cli.precompute_stats import (
     PrecomputationRunner)
 
-from hierarchical_mapping.utils.utils import get_timestamp
+from cell_type_mapper.utils.utils import get_timestamp
 
 import pathlib
 import time

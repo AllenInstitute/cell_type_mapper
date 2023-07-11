@@ -9,10 +9,10 @@ import tempfile
 import pathlib
 import zarr
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.utils.sparse_utils import(
+from cell_type_mapper.utils.sparse_utils import(
     load_csr,
     load_csc,
     load_csr_chunk,

@@ -5,20 +5,20 @@ import json
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.binary_array.binary_array import (
+from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from hierarchical_mapping.marker_selection.marker_array import (
+from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.marker_selection.selection import (
+from cell_type_mapper.marker_selection.selection import (
     recalculate_utility_array,
     _get_taxonomy_idx)
 

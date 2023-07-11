@@ -4,11 +4,11 @@ import argschema
 from marshmallow import ValidationError
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.cli.schemas import (
+from cell_type_mapper.cli.schemas import (
     PrecomputedStatsSchema)
 
 

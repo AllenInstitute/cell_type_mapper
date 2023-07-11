@@ -5,11 +5,11 @@ import json
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.diff_exp.thin import (
+from cell_type_mapper.diff_exp.thin import (
     thin_marker_file)
 
 

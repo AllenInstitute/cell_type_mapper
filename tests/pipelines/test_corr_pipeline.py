@@ -8,17 +8,17 @@ import pathlib
 import json
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up)
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
     _get_rows_from_tree)
 
-from hierarchical_mapping.corr.correlate_cells import (
+from cell_type_mapper.corr.correlate_cells import (
     correlate_cells)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
 

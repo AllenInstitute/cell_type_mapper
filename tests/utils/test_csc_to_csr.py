@@ -6,14 +6,14 @@ import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.utils.sparse_utils import (
+from cell_type_mapper.utils.sparse_utils import (
     load_csr)
 
-from hierarchical_mapping.utils.csc_to_csr import (
+from cell_type_mapper.utils.csc_to_csr import (
     csc_to_csr_on_disk)
 
 

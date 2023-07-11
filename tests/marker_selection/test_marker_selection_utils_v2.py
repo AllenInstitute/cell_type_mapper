@@ -6,17 +6,17 @@ import json
 import numpy as np
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.binary_array.backed_binary_array import (
+from cell_type_mapper.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
-from hierarchical_mapping.marker_selection.marker_array import (
+from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from hierarchical_mapping.marker_selection.utils import (
+from cell_type_mapper.marker_selection.utils import (
     create_utility_array)
 
 

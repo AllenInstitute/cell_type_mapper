@@ -9,24 +9,24 @@ import scipy.sparse as scipy_sparse
 import pathlib
 import tempfile
 
-from hierarchical_mapping.taxonomy.utils import (
+from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree)
 
-from hierarchical_mapping.cell_by_gene.utils import (
+from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
 
-from hierarchical_mapping.utils.anndata_utils import (
+from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad,
     precompute_summary_stats_from_h5ad_and_lookup,
     precompute_summary_stats_from_h5ad_list_and_tree)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     json_clean_dict,
     mkstemp_clean)

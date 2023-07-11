@@ -8,11 +8,11 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.validation.utils import (
+from cell_type_mapper.validation.utils import (
     get_minmax_x_from_h5ad,
     round_x_to_integers,
     is_x_integers)

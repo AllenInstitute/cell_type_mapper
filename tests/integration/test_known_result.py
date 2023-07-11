@@ -15,37 +15,37 @@ import pandas as pd
 import pathlib
 import tempfile
 
-from hierarchical_mapping.utils.torch_utils import (
+from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.diff_exp.precompute_from_anndata import (
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from hierarchical_mapping.diff_exp.markers import (
+from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
-from hierarchical_mapping.type_assignment.marker_cache_v2 import (
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
-from hierarchical_mapping.type_assignment.election import (
+from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
 
-from hierarchical_mapping.type_assignment.election_runner import (
+from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from hierarchical_mapping.cli.hierarchical_mapping import (
+from cell_type_mapper.cli.hierarchical_mapping import (
     run_mapping)
 
 if is_torch_available():
-    from hierarchical_mapping.gpu_utils.type_assignment.election import (
+    from cell_type_mapper.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
 
 

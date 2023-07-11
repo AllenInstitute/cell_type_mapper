@@ -3,16 +3,16 @@ import pytest
 import h5py
 import json
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from hierarchical_mapping.marker_lookup.marker_lookup import (
+from cell_type_mapper.marker_lookup.marker_lookup import (
     marker_lookup_from_tree_and_csv)
 
-from hierarchical_mapping.cli.marker_cache_from_csv_dir import (
+from cell_type_mapper.cli.marker_cache_from_csv_dir import (
     MarkerCacheRunner)
 
 

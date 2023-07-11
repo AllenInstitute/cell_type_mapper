@@ -2,11 +2,11 @@ import pytest
 
 import pathlib
 
-from hierarchical_mapping.utils.utils import (
+from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from hierarchical_mapping.taxonomy.data_release_utils import (
+from cell_type_mapper.taxonomy.data_release_utils import (
     get_header_map,
     get_term_set_map)
 
