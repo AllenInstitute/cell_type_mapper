@@ -1,4 +1,5 @@
 import argschema
+import glob
 import h5py
 import json
 import multiprocessing
@@ -148,24 +149,23 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             log_path=self.args['log_path'])
 
 
-def get_assignments(config, type_assignment):
+def get_assignments(result_dir):
     """Get the assignments from the type assignment output.
-    If extended_results_dir is given, then the results were saved in
-    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise,
-    the assignments are given in the 'assignments' key in type_assignment.
+    Assumes results were saved in individual {r0}_{r1}_assignment.json files,
+    in result_dir so parse these.
     """
-    tmp_output_dir = config.get("extended_result_dir")
-    if tmp_output_dir:
-        assignments = []
-        import glob
-        temp_output_files = glob.glob(f"{tmp_output_dir}/*_assignment.json")
-        for temp_output_file in temp_output_files:
-            with open(temp_output_file, 'r') as f:
-                chunk_assignments = json.load(f)
-            assignments.extend(chunk_assignments)
-            pathlib.Path(temp_output_file).unlink()
-    else:  # temp output path not given
-        assignments = type_assignment["assignments"]
+    if not isinstance(result_dir, str):
+        if not isinstance(result_dir, pathlib.Path):
+            raise RuntimeError(
+                "result_dir must be str or pathlib.Path; "
+                f"you gave {type(result_dir)}")
+    assignments = []
+    temp_output_files = glob.glob(f"{result_dir}/*_assignment.json")
+    for temp_output_file in temp_output_files:
+        with open(temp_output_file, 'r') as f:
+            chunk_assignments = json.load(f)
+        assignments.extend(chunk_assignments)
+        pathlib.Path(temp_output_file).unlink()
     return assignments
 
 
@@ -204,11 +204,21 @@ def run_mapping(config, output_path, log_path=None):
                         f"{pth.resolve().absolute()}")
 
     try:
+        if config['tmp_dir'] is not None:
+            tmp_result_dir = tempfile.mkdtemp(
+                dir=config['tmp_dir'],
+                prefix='result_buffer_')
+        else:
+            tmp_result_dir = tempfile.mkdtemp(
+                dir=config['extended_result_dir'],
+                prefix='result_buffer_')
+
         type_assignment = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
+            tmp_result_dir=tmp_result_dir,
             log=log)
-        assignments = get_assignments(config, type_assignment)
+        assignments = get_assignments(tmp_result_dir)
         output["results"] = assignments
         output["marker_genes"] = type_assignment["marker_genes"]
         output["taxonomy_tree"] = \
@@ -233,6 +243,7 @@ def run_mapping(config, output_path, log_path=None):
                 confidence_key=confidence_key,
                 confidence_label=confidence_label)
 
+        _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
@@ -255,7 +266,7 @@ def run_mapping(config, output_path, log_path=None):
             out_file.write(json.dumps(output, indent=2))
 
 
-def _run_mapping(config, tmp_dir, log):
+def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
@@ -372,7 +383,7 @@ def _run_mapping(config, tmp_dir, log):
         tmp_dir=tmp_dir,
         log=log,
         max_gb=config['max_gb'],
-        results_output_path=config.get("extended_result_dir"))
+        results_output_path=tmp_result_dir)
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
