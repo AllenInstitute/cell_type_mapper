@@ -267,7 +267,7 @@ def test_runners_up():
     N runners up cell types.
     """
 
-    reference_types = ['a', 'b', 'c']
+    reference_types = ['a', 'b', 'c', 'd']
     rng = np.random.default_rng(223112)
     mock_votes = np.array(
             [[2, 3, 1, 0],
@@ -290,5 +290,24 @@ def test_runners_up():
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=5,
-            n_runners_up=2,
+            n_choices=3,
             rng=None)
+
+    expected_runners_up = [
+        [('a', mock_corr_sum[0,0]/2),
+         ('c', mock_corr_sum[0,2]/1)],
+        [('d', mock_corr_sum[1, 3]/2),
+         ('b', mock_corr_sum[1, 1]/1)],
+        [('b', mock_corr_sum[2, 1]/3),
+         ('d', mock_corr_sum[2, 3]/1)],
+        [('b', mock_corr_sum[3, 1]/3),
+         ('c', mock_corr_sum[3, 2]/1)]]
+
+    assert len(runners_up) == len(expected_runners_up)
+    for i_row in range(len(runners_up)):
+        actual = runners_up[i_row]
+        expected = expected_runners_up[i_row]
+        assert len(actual) == len(expected)
+        for a, e in zip(actual, expected):
+            assert a[0] == e[0]
+            np.testing.assert_allclose(a[1], e[1])

@@ -576,7 +576,7 @@ def choose_node(
          bootstrap_factor,
          bootstrap_iteration,
          rng,
-         n_runners_up=10,
+         n_choices=10,
          gpu_index=0,
          timers=None):
     """
@@ -594,8 +594,8 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
-    n_runners_up:
-        Number of runner up cell types to be returned
+    n_choices:
+        Keep the top n_choices cell type selections
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
@@ -621,25 +621,32 @@ def choose_node(
         gpu_index=gpu_index,
         timers=timers)
 
+    n_choices = min(n_choices, votes.shape[1])
+
     update_timer("tally_votes", t, timers)
 
     sorted_by_votes = np.argsort(-1*votes, axis=1)
-    sorted_by_votes = sorted_by_votes[:, :n_runners_up]
+    sorted_by_votes = sorted_by_votes[:, :n_choices]
 
     idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
                              for ii in range(sorted_by_votes.shape[0])])
 
     t = time.time()
     result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
-    n_votes = votes[idx_array_2d, sorted_by_votes]
-    vote_fractions = n_votes[:, 0] / bootstrap_iteration
+    votes = votes[idx_array_2d, sorted_by_votes]
+    vote_fractions = votes[:, 0] / bootstrap_iteration
 
-    avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / n_votes
-    avg_corr = avg_corr[:, 0]
+    avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / votes
 
     update_timer("choose_node_p2", t, timers)
 
-    return (np.array(result), vote_fractions, avg_corr, None)
+    runners_up = [
+        [(reference_types[sorted_by_votes[i_row, i_col]],
+          avg_corr[i_row, i_col]) for i_col in range(1, n_choices, 1)]
+        for i_row in range(sorted_by_votes.shape[0])
+    ]
+
+    return (np.array(result), vote_fractions, avg_corr[:, 0], runners_up)
 
 
 def tally_votes(
