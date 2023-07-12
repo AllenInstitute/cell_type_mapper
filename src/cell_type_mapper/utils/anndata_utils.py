@@ -55,8 +55,14 @@ def copy_layer_to_x(
 
     Copy over only obs, var and the specified layer, moving the
     layer into 'X'
+
+    Note: specified layer can be 'X'. This is apparently a faster
+    way to copy over an h5ad file than using shutil.copy.
     """
-    layer_key = f'layers/{layer}'
+    if layer == 'X':
+        layer_key = 'X'
+    else:
+        layer_key = f'layers/{layer}'
     obs = read_df_from_h5ad(original_h5ad_path, 'obs')
     var = read_df_from_h5ad(original_h5ad_path, 'var')
     output = anndata.AnnData(obs=obs, var=var)
@@ -68,12 +74,12 @@ def copy_layer_to_x(
         _copy_layer_to_x_dense(
             original_h5ad_path=original_h5ad_path,
             new_h5ad_path=new_h5ad_path,
-            layer=layer)
+            layer_key=layer_key)
     elif 'csr' in encoding_type or 'csc' in encoding_type:
         _copy_layer_to_x_sparse(
             original_h5ad_path=original_h5ad_path,
             new_h5ad_path=new_h5ad_path,
-            layer=layer)
+            layer_key=layer_key)
     else:
         raise RuntimeError(
             "unclear how to copy layer with attrs "
@@ -83,8 +89,7 @@ def copy_layer_to_x(
 def _copy_layer_to_x_dense(
         original_h5ad_path,
         new_h5ad_path,
-        layer):
-    layer_key = f'layers/{layer}'
+        layer_key):
     with h5py.File(original_h5ad_path) as src:
         data = src[layer_key]
         attrs = dict(src[layer_key].attrs)
@@ -116,8 +121,7 @@ def _copy_layer_to_x_dense(
 def _copy_layer_to_x_sparse(
         original_h5ad_path,
         new_h5ad_path,
-        layer):
-    layer_key = f'layers/{layer}'
+        layer_key):
     with h5py.File(original_h5ad_path) as src:
         src_grp = src[layer_key]
         attrs = dict(src_grp.attrs)

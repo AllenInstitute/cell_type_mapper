@@ -1,5 +1,4 @@
 import pathlib
-import shutil
 import warnings
 
 from cell_type_mapper.utils.utils import (
@@ -148,9 +147,10 @@ def validate_h5ad(
     if mapped_var is not None or cast_to_int:
         # Copy data over, if it has not already been copied
         if output_path is None:
-            shutil.copy(
-                src=h5ad_path,
-                dst=new_h5ad_path)
+            copy_layer_to_x(
+                original_h5ad_path=original_h5ad_path,
+                new_h5ad_path=new_h5ad_path,
+                layer='X')
 
             output_path = new_h5ad_path
 
