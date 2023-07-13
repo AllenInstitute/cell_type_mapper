@@ -670,6 +670,85 @@ def test_running_h5ad_election(
     assert name_set == set(query_cell_names)
 
 
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, False],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election_with_tmp_dir(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    Test running election with results stored in a temporary dir
+    and then de-serialized
+    """
+    rng_seed = 6712312
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+    taxonomy_tree_dict = taxonomy_tree_fixture[1]
+
+    n_processors = 3
+    chunk_size = 21
+
+    bootstrap_factor = 0.8
+    bootstrap_iteration = 23
+
+    baseline_result = run_type_assignment_on_h5ad_cpu(
+            query_h5ad_path=query_h5ad_fixture,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=np.random.default_rng(rng_seed))
+
+    baseline_result = {
+        cell['cell_id']: cell for cell in baseline_result}
+
+    tmp_result_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='result_buffer_')
+
+    _ = run_type_assignment_on_h5ad_cpu(
+            query_h5ad_path=query_h5ad_fixture,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=np.random.default_rng(rng_seed),
+            results_output_path=tmp_result_dir)
+
+    result = dict()
+    path_list = [n for n in pathlib.Path(tmp_result_dir).iterdir()]
+    for path in path_list:
+        this = json.load(open(path, 'rb'))
+        for cell in this:
+            result[cell['cell_id']] = cell
+
+    assert set(result.keys()) == set(baseline_result.keys())
+    for cell_id in baseline_result.keys():
+        baseline = baseline_result[cell_id]
+        test = result[cell_id]
+        for level in baseline:
+            if level == 'cell_id':
+                continue
+            assert baseline[level]['assignment'] == test[level]['assignment']
+            np.testing.assert_allclose(
+                (baseline[level]['bootstrapping_probability'],
+                 baseline[level]['avg_correlation']),
+                (test[level]['bootstrapping_probability'],
+                 test[level]['avg_correlation']))
+
+
 @pytest.mark.skipif(not is_torch_available(), reason='no torch')
 @pytest.mark.parametrize(
         'query_data_fixture',
@@ -740,3 +819,86 @@ def test_running_h5ad_election_gpu(
     assert len(name_set) == len(result)
     assert len(name_set) == len(query_cell_names)
     assert name_set == set(query_cell_names)
+
+
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, False],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election_with_tmp_dir_gpu(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    Test running election with results stored in a temporary dir
+    and then de-serialized
+    """
+    rng_seed = 6712312
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+    taxonomy_tree_dict = taxonomy_tree_fixture[1]
+
+    n_processors = 3
+    chunk_size = 21
+
+    bootstrap_factor = 0.8
+    bootstrap_iteration = 23
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+
+    os.environ[env_var] = 'true'
+    baseline_result = run_type_assignment_on_h5ad_gpu(
+            query_h5ad_path=query_h5ad_fixture,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=np.random.default_rng(rng_seed))
+
+    baseline_result = {
+        cell['cell_id']: cell for cell in baseline_result}
+
+    tmp_result_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='result_buffer_')
+
+    _ = run_type_assignment_on_h5ad_gpu(
+            query_h5ad_path=query_h5ad_fixture,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=np.random.default_rng(rng_seed),
+            results_output_path=tmp_result_dir)
+    os.environ[env_var] = ''
+
+    result = dict()
+    path_list = [n for n in pathlib.Path(tmp_result_dir).iterdir()]
+    for path in path_list:
+        this = json.load(open(path, 'rb'))
+        for cell in this:
+            result[cell['cell_id']] = cell
+
+    assert set(result.keys()) == set(baseline_result.keys())
+    for cell_id in baseline_result.keys():
+        baseline = baseline_result[cell_id]
+        test = result[cell_id]
+        for level in baseline:
+            if level == 'cell_id':
+                continue
+            assert baseline[level]['assignment'] == test[level]['assignment']
+            np.testing.assert_allclose(
+                (baseline[level]['bootstrapping_probability'],
+                 baseline[level]['avg_correlation']),
+                (test[level]['bootstrapping_probability'],
+                 test[level]['avg_correlation']))
