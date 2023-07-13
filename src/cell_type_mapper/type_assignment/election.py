@@ -494,8 +494,8 @@ def run_type_assignment(
                             runners_up):
 
                 if r_up is None:
-                    runner_up_assignments = None
-                    runner_up_correlation = None
+                    runner_up_assignments = []
+                    runner_up_correlation = []
                 else:
                     runner_up_assignments = [
                         this[0] for this in r_up if this[2]]
