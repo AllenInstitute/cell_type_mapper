@@ -627,7 +627,10 @@ def choose_node(
 
     Array of the average correlation value of the chosen nearest neighbors
 
-    Array of runner up cell types
+    Array of runner up tuples that look like
+        (runner_up_type,
+        avg_correlation,
+        boolean indicating whether any votes were received or not)
     """
 
     t = time.time()
@@ -655,14 +658,17 @@ def choose_node(
     result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
     votes = votes[idx_array_2d, sorted_by_votes]
     vote_fractions = votes[:, 0] / bootstrap_iteration
+    denom = np.where(votes > 0, votes, 1)
 
-    avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / votes
+    avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / denom
 
     update_timer("choose_node_p2", t, timers)
 
     runners_up = [
         [(reference_types[sorted_by_votes[i_row, i_col]],
-          avg_corr[i_row, i_col]) for i_col in range(1, n_choices, 1)]
+          avg_corr[i_row, i_col],
+          votes[i_row, i_col] > 0)
+         for i_col in range(1, n_choices, 1)]
         for i_row in range(sorted_by_votes.shape[0])
     ]
 

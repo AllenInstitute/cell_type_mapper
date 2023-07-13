@@ -267,13 +267,13 @@ def test_runners_up():
     N runners up cell types.
     """
 
-    reference_types = ['a', 'b', 'c', 'd']
+    reference_types = ['a', 'b', 'c', 'd', 'e']
     rng = np.random.default_rng(223112)
     mock_votes = np.array(
-            [[2, 3, 1, 0],
-             [4, 1, 0, 2],
-             [0, 3, 5, 1],
-             [4, 3, 1, 0]])
+            [[7, 10, 6, 0, 0],
+             [11, 4, 0, 5, 0],
+             [0, 9, 22, 7, 2],
+             [44, 11, 6, 0, 0]])
     mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
 
     def dummy_tally_votes(*args, **kwargs):
@@ -290,24 +290,37 @@ def test_runners_up():
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=5,
-            n_choices=3,
+            n_choices=4,
             rng=None)
 
     expected_runners_up = [
-        [('a', mock_corr_sum[0,0]/2),
-         ('c', mock_corr_sum[0,2]/1)],
-        [('d', mock_corr_sum[1, 3]/2),
-         ('b', mock_corr_sum[1, 1]/1)],
-        [('b', mock_corr_sum[2, 1]/3),
-         ('d', mock_corr_sum[2, 3]/1)],
-        [('b', mock_corr_sum[3, 1]/3),
-         ('c', mock_corr_sum[3, 2]/1)]]
+        [('a', mock_corr_sum[0,0]/7),
+         ('c', mock_corr_sum[0,2]/6)],
+        [('d', mock_corr_sum[1, 3]/5),
+         ('b', mock_corr_sum[1, 1]/4)],
+        [('b', mock_corr_sum[2, 1]/9),
+         ('d', mock_corr_sum[2, 3]/7),
+         ('e', mock_corr_sum[2, 4]/2)],
+        [('b', mock_corr_sum[3, 1]/11),
+         ('c', mock_corr_sum[3, 2]/6)]]
 
     assert len(runners_up) == len(expected_runners_up)
+    ct_false = 0
     for i_row in range(len(runners_up)):
         actual = runners_up[i_row]
         expected = expected_runners_up[i_row]
-        assert len(actual) == len(expected)
-        for a, e in zip(actual, expected):
+        assert len(actual) == 3
+        for idx in range(len(expected)):
+            a = actual[idx]
+            e = expected[idx]
             assert a[0] == e[0]
             np.testing.assert_allclose(a[1], e[1])
+            assert a[2]
+
+        # any runners up that received no votes should be
+        # marked with 'False' validity flag.
+        if len(expected) != len(actual):
+            for idx in range(len(expected), len(actual)):
+                assert not actual[idx][2]
+                ct_false += 1
+    assert ct_false > 0
