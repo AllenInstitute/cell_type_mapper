@@ -369,9 +369,15 @@ def run_type_assignment(
     cell belongs to that node)
 
     Dict will look like
-        {taxonomy_level : {'assignment': chosen_node,
-                           'bootstrapping_probability': fraction_of_votes}}
+        {taxonomy_level : {
+            'assignment': chosen_node,
+            'bootstrapping_probability': fraction_of_votes,
+            'avg_correlation': correlation averaged over iterations
+            'runner_up_assignments': [runner, up, nodes],
+            'runner_up_correlation': [runner, up, correlation]}}
     """
+
+    n_choices = 25  # will report n_choices-1 runners up
 
     # create effectively empty list of dicts to
     # store the hierarchical classification of
@@ -436,7 +442,8 @@ def run_type_assignment(
                 t = time.time()
                 (assignment,
                  bootstrapping_probability,
-                 avg_corr) = _run_type_assignment(
+                 avg_corr,
+                 runners_up) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_matrix=leaf_node_matrix,
                                 marker_gene_cache_path=marker_gene_cache_path,
@@ -446,13 +453,15 @@ def run_type_assignment(
                                 bootstrap_iteration=bootstrap_iteration,
                                 rng=rng,
                                 gpu_index=gpu_index,
-                                timers=timers)
+                                timers=timers,
+                                n_choices=n_choices)
                 update_timer("run_type_assignment", t, timers)
 
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 bootstrapping_probability = [1.0]*chosen_query_data.n_cells
                 avg_corr = [1.0]*chosen_query_data.n_cells
+                runners_up = [None]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
@@ -477,16 +486,28 @@ def run_type_assignment(
                 previously_assigned[child_level][celltype] = assigned_this
 
             # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type, prob, corr in zip(
+            for i_cell, assigned_type, prob, corr, r_up in zip(
                             chosen_idx,
                             assignment,
                             bootstrapping_probability,
-                            avg_corr):
+                            avg_corr,
+                            runners_up):
+
+                if r_up is None:
+                    runner_up_assignments = None
+                    runner_up_correlation = None
+                else:
+                    runner_up_assignments = [
+                        this[0] for this in r_up if this[2]]
+                    runner_up_correlation = [
+                        this[1] for this in r_up if this[2]]
 
                 result[i_cell][child_level] = {
                     'assignment': assigned_type,
                     'bootstrapping_probability': prob,
-                    'avg_correlation': corr}
+                    'avg_correlation': corr,
+                    'runner_up_assignments': runner_up_assignments,
+                    'runner_up_correlation': runner_up_correlation}
 
     return result
 
@@ -501,7 +522,8 @@ def _run_type_assignment(
         bootstrap_iteration,
         rng,
         gpu_index=0,
-        timers=None):
+        timers=None,
+        n_choices=10):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -548,6 +570,9 @@ def _run_type_assignment(
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
+    n_choices:
+       Will return n_choices-1 runners up
+
     Returns
     -------
     A list of strings. There is one string per row in the
@@ -560,6 +585,9 @@ def _run_type_assignment(
     An array indicating the correlation coefficient of the
     query cell with the chosen node over the average number
     of times the node was chosen.
+
+    An array of tuples of type (name, avg_corr, valid_flag)
+    listing the n_choices-1 runner up assignments.
     """
 
     t = time.time()
@@ -575,7 +603,7 @@ def _run_type_assignment(
     (result,
      bootstrapping_probability,
      avg_corr,
-     _) = choose_node(
+     runners_up) = choose_node(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
@@ -583,10 +611,11 @@ def _run_type_assignment(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         gpu_index=gpu_index,
-        timers=timers)
+        timers=timers,
+        n_choices=n_choices)
     update_timer("choose_node", t, timers)
 
-    return result, bootstrapping_probability, avg_corr
+    return result, bootstrapping_probability, avg_corr, runners_up
 
 
 def choose_node(
