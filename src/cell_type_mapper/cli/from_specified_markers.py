@@ -1,5 +1,4 @@
 import argschema
-import glob
 import h5py
 import json
 import multiprocessing
@@ -149,26 +148,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             log_path=self.args['log_path'])
 
 
-def get_assignments(result_dir):
-    """Get the assignments from the type assignment output.
-    Assumes results were saved in individual {r0}_{r1}_assignment.json files,
-    in result_dir so parse these.
-    """
-    if not isinstance(result_dir, str):
-        if not isinstance(result_dir, pathlib.Path):
-            raise RuntimeError(
-                "result_dir must be str or pathlib.Path; "
-                f"you gave {type(result_dir)}")
-    assignments = []
-    temp_output_files = glob.glob(f"{result_dir}/*_assignment.json")
-    for temp_output_file in temp_output_files:
-        with open(temp_output_file, 'r') as f:
-            chunk_assignments = json.load(f)
-        assignments.extend(chunk_assignments)
-        pathlib.Path(temp_output_file).unlink()
-    return assignments
-
-
 def run_mapping(config, output_path, log_path=None):
 
     log = CommandLog()
@@ -218,13 +197,12 @@ def run_mapping(config, output_path, log_path=None):
             tmp_dir=tmp_dir,
             tmp_result_dir=tmp_result_dir,
             log=log)
-        assignments = get_assignments(tmp_result_dir)
-        output["results"] = assignments
+        output["results"] = type_assignment["assignments"]
         output["marker_genes"] = type_assignment["marker_genes"]
         output["taxonomy_tree"] = \
             json.loads(type_assignment["metadata_taxonomy_tree"].to_str())
         csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
-        csv_result["assignments"] = assignments
+        csv_result["assignments"] = type_assignment["assignments"]
 
         if config['csv_result_path'] is not None:
 
@@ -394,8 +372,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    return {'assignments': result,
-            'marker_genes': marker_gene_lookup,
+    return {"assignments": result,
+            "marker_genes": marker_gene_lookup,
             "mapping_taxonomy_tree": taxonomy_tree,
             "metadata_taxonomy_tree": tree_for_metadata}
 

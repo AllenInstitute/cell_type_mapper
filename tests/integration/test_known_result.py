@@ -169,14 +169,6 @@ def test_raw_pipeline(
         normalization='raw',
         results_output_path=buffer_dir)
 
-    if use_buffer_dir:
-        result = []
-        buffer_list = [
-            n for n in pathlib.Path(buffer_dir).iterdir()]
-        for path in buffer_list:
-            this = json.load(open(path, 'rb'))
-            result += this
-
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
         cell_id = int(cell['cell_id'])
@@ -222,14 +214,6 @@ def test_raw_pipeline_cpu(
         rng=np.random.default_rng(123545),
         normalization='raw',
         results_output_path=buffer_dir)
-
-    if use_buffer_dir:
-        result = []
-        buffer_list = [
-            n for n in pathlib.Path(buffer_dir).iterdir()]
-        for path in buffer_list:
-            this = json.load(open(path, 'rb'))
-            result += this
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
@@ -281,14 +265,6 @@ def test_raw_pipeline_gpu(
         rng=np.random.default_rng(123545),
         normalization='raw',
         results_output_path=buffer_dir)
-
-    if use_buffer_dir:
-        result = []
-        buffer_list = [
-            n for n in pathlib.Path(buffer_dir).iterdir()]
-        for path in buffer_list:
-            this = json.load(open(path, 'rb'))
-            result += this
 
     os.environ[env_var] = ''
     assert not use_torch()

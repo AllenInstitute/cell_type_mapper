@@ -3,6 +3,8 @@ import h5py
 import json
 import multiprocessing
 import numpy as np
+import pathlib
+import tempfile
 import time
 
 from cell_type_mapper.utils.torch_utils import (
@@ -15,7 +17,8 @@ from cell_type_mapper.utils.anndata_utils import (
 from cell_type_mapper.utils.utils import (
     print_timing,
     update_timer,
-    choose_int_dtype)
+    choose_int_dtype,
+    _clean_up)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -133,6 +136,14 @@ def run_type_assignment_on_h5ad_cpu(
                             'bootstrapping_probability': fraction_of_votes},
          ...}
     """
+    if results_output_path is not None:
+        buffer_dir = pathlib.Path(
+                tempfile.mkdtemp(
+                    dir=results_output_path,
+                    prefix='results_buffer_'))
+    else:
+        buffer_dir = None
+
     if log is not None:
         log.info("Running CPU implementation of type assignment.")
 
@@ -226,7 +237,7 @@ def run_type_assignment_on_h5ad_cpu(
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'output_list': output_list,
                     'output_lock': output_lock,
-                    'results_output_path': results_output_path})
+                    'results_output_path': buffer_dir})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -244,7 +255,16 @@ def run_type_assignment_on_h5ad_cpu(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    output_list = list(output_list)
+    if buffer_dir is not None:
+        path_list = [n for n in buffer_dir.iterdir()]
+        path_list.sort()
+        output_list = []
+        for path in path_list:
+            output_list += json.load(open(path, 'rb'))
+        _clean_up(buffer_dir)
+    else:
+        output_list = list(output_list)
+
     return output_list
 
 

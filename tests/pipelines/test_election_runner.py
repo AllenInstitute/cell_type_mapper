@@ -715,7 +715,7 @@ def test_running_h5ad_election_with_tmp_dir(
         dir=tmp_dir_fixture,
         prefix='result_buffer_')
 
-    _ = run_type_assignment_on_h5ad_cpu(
+    result = run_type_assignment_on_h5ad_cpu(
             query_h5ad_path=query_h5ad_fixture,
             precomputed_stats_path=precompute_stats_path_fixture,
             marker_gene_cache_path=query_marker_cache_fixture,
@@ -727,12 +727,7 @@ def test_running_h5ad_election_with_tmp_dir(
             rng=np.random.default_rng(rng_seed),
             results_output_path=tmp_result_dir)
 
-    result = dict()
-    path_list = [n for n in pathlib.Path(tmp_result_dir).iterdir()]
-    for path in path_list:
-        this = json.load(open(path, 'rb'))
-        for cell in this:
-            result[cell['cell_id']] = cell
+    result = {cell['cell_id']: cell for cell in result}
 
     assert set(result.keys()) == set(baseline_result.keys())
     for cell_id in baseline_result.keys():
@@ -869,7 +864,7 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
         dir=tmp_dir_fixture,
         prefix='result_buffer_')
 
-    _ = run_type_assignment_on_h5ad_gpu(
+    result = run_type_assignment_on_h5ad_gpu(
             query_h5ad_path=query_h5ad_fixture,
             precomputed_stats_path=precompute_stats_path_fixture,
             marker_gene_cache_path=query_marker_cache_fixture,
@@ -882,12 +877,7 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
             results_output_path=tmp_result_dir)
     os.environ[env_var] = ''
 
-    result = dict()
-    path_list = [n for n in pathlib.Path(tmp_result_dir).iterdir()]
-    for path in path_list:
-        this = json.load(open(path, 'rb'))
-        for cell in this:
-            result[cell['cell_id']] = cell
+    result = {cell['cell_id']: cell for cell in result}
 
     assert set(result.keys()) == set(baseline_result.keys())
     for cell_id in baseline_result.keys():

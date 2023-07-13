@@ -1,8 +1,9 @@
-import os
 import h5py
 import json
 import time
 import numpy as np
+import pathlib
+import tempfile
 import torch  # type: ignore
 import torch.nn as nn
 
@@ -19,7 +20,8 @@ from cell_type_mapper.type_assignment.matching import (
 from cell_type_mapper.gpu_utils.utils.utils import (
     get_timers, AverageMeter, ProgressMeter)
 from cell_type_mapper.utils.utils import (
-    update_timer)
+    update_timer,
+    _clean_up)
 
 
 class TypeAssignment(nn.Module):
@@ -135,6 +137,14 @@ def run_type_assignment_on_h5ad_gpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    if results_output_path is not None:
+        buffer_dir = pathlib.Path(
+                tempfile.mkdtemp(
+                    dir=results_output_path,
+                    prefix='results_buffer_'))
+    else:
+        buffer_dir = None
+
     if log is not None:
         log.info("Running GPU implementation of type assignment.")
 
@@ -218,9 +228,8 @@ def run_type_assignment_on_h5ad_gpu(
         update_timer("loop", t, timers)
 
         t = time.time()
-        if results_output_path is not None:
-            this_output_path = os.path.join(results_output_path,
-                                            f"{r0}_{r1}_assignment.json")
+        if buffer_dir is not None:
+            this_output_path = buffer_dir / f"{r0}_{r1}_assignment.json"
             save_results(assignment, this_output_path)
         else:
             output_list += assignment
@@ -233,5 +242,14 @@ def run_type_assignment_on_h5ad_gpu(
         if ii % print_freq == 0:
             progress.display(ii + 1)
 
-    output_list = list(output_list)
+    if buffer_dir is not None:
+        path_list = [n for n in buffer_dir.iterdir()]
+        path_list.sort()
+        output_list = []
+        for path in path_list:
+            output_list += json.load(open(path, 'rb'))
+        _clean_up(buffer_dir)
+    else:
+        output_list = list(output_list)
+
     return output_list
