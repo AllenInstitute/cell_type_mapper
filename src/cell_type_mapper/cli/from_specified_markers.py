@@ -357,6 +357,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         bootstrap_factor=type_assignment_config['bootstrap_factor'],
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
+        n_assignments=type_assignment_config['n_runners_up']+1,
         normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir,
         log=log,

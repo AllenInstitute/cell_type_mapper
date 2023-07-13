@@ -180,20 +180,22 @@ def noisy_marker_gene_lookup_fixture(
     return output_path
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
-        [(True, True, True, False, False, False),
-         (True, False, True, False, False, False),
-         (False, True, True, False, False, False),
-         (False, False, True, False, False, False),
-         (False, True, True, False, False, False),
-         (False, True, True, True, False, False),
-         (True, True, True, True, False, False),
-         (True, True, True, True, True, False),
-         (False, True, True, True, True, False),
-         (False, True, True, False, True, False),
-         (True, True, True, False, True, False),
-         (False, True, True, True, True, True),
-         (True, True, True, False, False, False)])
+        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass,n_runners_up',
+        [(False, True, True, True, False, False, 2),
+         (False, True, True, False, False, False, 2),
+         (True, True, True, False, False, False, 5),
+         (True, False, True, False, False, False, 5),
+         (False, True, True, False, False, False, 5),
+         (False, False, True, False, False, False, 5),
+         (False, True, True, False, False, False, 5),
+         (False, True, True, True, False, False, 5),
+         (True, True, True, True, False, False, 5),
+         (True, True, True, True, True, False, 5),
+         (False, True, True, True, True, False, 5),
+         (False, True, True, False, True, False, 5),
+         (True, True, True, False, True, False, 5),
+         (False, True, True, True, True, True, 5),
+         (True, True, True, False, False, False, 5)])
 def test_mapping_from_markers(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
@@ -205,7 +207,8 @@ def test_mapping_from_markers(
         use_tmp_dir,
         use_gpu,
         just_once,
-        drop_subclass):
+        drop_subclass,
+        n_runners_up):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -266,7 +269,8 @@ def test_mapping_from_markers(
         'rng_seed': 1491625,
         'n_processors': 3,
         'chunk_size': 1000,
-        'normalization': 'raw'
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
     }
 
     if just_once:
@@ -326,6 +330,7 @@ def test_mapping_from_markers(
     without_runners_up = 0
     is_different = 0
 
+    max_runners_up = 0
     # check consistency of runners up
     for cell in actual['results']:
         for level in cell:
@@ -336,9 +341,13 @@ def test_mapping_from_markers(
                 level=level,
                 node=this_level['assignment'])
 
-            n_runners_up = len(this_level['runner_up_assignments'])
-            assert len(this_level['runner_up_correlation']) == n_runners_up
-            if n_runners_up == 0:
+            n_runners_up_actual = len(this_level['runner_up_assignments'])
+            if n_runners_up_actual > max_runners_up:
+                max_runners_up = n_runners_up_actual
+            assert n_runners_up_actual <= n_runners_up
+
+            assert len(this_level['runner_up_correlation']) == n_runners_up_actual
+            if n_runners_up_actual == 0:
                 without_runners_up += 1
                 np.testing.assert_allclose(
                     this_level['bootstrapping_probability'],
@@ -359,6 +368,7 @@ def test_mapping_from_markers(
 
     if not just_once:
         assert with_runners_up > 0
+        assert max_runners_up == n_runners_up
         if not flatten:
             assert is_different > 0
 

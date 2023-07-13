@@ -52,6 +52,7 @@ def run_type_assignment_on_h5ad_cpu(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
+        n_assignments=26,
         normalization='log2CPM',
         tmp_dir=None,
         log=None,
@@ -101,6 +102,11 @@ def run_type_assignment_on_h5ad_cpu(
 
     rng:
         A random number generator
+
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
 
     normalization:
         The normalization of the cell by gene matrix in
@@ -235,6 +241,7 @@ def run_type_assignment_on_h5ad_cpu(
                     'bootstrap_factor': bootstrap_factor,
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
+                    'n_assignments': n_assignments,
                     'output_list': output_list,
                     'output_lock': output_lock,
                     'results_output_path': buffer_dir})
@@ -284,6 +291,7 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
+        n_assignments,
         output_list,
         output_lock,
         results_output_path=None):
@@ -295,7 +303,8 @@ def _run_type_assignment_on_h5ad_worker(
         taxonomy_tree=taxonomy_tree,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng)
+        rng=rng,
+        n_assignments=n_assignments)
 
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
@@ -317,6 +326,7 @@ def run_type_assignment(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
+        n_assignments=25,
         gpu_index=0,
         timers=None):
     """
@@ -357,6 +367,11 @@ def run_type_assignment(
     rng:
         A random number generator
 
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
+
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
@@ -376,8 +391,6 @@ def run_type_assignment(
             'runner_up_assignments': [runner, up, nodes],
             'runner_up_correlation': [runner, up, correlation]}}
     """
-
-    n_choices = 25  # will report n_choices-1 runners up
 
     # create effectively empty list of dicts to
     # store the hierarchical classification of
@@ -454,7 +467,7 @@ def run_type_assignment(
                                 rng=rng,
                                 gpu_index=gpu_index,
                                 timers=timers,
-                                n_choices=n_choices)
+                                n_assignments=n_assignments)
                 update_timer("run_type_assignment", t, timers)
 
             elif len(possible_children) == 1:
@@ -523,7 +536,7 @@ def _run_type_assignment(
         rng,
         gpu_index=0,
         timers=None,
-        n_choices=10):
+        n_assignments=10):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -570,8 +583,10 @@ def _run_type_assignment(
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
-    n_choices:
-       Will return n_choices-1 runners up
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
 
     Returns
     -------
@@ -587,7 +602,7 @@ def _run_type_assignment(
     of times the node was chosen.
 
     An array of tuples of type (name, avg_corr, valid_flag)
-    listing the n_choices-1 runner up assignments.
+    listing the n_assignments-1 runner up assignments.
     """
 
     t = time.time()
@@ -612,7 +627,7 @@ def _run_type_assignment(
         rng=rng,
         gpu_index=gpu_index,
         timers=timers,
-        n_choices=n_choices)
+        n_assignments=n_assignments)
     update_timer("choose_node", t, timers)
 
     return result, bootstrapping_probability, avg_corr, runners_up
@@ -625,7 +640,7 @@ def choose_node(
          bootstrap_factor,
          bootstrap_iteration,
          rng,
-         n_choices=10,
+         n_assignments=10,
          gpu_index=0,
          timers=None):
     """
@@ -643,8 +658,10 @@ def choose_node(
         Number of bootstrapping iterations
     rng
         random number generator
-    n_choices:
-        Keep the top n_choices cell type selections
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
@@ -673,12 +690,12 @@ def choose_node(
         gpu_index=gpu_index,
         timers=timers)
 
-    n_choices = min(n_choices, votes.shape[1])
+    n_assignments = min(n_assignments, votes.shape[1])
 
     update_timer("tally_votes", t, timers)
 
     sorted_by_votes = np.argsort(-1*votes, axis=1)
-    sorted_by_votes = sorted_by_votes[:, :n_choices]
+    sorted_by_votes = sorted_by_votes[:, :n_assignments]
 
     idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
                              for ii in range(sorted_by_votes.shape[0])])
@@ -697,7 +714,7 @@ def choose_node(
         [(reference_types[sorted_by_votes[i_row, i_col]],
           avg_corr[i_row, i_col],
           votes[i_row, i_col] > 0)
-         for i_col in range(1, n_choices, 1)]
+         for i_col in range(1, n_assignments, 1)]
         for i_row in range(sorted_by_votes.shape[0])
     ]
 

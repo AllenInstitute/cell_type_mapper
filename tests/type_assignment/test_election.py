@@ -314,7 +314,7 @@ def test_runners_up():
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=5,
-            n_choices=4,
+            n_assignments=4,
             rng=None)
 
     expected_runners_up = [

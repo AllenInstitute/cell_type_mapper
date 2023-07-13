@@ -37,6 +37,7 @@ class TypeAssignment(nn.Module):
             bootstrap_factor=config["bootstrap_factor"],
             bootstrap_iteration=config["bootstrap_iteration"],
             rng=np.random.default_rng(config["rng"].integers(99, 2**32)),
+            n_assignments=config["n_assignments"],
             gpu_index=config["gpu_index"],
             timers=config["timers"])
         return assignment
@@ -52,6 +53,7 @@ def run_type_assignment_on_h5ad_gpu(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
+        n_assignments=25,
         normalization='log2CPM',
         tmp_dir=None,
         log=None,
@@ -101,6 +103,11 @@ def run_type_assignment_on_h5ad_gpu(
 
     rng:
         A random number generator
+
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
 
     normalization:
         The normalization of the cell by gene matrix in
@@ -195,6 +202,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["bootstrap_iteration"] = bootstrap_iteration
     config["rng"] = rng
     config["gpu_index"] = gpu_index
+    config["n_assignments"] = n_assignments
 
     print("starting type assignment")
     print_freq = 1
