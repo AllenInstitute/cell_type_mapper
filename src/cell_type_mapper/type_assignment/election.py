@@ -389,7 +389,8 @@ def run_type_assignment(
             'bootstrapping_probability': fraction_of_votes,
             'avg_correlation': correlation averaged over iterations
             'runner_up_assignments': [runner, up, nodes],
-            'runner_up_correlation': [runner, up, correlation]}}
+            'runner_up_correlation': [runner, up, correlation],
+            'runner_up_probability': [runner, up, bootstrapping, probability]}}
     """
 
     # create effectively empty list of dicts to
@@ -509,18 +510,22 @@ def run_type_assignment(
                 if r_up is None:
                     runner_up_assignments = []
                     runner_up_correlation = []
+                    runner_up_probability = []
                 else:
                     runner_up_assignments = [
-                        this[0] for this in r_up if this[2]]
+                        this[0] for this in r_up if this[1]]
                     runner_up_correlation = [
-                        this[1] for this in r_up if this[2]]
+                        this[2] for this in r_up if this[1]]
+                    runner_up_probability = [
+                        this[3] for this in r_up if this[1]]
 
                 result[i_cell][child_level] = {
                     'assignment': assigned_type,
                     'bootstrapping_probability': prob,
                     'avg_correlation': corr,
                     'runner_up_assignments': runner_up_assignments,
-                    'runner_up_correlation': runner_up_correlation}
+                    'runner_up_correlation': runner_up_correlation,
+                    'runner_up_probability': runner_up_probability}
 
     return result
 
@@ -601,7 +606,8 @@ def _run_type_assignment(
     query cell with the chosen node over the average number
     of times the node was chosen.
 
-    An array of tuples of type (name, avg_corr, valid_flag)
+    An array of tuples of type
+    (name, valid_flag, avg_corr, bootstrapping_probability)
     listing the n_assignments-1 runner up assignments.
     """
 
@@ -675,8 +681,9 @@ def choose_node(
 
     Array of runner up tuples that look like
         (runner_up_type,
-        avg_correlation,
-        boolean indicating whether any votes were received or not)
+         boolean indicating whether any votes were received or not,
+         avg_correlation,
+         bootstrappping_probability)
     """
 
     t = time.time()
@@ -703,7 +710,7 @@ def choose_node(
     t = time.time()
     result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
     votes = votes[idx_array_2d, sorted_by_votes]
-    vote_fractions = votes[:, 0] / bootstrap_iteration
+    vote_fractions = votes / bootstrap_iteration
     denom = np.where(votes > 0, votes, 1)
 
     avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / denom
@@ -712,13 +719,17 @@ def choose_node(
 
     runners_up = [
         [(reference_types[sorted_by_votes[i_row, i_col]],
+          votes[i_row, i_col] > 0,
           avg_corr[i_row, i_col],
-          votes[i_row, i_col] > 0)
+          vote_fractions[i_row, i_col])
          for i_col in range(1, n_assignments, 1)]
         for i_row in range(sorted_by_votes.shape[0])
     ]
 
-    return (np.array(result), vote_fractions, avg_corr[:, 0], runners_up)
+    return (np.array(result),
+            vote_fractions[:, 0],
+            avg_corr[:, 0],
+            runners_up)
 
 
 def tally_votes(

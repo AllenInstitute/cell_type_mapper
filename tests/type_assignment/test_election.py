@@ -303,6 +303,8 @@ def test_runners_up():
     def dummy_tally_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
+    bootstrap_iteration = 16
+
     to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
     with patch(to_replace, new=dummy_tally_votes):
         (results,
@@ -313,20 +315,23 @@ def test_runners_up():
             reference_gene_data=None,
             reference_types=reference_types,
             bootstrap_factor=None,
-            bootstrap_iteration=5,
+            bootstrap_iteration=bootstrap_iteration,
             n_assignments=4,
             rng=None)
 
+    # note: choose_node gets the denominator for bootstrapping
+    # probability from bootstrap_iteration, hence the uniform
+    # denominators in the 2nd element of the tuples below
     expected_runners_up = [
-        [('a', mock_corr_sum[0,0]/7),
-         ('c', mock_corr_sum[0,2]/6)],
-        [('d', mock_corr_sum[1, 3]/5),
-         ('b', mock_corr_sum[1, 1]/4)],
-        [('b', mock_corr_sum[2, 1]/9),
-         ('d', mock_corr_sum[2, 3]/7),
-         ('e', mock_corr_sum[2, 4]/2)],
-        [('b', mock_corr_sum[3, 1]/11),
-         ('c', mock_corr_sum[3, 2]/6)]]
+        [('a', mock_corr_sum[0,0]/7, 7.0/bootstrap_iteration),
+         ('c', mock_corr_sum[0, 2]/6, 6.0/bootstrap_iteration)],
+        [('d', mock_corr_sum[1, 3]/5, 5.0/bootstrap_iteration),
+         ('b', mock_corr_sum[1, 1]/4, 4.0/bootstrap_iteration)],
+        [('b', mock_corr_sum[2, 1]/9, 9.0/bootstrap_iteration),
+         ('d', mock_corr_sum[2, 3]/7, 7.0/bootstrap_iteration),
+         ('e', mock_corr_sum[2, 4]/2, 2.0/bootstrap_iteration)],
+        [('b', mock_corr_sum[3, 1]/11, 11.0/bootstrap_iteration),
+         ('c', mock_corr_sum[3, 2]/6, 6.0/bootstrap_iteration)]]
 
     assert len(runners_up) == len(expected_runners_up)
     ct_false = 0
@@ -338,14 +343,15 @@ def test_runners_up():
             a = actual[idx]
             e = expected[idx]
             assert a[0] == e[0]
-            np.testing.assert_allclose(a[1], e[1])
-            assert a[2]
+            np.testing.assert_allclose(a[2], e[1])
+            np.testing.assert_allclose(a[3], e[2])
+            assert a[1]
 
         # any runners up that received no votes should be
         # marked with 'False' validity flag.
         if len(expected) != len(actual):
             for idx in range(len(expected), len(actual)):
-                assert not actual[idx][2]
+                assert not actual[idx][1]
                 ct_false += 1
     assert ct_false > 0
 
@@ -461,6 +467,7 @@ def test_run_type_assignment(
                 node=this_level['assignment'])
             n_runners_up = len(this_level['runner_up_assignments'])
             assert len(this_level['runner_up_correlation']) == n_runners_up
+            assert len(this_level['runner_up_probability']) == n_runners_up
             if n_runners_up == 0:
                 # check that assignment was unanimous (either because it
                 # was or because there was only one child to choose at this
@@ -473,6 +480,14 @@ def test_run_type_assignment(
             else:
                 if n_runners_up > 1:
                     more_than_one_runner_up += 1
+
+                    # check that runners up are ordered by probability
+                    for ir in range(1, n_runners_up, 1):
+                        r0 = this_level['runner_up_probability'][ir]
+                        r1 = this_level['runner_up_probability'][ir-1]
+                        assert r0 <= r1
+
+                assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
 
                 # check that runners up have the same parentage
                 # as the assigned node

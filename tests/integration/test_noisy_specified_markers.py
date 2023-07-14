@@ -347,6 +347,7 @@ def test_mapping_from_markers(
             assert n_runners_up_actual <= n_runners_up
 
             assert len(this_level['runner_up_correlation']) == n_runners_up_actual
+            assert len(this_level['runner_up_probability']) == n_runners_up_actual
             if n_runners_up_actual == 0:
                 without_runners_up += 1
                 np.testing.assert_allclose(
@@ -356,6 +357,16 @@ def test_mapping_from_markers(
                     rtol=1.0e-6)
             else:
                 with_runners_up += 1
+                if n_runners_up_actual > 1:
+
+                    # check that runners up are ordered by probability
+                    for ir in range(1, n_runners_up_actual, 1):
+                        r0 = this_level['runner_up_probability'][ir]
+                        r1 = this_level['runner_up_probability'][ir-1]
+                        assert r0 <= r1
+
+                assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+
                 for rup in this_level['runner_up_assignments']:
                     if rup != this_level['assignment'] and level != taxonomy_tree.leaf_level:
                         is_different += 1
