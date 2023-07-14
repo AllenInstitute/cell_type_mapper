@@ -362,9 +362,16 @@ def test_mapping_from_markers(
                     for ir in range(1, n_runners_up_actual, 1):
                         r0 = this_level['runner_up_probability'][ir]
                         r1 = this_level['runner_up_probability'][ir-1]
+                        assert r0 > 0.0
                         assert r0 <= r1
 
                 assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+
+                # check that probability sums to <= 1
+                assert this_level['bootstrapping_probability'] < 1.0
+                p_sum = this_level['bootstrapping_probability'] + sum(this_level['runner_up_probability'])
+                eps = 1.0e-6
+                assert p_sum <= (1.0+eps)
 
                 for rup in this_level['runner_up_assignments']:
                     if rup != this_level['assignment'] and level != taxonomy_tree.leaf_level:

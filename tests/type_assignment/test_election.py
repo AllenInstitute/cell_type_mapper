@@ -485,9 +485,16 @@ def test_run_type_assignment(
                     for ir in range(1, n_runners_up, 1):
                         r0 = this_level['runner_up_probability'][ir]
                         r1 = this_level['runner_up_probability'][ir-1]
+                        assert r0 > 0.0
                         assert r0 <= r1
 
                 assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+
+                # check that probability sums to <= 1.0
+                assert this_level['bootstrapping_probability'] < 1.0
+                p_sum = this_level['bootstrapping_probability'] + sum(this_level['runner_up_probability'])
+                eps = 1.0e-6
+                assert p_sum <= (1.0+eps)
 
                 # check that runners up have the same parentage
                 # as the assigned node
