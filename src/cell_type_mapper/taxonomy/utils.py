@@ -180,9 +180,6 @@ def validate_taxonomy_tree(
         msg += f"this has {taxonomy_tree.keys()}"
         raise RuntimeError(msg)
 
-    for level in hierarchy:
-        child_to_parent[level] = dict()
-
     for this_level in taxonomy_tree.keys():
         if this_level == 'hierarchy':
             continue
@@ -193,9 +190,25 @@ def validate_taxonomy_tree(
                     "(this requirement makes serialization/deserialization "
                     "with JSON more straightforward)")
 
+    for level in hierarchy:
+        child_to_parent[level] = dict()
+
     for parent_level, child_level in zip(hierarchy[:-1],
                                          hierarchy[1:]):
-        child_set = taxonomy_tree[child_level].keys()
+
+        # check that all children have a parent
+        child_set = set(taxonomy_tree[child_level].keys())
+        with_parent = set()
+        for parent in taxonomy_tree[parent_level].keys():
+            with_parent = with_parent.union(
+                set(taxonomy_tree[parent_level][parent]))
+
+        for child in child_set:
+            if child not in with_parent:
+                raise RuntimeError(
+                    f"{child_level}:{child} has no parent at level "
+                    f"{parent_level}")
+
         for this_parent in taxonomy_tree[parent_level].keys():
             for this_child in taxonomy_tree[parent_level][this_parent]:
                 if this_child not in child_set:

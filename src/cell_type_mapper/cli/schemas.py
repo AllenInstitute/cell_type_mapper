@@ -138,6 +138,13 @@ class HierarchicalTypeAssignmentSchema(argschema.ArgSchema):
         description="Seed value for random number generator used in "
         "bootstrapping")
 
+    n_runners_up = argschema.fields.Int(
+        required=False,
+        default=0,
+        allow_none=False,
+        dsecription="The number of runner up node assignments "
+        "to record at each level of the taxonomy.")
+
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):
         """

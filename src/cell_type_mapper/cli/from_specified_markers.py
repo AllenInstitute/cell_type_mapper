@@ -148,27 +148,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             log_path=self.args['log_path'])
 
 
-def get_assignments(config, type_assignment):
-    """Get the assignments from the type assignment output.
-    If extended_results_dir is given, then the results were saved in
-    individual {r0}_{r1}_assignment.json files, so parse these. Otherwise,
-    the assignments are given in the 'assignments' key in type_assignment.
-    """
-    tmp_output_dir = config.get("extended_result_dir")
-    if tmp_output_dir:
-        assignments = []
-        import glob
-        temp_output_files = glob.glob(f"{tmp_output_dir}/*_assignment.json")
-        for temp_output_file in temp_output_files:
-            with open(temp_output_file, 'r') as f:
-                chunk_assignments = json.load(f)
-            assignments.extend(chunk_assignments)
-            pathlib.Path(temp_output_file).unlink()
-    else:  # temp output path not given
-        assignments = type_assignment["assignments"]
-    return assignments
-
-
 def run_mapping(config, output_path, log_path=None):
 
     log = CommandLog()
@@ -204,17 +183,26 @@ def run_mapping(config, output_path, log_path=None):
                         f"{pth.resolve().absolute()}")
 
     try:
+        if config['tmp_dir'] is not None:
+            tmp_result_dir = tempfile.mkdtemp(
+                dir=config['tmp_dir'],
+                prefix='result_buffer_')
+        else:
+            tmp_result_dir = tempfile.mkdtemp(
+                dir=config['extended_result_dir'],
+                prefix='result_buffer_')
+
         type_assignment = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
+            tmp_result_dir=tmp_result_dir,
             log=log)
-        assignments = get_assignments(config, type_assignment)
-        output["results"] = assignments
+        output["results"] = type_assignment["assignments"]
         output["marker_genes"] = type_assignment["marker_genes"]
         output["taxonomy_tree"] = \
             json.loads(type_assignment["metadata_taxonomy_tree"].to_str())
         csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
-        csv_result["assignments"] = assignments
+        csv_result["assignments"] = type_assignment["assignments"]
 
         if config['csv_result_path'] is not None:
 
@@ -233,6 +221,7 @@ def run_mapping(config, output_path, log_path=None):
                 confidence_key=confidence_key,
                 confidence_label=confidence_label)
 
+        _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
@@ -255,7 +244,7 @@ def run_mapping(config, output_path, log_path=None):
             out_file.write(json.dumps(output, indent=2))
 
 
-def _run_mapping(config, tmp_dir, log):
+def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
@@ -368,11 +357,12 @@ def _run_mapping(config, tmp_dir, log):
         bootstrap_factor=type_assignment_config['bootstrap_factor'],
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
+        n_assignments=type_assignment_config['n_runners_up']+1,
         normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir,
         log=log,
         max_gb=config['max_gb'],
-        results_output_path=config.get("extended_result_dir"))
+        results_output_path=tmp_result_dir)
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
@@ -383,8 +373,8 @@ def _run_mapping(config, tmp_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    return {'assignments': result,
-            'marker_genes': marker_gene_lookup,
+    return {"assignments": result,
+            "marker_genes": marker_gene_lookup,
             "mapping_taxonomy_tree": taxonomy_tree,
             "metadata_taxonomy_tree": tree_for_metadata}
 

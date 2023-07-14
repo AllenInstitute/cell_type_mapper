@@ -50,7 +50,7 @@ def assemble_query_data(
         downsampled to the relevant clusters and marker genes
 
         'reference_types' -> A list indicating the taxonomic types implied
-        by teh clusters in 'reference_data' (in the order they appear in
+        by the clusters in 'reference_data' (in the order they appear in
         'reference_data's rows)
     """
 

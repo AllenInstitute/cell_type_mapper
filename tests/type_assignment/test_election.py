@@ -2,7 +2,12 @@ import pytest
 
 import numpy as np
 import os
+import pathlib
 from unittest.mock import patch
+
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
@@ -10,7 +15,26 @@ from cell_type_mapper.utils.torch_utils import (
 
 from cell_type_mapper.type_assignment.election import (
     tally_votes,
-    choose_node)
+    choose_node,
+    run_type_assignment)
+
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
+    create_marker_cache_from_specified_markers)
+
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+
+@pytest.fixture(scope='module')
+def tmp_dir_fixture(
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('election_test_dir_'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
 
 
 @pytest.mark.parametrize(
@@ -194,7 +218,8 @@ def test_choose_node_smoke(
 
     (result,
      confidence,
-     avg_corr) = choose_node(
+     avg_corr,
+     _) = choose_node(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         reference_types=reference_types,
@@ -229,7 +254,8 @@ def test_confidence_result():
     with patch(to_replace, new=dummy_tally_votes):
         (results,
          confidence,
-         avg_corr) = choose_node(
+         avg_corr,
+         _) = choose_node(
             query_gene_data=None,
             reference_gene_data=None,
             reference_types=reference_types,
@@ -257,3 +283,231 @@ def test_confidence_result():
         expected_avg_corr,
         atol=0.0,
         rtol=1.0e-6)
+
+
+def test_runners_up():
+    """
+    Test that choose_node correctly selects the
+    N runners up cell types.
+    """
+
+    reference_types = ['a', 'b', 'c', 'd', 'e']
+    rng = np.random.default_rng(223112)
+    mock_votes = np.array(
+            [[7, 10, 6, 0, 0],
+             [11, 4, 0, 5, 0],
+             [0, 9, 22, 7, 2],
+             [44, 11, 6, 0, 0]])
+    mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
+
+    def dummy_tally_votes(*args, **kwargs):
+        return (mock_votes, mock_corr_sum)
+
+    bootstrap_iteration = 16
+
+    to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
+    with patch(to_replace, new=dummy_tally_votes):
+        (results,
+         confidence,
+         avg_corr,
+         runners_up) = choose_node(
+            query_gene_data=None,
+            reference_gene_data=None,
+            reference_types=reference_types,
+            bootstrap_factor=None,
+            bootstrap_iteration=bootstrap_iteration,
+            n_assignments=4,
+            rng=None)
+
+    # note: choose_node gets the denominator for bootstrapping
+    # probability from bootstrap_iteration, hence the uniform
+    # denominators in the 2nd element of the tuples below
+    expected_runners_up = [
+        [('a', mock_corr_sum[0,0]/7, 7.0/bootstrap_iteration),
+         ('c', mock_corr_sum[0, 2]/6, 6.0/bootstrap_iteration)],
+        [('d', mock_corr_sum[1, 3]/5, 5.0/bootstrap_iteration),
+         ('b', mock_corr_sum[1, 1]/4, 4.0/bootstrap_iteration)],
+        [('b', mock_corr_sum[2, 1]/9, 9.0/bootstrap_iteration),
+         ('d', mock_corr_sum[2, 3]/7, 7.0/bootstrap_iteration),
+         ('e', mock_corr_sum[2, 4]/2, 2.0/bootstrap_iteration)],
+        [('b', mock_corr_sum[3, 1]/11, 11.0/bootstrap_iteration),
+         ('c', mock_corr_sum[3, 2]/6, 6.0/bootstrap_iteration)]]
+
+    assert len(runners_up) == len(expected_runners_up)
+    ct_false = 0
+    for i_row in range(len(runners_up)):
+        actual = runners_up[i_row]
+        expected = expected_runners_up[i_row]
+        assert len(actual) == 3
+        for idx in range(len(expected)):
+            a = actual[idx]
+            e = expected[idx]
+            assert a[0] == e[0]
+            np.testing.assert_allclose(a[2], e[1])
+            np.testing.assert_allclose(a[3], e[2])
+            assert a[1]
+
+        # any runners up that received no votes should be
+        # marked with 'False' validity flag.
+        if len(expected) != len(actual):
+            for idx in range(len(expected), len(actual)):
+                assert not actual[idx][1]
+                ct_false += 1
+    assert ct_false > 0
+
+
+def test_run_type_assignment(
+        tmp_dir_fixture):
+    """
+    Test the outputs of run_type_assignment. Chiefly,
+    test that the runners up are, in fact, descendants
+    of the parents they are supposed to descend from,
+    and that NULL runners up are handled correctly.
+    """
+
+    rng = np.random.default_rng(865211)
+
+    n_clusters = 15
+    tree_data = {
+        'hierarchy': ['l1', 'l2', 'cluster'],
+        'l1': {
+            'l1a': ['l2a', 'l2c'],
+            'l1b': ['l2b'],
+            'l1c': ['l2e', 'l2d']
+        },
+        'l2': {
+            'l2a': ['c0'],
+            'l2b': ['c1', 'c3', 'c4', 'c12'],
+            'l2c': ['c5', 'c7', 'c10', 'c11'],
+            'l2d': ['c6'],
+            'l2e': ['c8', 'c9', 'c2', 'c13', 'c14']
+        },
+        'cluster': {
+            f'c{ii}': [] for ii in range(n_clusters)
+        }
+    }
+
+    taxonomy_tree = TaxonomyTree(data=tree_data)
+
+    reference_gene_names = [f'gene_{ii}' for ii in range(40)]
+
+    marker_lookup = {
+        'None': ['gene_0', 'gene_1', 'gene_2', 'gene_24', 'gene_25'],
+        'l1/l1a': ['gene_3', 'gene_4', 'gene_19', 'gene_20'],
+        'l1/l1c': ['gene_5', 'gene_6', 'gene_7', 'gene_21'],
+        'l2/l2b': ['gene_8', 'gene_9', 'gene_10', 'gene_22'],
+        'l2/l2c': ['gene_11', 'gene_12', 'gene_17', 'gene_18'],
+        'l2/l2e': ['gene_13', 'gene_14', 'gene_15', 'gene_23']
+    }
+
+    cluster_to_gene = np.zeros((n_clusters, len(reference_gene_names)), dtype=float)
+    cluster_name_list = list(tree_data['cluster'].keys())
+    cluster_name_list.sort()
+    for i_cluster, cluster_name in enumerate(cluster_name_list):
+        parents = taxonomy_tree.parents(level='cluster', node=cluster_name)
+        these_genes = [0, 1, 2]
+        for level in parents:
+            parent_key = f'{level}/{parents[level]}'
+            if parent_key in marker_lookup:
+                these_genes += [int(g.replace('gene_','')) for g in marker_lookup[parent_key]]
+        these_genes = list(set(these_genes))
+        these_genes.sort()
+        signal = np.zeros(len(reference_gene_names))
+        signal[these_genes] = 2.0*rng.random(len(these_genes)) + 1.0
+        cluster_to_gene[i_cluster,: ] = signal
+
+    reference_data = CellByGeneMatrix(
+        data=cluster_to_gene,
+        gene_identifiers=reference_gene_names,
+        cell_identifiers=cluster_name_list,
+        normalization="log2CPM")
+
+    n_cells = 200
+    query_data = np.zeros((n_cells, len(reference_gene_names)), dtype=float)
+    for i_cell in range(n_cells):
+        i_cluster = i_cell % n_clusters
+        signal = cluster_to_gene[i_cluster, :]
+        signal = signal * (rng.random(len(reference_gene_names))*0.3+0.8)
+        noise = rng.random(len(reference_gene_names))*0.1
+        query_data[i_cell, :] = signal + noise
+
+    query_data = CellByGeneMatrix(
+        data=query_data,
+        gene_identifiers=reference_gene_names,
+        normalization="log2CPM")
+
+    marker_cache_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    create_marker_cache_from_specified_markers(
+        marker_lookup=marker_lookup,
+        reference_gene_names=reference_gene_names,
+        query_gene_names=reference_gene_names,
+        output_cache_path=marker_cache_path)
+
+    results = run_type_assignment(
+        full_query_gene_data=query_data,
+        leaf_node_matrix=reference_data,
+        marker_gene_cache_path=marker_cache_path,
+        taxonomy_tree=taxonomy_tree,
+        bootstrap_factor=0.6666,
+        bootstrap_iteration=30,
+        rng=rng)
+
+    more_than_one_runner_up = 0
+    for cell in results:
+        for level in cell:
+            if level == 'cell_id':
+                continue
+            this_level = cell[level]
+            family_tree = taxonomy_tree.parents(
+                level=level,
+                node=this_level['assignment'])
+            n_runners_up = len(this_level['runner_up_assignment'])
+            assert len(this_level['runner_up_correlation']) == n_runners_up
+            assert len(this_level['runner_up_probability']) == n_runners_up
+            if n_runners_up == 0:
+                # check that assignment was unanimous (either because it
+                # was or because there was only one child to choose at this
+                # level)
+                np.testing.assert_allclose(
+                    this_level['bootstrapping_probability'],
+                    1.0,
+                    atol=0.0,
+                    rtol=1.0e-6)
+            else:
+                if n_runners_up > 1:
+                    more_than_one_runner_up += 1
+
+                    # check that runners up are ordered by probability
+                    for ir in range(1, n_runners_up, 1):
+                        r0 = this_level['runner_up_probability'][ir]
+                        r1 = this_level['runner_up_probability'][ir-1]
+                        assert r0 > 0.0
+                        assert r0 <= r1
+
+                assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+
+                # check that probability sums to <= 1.0
+                assert this_level['bootstrapping_probability'] < 1.0
+                p_sum = this_level['bootstrapping_probability'] + sum(this_level['runner_up_probability'])
+                eps = 1.0e-6
+                assert p_sum <= (1.0+eps)
+
+                # check that runners up have the same parentage
+                # as the assigned node
+                for ru in this_level['runner_up_assignment']:
+                    if level == taxonomy_tree.leaf_level:
+                        # Note: at higher than the leaf level it is possible for
+                        # the same level to appear as a runner up
+                        assert ru != this_level['assignment']
+
+                    other_tree = taxonomy_tree.parents(
+                        level=level,
+                        node=ru)
+
+                    assert other_tree == family_tree
+
+    assert more_than_one_runner_up > 0

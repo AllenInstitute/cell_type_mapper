@@ -1,8 +1,9 @@
-import os
 import h5py
 import json
 import time
 import numpy as np
+import pathlib
+import tempfile
 import torch  # type: ignore
 import torch.nn as nn
 
@@ -19,7 +20,8 @@ from cell_type_mapper.type_assignment.matching import (
 from cell_type_mapper.gpu_utils.utils.utils import (
     get_timers, AverageMeter, ProgressMeter)
 from cell_type_mapper.utils.utils import (
-    update_timer)
+    update_timer,
+    _clean_up)
 
 
 class TypeAssignment(nn.Module):
@@ -35,6 +37,7 @@ class TypeAssignment(nn.Module):
             bootstrap_factor=config["bootstrap_factor"],
             bootstrap_iteration=config["bootstrap_iteration"],
             rng=np.random.default_rng(config["rng"].integers(99, 2**32)),
+            n_assignments=config["n_assignments"],
             gpu_index=config["gpu_index"],
             timers=config["timers"])
         return assignment
@@ -50,6 +53,7 @@ def run_type_assignment_on_h5ad_gpu(
         bootstrap_factor,
         bootstrap_iteration,
         rng,
+        n_assignments=25,
         normalization='log2CPM',
         tmp_dir=None,
         log=None,
@@ -100,6 +104,11 @@ def run_type_assignment_on_h5ad_gpu(
     rng:
         A random number generator
 
+    n_assignments:
+        The number of vote getters to track data for.
+        Ultimate concequence of this is that n_assignments-1
+        "runners up" get reported at each taxonomic level.
+
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
@@ -135,6 +144,14 @@ def run_type_assignment_on_h5ad_gpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    if results_output_path is not None:
+        buffer_dir = pathlib.Path(
+                tempfile.mkdtemp(
+                    dir=results_output_path,
+                    prefix='results_buffer_'))
+    else:
+        buffer_dir = None
+
     if log is not None:
         log.info("Running GPU implementation of type assignment.")
 
@@ -185,6 +202,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["bootstrap_iteration"] = bootstrap_iteration
     config["rng"] = rng
     config["gpu_index"] = gpu_index
+    config["n_assignments"] = n_assignments
 
     print("starting type assignment")
     print_freq = 1
@@ -218,9 +236,8 @@ def run_type_assignment_on_h5ad_gpu(
         update_timer("loop", t, timers)
 
         t = time.time()
-        if results_output_path is not None:
-            this_output_path = os.path.join(results_output_path,
-                                            f"{r0}_{r1}_assignment.json")
+        if buffer_dir is not None:
+            this_output_path = buffer_dir / f"{r0}_{r1}_assignment.json"
             save_results(assignment, this_output_path)
         else:
             output_list += assignment
@@ -233,5 +250,14 @@ def run_type_assignment_on_h5ad_gpu(
         if ii % print_freq == 0:
             progress.display(ii + 1)
 
-    output_list = list(output_list)
+    if buffer_dir is not None:
+        path_list = [n for n in buffer_dir.iterdir()]
+        path_list.sort()
+        output_list = []
+        for path in path_list:
+            output_list += json.load(open(path, 'rb'))
+        _clean_up(buffer_dir)
+    else:
+        output_list = list(output_list)
+
     return output_list

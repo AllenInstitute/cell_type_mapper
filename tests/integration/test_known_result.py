@@ -135,6 +135,7 @@ def marker_cache_path_fixture(
     return marker_cache_path
 
 
+@pytest.mark.parametrize('use_buffer_dir', [True, False])
 def test_raw_pipeline(
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
@@ -142,10 +143,18 @@ def test_raw_pipeline(
         tmp_dir_fixture,
         precomputed_path_fixture,
         ref_marker_path_fixture,
-        marker_cache_path_fixture):
+        marker_cache_path_fixture,
+        use_buffer_dir):
 
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_dict)
+
+    if use_buffer_dir:
+        buffer_dir = tempfile.mkdtemp(
+            dir=tmp_dir_fixture,
+            prefix='result_buffer_')
+    else:
+        buffer_dir = None
 
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=raw_query_h5ad_fixture,
@@ -157,7 +166,8 @@ def test_raw_pipeline(
         bootstrap_factor=6.0/7.0,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
-        normalization='raw')
+        normalization='raw',
+        results_output_path=buffer_dir)
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
@@ -171,6 +181,7 @@ def test_raw_pipeline(
         assert actual_sub in taxonomy_tree_dict['class'][actual_class]
 
 
+@pytest.mark.parametrize('use_buffer_dir', [True, False])
 def test_raw_pipeline_cpu(
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
@@ -178,10 +189,18 @@ def test_raw_pipeline_cpu(
         tmp_dir_fixture,
         precomputed_path_fixture,
         ref_marker_path_fixture,
-        marker_cache_path_fixture):
+        marker_cache_path_fixture,
+        use_buffer_dir):
 
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_dict)
+
+    if use_buffer_dir:
+        buffer_dir = tempfile.mkdtemp(
+            dir=tmp_dir_fixture,
+            prefix='result_buffer_')
+    else:
+        buffer_dir = None
 
     result = run_type_assignment_on_h5ad_cpu(
         query_h5ad_path=raw_query_h5ad_fixture,
@@ -193,7 +212,8 @@ def test_raw_pipeline_cpu(
         bootstrap_factor=6.0/7.0,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
-        normalization='raw')
+        normalization='raw',
+        results_output_path=buffer_dir)
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
@@ -208,6 +228,7 @@ def test_raw_pipeline_cpu(
 
 
 @pytest.mark.skipif(not is_torch_available(), reason='no torch')
+@pytest.mark.parametrize('use_buffer_dir', [True, False])
 def test_raw_pipeline_gpu(
         raw_query_h5ad_fixture,
         expected_cluster_fixture,
@@ -215,7 +236,15 @@ def test_raw_pipeline_gpu(
         tmp_dir_fixture,
         precomputed_path_fixture,
         ref_marker_path_fixture,
-        marker_cache_path_fixture):
+        marker_cache_path_fixture,
+        use_buffer_dir):
+
+    if use_buffer_dir:
+        buffer_dir = tempfile.mkdtemp(
+            dir=tmp_dir_fixture,
+            prefix='result_buffer_')
+    else:
+        buffer_dir = None
 
     env_var = 'AIBS_BKP_USE_TORCH'
     os.environ[env_var] = 'true'
@@ -234,7 +263,8 @@ def test_raw_pipeline_gpu(
         bootstrap_factor=6.0/7.0,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
-        normalization='raw')
+        normalization='raw',
+        results_output_path=buffer_dir)
 
     os.environ[env_var] = ''
     assert not use_torch()

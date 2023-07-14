@@ -51,7 +51,7 @@ def taxonomy_tree_fixture():
         'bb': ['3', '4', '5'],
         'cc': ['6'],
         'dd': ['7', '8']}
-    tree['cluster'] = {str(ii): [ii*10] for ii in range(9)}
+    tree['cluster'] = {str(ii): [ii*10] for ii in range(1, 9)}
 
     return tree
 
