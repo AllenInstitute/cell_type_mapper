@@ -46,7 +46,7 @@ def create_utility_array(
     else:
         n_taxon = len(taxonomy_mask)
     marker_census = np.zeros((n_taxon, 2), dtype=int)
-    utility_sum = np.zeros(n_rows, dtype=int)
+    utility_sum = np.zeros(is_marker.n_rows, dtype=int)
 
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/(3*n_cols)).astype(int))
