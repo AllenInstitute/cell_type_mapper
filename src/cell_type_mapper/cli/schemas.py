@@ -3,6 +3,18 @@ from marshmallow import post_load, ValidationError
 import pathlib
 
 
+class SpecifiedPrecomputedStatsSchema(argschema.ArgSchema):
+
+    path = argschema.fields.String(
+                required=True,
+                default=None,
+                allow_none=False,
+                description="The path to the file where the precomputed "
+                "stats will be saved. If it already exists, this "
+                "file will be read in and used as the precomputed "
+                "stats file for this mapping job.")
+
+
 class PrecomputedStatsSchema(argschema.ArgSchema):
 
     path = argschema.fields.String(
