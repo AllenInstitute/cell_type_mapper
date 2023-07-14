@@ -175,10 +175,10 @@ def validate_taxonomy_tree(
     expected_keys.add('hierarchy')
     bad_keys = {'metadata', 'name_mapper', 'hierarchy_mapper'}
     these_keys = set(taxonomy_tree.keys())-bad_keys
-    if these_keys != expected_keys:
-        msg = f"Expect tree to have keys\n {expected_keys}\n"
-        msg += f"this has {taxonomy_tree.keys()}"
-        raise RuntimeError(msg)
+    #if these_keys != expected_keys:
+    #    msg = f"Expect tree to have keys\n {expected_keys}\n"
+    #    msg += f"this has {taxonomy_tree.keys()}"
+    #    raise RuntimeError(msg)
 
     for this_level in taxonomy_tree.keys():
         if this_level == 'hierarchy':

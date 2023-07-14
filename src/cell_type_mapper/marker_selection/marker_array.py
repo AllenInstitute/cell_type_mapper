@@ -125,16 +125,16 @@ class MarkerGeneArray(object):
 
             n_pairs = src['n_pairs'][()]
 
-            is_marker = BinarizedBooleanArray.from_data_array(
-                data_array=src['markers/data'][()],
-                n_cols=n_pairs)
+            #is_marker = BinarizedBooleanArray.from_data_array(
+            #    data_array=src['markers/data'][()],
+            #    n_cols=n_pairs)
 
-            if only_keep_pairs is not None:
-                is_marker.downsample_columns(col_idx)
+            #if only_keep_pairs is not None:
+            #    is_marker.downsample_columns(col_idx)
 
-            up_regulated = BinarizedBooleanArray.from_data_array(
-                data_array=src['up_regulated/data'][()],
-                n_cols=n_pairs)
+            #up_regulated = BinarizedBooleanArray.from_data_array(
+            #    data_array=src['up_regulated/data'][()],
+            #    n_cols=n_pairs)
 
             if 'sparse' in src:
                 up_marker_sparse = SparseMarkers(
@@ -162,8 +162,8 @@ class MarkerGeneArray(object):
             gene_names=gene_names,
             taxonomy_pair_to_idx=taxonomy_pair_to_idx,
             n_pairs=n_pairs,
-            is_marker=is_marker,
-            up_regulated=up_regulated,
+            is_marker=None,
+            up_regulated=None,
             up_marker_sparse=up_marker_sparse,
             down_marker_sparse=down_marker_sparse)
 
@@ -178,6 +178,7 @@ class MarkerGeneArray(object):
         If copy_sparse is not True, the new MarkerGeneArray will not
         have any sparse marker attributes.
         """
+        raise RuntimeError("cannot")
         col_idx = np.array(
             [_idx_of_pair(
                 self.taxonomy_pair_to_idx,
@@ -218,8 +219,8 @@ class MarkerGeneArray(object):
         Downselect to just the specified genes
         """
         print("downsampling genes")
-        self.is_marker.downsample_rows(gene_idx_array)
-        self.up_regulated.downsample_rows(gene_idx_array)
+        #self.is_marker.downsample_rows(gene_idx_array)
+        #self.up_regulated.downsample_rows(gene_idx_array)
         self._gene_names = [
             self._gene_names[ii]
             for ii in gene_idx_array]
@@ -257,6 +258,7 @@ class MarkerGeneArray(object):
     def marker_mask_from_gene_idx(
             self,
             gene_idx):
+        raise RuntimeError("cannot")
         marker_mask = self.is_marker.get_row(i_row=gene_idx)
         up_mask = self.up_regulated.get_row(i_row=gene_idx)
         return marker_mask, up_mask
@@ -275,6 +277,7 @@ class MarkerGeneArray(object):
                 - is the gene a marker for this pair
                 - for which node in the pair is the gene up-regulated
         """
+        raise RuntimeError("cannot")
         marker_mask = self.is_marker.get_col(i_col=pair_idx)
         up_mask = self.up_regulated.get_col(i_col=pair_idx)
         return (marker_mask, up_mask)
