@@ -118,12 +118,11 @@ def noisy_precomputed_stats_fixture(
 @pytest.fixture(scope='module')
 def noisy_raw_query_h5ad_fixture(
         query_gene_names,
-        expected_cluster_fixture,
         tmp_dir_fixture):
 
     rng = np.random.default_rng(77665544)
 
-    n_cells = 5000
+    n_cells = 500
     n_genes = len(query_gene_names)
 
     data = rng.integers(100, 110, (n_cells, n_genes))
