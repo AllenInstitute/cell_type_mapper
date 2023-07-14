@@ -816,6 +816,7 @@ def test_running_h5ad_election_gpu(
     assert name_set == set(query_cell_names)
 
 
+@pytest.mark.skipif(not is_torch_available(), reason='no torch')
 @pytest.mark.parametrize(
         'query_data_fixture',
         [True, False],
