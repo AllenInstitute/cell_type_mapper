@@ -49,7 +49,7 @@ from cell_type_mapper.utils.cli_utils import (
 from cell_type_mapper.cli.schemas import (
     SpecifiedMarkerSchema,
     HierarchicalTypeAssignmentSchema,
-    PrecomputedStatsSchema)
+    SpecifiedPrecomputedStatsSchema)
 
 
 if use_torch() and is_cuda_available():
@@ -119,7 +119,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         "during hierarchical type assignment")
 
     precomputed_stats = argschema.fields.Nested(
-        PrecomputedStatsSchema,
+        SpecifiedPrecomputedStatsSchema,
         required=True)
 
     query_markers = argschema.fields.Nested(

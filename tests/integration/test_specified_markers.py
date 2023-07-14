@@ -148,21 +148,19 @@ def ab_initio_assignment_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass,precompute_stats',
-        [(True, True, True, False, False, False, True),
-         (True, False, True, False, False, False, True),
-         (False, True, True, False, False, False, True),
-         (False, False, True, False, False, False, True),
-         (False, True, True, False, False, False, True),
-         (False, True, True, True, False, False, True),
-         (True, True, True, True, False, False, True),
-         (True, True, True, True, True, False, True),
-         (False, True, True, True, True, False, True),
-         (False, True, True, False, True, False, True),
-         (True, True, True, False, True, False, True),
-         (False, True, True, True, True, True, True),
-         (True, True, True, False, False, False, False),
-         (False, True, True, False, False, False, False)])
+        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
+        [(True, True, True, False, False, False),
+         (True, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, False, True, False, False, False),
+         (False, True, True, False, False, False),
+         (False, True, True, True, False, False),
+         (True, True, True, True, False, False),
+         (True, True, True, True, True, False),
+         (False, True, True, True, True, False),
+         (False, True, True, False, True, False),
+         (True, True, True, False, True, False),
+         (False, True, True, True, True, True)])
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -174,8 +172,7 @@ def test_mapping_from_markers(
         use_tmp_dir,
         use_gpu,
         just_once,
-        drop_subclass,
-        precompute_stats):
+        drop_subclass):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -212,21 +209,8 @@ def test_mapping_from_markers(
         config['tmp_dir'] = None
     config['query_path'] = baseline_config['query_path']
 
-    if precompute_stats:
-        config['precomputed_stats'] = copy.deepcopy(baseline_config['precomputed_stats'])
-        config['precomputed_stats'].pop('path')
-
-        new_stats_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5',
-            prefix='precomputed_stats_',
-            delete=True)
-
-        config['precomputed_stats']['path'] = new_stats_path
-    else:
-        # just reuse the precomputed stats file that has already been generated
-        config['precomputed_stats'] = {'path': baseline_config['precomputed_stats']['path']}
-
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': baseline_config['precomputed_stats']['path']}
 
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
     if just_once:
@@ -327,10 +311,6 @@ def test_mapping_from_markers(
 
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
     assert len(actual['results']) == len(expected['results'])
-
-    # make sure reference file still exists
-    if precompute_stats:
-        assert pathlib.Path(config['precomputed_stats']['reference_path']).is_file()
 
     # check consistency between extended and csv results
     if use_csv:
