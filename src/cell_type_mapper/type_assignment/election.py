@@ -388,7 +388,7 @@ def run_type_assignment(
             'assignment': chosen_node,
             'bootstrapping_probability': fraction_of_votes,
             'avg_correlation': correlation averaged over iterations
-            'runner_up_assignments': [runner, up, nodes],
+            'runner_up_assignment': [runner, up, nodes],
             'runner_up_correlation': [runner, up, correlation],
             'runner_up_probability': [runner, up, bootstrapping, probability]}}
     """
@@ -523,7 +523,7 @@ def run_type_assignment(
                     'assignment': assigned_type,
                     'bootstrapping_probability': prob,
                     'avg_correlation': corr,
-                    'runner_up_assignments': runner_up_assignments,
+                    'runner_up_assignment': runner_up_assignments,
                     'runner_up_correlation': runner_up_correlation,
                     'runner_up_probability': runner_up_probability}
 

@@ -340,7 +340,7 @@ def test_mapping_from_markers(
                 level=level,
                 node=this_level['assignment'])
 
-            n_runners_up_actual = len(this_level['runner_up_assignments'])
+            n_runners_up_actual = len(this_level['runner_up_assignment'])
             if n_runners_up_actual > max_runners_up:
                 max_runners_up = n_runners_up_actual
             assert n_runners_up_actual <= n_runners_up
@@ -373,7 +373,7 @@ def test_mapping_from_markers(
                 eps = 1.0e-6
                 assert p_sum <= (1.0+eps)
 
-                for rup in this_level['runner_up_assignments']:
+                for rup in this_level['runner_up_assignment']:
                     if rup != this_level['assignment'] and level != taxonomy_tree.leaf_level:
                         is_different += 1
                     if level == taxonomy_tree.leaf_level:

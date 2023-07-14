@@ -465,7 +465,7 @@ def test_run_type_assignment(
             family_tree = taxonomy_tree.parents(
                 level=level,
                 node=this_level['assignment'])
-            n_runners_up = len(this_level['runner_up_assignments'])
+            n_runners_up = len(this_level['runner_up_assignment'])
             assert len(this_level['runner_up_correlation']) == n_runners_up
             assert len(this_level['runner_up_probability']) == n_runners_up
             if n_runners_up == 0:
@@ -498,7 +498,7 @@ def test_run_type_assignment(
 
                 # check that runners up have the same parentage
                 # as the assigned node
-                for ru in this_level['runner_up_assignments']:
+                for ru in this_level['runner_up_assignment']:
                     if level == taxonomy_tree.leaf_level:
                         # Note: at higher than the leaf level it is possible for
                         # the same level to appear as a runner up
