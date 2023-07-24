@@ -353,6 +353,20 @@ class MarkerGeneArray(object):
             return self._down_mask_from_pair_idx_use_sparse(pair_idx)
         return self._down_mask_from_pair_idx_use_full(pair_idx)
 
+    def up_regulated_gene_batch(self, gene0, gene1):
+        """
+        Return up_regulated mask between gene0:gene1 as a
+        np.ndarray
+        """
+        return self.up_regulated.get_row_batch(gene0, gene1)
+
+    def is_marker_gene_batch(self, gene0, gene1):
+        """
+        Return is_marker mask between gene0:gene1 as a
+        np.ndarray
+        """
+        return self.is_marker.get_row_batch(gene0, gene1)
+
 
 def _create_new_pair_lookup(only_keep_pairs):
     """
