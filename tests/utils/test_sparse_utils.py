@@ -19,7 +19,8 @@ from cell_type_mapper.utils.sparse_utils import(
     merge_csr,
     _load_disjoint_csr,
     precompute_indptr,
-    remap_csr_matrix)
+    remap_csr_matrix,
+    downsample_indptr)
 
 
 def test_load_csr():
@@ -369,3 +370,38 @@ def test_precompute_indptr():
                 row_order=row_reorder)
 
     np.testing.assert_array_equal(actual, new_csr.indptr)
+
+
+@pytest.mark.parametrize(
+    "to_keep",
+    [np.array([0, 19, 33, 11, 29, 443]),
+     np.array([1, 7, 229, 8]),
+     np.array([0, 66, 44, 126]),
+     np.array([33, 14, 17, 126])])
+def test_downsample_indptr(to_keep):
+    rng = np.random.default_rng(887123)
+    n_rows = 550
+    n_cols = 127
+    data = np.zeros(n_rows*n_cols, dtype=float)
+    chosen = rng.choice(
+        np.arange(n_rows*n_cols, dtype=int),
+        n_rows*n_cols//3,
+        replace=False)
+    data[chosen] = rng.random(len(chosen))
+    data = data.reshape(n_rows, n_cols)
+    data = scipy_sparse.csr_matrix(data)
+
+    (new_indptr,
+     new_indices) = downsample_indptr(
+         indptr_old=data.indptr,
+         indices_old=data.indices,
+         indptr_to_keep=to_keep)
+
+    for ii, i_row in enumerate(to_keep):
+        actual0 = new_indptr[ii]
+        actual1 = new_indptr[ii+1]
+        actual = new_indices[actual0:actual1]
+        expected0 = data.indptr[i_row]
+        expected1 = data.indptr[i_row+1]
+        expected = data.indices[expected0:expected1]
+        np.testing.assert_array_equal(actual, expected)

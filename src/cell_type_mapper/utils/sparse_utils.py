@@ -572,3 +572,31 @@ def _update_buffers(
     print(f"flushing took {duration:.2e} hrs\n")
     return (output_0,
             buffer_1)
+
+
+def downsample_indptr(
+        indptr_old,
+        indices_old,
+        indptr_to_keep):
+    """
+    Downsample inpdtr and indices.
+
+    Returns indptr_new, indices_new
+    """
+
+    ct_new = 0
+    indptr_new = np.zeros(len(indptr_to_keep)+1, dtype=indptr_old.dtype)
+    for ii, indptr in enumerate(indptr_to_keep):
+        indptr_new[ii] = ct_new
+        ct_new += indptr_old[indptr+1]-indptr_old[indptr]
+    indptr_new[-1] = ct_new
+
+    indices_new = np.zeros(ct_new, dtype=indices_old.dtype)
+    for ii in range(len(indptr_to_keep)):
+        src0 = indptr_old[indptr_to_keep[ii]]
+        src1 = indptr_old[indptr_to_keep[ii]+1]
+        dst0 = indptr_new[ii]
+        dst1 = indptr_new[ii+1]
+        indices_new[dst0:dst1] = indices_old[src0:src1]
+
+    return indptr_new, indices_new
