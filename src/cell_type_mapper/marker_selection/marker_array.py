@@ -97,6 +97,10 @@ class MarkerGeneArray(object):
         self._up_marker_sparse = up_marker_sparse
         self._down_marker_sparse = down_marker_sparse
 
+        self._has_sparse = False
+        if self._up_marker_sparse is not None:
+            self._has_sparse = True
+
     @classmethod
     def from_cache_path(
             cls,
@@ -236,6 +240,10 @@ class MarkerGeneArray(object):
     @property
     def n_genes(self):
         return len(self.gene_names)
+
+    @property
+    def has_sparse(self):
+        return self._has_sparse
 
     def idx_of_pair(
             self,
