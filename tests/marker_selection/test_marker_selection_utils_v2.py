@@ -18,7 +18,7 @@ from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
 from cell_type_mapper.diff_exp.sparse_markers import (
-    add_sparse_markers_to_h5)
+    add_sparse_markers_by_pair_to_h5)
 
 from cell_type_mapper.marker_selection.utils import (
     create_utility_array)
@@ -122,7 +122,7 @@ def marker_with_sparse_fixture(
         src=backed_array_fixture,
         dst=h5_path)
 
-    add_sparse_markers_to_h5(h5_path)
+    add_sparse_markers_by_pair_to_h5(h5_path)
 
     with h5py.File(h5_path, 'r') as src:
         assert 'sparse' in src

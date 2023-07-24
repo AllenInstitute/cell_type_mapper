@@ -7,8 +7,8 @@ from cell_type_mapper.binary_array.binary_array import (
 
 from cell_type_mapper.diff_exp.sparse_markers import (
     can_we_make_sparse,
-    sparse_markers_from_arrays,
-    SparseMarkers)
+    sparse_markers_by_pair_from_arrays,
+    SparseMarkersByPair)
 
 
 def test_can_we_make_sparse_no():
@@ -101,7 +101,7 @@ def test_make_sparse():
 
     gb_estimate = 1.001*(n_bits*marker_truth.sum()/(8*1024**3))
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=gb_estimate)
@@ -158,12 +158,12 @@ def test_sparse_class():
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
@@ -210,12 +210,12 @@ def test_sparse_class_downsample_columns(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
@@ -264,12 +264,12 @@ def test_sparse_class_downsample_rows(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 

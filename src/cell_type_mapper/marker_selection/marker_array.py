@@ -20,7 +20,7 @@ from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
 from cell_type_mapper.diff_exp.sparse_markers import (
-    SparseMarkers)
+    SparseMarkersByPair)
 
 
 class MarkerGeneArray(object):
@@ -58,7 +58,7 @@ class MarkerGeneArray(object):
         BinarizedBooleanArray indicating up-regulation of
         markers.
     up_marker_sparse:
-        a diff_exp.sparse_markers.SparseMarkers representing
+        a diff_exp.sparse_markers.SparseMarkersByPair representing
         up-regulated marker genes (can be None)
     down_marker_sparse:
         ditto for down-regulated markers
@@ -141,13 +141,13 @@ class MarkerGeneArray(object):
                 n_cols=n_pairs)
 
             if 'sparse' in src:
-                up_marker_sparse = SparseMarkers(
+                up_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse/up_gene_idx'][()],
                     pair_idx=src['sparse/up_pair_idx'][()])
                 if only_keep_pairs is not None:
                     up_marker_sparse.keep_only_pairs(col_idx)
 
-                down_marker_sparse = SparseMarkers(
+                down_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse/down_gene_idx'][()],
                     pair_idx=src['sparse/down_pair_idx'][()])
                 if only_keep_pairs is not None:

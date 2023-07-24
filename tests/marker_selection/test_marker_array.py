@@ -18,7 +18,7 @@ from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
 from cell_type_mapper.diff_exp.sparse_markers import (
-    add_sparse_markers_to_h5)
+    add_sparse_markers_by_pair_to_h5)
 
 
 @pytest.fixture(scope='module')
@@ -122,7 +122,7 @@ def backed_array_fixture_with_sparse(
         src=backed_array_fixture,
         dst=h5_path)
 
-    add_sparse_markers_to_h5(h5_path)
+    add_sparse_markers_by_pair_to_h5(h5_path)
     return h5_path
 
 

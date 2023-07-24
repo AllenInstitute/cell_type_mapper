@@ -11,9 +11,11 @@ from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
 
-class SparseMarkers(object):
+class SparseMarkersByPair(object):
     """"
     Class to contain the sparse summary of the marker array
+
+    Arrays are stored to optimize access by pair index
 
     Parameters
     ----------
@@ -81,7 +83,7 @@ class SparseMarkers(object):
                                  if old in self._gene_map])).astype(self.dtype)
 
 
-def add_sparse_markers_to_h5(
+def add_sparse_markers_by_pair_to_h5(
         marker_h5_path):
     """
     If possible, add the marker summary to the HDF5 file at the specified path
@@ -96,7 +98,7 @@ def add_sparse_markers_to_h5(
             n_cols=n_cols,
             data_array=in_file['up_regulated/data'][()])
 
-    summary = sparse_markers_from_arrays(
+    summary = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=20)
@@ -119,7 +121,7 @@ def add_sparse_markers_to_h5(
           f"{duration:.2e} seconds")
 
 
-def sparse_markers_from_arrays(
+def sparse_markers_by_pair_from_arrays(
         marker_array,
         up_array,
         gb_cutoff=15):
