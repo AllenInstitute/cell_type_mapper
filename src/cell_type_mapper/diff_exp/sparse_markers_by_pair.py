@@ -7,6 +7,9 @@ import numpy as np
 import warnings
 import time
 
+from cell_type_mapper.utils.sparse_utils import (
+    downsample_indptr)
+
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
@@ -33,7 +36,6 @@ class SparseMarkersByPair(object):
            pair_idx):
         self.gene_idx = np.array(gene_idx)
         self.pair_idx = np.array(pair_idx)
-        self._pair_map = None
         self._gene_map = None
         self.dtype = self.gene_idx.dtype
 
@@ -43,13 +45,11 @@ class SparseMarkersByPair(object):
         new pair idx. This is done because downsampling the sparse
         matrix is too expensive.
         """
-        if self._pair_map is not None:
-            raise RuntimeError(
-                "Have already downsampled this MarkerSummary "
-                "along the 'pairs' axis")
-
-        self._pair_map = {
-           ii: nn for ii, nn in enumerate(pairs_to_keep)}
+        (self.pair_idx,
+         self.gene_idx) = downsample_indptr(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indptr_to_keep=pairs_to_keep)
 
     def keep_only_genes(self, genes_to_keep):
         """
@@ -73,8 +73,6 @@ class SparseMarkersByPair(object):
                    self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]]
 
     def get_genes_for_pair(self, pair_idx):
-        if self._pair_map is not None:
-            pair_idx = self._pair_map[pair_idx]
         raw = self._get_genes_for_pair_raw(pair_idx)
         if self._gene_map is None:
             return np.copy(raw)
