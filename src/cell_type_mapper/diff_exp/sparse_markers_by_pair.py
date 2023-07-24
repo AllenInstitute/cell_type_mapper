@@ -39,6 +39,10 @@ class SparseMarkersByPair(object):
         self._gene_map = None
         self.dtype = self.gene_idx.dtype
 
+    @property
+    def has_been_downsampled_by_genes(self):
+        return self._gene_map is not None
+
     def keep_only_pairs(self, pairs_to_keep):
         """
         This will work by creating a map between old pair idx and
