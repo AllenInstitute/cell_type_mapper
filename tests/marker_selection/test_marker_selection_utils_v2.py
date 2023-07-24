@@ -5,6 +5,7 @@ from itertools import product
 import json
 import numpy as np
 import pathlib
+import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -15,6 +16,9 @@ from cell_type_mapper.binary_array.backed_binary_array import (
 
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
+
+from cell_type_mapper.diff_exp.sparse_markers import (
+    add_sparse_markers_to_h5)
 
 from cell_type_mapper.marker_selection.utils import (
     create_utility_array)
@@ -105,6 +109,27 @@ def backed_array_fixture(
     return h5_path
 
 
+@pytest.fixture
+def marker_with_sparse_fixture(
+        backed_array_fixture,
+        tmp_dir_fixture):
+
+    h5_path = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir_fixture,
+                      suffix='.h5'))
+
+    shutil.copy(
+        src=backed_array_fixture,
+        dst=h5_path)
+
+    add_sparse_markers_to_h5(h5_path)
+
+    with h5py.File(h5_path, 'r') as src:
+        assert 'sparse' in src
+
+    return h5_path
+
+
 @pytest.mark.parametrize(
         "gb_size, taxonomy_mask",
         product([1, 1.0e-7],
@@ -113,6 +138,7 @@ def test_create_utility_array(
         mask_array_fixture,
         up_regulated_fixture,
         backed_array_fixture,
+        marker_with_sparse_fixture,
         n_rows,
         n_cols,
         gb_size,
