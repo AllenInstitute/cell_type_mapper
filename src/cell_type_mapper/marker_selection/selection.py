@@ -349,6 +349,11 @@ def _thin_marker_gene_array(
     reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
     reference_gene_mask[matched_genes['reference']] = True
 
+    if reference_gene_mask.sum() == marker_gene_array.n_genes:
+        # nothing to be done; query and reference genes are
+        # the same
+        return marker_gene_array
+
     reference_gene_idx = np.where(reference_gene_mask)[0]
     marker_gene_array.downsample_genes(reference_gene_idx)
     return marker_gene_array
