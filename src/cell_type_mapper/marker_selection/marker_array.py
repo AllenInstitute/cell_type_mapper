@@ -19,7 +19,7 @@ import pathlib
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from cell_type_mapper.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     SparseMarkersByPair)
 
 
@@ -140,16 +140,16 @@ class MarkerGeneArray(object):
                 data_array=src['up_regulated/data'][()],
                 n_cols=n_pairs)
 
-            if 'sparse' in src:
+            if 'sparse_by_pair' in src:
                 up_marker_sparse = SparseMarkersByPair(
-                    gene_idx=src['sparse/up_gene_idx'][()],
-                    pair_idx=src['sparse/up_pair_idx'][()])
+                    gene_idx=src['sparse_by_pair/up_gene_idx'][()],
+                    pair_idx=src['sparse_by_pair/up_pair_idx'][()])
                 if only_keep_pairs is not None:
                     up_marker_sparse.keep_only_pairs(col_idx)
 
                 down_marker_sparse = SparseMarkersByPair(
-                    gene_idx=src['sparse/down_gene_idx'][()],
-                    pair_idx=src['sparse/down_pair_idx'][()])
+                    gene_idx=src['sparse_by_pair/down_gene_idx'][()],
+                    pair_idx=src['sparse_by_pair/down_pair_idx'][()])
                 if only_keep_pairs is not None:
                     down_marker_sparse.keep_only_pairs(col_idx)
             else:

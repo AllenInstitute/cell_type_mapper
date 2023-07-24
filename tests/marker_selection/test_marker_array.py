@@ -17,7 +17,7 @@ from cell_type_mapper.binary_array.binary_array import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from cell_type_mapper.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     add_sparse_markers_by_pair_to_h5)
 
 
@@ -502,16 +502,16 @@ def test_downsampling_by_taxon_pairs_other(
     if use_sparse:
         with h5py.File(backed_array_fixture_with_sparse, 'r') as expected:
             np.testing.assert_array_equal(
-                expected['sparse/up_gene_idx'][()],
+                expected['sparse_by_pair/up_gene_idx'][()],
                 base_array._up_marker_sparse.gene_idx)
             np.testing.assert_array_equal(
-                expected['sparse/up_pair_idx'][()],
+                expected['sparse_by_pair/up_pair_idx'][()],
                 base_array._up_marker_sparse.pair_idx)
             np.testing.assert_array_equal(
-                expected['sparse/down_gene_idx'][()],
+                expected['sparse_by_pair/down_gene_idx'][()],
                 base_array._down_marker_sparse.gene_idx)
             np.testing.assert_array_equal(
-                expected['sparse/down_pair_idx'][()],
+                expected['sparse_by_pair/down_pair_idx'][()],
                 base_array._down_marker_sparse.pair_idx)
             for sparse in (base_array._down_marker_sparse,
                             base_array._up_marker_sparse):

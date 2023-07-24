@@ -5,7 +5,7 @@ import numpy as np
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from cell_type_mapper.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     can_we_make_sparse,
     sparse_markers_by_pair_from_arrays,
     SparseMarkersByPair)

@@ -107,7 +107,7 @@ def add_sparse_markers_by_pair_to_h5(
         return
 
     with h5py.File(marker_h5_path, 'a') as out_file:
-        grp = out_file.create_group('sparse')
+        grp = out_file.create_group('sparse_by_pair')
         grp.create_dataset(
             'up_gene_idx', data=summary['up_values'])
         grp.create_dataset(
