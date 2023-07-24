@@ -224,11 +224,11 @@ def test_marker_mask_from_pair_idx(
     arr = MarkerGeneArray.from_cache_path(cache_path=pth)
 
     if use_sparse:
-        arr._up_marker_sparse is not None
-        arr._down_marker_sparse is not None
+        arr._up_marker_sparse_by_pair is not None
+        arr._down_marker_sparse_by_pair is not None
     else:
-        arr._up_marker_sparse is None
-        arr._down_marker_sparse is None
+        arr._up_marker_sparse_by_pair is None
+        arr._down_marker_sparse_by_pair is None
 
     for i_col in range(n_cols):
         (actual_marker,
@@ -272,11 +272,11 @@ def test_marker_downsample_genes(
     arr = MarkerGeneArray.from_cache_path(cache_path=pth)
 
     if use_sparse:
-        arr._up_marker_sparse is not None
-        arr._down_marker_sparse is not None
+        arr._up_marker_sparse_by_pair is not None
+        arr._down_marker_sparse_by_pair is not None
     else:
-        arr._up_marker_sparse is None
-        arr._down_marker_sparse is None
+        arr._up_marker_sparse_by_pair is None
+        arr._down_marker_sparse_by_pair is None
 
     assert arr.n_genes == n_genes
     assert arr.n_pairs == n_cols
@@ -347,11 +347,11 @@ def test_downsampling_by_taxon_pairs(
             only_keep_pairs=pairs_to_keep)
 
     if use_sparse:
-        test_array._up_marker_sparse is not None
-        test_array._down_marker_sparse is not None
+        test_array._up_marker_sparse_by_pair is not None
+        test_array._down_marker_sparse_by_pair is not None
     else:
-        test_array._up_marker_sparse is None
-        test_array._down_marker_sparse is None
+        test_array._up_marker_sparse_by_pair is None
+        test_array._down_marker_sparse_by_pair is None
 
     assert test_array.n_genes == base_array.n_genes
     assert test_array.n_pairs == len(pairs_to_keep)
@@ -417,18 +417,18 @@ def test_downsampling_by_taxon_pairs_other(
         copy_sparse=copy_sparse)
 
     if use_sparse:
-        assert base_array._up_marker_sparse is not None
-        assert base_array._down_marker_sparse is not None
+        assert base_array._up_marker_sparse_by_pair is not None
+        assert base_array._down_marker_sparse_by_pair is not None
     else:
-        assert base_array._up_marker_sparse is None
-        assert base_array._down_marker_sparse is None
+        assert base_array._up_marker_sparse_by_pair is None
+        assert base_array._down_marker_sparse_by_pair is None
 
     if use_sparse and copy_sparse:
-        assert test_array._up_marker_sparse is not None
-        assert test_array._down_marker_sparse is not None
+        assert test_array._up_marker_sparse_by_pair is not None
+        assert test_array._down_marker_sparse_by_pair is not None
     else:
-        assert test_array._up_marker_sparse is None
-        assert test_array._down_marker_sparse is None
+        assert test_array._up_marker_sparse_by_pair is None
+        assert test_array._down_marker_sparse_by_pair is None
 
     assert test_array is not base_array
 
@@ -503,17 +503,17 @@ def test_downsampling_by_taxon_pairs_other(
         with h5py.File(backed_array_fixture_with_sparse, 'r') as expected:
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/up_gene_idx'][()],
-                base_array._up_marker_sparse.gene_idx)
+                base_array._up_marker_sparse_by_pair.gene_idx)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/up_pair_idx'][()],
-                base_array._up_marker_sparse.pair_idx)
+                base_array._up_marker_sparse_by_pair.pair_idx)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/down_gene_idx'][()],
-                base_array._down_marker_sparse.gene_idx)
+                base_array._down_marker_sparse_by_pair.gene_idx)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/down_pair_idx'][()],
-                base_array._down_marker_sparse.pair_idx)
-            for sparse in (base_array._down_marker_sparse,
-                            base_array._up_marker_sparse):
+                base_array._down_marker_sparse_by_pair.pair_idx)
+            for sparse in (base_array._down_marker_sparse_by_pair,
+                           base_array._up_marker_sparse_by_pair):
                 assert len(sparse.pair_idx) == base_array.n_pairs+1
                 assert sparse.pair_idx[-1] == len(sparse.gene_idx)
