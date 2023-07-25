@@ -5,6 +5,7 @@ from itertools import product
 import json
 import numpy as np
 import pathlib
+import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -16,8 +17,13 @@ from cell_type_mapper.binary_array.backed_binary_array import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
+    add_sparse_markers_by_pair_to_h5)
+
 from cell_type_mapper.marker_selection.utils import (
-    create_utility_array)
+    create_utility_array,
+    create_utility_array_dense,
+    create_utility_array_sparse)
 
 
 @pytest.fixture(scope='module')
@@ -105,21 +111,71 @@ def backed_array_fixture(
     return h5_path
 
 
+@pytest.fixture
+def marker_with_sparse_fixture(
+        backed_array_fixture,
+        tmp_dir_fixture):
+
+    h5_path = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir_fixture,
+                      suffix='.h5'))
+
+    shutil.copy(
+        src=backed_array_fixture,
+        dst=h5_path)
+
+    add_sparse_markers_by_pair_to_h5(h5_path)
+
+    with h5py.File(h5_path, 'r') as src:
+        assert 'sparse_by_pair' in src
+
+    return h5_path
+
+
+@pytest.mark.parametrize("taxonomy_mask",
+    [None, np.array([13, 22, 81, 37])])
+def test_create_utility_array_sparse(
+       marker_with_sparse_fixture,
+       taxonomy_mask):
+    """
+    Test consistency of dense and sparse utility array
+    calculation
+    """
+    arr = MarkerGeneArray.from_cache_path(
+        cache_path=marker_with_sparse_fixture)
+
+    (utility_dense,
+     census_dense) = create_utility_array_dense(
+         marker_gene_array=arr,
+         taxonomy_mask=taxonomy_mask)
+
+    (utility_sparse,
+     census_sparse) = create_utility_array_sparse(
+         marker_gene_array=arr,
+         taxonomy_mask=taxonomy_mask)
+
 @pytest.mark.parametrize(
-        "gb_size, taxonomy_mask",
+        "gb_size, taxonomy_mask, use_sparse",
         product([1, 1.0e-7],
-                [None, np.array([13, 22, 81, 37])]))
+                [None, np.array([13, 22, 81, 37])],
+                [True, False]))
 def test_create_utility_array(
         mask_array_fixture,
         up_regulated_fixture,
         backed_array_fixture,
+        marker_with_sparse_fixture,
         n_rows,
         n_cols,
         gb_size,
-        taxonomy_mask):
+        taxonomy_mask,
+        use_sparse):
 
-    arr = MarkerGeneArray.from_cache_path(
-        cache_path=backed_array_fixture)
+    if use_sparse:
+        arr = MarkerGeneArray.from_cache_path(
+            cache_path=marker_with_sparse_fixture)
+    else:
+        arr = MarkerGeneArray.from_cache_path(
+            cache_path=backed_array_fixture)
 
     (actual_util,
      actual_census) = create_utility_array(

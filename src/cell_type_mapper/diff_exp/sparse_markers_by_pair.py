@@ -7,13 +7,19 @@ import numpy as np
 import warnings
 import time
 
+from cell_type_mapper.utils.sparse_utils import (
+    downsample_indptr,
+    mask_indptr_by_indices)
+
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
 
-class SparseMarkers(object):
+class SparseMarkersByPair(object):
     """"
     Class to contain the sparse summary of the marker array
+
+    Arrays are stored to optimize access by pair index
 
     Parameters
     ----------
@@ -31,23 +37,18 @@ class SparseMarkers(object):
            pair_idx):
         self.gene_idx = np.array(gene_idx)
         self.pair_idx = np.array(pair_idx)
-        self._pair_map = None
-        self._gene_map = None
         self.dtype = self.gene_idx.dtype
 
     def keep_only_pairs(self, pairs_to_keep):
         """
-        This will work by creating a map between old pair idx and
-        new pair idx. This is done because downsampling the sparse
-        matrix is too expensive.
+        Downsample, keeping only the pairs denoted by the indexes
+        in pairs_to_keep
         """
-        if self._pair_map is not None:
-            raise RuntimeError(
-                "Have already downsampled this MarkerSummary "
-                "along the 'pairs' axis")
-
-        self._pair_map = {
-           ii: nn for ii, nn in enumerate(pairs_to_keep)}
+        (self.pair_idx,
+         self.gene_idx) = downsample_indptr(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indptr_to_keep=pairs_to_keep)
 
     def keep_only_genes(self, genes_to_keep):
         """
@@ -55,33 +56,42 @@ class SparseMarkers(object):
         new gene idx. This is done because downsampling the sparse
         matrix is too expensive.
         """
-        if self._gene_map is not None:
-            raise RuntimeError(
-                "Have already downsampled this MarkerSummary "
-                "along the 'genes' axis")
-        self._gene_map = {
+        gene_map = {
             nn: ii for ii, nn in enumerate(genes_to_keep)}
 
-    def _get_genes_for_pair_raw(self, pair_idx):
+        (self.pair_idx,
+         self.gene_idx) = mask_indptr_by_indices(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indices_map=gene_map)
+        self.gene_idx = self.gene_idx.astype(self.dtype)
+
+    def get_genes_for_pair(self, pair_idx):
         if pair_idx >= len(self.pair_idx)-1:
             raise RuntimeError(
                 f"{pair_idx} is an invalid pair_idx; "
                 f"len(self.pair_idx) = {len(self.pair_idx)}")
-        return self.gene_idx[
-                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]]
+        return np.copy(
+            self.gene_idx[
+                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
 
-    def get_genes_for_pair(self, pair_idx):
-        if self._pair_map is not None:
-            pair_idx = self._pair_map[pair_idx]
-        raw = self._get_genes_for_pair_raw(pair_idx)
-        if self._gene_map is None:
-            return np.copy(raw)
-        return np.sort(np.array([self._gene_map[old]
-                                 for old in raw
-                                 if old in self._gene_map])).astype(self.dtype)
+    def get_sparse_genes_for_pair_array(self, pair_idx_array):
+        """
+        Take an array of pair indices and return the pair_idx, gene_idx
+        (a la sparse matrices indptr, indices) for that group of taxon
+        pairs.
+        """
+
+        (new_pairs,
+         new_genes) = downsample_indptr(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indptr_to_keep=pair_idx_array)
+
+        return (new_pairs, new_genes)
 
 
-def add_sparse_markers_to_h5(
+def add_sparse_markers_by_pair_to_h5(
         marker_h5_path):
     """
     If possible, add the marker summary to the HDF5 file at the specified path
@@ -96,7 +106,7 @@ def add_sparse_markers_to_h5(
             n_cols=n_cols,
             data_array=in_file['up_regulated/data'][()])
 
-    summary = sparse_markers_from_arrays(
+    summary = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=20)
@@ -105,7 +115,7 @@ def add_sparse_markers_to_h5(
         return
 
     with h5py.File(marker_h5_path, 'a') as out_file:
-        grp = out_file.create_group('sparse')
+        grp = out_file.create_group('sparse_by_pair')
         grp.create_dataset(
             'up_gene_idx', data=summary['up_values'])
         grp.create_dataset(
@@ -119,7 +129,7 @@ def add_sparse_markers_to_h5(
           f"{duration:.2e} seconds")
 
 
-def sparse_markers_from_arrays(
+def sparse_markers_by_pair_from_arrays(
         marker_array,
         up_array,
         gb_cutoff=15):

@@ -19,8 +19,8 @@ import pathlib
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from cell_type_mapper.diff_exp.sparse_markers import (
-    SparseMarkers)
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
+    SparseMarkersByPair)
 
 
 class MarkerGeneArray(object):
@@ -58,7 +58,7 @@ class MarkerGeneArray(object):
         BinarizedBooleanArray indicating up-regulation of
         markers.
     up_marker_sparse:
-        a diff_exp.sparse_markers.SparseMarkers representing
+        a diff_exp.sparse_markers.SparseMarkersByPair representing
         up-regulated marker genes (can be None)
     down_marker_sparse:
         ditto for down-regulated markers
@@ -94,8 +94,12 @@ class MarkerGeneArray(object):
         self.is_marker = is_marker
         self.up_regulated = up_regulated
 
-        self._up_marker_sparse = up_marker_sparse
-        self._down_marker_sparse = down_marker_sparse
+        self._up_marker_sparse_by_pair = up_marker_sparse
+        self._down_marker_sparse_by_pair = down_marker_sparse
+
+        self._has_sparse = False
+        if self._up_marker_sparse_by_pair is not None:
+            self._has_sparse = True
 
     @classmethod
     def from_cache_path(
@@ -136,16 +140,16 @@ class MarkerGeneArray(object):
                 data_array=src['up_regulated/data'][()],
                 n_cols=n_pairs)
 
-            if 'sparse' in src:
-                up_marker_sparse = SparseMarkers(
-                    gene_idx=src['sparse/up_gene_idx'][()],
-                    pair_idx=src['sparse/up_pair_idx'][()])
+            if 'sparse_by_pair' in src:
+                up_marker_sparse = SparseMarkersByPair(
+                    gene_idx=src['sparse_by_pair/up_gene_idx'][()],
+                    pair_idx=src['sparse_by_pair/up_pair_idx'][()])
                 if only_keep_pairs is not None:
                     up_marker_sparse.keep_only_pairs(col_idx)
 
-                down_marker_sparse = SparseMarkers(
-                    gene_idx=src['sparse/down_gene_idx'][()],
-                    pair_idx=src['sparse/down_pair_idx'][()])
+                down_marker_sparse = SparseMarkersByPair(
+                    gene_idx=src['sparse_by_pair/down_gene_idx'][()],
+                    pair_idx=src['sparse_by_pair/down_pair_idx'][()])
                 if only_keep_pairs is not None:
                     down_marker_sparse.keep_only_pairs(col_idx)
             else:
@@ -195,10 +199,10 @@ class MarkerGeneArray(object):
         new_up = self.up_regulated.downsample_columns_to_other(
             col_idx_array=col_idx)
 
-        if self._up_marker_sparse is not None and copy_sparse:
-            new_up_s = copy.deepcopy(self._up_marker_sparse)
+        if self._up_marker_sparse_by_pair is not None and copy_sparse:
+            new_up_s = copy.deepcopy(self._up_marker_sparse_by_pair)
             new_up_s.keep_only_pairs(col_idx)
-            new_down_s = copy.deepcopy(self._down_marker_sparse)
+            new_down_s = copy.deepcopy(self._down_marker_sparse_by_pair)
             new_down_s.keep_only_pairs(col_idx)
         else:
             new_up_s = None
@@ -224,9 +228,9 @@ class MarkerGeneArray(object):
             self._gene_names[ii]
             for ii in gene_idx_array]
 
-        if self._up_marker_sparse is not None:
-            self._up_marker_sparse.keep_only_genes(gene_idx_array)
-            self._down_marker_sparse.keep_only_genes(gene_idx_array)
+        if self._up_marker_sparse_by_pair is not None:
+            self._up_marker_sparse_by_pair.keep_only_genes(gene_idx_array)
+            self._down_marker_sparse_by_pair.keep_only_genes(gene_idx_array)
         print("done downsampling genes")
 
     @property
@@ -236,6 +240,10 @@ class MarkerGeneArray(object):
     @property
     def n_genes(self):
         return len(self.gene_names)
+
+    @property
+    def has_sparse(self):
+        return self._has_sparse
 
     def idx_of_pair(
             self,
@@ -296,7 +304,7 @@ class MarkerGeneArray(object):
     def _up_mask_from_pair_idx_use_sparse(
             self,
             pair_idx):
-        idx = self._up_marker_sparse.get_genes_for_pair(pair_idx)
+        idx = self._up_marker_sparse_by_pair.get_genes_for_pair(pair_idx)
         mask = np.zeros(self.n_genes, dtype=bool)
         mask[idx] = True
         return mask
@@ -308,7 +316,7 @@ class MarkerGeneArray(object):
         Return (n_genes,) boolean array indicating all genes that
         are up_regulated markers for the pair
         """
-        if self._up_marker_sparse is not None:
+        if self._up_marker_sparse_by_pair is not None:
             return self._up_mask_from_pair_idx_use_sparse(pair_idx)
         return self._up_mask_from_pair_idx_use_full(pair_idx)
 
@@ -329,7 +337,7 @@ class MarkerGeneArray(object):
     def _down_mask_from_pair_idx_use_sparse(
             self,
             pair_idx):
-        idx = self._down_marker_sparse.get_genes_for_pair(pair_idx)
+        idx = self._down_marker_sparse_by_pair.get_genes_for_pair(pair_idx)
         mask = np.zeros(self.n_genes, dtype=bool)
         mask[idx] = True
         return mask
@@ -341,9 +349,23 @@ class MarkerGeneArray(object):
         Return (n_genes,) boolean array indicating all genes that
         are wown_regulated markers for the pair
         """
-        if self._down_marker_sparse is not None:
+        if self._down_marker_sparse_by_pair is not None:
             return self._down_mask_from_pair_idx_use_sparse(pair_idx)
         return self._down_mask_from_pair_idx_use_full(pair_idx)
+
+    def up_regulated_gene_batch(self, gene0, gene1):
+        """
+        Return up_regulated mask between gene0:gene1 as a
+        np.ndarray
+        """
+        return self.up_regulated.get_row_batch(gene0, gene1)
+
+    def is_marker_gene_batch(self, gene0, gene1):
+        """
+        Return is_marker mask between gene0:gene1 as a
+        np.ndarray
+        """
+        return self.is_marker.get_row_batch(gene0, gene1)
 
 
 def _create_new_pair_lookup(only_keep_pairs):

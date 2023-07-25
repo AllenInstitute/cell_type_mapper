@@ -5,10 +5,10 @@ import numpy as np
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
-from cell_type_mapper.diff_exp.sparse_markers import (
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     can_we_make_sparse,
-    sparse_markers_from_arrays,
-    SparseMarkers)
+    sparse_markers_by_pair_from_arrays,
+    SparseMarkersByPair)
 
 
 def test_can_we_make_sparse_no():
@@ -80,7 +80,7 @@ def test_can_we_make_sparse_yes(expected_dtype):
         assert actual['down_col_sum'][i_col] == (marker_col*(~up_col)).sum()
 
 
-def test_make_sparse():
+def test_make_sparse_by_pairs():
     n_bits = 8
     rng = np.random.default_rng(118231)
     n_rows = 2**(n_bits-1)
@@ -101,7 +101,7 @@ def test_make_sparse():
 
     gb_estimate = 1.001*(n_bits*marker_truth.sum()/(8*1024**3))
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=gb_estimate)
@@ -138,7 +138,7 @@ def test_make_sparse():
         np.testing.assert_array_equal(actual, down_values)
 
 
-def test_sparse_class():
+def test_sparse_by_pairs_class():
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
@@ -158,12 +158,12 @@ def test_sparse_class():
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
@@ -188,7 +188,7 @@ def test_sparse_class():
      np.array([11, 17, 45, 66, 111]),
      np.array([0, 17, 44, 53, 111])
     ])
-def test_sparse_class_downsample_columns(
+def test_sparse_by_pairs_class_downsample_pairs(
         columns_to_keep):
     n_bits = 8
     expected_dtype = np.uint8
@@ -210,12 +210,12 @@ def test_sparse_class_downsample_columns(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
@@ -242,7 +242,7 @@ def test_sparse_class_downsample_columns(
      np.array([11, 17, 45, 66, 111, 127], dtype=np.int64),
      np.array([0, 17, 44, 53, 111, 127], dtype=np.int64)
     ])
-def test_sparse_class_downsample_rows(
+def test_sparse_by_pairs_class_downsample_genes(
         rows_to_keep):
     n_bits = 8
     expected_dtype = np.uint8
@@ -264,12 +264,12 @@ def test_sparse_class_downsample_rows(
         up_array.set_row(i_row, up_truth[i_row, :])
         marker_array.set_row(i_row, marker_truth[i_row, :])
 
-    sparse = sparse_markers_from_arrays(
+    sparse = sparse_markers_by_pair_from_arrays(
         marker_array=marker_array,
         up_array=up_array,
         gb_cutoff=22)
 
-    marker_sparse = SparseMarkers(
+    marker_sparse = SparseMarkersByPair(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
