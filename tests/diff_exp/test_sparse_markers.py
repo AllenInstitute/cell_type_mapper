@@ -273,11 +273,7 @@ def test_sparse_by_pairs_class_downsample_genes(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
-    assert not marker_sparse.has_been_downsampled_by_genes
-
     marker_sparse.keep_only_genes(rows_to_keep)
-
-    assert marker_sparse.has_been_downsampled_by_genes
 
     ct = 0
     for i_col in range(n_cols):

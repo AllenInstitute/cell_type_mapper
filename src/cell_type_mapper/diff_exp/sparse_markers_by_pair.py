@@ -37,12 +37,7 @@ class SparseMarkersByPair(object):
            pair_idx):
         self.gene_idx = np.array(gene_idx)
         self.pair_idx = np.array(pair_idx)
-        self._gene_map = None
         self.dtype = self.gene_idx.dtype
-
-    @property
-    def has_been_downsampled_by_genes(self):
-        return self._gene_map is not None
 
     def keep_only_pairs(self, pairs_to_keep):
         """
@@ -61,28 +56,24 @@ class SparseMarkersByPair(object):
         new gene idx. This is done because downsampling the sparse
         matrix is too expensive.
         """
-        if self._gene_map is not None:
-            raise RuntimeError(
-                "Have already downsampled this MarkerSummary "
-                "along the 'genes' axis")
-        self._gene_map = {
+        gene_map = {
             nn: ii for ii, nn in enumerate(genes_to_keep)}
 
-    def _get_genes_for_pair_raw(self, pair_idx):
+        (self.pair_idx,
+         self.gene_idx) = mask_indptr_by_indices(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indices_map=gene_map)
+        self.gene_idx = self.gene_idx.astype(self.dtype)
+
+    def get_genes_for_pair(self, pair_idx):
         if pair_idx >= len(self.pair_idx)-1:
             raise RuntimeError(
                 f"{pair_idx} is an invalid pair_idx; "
                 f"len(self.pair_idx) = {len(self.pair_idx)}")
-        return self.gene_idx[
-                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]]
-
-    def get_genes_for_pair(self, pair_idx):
-        raw = self._get_genes_for_pair_raw(pair_idx)
-        if self._gene_map is None:
-            return np.copy(raw)
-        return np.sort(np.array([self._gene_map[old]
-                                 for old in raw
-                                 if old in self._gene_map])).astype(self.dtype)
+        return np.copy(
+            self.gene_idx[
+                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
 
     def get_sparse_genes_for_pair_array(self, pair_idx_array):
         """
@@ -96,15 +87,6 @@ class SparseMarkersByPair(object):
              indptr_old=self.pair_idx,
              indices_old=self.gene_idx,
              indptr_to_keep=pair_idx_array)
-
-        if not self.has_been_downsampled_by_genes:
-            return (new_pairs, new_genes)
-
-        (new_pairs,
-         new_genes) = mask_indptr_by_indices(
-                 indptr_old=new_pairs,
-                 indices_old=new_genes,
-                 indices_map=self._gene_map)
 
         return (new_pairs, new_genes)
 
