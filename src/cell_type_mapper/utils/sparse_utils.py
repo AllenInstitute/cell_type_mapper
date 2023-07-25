@@ -600,3 +600,34 @@ def downsample_indptr(
         indices_new[dst0:dst1] = indices_old[src0:src1]
 
     return indptr_new, indices_new
+
+
+def mask_indptr_by_indices(
+        indptr_old,
+        indices_old,
+        indices_map):
+    """
+    indices_map maps old index value to new index values
+    (if an index has been dropped, it does not appear in
+    indices_map)
+    """
+    bad_val = -999
+    indices_old = np.array([
+        indices_map[n]
+        if n in indices_map else bad_val
+        for n in indices_old])
+
+    ct = (indices_old >= 0).sum()
+    new_indices = np.zeros(ct, dtype=indices_old.dtype)
+    new_indptr = np.zeros(len(indptr_old), dtype=indptr_old.dtype)
+    ct = 0
+    for ii in range(len(indptr_old)-1):
+        src0 = indptr_old[ii]
+        src1 = indptr_old[ii+1]
+        valid = (indices_old[src0:src1] >= 0)
+        n_valid = valid.sum()
+        new_indptr[ii] = ct
+        new_indices[ct:ct+n_valid] = np.sort(indices_old[src0:src1][valid])
+        ct += n_valid
+    new_indptr[-1] = len(new_indices)
+    return (new_indptr, new_indices)
