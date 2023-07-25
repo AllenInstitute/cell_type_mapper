@@ -46,9 +46,8 @@ class SparseMarkersByPair(object):
 
     def keep_only_pairs(self, pairs_to_keep):
         """
-        This will work by creating a map between old pair idx and
-        new pair idx. This is done because downsampling the sparse
-        matrix is too expensive.
+        Downsample, keeping only the pairs denoted by the indexes
+        in pairs_to_keep
         """
         (self.pair_idx,
          self.gene_idx) = downsample_indptr(
