@@ -8,7 +8,8 @@ import warnings
 import time
 
 from cell_type_mapper.utils.sparse_utils import (
-    downsample_indptr)
+    downsample_indptr,
+    mask_indptr_by_indices)
 
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
@@ -83,6 +84,30 @@ class SparseMarkersByPair(object):
         return np.sort(np.array([self._gene_map[old]
                                  for old in raw
                                  if old in self._gene_map])).astype(self.dtype)
+
+    def get_sparse_genes_for_pair_array(self, pair_idx_array):
+        """
+        Take an array of pair indices and return the pair_idx, gene_idx
+        (a la sparse matrices indptr, indices) for that group of taxon
+        pairs.
+        """
+
+        (new_pairs,
+         new_genes) = downsample_indptr(
+             indptr_old=self.pair_idx,
+             indices_old=self.gene_idx,
+             indptr_to_keep=pair_idx_array)
+
+        if not self.has_been_downsampled_by_genes:
+            return (new_pairs, new_genes)
+
+        (new_pairs,
+         new_genes) = mask_indptr_by_indices(
+                 indptr_old=new_pairs,
+                 indices_old=new_genes,
+                 indices_map=self._gene_map)
+
+        return (new_pairs, new_genes)
 
 
 def add_sparse_markers_by_pair_to_h5(
