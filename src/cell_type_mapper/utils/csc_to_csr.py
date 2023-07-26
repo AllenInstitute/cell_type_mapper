@@ -58,7 +58,7 @@ def csc_to_csr_on_disk(
     print(f"created empty csr matrix at {csr_path}")
 
     csr_indptr = _calculate_csr_indptr(
-        csc_group=csc_group,
+        indices_handle=csc_group['indices'],
         array_shape=array_shape,
         n_non_zero=n_non_zero,
         max_gb=max_gb)
@@ -192,12 +192,12 @@ def csc_to_csr_on_disk(
 
 
 def _calculate_csr_indptr(
-        csc_group,
+        indices_handle,
         array_shape,
         n_non_zero,
         max_gb):
 
-    bytes_per = _get_bytes_for_type(csc_group['indices'].dtype)
+    bytes_per = _get_bytes_for_type(indices_handle.dtype)
     load_chunk_size = np.round(max_gb*1024**3).astype(int)//bytes_per
     print("in calculate_csr")
     print(f"bytes_per {bytes_per}")
@@ -210,7 +210,7 @@ def _calculate_csr_indptr(
     print(f"cumulative_count_shape {cumulative_count.shape}")
     for i0 in range(0, n_non_zero, load_chunk_size):
         i1 = min(n_non_zero, i0+load_chunk_size)
-        chunk = csc_group['indices'][i0:i1]
+        chunk = indices_handle[i0:i1]
         print(f"indptr loaded {chunk.shape}")
         unq_val, unq_ct = np.unique(chunk, return_counts=True)
         cumulative_count[unq_val] += unq_ct
