@@ -29,18 +29,42 @@ def csc_to_csr_on_disk(
     we are just transposing the indices and indptr arrays
     """
 
+    if use_data_array:
+        data_handle = csc_group['data']
+    else:
+        data_handle = None
+
+    transpose_sparse_matrix_on_disk(
+        indices_handle=csc_group['indices'],
+        indptr_handle=csc_group['indptr'],
+        data_handle=data_handle,
+        array_shape=array_shape,
+        max_gb=max_gb,
+        output_path=csr_path)
+
+
+def transpose_sparse_matrix_on_disk(
+        indices_handle,
+        indptr_handle,
+        data_handle,
+        array_shape,
+        max_gb,
+        output_path):
+
+    use_data_array = (data_handle is not None)
+
     # to account for phantom overhead in numpy
     max_gb = 0.8*max_gb
 
-    n_non_zero = csc_group['indices'].shape[0]
+    n_non_zero = indices_handle.shape[0]
 
     col_dtype = _get_uint_dtype(array_shape[1])
     row_dtype = _get_uint_dtype(array_shape[0])
 
     if use_data_array:
-        data_dtype = csc_group['data'].dtype
+        data_dtype = data_handle.dtype
 
-    with h5py.File(csr_path, 'w') as dst:
+    with h5py.File(output_path, 'w') as dst:
 
         if use_data_array:
             dst.create_dataset(
@@ -55,26 +79,26 @@ def csc_to_csr_on_disk(
             dtype=col_dtype,
             chunks=(min(n_non_zero, array_shape[1]),))
 
-    print(f"created empty csr matrix at {csr_path}")
+    print(f"created empty csr matrix at {output_path}")
 
     csr_indptr = _calculate_csr_indptr(
-        indices_handle=csc_group['indices'],
+        indices_handle=indices_handle,
         array_shape=array_shape,
         n_non_zero=n_non_zero,
         max_gb=max_gb)
 
-    with h5py.File(csr_path, 'a') as dst:
+    with h5py.File(output_path, 'a') as dst:
         dst.create_dataset(
             'indptr', data=csr_indptr)
 
     print("done with indptr")
 
     next_idx = np.copy(csr_indptr)
-    csc_indptr = csc_group['indptr'][()]
-    row_group = csc_group['indices']
+    csc_indptr = indptr_handle[()]
+    row_group = indices_handle
 
     if use_data_array:
-        data_group = csc_group['data']
+        data_group = data_handle
         data_bytes = _get_bytes_for_type(data_dtype)
     else:
         data_bytes = 0
@@ -183,7 +207,7 @@ def csc_to_csr_on_disk(
             dur = time.time()-pass_t0
             print(f"{i0} pass after {dur:.2e} seconds")
 
-        with h5py.File(csr_path, 'a') as dst:
+        with h5py.File(output_path, 'a') as dst:
             if use_data_array:
                 dst['data'][d0:d1] = data_buffer
             dst['indices'][d0:d1] = index_buffer
