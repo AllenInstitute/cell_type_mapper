@@ -7,6 +7,7 @@ import pytest
 
 import anndata
 import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -15,6 +16,9 @@ import scipy.sparse as scipy_sparse
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix)
 
 from cell_type_mapper.cli.precompute_stats import (
     PrecomputationRunner)
@@ -169,7 +173,7 @@ def term_label_to_name_fixture(
             this_key = (class_name, child)
             assert this_key not in result
             result[this_key] = f'{class_name}_{child}_readable'
-    return result 
+    return result
 
 
 @pytest.fixture(scope='module')
@@ -357,18 +361,26 @@ def h5ad_path_list_fixture(
         this_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.h5ad')
-        
+
         this_a.write_h5ad(this_path)
 
         path_list.append(this_path)
+    assert len(path_list) > 3
     return path_list
 
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list", [True, False])
 def test_precompute_cli(
         cell_metadata_fixture,
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
         h5ad_path_list_fixture,
-        tmp_dir_fixture):
+        x_fixture,
+        cell_to_cluster_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list):
     """
     So far, this is just a smoke test that makes sure the
     resulting file has the expected datasets
@@ -377,9 +389,15 @@ def test_precompute_cli(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+
     config = {
         'output_path': output_path,
-        'h5ad_path_list': h5ad_path_list_fixture,
+        'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
         'cell_metadata_path': cell_metadata_fixture,
         'cluster_annotation_path': cluster_annotation_term_fixture,
@@ -392,8 +410,63 @@ def test_precompute_cli(
 
     runner.run()
 
+    n_genes = x_fixture.shape[1]
+    expected_gene_names = [f"gene_{ii}" for ii in range(n_genes)]
+
+    # expected statistics per cluster
+    cluster_to_n_cells = dict()
+    cluster_to_sum = dict()
+    cluster_to_sumsq = dict()
+    for cluster_name in cluster_to_supertype_fixture:
+        cluster_to_n_cells[cluster_name] = 0
+        cluster_to_sum[cluster_name] = np.zeros(n_genes, dtype=float)
+        cluster_to_sumsq[cluster_name] = np.zeros(n_genes, dtype=float)
+
+    for h5ad_path in h5ad_list:
+        a_data = anndata.read_h5ad(h5ad_path)
+        obs = a_data.obs
+
+        cell_by_gene = CellByGeneMatrix(
+            data = a_data.X.toarray(),
+            gene_identifiers=a_data.var.index.values,
+            normalization='raw')
+
+        cell_by_gene.to_log2CPM_in_place()
+
+        for i_row, cell_id in enumerate(obs.index.values):
+            cluster_name = cell_to_cluster_fixture[cell_id]
+            cluster_to_n_cells[cluster_name] += 1
+            cluster_to_sum[cluster_name] += cell_by_gene.data[i_row, :]
+            cluster_to_sumsq[cluster_name] += cell_by_gene.data[i_row,:]**2
+
     with h5py.File(output_path, 'r') as src:
         src_keys = src.keys()
         for k in ('taxonomy_tree', 'metadata', 'col_names', 'cluster_to_row',
                   'n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
             assert k in src_keys
+
+        actual_gene_names = json.loads(src['col_names'][()].decode('utf-8'))
+        assert actual_gene_names == expected_gene_names
+
+        # only test cluster stats at this point
+        cluster_to_row = json.loads(
+            src['cluster_to_row'][()].decode('utf-8'))
+
+        n_cells = src['n_cells'][()]
+        sum_arr = src['sum'][()]
+        sumsq_arr = src['sumsq'][()]
+        for cluster_name in cluster_to_n_cells:
+            i_row = cluster_to_row[cluster_name]
+            assert n_cells[i_row] == cluster_to_n_cells[cluster_name]
+
+            np.testing.assert_allclose(
+                sum_arr[i_row, :],
+                cluster_to_sum[cluster_name],
+                atol=0.0,
+                rtol=1.0e-6)
+
+            np.testing.assert_allclose(
+                sumsq_arr[i_row, :],
+                cluster_to_sumsq[cluster_name],
+                atol=0.0,
+                rtol=1.0e-6)

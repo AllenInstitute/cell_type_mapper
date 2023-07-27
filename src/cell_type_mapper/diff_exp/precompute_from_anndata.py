@@ -289,6 +289,11 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
     buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
 
+    cell_name_to_output_row = dict()
+    for cell_name in cell_name_to_cluster_name:
+        cell_name_to_output_row[cell_name] = cluster_to_output_row[
+            cell_name_to_cluster_name[cell_name]]
+
     for data_path in data_path_list:
 
         cell_name_list = list(
@@ -299,11 +304,6 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         chunk_iterator = AnnDataRowIterator(
             h5ad_path=data_path,
             row_chunk_size=rows_at_a_time)
-
-        cell_name_to_output_row = dict()
-        for cell_name in cell_name_to_cluster_name:
-            cell_name_to_output_row[cell_name] = cluster_to_output_row[
-                cell_name_to_cluster_name[cell_name]]
 
         t0 = time.time()
         print(f"chunking through {data_path}")
