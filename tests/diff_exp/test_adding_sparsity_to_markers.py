@@ -17,6 +17,12 @@ from cell_type_mapper.binary_array.binary_array import (
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_markers_to_file)
 
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
+    SparseMarkersByPair)
+
+from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
+    SparseMarkersByGene)
+
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
@@ -220,3 +226,93 @@ def test_adding_general_sparse_markers_and_deleting_dense(
             np.testing.assert_array_equal(
                 csc.indptr,
                 indptr_1)
+
+
+@pytest.mark.parametrize(
+   "downsample",['genes', 'pairs', 'pair_gene', 'gene_pair', None])
+def test_adding_general_sparse_markers_specific_classes(
+        dense_marker_file_fixture,
+        n_genes,
+        n_pairs,
+        tmp_dir_fixture,
+        downsample):
+    """
+    Test that the classes used to access the two 'flavors' of sparsity
+    give consistent results
+    """
+
+    new_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='copy_of_markers_',
+        suffix='.h5')
+
+    shutil.copy(
+        src=dense_marker_file_fixture,
+        dst=new_path)
+
+    add_sparse_markers_to_file(
+        h5_path=new_path,
+        n_genes=n_genes,
+        max_gb=0.6,
+        tmp_dir=tmp_dir_fixture,
+        delete_dense=True)
+
+    rng = np.random.default_rng(22310)
+
+    # test that the two sparse arrays are transposes of each other
+    for direction in ('up', 'down'):
+        with h5py.File(new_path, 'r') as src:
+            by_gene = SparseMarkersByGene(
+                pair_idx=src[f'sparse_by_gene/{direction}_pair_idx'][()],
+                gene_idx=src[f'sparse_by_gene/{direction}_gene_idx'][()])
+
+            by_pair = SparseMarkersByPair(
+                pair_idx=src[f'sparse_by_pair/{direction}_pair_idx'][()],
+                gene_idx=src[f'sparse_by_pair/{direction}_gene_idx'][()])
+
+        this_n_pairs = n_pairs
+        this_n_genes = n_genes
+        if downsample == 'genes':
+            gene_idx = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
+            by_pair.keep_only_genes(gene_idx)
+            by_gene.keep_only_genes(gene_idx)
+            this_n_genes = len(gene_idx)
+        elif downsample == 'pairs':
+            pair_idx = rng.choice(np.arange(n_pairs), n_pairs//3, replace=False)
+            by_pair.keep_only_pairs(pair_idx)
+            by_gene.keep_only_pairs(pair_idx)
+            this_n_pairs = len(pair_idx)
+        elif downsample == 'pair_gene' or downsample=='gene_pair':
+            gene_idx = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
+            pair_idx = rng.choice(np.arange(n_pairs), n_pairs//3, replace=False)
+
+            # make sure order of downsampling does not matter
+            if downsample == 'pair_gene':
+                by_pair.keep_only_pairs(pair_idx)
+                by_pair.keep_only_genes(gene_idx)
+
+                by_gene.keep_only_genes(gene_idx)
+                by_gene.keep_only_pairs(pair_idx)
+            else:
+                by_pair.keep_only_genes(gene_idx)
+                by_pair.keep_only_pairs(pair_idx)
+
+                by_gene.keep_only_genes(gene_idx)
+                by_gene.keep_only_pairs(pair_idx)
+
+            this_n_pairs = len(pair_idx)
+            this_n_genes = len(gene_idx)
+        elif downsample is not None:
+            raise RuntimeError(
+                f"cannot parse downsample={downsample}")
+
+        dense_by_gene = np.zeros((this_n_pairs, this_n_genes), dtype=bool)
+
+        for i_gene in range(this_n_genes):
+            dense_by_gene[by_gene.get_pairs_for_gene(i_gene), i_gene] = True
+        dense_by_pair = np.zeros((this_n_pairs, this_n_genes), dtype=bool)
+
+        for i_pair in range(this_n_pairs):
+            dense_by_pair[i_pair, by_pair.get_genes_for_pair(i_pair)] = True
+        np.testing.assert_array_equal(dense_by_gene, dense_by_pair)
+        assert dense_by_gene.sum() > 20
