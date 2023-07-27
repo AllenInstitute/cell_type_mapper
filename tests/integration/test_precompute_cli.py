@@ -369,6 +369,8 @@ def h5ad_path_list_fixture(
     return path_list
 
 
+@pytest.mark.parametrize(
+    "downsample_h5ad_list", [True, False])
 def test_precompute_cli(
         cell_metadata_fixture,
         cluster_membership_fixture,
@@ -377,7 +379,8 @@ def test_precompute_cli(
         x_fixture,
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        downsample_h5ad_list):
     """
     So far, this is just a smoke test that makes sure the
     resulting file has the expected datasets
@@ -386,9 +389,15 @@ def test_precompute_cli(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+
     config = {
         'output_path': output_path,
-        'h5ad_path_list': h5ad_path_list_fixture,
+        'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
         'cell_metadata_path': cell_metadata_fixture,
         'cluster_annotation_path': cluster_annotation_term_fixture,
@@ -412,7 +421,8 @@ def test_precompute_cli(
         cluster_to_n_cells[cluster_name] = 0
         cluster_to_sum[cluster_name] = np.zeros(n_genes, dtype=float)
         cluster_to_sumsq[cluster_name] = np.zeros(n_genes, dtype=float)
-    for h5ad_path in h5ad_path_list_fixture:
+
+    for h5ad_path in h5ad_list:
         a_data = anndata.read_h5ad(h5ad_path)
         obs = a_data.obs
 
