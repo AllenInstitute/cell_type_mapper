@@ -327,11 +327,17 @@ def add_sparse_markers_to_file(
         h5_path,
         n_genes,
         max_gb,
-        tmp_dir):
+        tmp_dir,
+        delete_dense=False):
     """
     Add the sparse representation of marker genes to
     an HDF5 file containing the dense representation
     of the marker genes.
+
+    if delete_dense is True, then delete the groups/datasets
+    that contain the dense representations of marker genes
+    from the file after the sparse representations have been
+    added.
     """
 
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
@@ -367,6 +373,12 @@ def add_sparse_markers_to_file(
                     f'{direction}_pair_idx',
                     data=src['indices'],
                     chunks=src['indices'].chunks)
+
+    if delete_dense:
+        with h5py.File(h5_path, 'a') as dst:
+            del dst['markers']
+            del dst['up_regulated']
+
     _clean_up(tmp_dir)
 
 
