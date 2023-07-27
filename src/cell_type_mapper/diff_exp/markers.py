@@ -28,6 +28,9 @@ from cell_type_mapper.binary_array.backed_binary_array import (
 from cell_type_mapper.diff_exp.thin import (
     thin_marker_file)
 
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
+    add_sparse_markers_by_pair_to_h5)
+
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -238,6 +241,8 @@ def find_markers_for_all_taxonomy_pairs(
         thinned_marker_file_path=tmp_thinned_path,
         max_bytes=max_bytes,
         tmp_dir=None)
+
+    add_sparse_markers_by_pair_to_h5(tmp_thinned_path)
 
     shutil.move(
         src=tmp_thinned_path,
