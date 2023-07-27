@@ -503,17 +503,17 @@ def test_downsampling_by_taxon_pairs_other(
         with h5py.File(backed_array_fixture_with_sparse, 'r') as expected:
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/up_gene_idx'][()],
-                base_array._up_marker_sparse_by_pair.gene_idx)
+                base_array._up_marker_sparse_by_pair.indices)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/up_pair_idx'][()],
-                base_array._up_marker_sparse_by_pair.pair_idx)
+                base_array._up_marker_sparse_by_pair.indptr)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/down_gene_idx'][()],
-                base_array._down_marker_sparse_by_pair.gene_idx)
+                base_array._down_marker_sparse_by_pair.indices)
             np.testing.assert_array_equal(
                 expected['sparse_by_pair/down_pair_idx'][()],
-                base_array._down_marker_sparse_by_pair.pair_idx)
+                base_array._down_marker_sparse_by_pair.indptr)
             for sparse in (base_array._down_marker_sparse_by_pair,
                            base_array._up_marker_sparse_by_pair):
-                assert len(sparse.pair_idx) == base_array.n_pairs+1
-                assert sparse.pair_idx[-1] == len(sparse.gene_idx)
+                assert len(sparse.indptr) == base_array.n_pairs+1
+                assert sparse.indptr[-1] == len(sparse.indices)
