@@ -38,7 +38,7 @@ def csc_to_csr_on_disk(
         indices_handle=csc_group['indices'],
         indptr_handle=csc_group['indptr'],
         data_handle=data_handle,
-        array_shape=array_shape,
+        n_indices=array_shape[0],
         max_gb=max_gb,
         output_path=csr_path)
 
@@ -47,7 +47,7 @@ def transpose_sparse_matrix_on_disk(
         indices_handle,
         indptr_handle,
         data_handle,
-        array_shape,
+        n_indices,
         max_gb,
         output_path):
 
@@ -58,8 +58,9 @@ def transpose_sparse_matrix_on_disk(
 
     n_non_zero = indices_handle.shape[0]
 
-    col_dtype = _get_uint_dtype(array_shape[1])
-    row_dtype = _get_uint_dtype(array_shape[0])
+    n_indptr = indptr_handle.shape[0]-1
+    col_dtype = _get_uint_dtype(n_indptr)
+    row_dtype = _get_uint_dtype(n_indices)
 
     if use_data_array:
         data_dtype = data_handle.dtype
@@ -71,19 +72,19 @@ def transpose_sparse_matrix_on_disk(
                 'data',
                 shape=n_non_zero,
                 dtype=data_dtype,
-                chunks=(min(n_non_zero, array_shape[1]),))
+                chunks=(min(n_non_zero, n_indptr),))
 
         dst.create_dataset(
             'indices',
             shape=n_non_zero,
             dtype=col_dtype,
-            chunks=(min(n_non_zero, array_shape[1]),))
+            chunks=(min(n_non_zero, n_indptr),))
 
     print(f"created empty csr matrix at {output_path}")
 
     csr_indptr = _calculate_csr_indptr(
         indices_handle=indices_handle,
-        array_shape=array_shape,
+        n_indices=n_indices,
         n_non_zero=n_non_zero,
         max_gb=max_gb)
 
@@ -217,7 +218,7 @@ def transpose_sparse_matrix_on_disk(
 
 def _calculate_csr_indptr(
         indices_handle,
-        array_shape,
+        n_indices,
         n_non_zero,
         max_gb):
 
@@ -230,7 +231,7 @@ def _calculate_csr_indptr(
 
     load_chunk_size = max(100, load_chunk_size)
 
-    cumulative_count = np.zeros(array_shape[0], dtype=int)
+    cumulative_count = np.zeros(n_indices, dtype=int)
     print(f"cumulative_count_shape {cumulative_count.shape}")
     for i0 in range(0, n_non_zero, load_chunk_size):
         i1 = min(n_non_zero, i0+load_chunk_size)
