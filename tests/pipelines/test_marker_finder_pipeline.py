@@ -102,6 +102,7 @@ def test_marker_finding_pipeline(
         for sub_k in ("up_gene_idx", "up_pair_idx",
                       "down_gene_idx", "down_pair_idx"):
             assert f"sparse_by_pair/{sub_k}" in in_file
+            assert f"sparse_by_gene/{sub_k}" in in_file
 
         pair_to_idx = json.loads(in_file['pair_to_idx'][()].decode('utf-8'))
         n_cols = in_file['n_pairs'][()]

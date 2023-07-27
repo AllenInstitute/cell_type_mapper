@@ -155,7 +155,7 @@ def _run_mapping(config, tmp_dir, log):
             output_path=reference_marker_tmp,
             tmp_dir=marker_tmp,
             n_processors=reference_marker_config['n_processors'],
-            max_bytes=reference_marker_config['max_bytes'])
+            max_gb=reference_marker_config['max_gb'])
 
         log.benchmark(msg="finding reference markers",
                       duration=time.time()-t0)
@@ -285,7 +285,7 @@ def _validate_config(
         _check_config(
             config_dict=reference_marker_config,
             config_name='reference_markers',
-            key_name=['n_processors', 'max_bytes'],
+            key_name=['n_processors', 'max_gb'],
             log=log)
 
     query_marker_config = config["query_markers"]
