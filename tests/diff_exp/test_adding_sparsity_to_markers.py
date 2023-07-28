@@ -334,13 +334,17 @@ def test_adding_general_sparse_markers_specific_classes(
         assert dense_by_gene.sum() > 20
 
 
+@pytest.mark.parametrize(
+    "downsampling",
+    [None, ('genes',), ('pairs',), ('genes', 'pairs'), ('pairs', 'genes')])
 def test_sparse_marker_access_class(
         dense_marker_file_fixture,
         n_genes,
         n_pairs,
         n_nodes,
         tmp_dir_fixture,
-        pair_to_idx_fixture):
+        pair_to_idx_fixture,
+        downsampling):
 
     dense_markers = MarkerGeneArray.from_cache_path(
         dense_marker_file_fixture)
@@ -364,23 +368,60 @@ def test_sparse_marker_access_class(
     sparse_markers = MarkerGeneArrayPureSparse.from_cache_path(
         new_path)
 
-    # test consistency of idx_of_pair
-    for n0 in range(n_nodes):
-        for n1 in range(n0+1, n_nodes, 1):
-            expected = dense_markers.idx_of_pair(
-                level='cluster',
-                node1=f'node_{n0}',
-                node2=f'node_{n1}')
-            actual = sparse_markers.idx_of_pair(
-                level='cluster',
-                node1=f'node_{n0}',
-                node2=f'node_{n1}')
-            assert expected == actual
+    rng = np.random.default_rng(66513)
+    all_pairs = [
+       ('cluster', f'node_{i0}', f'node_{i1}')
+       for i0 in range(n_nodes) for i1 in range(i0+1, n_nodes, 1)]
+
+    if downsampling is not None:
+        chosen_pairs = rng.choice(all_pairs, 56, replace=False)
+    else:
+        chosen_pairs = all_pairs
+    chosen_genes = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
+
+    expected_n_genes = n_genes
+    expected_n_pairs = n_pairs
+
+    if downsampling is not None:
+        if downsampling[0] == 'genes':
+            dense_markers.downsample_genes(chosen_genes)
+            sparse_markers.downsample_genes(chosen_genes)
+            expected_n_genes = len(chosen_genes)
+        elif downsampling[0] == 'pairs':
+            dense_markers = dense_markers.downsample_pairs_to_other(chosen_pairs)
+            sparse_markers = sparse_markers.downsample_pairs_to_other(chosen_pairs)
+            expected_n_pairs = len(chosen_pairs)
+        else:
+            raise RuntimeError(f"invalid downsampling {downsampling}")
+        if len(downsampling) == 2:
+            if downsampling[1] == 'genes':
+                dense_markers.downsample_genes(chosen_genes)
+                sparse_markers.downsample_genes(chosen_genes)
+                expected_n_genes = len(chosen_genes)
+            elif downsampling[1] == 'pairs':
+                dense_markers = dense_markers.downsample_pairs_to_other(chosen_pairs)
+                sparse_markers = sparse_markers.downsample_pairs_to_other(chosen_pairs)
+                expected_n_pairs = len(chosen_pairs)
+            else:
+                raise RuntimeError(f"invalid downsampling {downsampling}")
+
+    for pair in chosen_pairs:
+        expected = dense_markers.idx_of_pair(
+            level=pair[0],
+            node1=pair[1],
+            node2=pair[2])
+        actual = sparse_markers.idx_of_pair(
+            level=pair[0],
+            node1=pair[1],
+            node2=pair[2])
+        assert expected == actual
 
     assert dense_markers.n_pairs == sparse_markers.n_pairs
     assert dense_markers.n_genes == sparse_markers.n_genes
     assert sparse_markers.has_sparse
     assert not dense_markers.has_sparse
+    assert dense_markers.n_pairs == expected_n_pairs
+    assert sparse_markers.n_genes == expected_n_genes
 
     # test consistence of marker_mask_from_pair_idx
     for i_pair in range(dense_markers.n_pairs):
