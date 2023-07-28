@@ -108,8 +108,7 @@ class MarkerGeneArray(object):
     @classmethod
     def from_cache_path(
             cls,
-            cache_path,
-            only_keep_pairs=None):
+            cache_path):
 
         cache_path = pathlib.Path(cache_path)
         if not cache_path.is_file():
@@ -122,23 +121,11 @@ class MarkerGeneArray(object):
             taxonomy_pair_to_idx = json.loads(
                 src['pair_to_idx'][()].decode('utf-8'))
 
-            if only_keep_pairs is not None:
-                col_idx = np.array(
-                    [_idx_of_pair(
-                        taxonomy_pair_to_idx,
-                        pair[0],
-                        pair[1],
-                        pair[2])
-                     for pair in only_keep_pairs])
-
             n_pairs = src['n_pairs'][()]
 
             is_marker = BinarizedBooleanArray.from_data_array(
                 data_array=src['markers/data'][()],
                 n_cols=n_pairs)
-
-            if only_keep_pairs is not None:
-                is_marker.downsample_columns(col_idx)
 
             up_regulated = BinarizedBooleanArray.from_data_array(
                 data_array=src['up_regulated/data'][()],
@@ -148,23 +135,13 @@ class MarkerGeneArray(object):
                 up_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse_by_pair/up_gene_idx'][()],
                     pair_idx=src['sparse_by_pair/up_pair_idx'][()])
-                if only_keep_pairs is not None:
-                    up_marker_sparse.keep_only_pairs(col_idx)
 
                 down_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse_by_pair/down_gene_idx'][()],
                     pair_idx=src['sparse_by_pair/down_pair_idx'][()])
-                if only_keep_pairs is not None:
-                    down_marker_sparse.keep_only_pairs(col_idx)
             else:
                 up_marker_sparse = None
                 down_marker_sparse = None
-
-            if only_keep_pairs is not None:
-                up_regulated.downsample_columns(col_idx)
-                n_pairs = len(col_idx)
-                taxonomy_pair_to_idx = _create_new_pair_lookup(
-                    only_keep_pairs)
 
         return cls(
             gene_names=gene_names,
