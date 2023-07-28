@@ -6,6 +6,7 @@ import h5py
 import json
 import numpy as np
 import pathlib
+import shutil
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -40,6 +41,9 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     write_query_markers_to_h5)
 
 from cell_type_mapper.cli.cli_log import CommandLog
+
+from cell_type_mapper.diff_exp.markers import (
+    add_sparse_markers_to_file)
 
 
 @pytest.fixture(scope='module')
@@ -820,3 +824,95 @@ def test_specified_marker_empty_parent(
         np.testing.assert_array_equal(
             src['pc/query'][()],
             np.array([1, 2, 0]))
+
+
+@pytest.mark.parametrize("n_clip", [0, 5, 15])
+def test_full_marker_cache_creation_sparsity(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture,
+         n_clip):
+    """
+    Test consistency of select_all_markers when run on dense
+    versus sparse marker cache
+    """
+
+    dense_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+    shutil.copy(
+        src=marker_cache_fixture,
+        dst=dense_path)
+    with h5py.File(dense_path, "r") as src:
+        if 'sparse_by_pair' in src:
+            del src['sparse_by_pair']
+
+    sparse_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+    shutil.copy(
+        src=marker_cache_fixture,
+        dst=sparse_path)
+
+    add_sparse_markers_to_file(
+        h5_path=sparse_path,
+        n_genes=len(gene_names_fixture),
+        max_gb=1,
+        tmp_dir=tmp_dir_fixture,
+        delete_dense=True)
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
+    # select a behemoth cut-off that puts several
+    # parents on either side of the divide
+    n_list = []
+    for level in taxonomy_tree_fixture['hierarchy'][:-1]:
+        for node in taxonomy_tree_fixture[level]:
+            parent = (level, node)
+            ct = len(get_all_leaf_pairs(
+                        taxonomy_tree=taxonomy_tree_fixture,
+                        parent_node=parent))
+            if ct > 0:
+                n_list.append(ct)
+    n_list.sort()
+    behemoth_cutoff = n_list[len(n_list)//2]
+    assert n_list[len(n_list)//4] < behemoth_cutoff
+    assert n_list[3*len(n_list)//4] > behemoth_cutoff
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(62234)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # maybe we do not have all the available genes
+    if n_clip > 0:
+        query_gene_names = query_gene_names[:n_clip]
+
+    # these are the results that should be recorded
+    expected = select_all_markers(
+        marker_cache_path=dense_path,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    actual = select_all_markers(
+        marker_cache_path=sparse_path,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    n_genes = 0
+    for k in expected:
+        n_genes += len(expected[k])
+    assert n_genes > 30
+
+    assert actual == expected

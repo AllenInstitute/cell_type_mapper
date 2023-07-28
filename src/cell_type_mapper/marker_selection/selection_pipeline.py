@@ -1,3 +1,4 @@
+import h5py
 import multiprocessing
 
 from cell_type_mapper.utils.multiprocessing_utils import (
@@ -9,6 +10,8 @@ from cell_type_mapper.marker_selection.selection import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
+from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
+    MarkerGeneArrayPureSparse)
 
 def select_all_markers(
         marker_cache_path,
@@ -64,8 +67,17 @@ def select_all_markers(
         else:
             smaller_parents.append(parent)
 
-    parent_marker_cache = MarkerGeneArray.from_cache_path(
-        cache_path=marker_cache_path)
+    use_sparse_markers = False
+    with h5py.File(marker_cache_path, 'r') as src:
+        if 'sparse_by_gene' in src and 'sparse_by_pair' in src:
+            use_sparse_markers = True
+
+    if use_sparse_markers:
+        parent_marker_cache = MarkerGeneArrayPureSparse.from_cache_path(
+            cache_path=marker_cache_path)
+    else:
+        parent_marker_cache = MarkerGeneArray.from_cache_path(
+            cache_path=marker_cache_path)
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
