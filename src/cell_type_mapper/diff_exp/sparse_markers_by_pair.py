@@ -35,24 +35,49 @@ class SparseMarkersByPair(SparseMarkersAbstract):
            gene_idx,
            pair_idx):
         super().__init__(
-            indices=gene_idx,
-            indptr=pair_idx)
+            indices=np.copy(gene_idx),
+            indptr=np.copy(pair_idx))
 
-    def keep_only_pairs(self, pairs_to_keep):
+    @property
+    def gene_idx(self):
+        return self.indices
+
+    @property
+    def pair_idx(self):
+        return self.indptr
+
+    def keep_only_pairs(self, pairs_to_keep, in_place=True):
         """
         Downsample, keeping only the pairs denoted by the indexes
         in pairs_to_keep
         """
-        self.keep_only_indptr(indptr_to_keep=pairs_to_keep)
+        if in_place:
+            self.keep_only_indptr(indptr_to_keep=pairs_to_keep)
+            return None
+        else:
+            other = SparseMarkersByPair(
+                pair_idx=self.pair_idx,
+                gene_idx=self.gene_idx)
+            other.keep_only_indptr(indptr_to_keep=pairs_to_keep)
+            return other
 
-    def keep_only_genes(self, genes_to_keep):
+    def keep_only_genes(self, genes_to_keep, in_place=True):
         """
         This will work by creating a map between old gene idx and
         new gene idx. This is done because downsampling the sparse
         matrix is too expensive.
         """
-        self.keep_only_indices(
-            indices_to_keep=genes_to_keep)
+        if in_place:
+            self.keep_only_indices(
+                indices_to_keep=genes_to_keep)
+            return None
+        else:
+            other = SparseMarkersByPair(
+                pair_idx=self.pair_idx,
+                gene_idx=self.gene_idx)
+            other.keep_only_indices(
+                indices_to_keep=genes_to_keep)
+            return other
 
     def get_genes_for_pair(self, pair_idx):
         return self.get_indices_for_indptr(indptr_idx=pair_idx)

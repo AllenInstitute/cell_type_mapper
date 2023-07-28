@@ -1,6 +1,8 @@
 import pytest
 
+import itertools
 import numpy as np
+import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
@@ -9,6 +11,9 @@ from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     can_we_make_sparse,
     sparse_markers_by_pair_from_arrays,
     SparseMarkersByPair)
+
+from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
+    SparseMarkersByGene)
 
 
 def test_can_we_make_sparse_no():
@@ -182,18 +187,21 @@ def test_sparse_by_pairs_class():
 
 
 @pytest.mark.parametrize(
-    "columns_to_keep",
-    [np.array([0, 7, 17, 18, 23, 32, 45]),
-     np.array([5, 16, 17, 77, 89]),
-     np.array([11, 17, 45, 66, 111]),
-     np.array([0, 17, 44, 53, 111])
-    ])
+    "pairs_to_keep,in_place",
+    itertools.product(
+        [np.array([0, 7, 17, 18, 23, 32, 45]),
+         np.array([5, 16, 17, 77, 89]),
+         np.array([11, 17, 45, 66, 111]),
+         np.array([0, 17, 44, 53, 111])],
+        [True, False]
+    ))
 def test_sparse_by_pairs_class_downsample_pairs(
-        columns_to_keep):
+        pairs_to_keep,
+        in_place):
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
-    rng.shuffle(columns_to_keep)
+    rng.shuffle(pairs_to_keep)
     n_rows = 2**(n_bits-1)
     n_cols = 112
     up_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
@@ -219,10 +227,37 @@ def test_sparse_by_pairs_class_downsample_pairs(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
-    marker_sparse.keep_only_pairs(columns_to_keep)
+    output = marker_sparse.keep_only_pairs(
+        pairs_to_keep,
+        in_place=in_place)
+
+    if in_place:
+        assert output is None
+        assert not np.array_equal(
+            marker_sparse.gene_idx,
+            sparse['up_values'])
+        assert not np.array_equal(
+            marker_sparse.pair_idx,
+            sparse['up_idx'])
+    else:
+        assert not np.array_equal(
+            output.gene_idx,
+            sparse['up_values'])
+        assert not np.array_equal(
+            output.pair_idx,
+            sparse['up_idx'])
+
+        np.testing.assert_array_equal(
+            marker_sparse.gene_idx,
+            sparse['up_values'])
+        np.testing.assert_array_equal(
+            marker_sparse.pair_idx,
+            sparse['up_idx'])
+
+        marker_sparse = output
 
     ct = 0
-    for i_new, i_old in enumerate(columns_to_keep):
+    for i_new, i_old in enumerate(pairs_to_keep):
         actual = marker_sparse.get_genes_for_pair(i_new)
         expected = np.where(
             np.logical_and(
@@ -236,18 +271,20 @@ def test_sparse_by_pairs_class_downsample_pairs(
 
 
 @pytest.mark.parametrize(
-    "rows_to_keep",
-    [np.array([0, 7, 17, 18, 23, 32, 45, 113], dtype=np.int64),
-     np.array([5, 16, 17, 77, 89, 122], dtype=np.int64),
-     np.array([11, 17, 45, 66, 111, 127], dtype=np.int64),
-     np.array([0, 17, 44, 53, 111, 127], dtype=np.int64)
-    ])
+    "genes_to_keep, in_place",
+    itertools.product(
+        [np.array([0, 7, 17, 18, 23, 32, 45, 113], dtype=np.int64),
+         np.array([5, 16, 17, 77, 89, 122], dtype=np.int64),
+         np.array([11, 17, 45, 66, 111, 127], dtype=np.int64),
+         np.array([0, 17, 44, 53, 111, 127], dtype=np.int64)],
+        [True, False]))
 def test_sparse_by_pairs_class_downsample_genes(
-        rows_to_keep):
+        genes_to_keep,
+        in_place):
     n_bits = 8
     expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
-    rng.shuffle(rows_to_keep)
+    rng.shuffle(genes_to_keep)
     n_rows = 2**(n_bits-1)
     n_cols = 112
     up_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
@@ -273,18 +310,177 @@ def test_sparse_by_pairs_class_downsample_genes(
         gene_idx=sparse['up_values'],
         pair_idx=sparse['up_idx'])
 
-    marker_sparse.keep_only_genes(rows_to_keep)
+    output = marker_sparse.keep_only_genes(
+                genes_to_keep,
+                in_place=in_place)
+
+    if in_place:
+        assert output is None
+        assert not np.array_equal(
+            marker_sparse.gene_idx,
+            sparse['up_values'])
+        assert not np.array_equal(
+            marker_sparse.pair_idx,
+            sparse['up_idx'])
+    else:
+        assert not np.array_equal(
+            output.gene_idx,
+            sparse['up_values'])
+        assert not np.array_equal(
+            output.pair_idx,
+            sparse['up_idx'])
+
+        np.testing.assert_array_equal(
+            marker_sparse.gene_idx,
+            sparse['up_values'])
+        np.testing.assert_array_equal(
+            marker_sparse.pair_idx,
+            sparse['up_idx'])
+
+        marker_sparse = output
 
     ct = 0
     for i_col in range(n_cols):
         actual = marker_sparse.get_genes_for_pair(i_col)
         expected = np.where(
             np.logical_and(
-                marker_truth[:, i_col][rows_to_keep],
-                up_truth[:, i_col][rows_to_keep]))[0]
+                marker_truth[:, i_col][genes_to_keep],
+                up_truth[:, i_col][genes_to_keep]))[0]
         ct += len(actual)
 
         np.testing.assert_array_equal(
             actual, expected)
         assert actual.dtype == expected_dtype
+    assert ct > 10
+
+
+@pytest.mark.parametrize(
+    "genes_to_keep, in_place",
+    itertools.product(
+        [np.array([0, 7, 17, 18, 23, 32, 45, 113], dtype=np.int64),
+         np.array([5, 16, 17, 77, 89, 122], dtype=np.int64),
+         np.array([11, 17, 45, 66, 111, 127], dtype=np.int64),
+         np.array([0, 17, 44, 53, 111, 127], dtype=np.int64)],
+        [True, False]))
+def test_sparse_by_genes_class_downsample_genes(
+        genes_to_keep,
+        in_place):
+    n_bits = 8
+    expected_dtype = np.uint8
+    rng = np.random.default_rng(118231)
+    rng.shuffle(genes_to_keep)
+    n_rows = 2**(n_bits-1)
+    n_cols = 112
+    marker_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
+    marker_truth[:, 17] = False
+
+    csr = scipy_sparse.csr_matrix(marker_truth)
+
+    marker_sparse = SparseMarkersByGene(
+        gene_idx=csr.indptr,
+        pair_idx=csr.indices)
+
+    output = marker_sparse.keep_only_genes(
+                genes_to_keep,
+                in_place=in_place)
+
+    if in_place:
+        assert output is None
+        assert not np.array_equal(
+            marker_sparse.gene_idx,
+            csr.indptr)
+        assert not np.array_equal(
+            marker_sparse.pair_idx,
+            csr.indices)
+    else:
+        assert not np.array_equal(
+            output.gene_idx,
+            csr.indptr)
+        assert not np.array_equal(
+            output.pair_idx,
+            csr.indices)
+
+        np.testing.assert_array_equal(
+            marker_sparse.gene_idx,
+            csr.indptr)
+        np.testing.assert_array_equal(
+            marker_sparse.pair_idx,
+            csr.indices)
+
+        marker_sparse = output
+
+    ct = 0
+    for ii, i_gene in enumerate(genes_to_keep):
+        actual = marker_sparse.get_pairs_for_gene(ii)
+        expected = np.where(marker_truth[i_gene, :])[0]
+        ct += len(actual)
+
+        np.testing.assert_array_equal(
+            actual, expected)
+    assert ct > 10
+
+
+@pytest.mark.parametrize(
+    "pairs_to_keep,in_place",
+    itertools.product(
+        [np.array([0, 7, 17, 18, 23, 32, 45]),
+         np.array([5, 16, 17, 77, 89]),
+         np.array([11, 17, 45, 66, 111]),
+         np.array([0, 17, 44, 53, 111])],
+        [True, False]
+    ))
+def test_sparse_by_genes_class_downsample_pairs(
+        pairs_to_keep,
+        in_place):
+    n_bits = 8
+    expected_dtype = np.uint8
+    rng = np.random.default_rng(118231)
+    rng.shuffle(pairs_to_keep)
+    n_rows = 2**(n_bits-1)
+    n_cols = 112
+    marker_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
+    marker_truth[:, 17] = False
+
+    csr = scipy_sparse.csr_matrix(marker_truth)
+
+    marker_sparse = SparseMarkersByGene(
+        gene_idx=csr.indptr,
+        pair_idx=csr.indices)
+
+    output = marker_sparse.keep_only_pairs(
+        pairs_to_keep,
+        in_place=in_place)
+
+    if in_place:
+        assert output is None
+        assert not np.array_equal(
+            marker_sparse.gene_idx,
+            csr.indptr)
+        assert not np.array_equal(
+            marker_sparse.pair_idx,
+            csr.indices)
+    else:
+        assert not np.array_equal(
+            output.gene_idx,
+            csr.indptr)
+        assert not np.array_equal(
+            output.pair_idx,
+            csr.indices)
+
+        np.testing.assert_array_equal(
+            marker_sparse.gene_idx,
+            csr.indptr)
+        np.testing.assert_array_equal(
+            marker_sparse.pair_idx,
+            csr.indices)
+
+        marker_sparse = output
+
+    ct = 0
+    for i_gene in range(n_rows):
+        actual = marker_sparse.get_pairs_for_gene(i_gene)
+        expected = np.where(marker_truth[i_gene, :][pairs_to_keep])[0]
+        ct += len(actual)
+        np.testing.assert_array_equal(
+            actual, expected)
     assert ct > 10
