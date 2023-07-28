@@ -26,6 +26,9 @@ from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
+from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
+    MarkerGeneArrayPureSparse)
+
 
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(
@@ -53,24 +56,44 @@ def marker_array_fixture(
         n_pairs):
 
     rng = np.random.default_rng(221312)
-    n_cols = np.ceil(n_pairs/8).astype(int)
-    data = rng.integers(0, 256, (n_genes, n_cols)).astype(np.uint8)
-    markers = BinarizedBooleanArray.from_data_array(
-        data_array=data,
-        n_cols=n_pairs)
+    markers_raw = rng.integers(0, 2, (n_genes, n_pairs))
+    up_raw = rng.integers(0, 2, (n_genes, n_pairs))
+    up_raw = np.logical_and(markers_raw, up_raw)
 
-    data = rng.integers(0, 256, (n_genes, n_cols)).astype(np.uint8)
-    up_regulated = BinarizedBooleanArray.from_data_array(
-        data_array=data,
-        n_cols=n_pairs)
+    n_down = np.logical_and(
+        markers_raw,
+        np.logical_not(up_raw)).sum()
+    assert n_down > 0
+
+    markers = BinarizedBooleanArray(n_rows=n_genes, n_cols=n_pairs)
+    up_regulated = BinarizedBooleanArray(n_rows=n_genes, n_cols=n_pairs)
+    for i_row in range(n_genes):
+        markers.set_row(i_row, markers_raw[i_row, :])
+        up_regulated.set_row(i_row, up_raw[i_row, :])
 
     return {'markers': markers, 'up_regulated': up_regulated}
 
 
 @pytest.fixture(scope='module')
+def pair_to_idx_fixture(
+    n_nodes):
+
+    pair_to_idx = dict()
+    i_row = 0
+    for n0 in range(n_nodes):
+        pair_to_idx[f'node_{n0}'] = dict()
+        for n1 in range(n0+1, n_nodes, 1):
+            pair_to_idx[f'node_{n0}'][f'node_{n1}'] = i_row
+            i_row += 1
+
+    pair_to_idx = {'cluster': pair_to_idx}
+    return pair_to_idx
+
+@pytest.fixture(scope='module')
 def dense_marker_file_fixture(
         marker_array_fixture,
         tmp_dir_fixture,
+        pair_to_idx_fixture,
         n_genes,
         n_nodes,
         n_pairs):
@@ -89,13 +112,6 @@ def dense_marker_file_fixture(
         h5_group='up_regulated')
 
     gene_names = [f'gene_{ii}' for ii in range(n_genes)]
-    pair_to_idx = dict()
-    i_row = 0
-    for n0 in range(n_nodes):
-        pair_to_idx[f'node_{n0}'] = dict()
-        for n1 in range(n0+1, n_nodes, 1):
-            pair_to_idx[f'node_{n0}'][f'node_{n1}'] = i_row
-            i_row += 1
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_dataset(
@@ -108,7 +124,7 @@ def dense_marker_file_fixture(
 
         dst.create_dataset(
             'pair_to_idx',
-            data=json.dumps(pair_to_idx).encode('utf-8'))
+            data=json.dumps(pair_to_idx_fixture).encode('utf-8'))
 
     return h5_path
 
@@ -316,3 +332,76 @@ def test_adding_general_sparse_markers_specific_classes(
             dense_by_pair[i_pair, by_pair.get_genes_for_pair(i_pair)] = True
         np.testing.assert_array_equal(dense_by_gene, dense_by_pair)
         assert dense_by_gene.sum() > 20
+
+
+def test_sparse_marker_access_class(
+        dense_marker_file_fixture,
+        n_genes,
+        n_pairs,
+        n_nodes,
+        tmp_dir_fixture,
+        pair_to_idx_fixture):
+
+    dense_markers = MarkerGeneArray.from_cache_path(
+        dense_marker_file_fixture)
+
+    new_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='copy_of_markers_',
+        suffix='.h5')
+
+    shutil.copy(
+        src=dense_marker_file_fixture,
+        dst=new_path)
+
+    add_sparse_markers_to_file(
+        h5_path=new_path,
+        n_genes=n_genes,
+        max_gb=0.6,
+        tmp_dir=tmp_dir_fixture,
+        delete_dense=True)
+
+    sparse_markers = MarkerGeneArrayPureSparse.from_cache_path(
+        new_path)
+
+    # test consistency of idx_of_pair
+    for n0 in range(n_nodes):
+        for n1 in range(n0+1, n_nodes, 1):
+            expected = dense_markers.idx_of_pair(
+                level='cluster',
+                node1=f'node_{n0}',
+                node2=f'node_{n1}')
+            actual = sparse_markers.idx_of_pair(
+                level='cluster',
+                node1=f'node_{n0}',
+                node2=f'node_{n1}')
+            assert expected == actual
+
+    assert dense_markers.n_pairs == sparse_markers.n_pairs
+    assert dense_markers.n_genes == sparse_markers.n_genes
+
+    # test consistence of marker_mask_from_pair_idx
+    for i_pair in range(dense_markers.n_pairs):
+        expected = dense_markers.marker_mask_from_pair_idx(i_pair)
+        actual = sparse_markers.marker_mask_from_pair_idx(i_pair)
+        np.testing.assert_array_equal(expected[0], actual[0])
+        np.testing.assert_array_equal(expected[1], actual[1])
+
+    # test consistence of marker_mask_from_gene_idx
+    for i_gene in range(dense_markers.n_genes):
+        expected = dense_markers.marker_mask_from_gene_idx(i_gene)
+        actual = sparse_markers.marker_mask_from_gene_idx(i_gene)
+        np.testing.assert_array_equal(expected[0], actual[0])
+        np.testing.assert_array_equal(expected[1], actual[1])
+
+    # test consistence of up_mask_from_pair_idx
+    for i_pair in range(dense_markers.n_pairs):
+        expected = dense_markers.up_mask_from_pair_idx(i_pair)
+        actual = sparse_markers.up_mask_from_pair_idx(i_pair)
+        np.testing.assert_array_equal(expected, actual)
+
+    # test consistence of down_mask_from_pair_idx
+    for i_pair in range(dense_markers.n_pairs):
+        expected = dense_markers.down_mask_from_pair_idx(i_pair)
+        actual = sparse_markers.down_mask_from_pair_idx(i_pair)
+        np.testing.assert_array_equal(expected, actual)
