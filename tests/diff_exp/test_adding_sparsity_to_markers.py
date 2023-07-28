@@ -379,6 +379,8 @@ def test_sparse_marker_access_class(
 
     assert dense_markers.n_pairs == sparse_markers.n_pairs
     assert dense_markers.n_genes == sparse_markers.n_genes
+    assert sparse_markers.has_sparse
+    assert not dense_markers.has_sparse
 
     # test consistence of marker_mask_from_pair_idx
     for i_pair in range(dense_markers.n_pairs):

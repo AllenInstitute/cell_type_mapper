@@ -178,16 +178,16 @@ class MarkerGeneArrayPureSparse(object):
         self.down_by_pair.keep_only_genes(gene_idx_array, in_place=True)
 
     @property
+    def has_sparse(self):
+        return True
+
+    @property
     def gene_names(self):
         return self._gene_names
 
     @property
     def n_genes(self):
         return len(self.gene_names)
-
-    @property
-    def has_sparse(self):
-        return self._has_sparse
 
     def idx_of_pair(
             self,
