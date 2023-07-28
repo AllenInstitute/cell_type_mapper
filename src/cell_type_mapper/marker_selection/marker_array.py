@@ -105,6 +105,14 @@ class MarkerGeneArray(object):
         if self._up_marker_sparse_by_pair is not None:
             self._has_sparse = True
 
+    @property
+    def up_by_pair(self):
+        return self._up_marker_sparse_by_pair
+
+    @property
+    def down_by_pair(self):
+        return self._down_marker_sparse_by_pair
+
     @classmethod
     def from_cache_path(
             cls,

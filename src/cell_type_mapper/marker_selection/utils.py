@@ -167,8 +167,8 @@ def create_utility_array_sparse(
     byte_size = gb_size*1024**3
     batch_size = max(1, np.round(byte_size/(3*n_genes)).astype(int))
 
-    up_markers = marker_gene_array._up_marker_sparse_by_pair
-    down_markers = marker_gene_array._down_marker_sparse_by_pair
+    up_markers = marker_gene_array.up_by_pair
+    down_markers = marker_gene_array.down_by_pair
 
     for pair0 in range(0, n_taxon, batch_size):
         pair1 = min(n_pairs, pair0+batch_size)
