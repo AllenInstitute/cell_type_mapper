@@ -13,6 +13,7 @@ from cell_type_mapper.marker_selection.marker_array import (
 from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
     MarkerGeneArrayPureSparse)
 
+
 def select_all_markers(
         marker_cache_path,
         query_gene_names,
@@ -120,10 +121,14 @@ def select_all_markers(
                 if is_behemoth:
                     marker_gene_array = parent_marker_cache
                 else:
-                    marker_gene_array = \
-                        parent_marker_cache.downsample_pairs_to_other(
-                            only_keep_pairs=leaves,
-                            copy_sparse=True)
+                    if isinstance(parent_marker_cache,
+                                  MarkerGeneArrayPureSparse):
+                        marker_gene_array = parent_marker_cache
+                    else:
+                        marker_gene_array = \
+                            parent_marker_cache.downsample_pairs_to_other(
+                                only_keep_pairs=leaves,
+                                copy_sparse=True)
 
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
