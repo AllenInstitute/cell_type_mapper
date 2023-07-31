@@ -12,6 +12,9 @@ from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
+from cell_type_mapper.utils.h5_utils import (
+    copy_h5_excluding_data)
+
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
@@ -375,9 +378,16 @@ def add_sparse_markers_to_file(
                     chunks=src['indices'].chunks)
 
     if delete_dense:
-        with h5py.File(h5_path, 'a') as dst:
-            del dst['markers']
-            del dst['up_regulated']
+        tmp_path = mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5')
+
+        copy_h5_excluding_data(
+            src_path=h5_path,
+            dst_path=tmp_path,
+            excluded_groups=['markers', 'up_regulated'])
+
+        shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
 
