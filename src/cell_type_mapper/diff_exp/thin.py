@@ -9,9 +9,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
-    add_sparse_markers_by_pair_to_h5)
-
 
 def thin_marker_file(
         marker_file_path,
@@ -117,8 +114,6 @@ def thin_marker_file(
                     chunk = src[k][i0:i1, :]
                     chunk = chunk[these_rows_to_keep, :]
                     dst[k][map_to, :] = chunk
-
-    add_sparse_markers_by_pair_to_h5(tmp_thinned_path)
 
     if tmp_thinned_path != thinned_marker_file_path:
         print(f"moving {tmp_thinned_path} to {thinned_marker_file_path}")

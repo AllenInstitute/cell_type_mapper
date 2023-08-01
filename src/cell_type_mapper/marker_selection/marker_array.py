@@ -22,6 +22,10 @@ from cell_type_mapper.binary_array.binary_array import (
 from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
     SparseMarkersByPair)
 
+from cell_type_mapper.marker_selection.marker_array_utils import (
+    _create_new_pair_lookup,
+    _idx_of_pair)
+
 
 class MarkerGeneArray(object):
     """
@@ -101,11 +105,18 @@ class MarkerGeneArray(object):
         if self._up_marker_sparse_by_pair is not None:
             self._has_sparse = True
 
+    @property
+    def up_by_pair(self):
+        return self._up_marker_sparse_by_pair
+
+    @property
+    def down_by_pair(self):
+        return self._down_marker_sparse_by_pair
+
     @classmethod
     def from_cache_path(
             cls,
-            cache_path,
-            only_keep_pairs=None):
+            cache_path):
 
         cache_path = pathlib.Path(cache_path)
         if not cache_path.is_file():
@@ -118,23 +129,11 @@ class MarkerGeneArray(object):
             taxonomy_pair_to_idx = json.loads(
                 src['pair_to_idx'][()].decode('utf-8'))
 
-            if only_keep_pairs is not None:
-                col_idx = np.array(
-                    [_idx_of_pair(
-                        taxonomy_pair_to_idx,
-                        pair[0],
-                        pair[1],
-                        pair[2])
-                     for pair in only_keep_pairs])
-
             n_pairs = src['n_pairs'][()]
 
             is_marker = BinarizedBooleanArray.from_data_array(
                 data_array=src['markers/data'][()],
                 n_cols=n_pairs)
-
-            if only_keep_pairs is not None:
-                is_marker.downsample_columns(col_idx)
 
             up_regulated = BinarizedBooleanArray.from_data_array(
                 data_array=src['up_regulated/data'][()],
@@ -144,23 +143,13 @@ class MarkerGeneArray(object):
                 up_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse_by_pair/up_gene_idx'][()],
                     pair_idx=src['sparse_by_pair/up_pair_idx'][()])
-                if only_keep_pairs is not None:
-                    up_marker_sparse.keep_only_pairs(col_idx)
 
                 down_marker_sparse = SparseMarkersByPair(
                     gene_idx=src['sparse_by_pair/down_gene_idx'][()],
                     pair_idx=src['sparse_by_pair/down_pair_idx'][()])
-                if only_keep_pairs is not None:
-                    down_marker_sparse.keep_only_pairs(col_idx)
             else:
                 up_marker_sparse = None
                 down_marker_sparse = None
-
-            if only_keep_pairs is not None:
-                up_regulated.downsample_columns(col_idx)
-                n_pairs = len(col_idx)
-                taxonomy_pair_to_idx = _create_new_pair_lookup(
-                    only_keep_pairs)
 
         return cls(
             gene_names=gene_names,
@@ -366,39 +355,3 @@ class MarkerGeneArray(object):
         np.ndarray
         """
         return self.is_marker.get_row_batch(gene0, gene1)
-
-
-def _create_new_pair_lookup(only_keep_pairs):
-    """
-    Create new pair-to-idx lookup for case where we
-    are only keeping the specified pairs
-    """
-    new_lookup = dict()
-    for ii, pair in enumerate(only_keep_pairs):
-        level = pair[0]
-        node1 = pair[1]
-        node2 = pair[2]
-        if level not in new_lookup:
-            new_lookup[level] = dict()
-        if node1 not in new_lookup[level]:
-            new_lookup[level][node1] = dict()
-        new_lookup[level][node1][node2] = ii
-    return new_lookup
-
-
-def _idx_of_pair(
-        taxonomy_pair_to_idx,
-        level,
-        node1,
-        node2):
-    if node1 not in taxonomy_pair_to_idx[level]:
-        raise RuntimeError(
-            f"{node1} not under taxonomy level {level}")
-    if node2 not in taxonomy_pair_to_idx[level][node1]:
-        raise RuntimeError(
-            f"({level},  {node1}, {node2})\n"
-            "not a valid taxonomy pair specification; try reversing "
-            "node1 and node2")
-
-    pair_idx = taxonomy_pair_to_idx[level][node1][node2]
-    return pair_idx

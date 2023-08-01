@@ -83,7 +83,7 @@ def ab_initio_assignment_fixture(
 
     config['reference_markers'] = {
         'n_processors': 3,
-        'max_bytes': 6*1024**2,
+        'max_gb': 0.6,
         'path': str(ref_marker_out)}
 
     config["query_markers"] = {

@@ -61,6 +61,29 @@ def csc_fixture(
     assert attrs['encoding-type'] == 'csc_matrix'
     return h5ad_path
 
+@pytest.fixture
+def csc_array_without_data_fixture(
+        csc_fixture,
+        tmp_dir_fixture):
+
+    h5_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_data_',
+            suffix='.h5'))
+
+    with h5py.File(h5_path, 'w') as dst:
+        with h5py.File(csc_fixture, 'r') as src:
+            dst.create_dataset(
+                'indices',
+                data=src['X/indices'][()],
+                chunks=src['X/indices'].chunks)
+            dst.create_dataset(
+                'indptr',
+                data=src['X/indptr'][()],
+                chunks=src['X/indptr'].chunks)
+
+    return h5_path
 
 @pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
 def test_csc_to_csr_on_disk(
@@ -104,3 +127,27 @@ def test_csc_to_csr_on_disk(
                 expected,
                 atol=0.0,
                 rtol=1.0e-7)
+
+
+@pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
+def test_csc_to_csr_on_disk_without_data_array(
+        tmp_dir_fixture,
+        x_array_fixture,
+        csc_array_without_data_fixture,
+        max_gb):
+
+    csr_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+    with h5py.File(csc_array_without_data_fixture, 'r') as original:
+        csc_to_csr_on_disk(
+            csc_group=original,
+            csr_path=csr_path,
+            array_shape=x_array_fixture.shape,
+            max_gb=max_gb,
+            use_data_array=False)
+
+    expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
+    with h5py.File(csr_path, 'r') as src:
+        np.testing.assert_array_equal(
+            src['indptr'][()], expected_csr.indptr)
+        np.testing.assert_array_equal(
+            src['indices'][()], expected_csr.indices)

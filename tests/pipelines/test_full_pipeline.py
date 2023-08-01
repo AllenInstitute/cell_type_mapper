@@ -76,7 +76,7 @@ def test_all_of_it(
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
-        max_bytes=6*1024**2)
+        max_gb=0.6)
 
     with h5py.File(ref_marker_path, 'r') as in_file:
         assert len(in_file.keys()) > 0

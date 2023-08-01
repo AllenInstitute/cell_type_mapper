@@ -1,6 +1,7 @@
 import json
 import h5py
 import multiprocessing
+import numpy as np
 import pathlib
 import shutil
 import tempfile
@@ -11,6 +12,9 @@ from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
+from cell_type_mapper.utils.h5_utils import (
+    copy_h5_excluding_data)
+
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
@@ -18,6 +22,9 @@ from cell_type_mapper.diff_exp.scores import (
     read_precomputed_stats,
     _get_this_cluster_stats,
     score_differential_genes)
+
+from cell_type_mapper.utils.csc_to_csr import (
+    transpose_sparse_matrix_on_disk)
 
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
@@ -27,6 +34,9 @@ from cell_type_mapper.binary_array.backed_binary_array import (
 
 from cell_type_mapper.diff_exp.thin import (
     thin_marker_file)
+
+from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
+    add_sparse_markers_by_pair_to_h5)
 
 
 def find_markers_for_all_taxonomy_pairs(
@@ -38,7 +48,7 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_bytes=6*1024**3):
+        max_gb=20):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -67,8 +77,8 @@ def find_markers_for_all_taxonomy_pairs(
     n_processors:
         Number of independent worker processes to spin out
 
-    max_bytes:
-        Maximum number of bytes to load when thinning marker file
+    max_gb:
+        maximum number of GB to load at once
 
     Returns
     --------
@@ -95,12 +105,88 @@ def find_markers_for_all_taxonomy_pairs(
         discriminator
     """
 
+    t0 = time.time()
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
+    tmp_thinned_path = create_dense_marker_file(
+        precomputed_stats_path=precomputed_stats_path,
+        taxonomy_tree=taxonomy_tree,
+        p_th=p_th,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir,
+        max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)))
+
+    with h5py.File(precomputed_stats_path, 'r') as in_file:
+        n_genes = len(json.loads(
+            in_file['col_names'][()].decode('utf-8')))
+
+    add_sparse_markers_to_file(
+        h5_path=tmp_thinned_path,
+        n_genes=n_genes,
+        max_gb=max_gb,
+        tmp_dir=tmp_dir)
+
+    shutil.move(
+        src=tmp_thinned_path,
+        dst=output_path)
+
+    _clean_up(tmp_dir)
+    duration = time.time()-t0
+    print(f"that took {duration/3600.0:.2e} hrs")
+
+
+def create_dense_marker_file(
+        precomputed_stats_path,
+        taxonomy_tree,
+        p_th=0.01,
+        q1_th=0.5,
+        qdiff_th=0.7,
+        n_processors=4,
+        tmp_dir=None,
+        max_bytes=6*1024**3):
+    """
+    Create differential expression scores and validity masks
+    for differential genes between all relevant pairs in a
+    taxonomy*
+
+    * relevant pairs are defined as nodes in the tree that are
+    on the same level and share the same parent.
+
+    Parameters
+    ----------
+    precomputed_stats_path:
+        Path to HDF5 file containing precomputed stats for leaf nodes
+
+    taxonomy_tree:
+        instance of
+        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
+
+    p_th/q1_th/qdiff_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under score_differential_genes
+
+    n_processors:
+        Number of independent worker processes to spin out
+
+    max_bytes:
+        Maximum number of bytes to load when thinning marker file
+
+    Returns
+    --------
+    Path to a file in tmp_dir where the data is stored
+
+    Notes
+    -----
+    This method stores the markers as dense arrays
+    """
+    inner_tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_output_path = pathlib.Path(
         mkstemp_clean(
-            dir=tmp_dir,
+            dir=inner_tmp_dir,
             prefix='unthinned_',
             suffix='.h5'))
 
@@ -119,9 +205,6 @@ def find_markers_for_all_taxonomy_pairs(
             taxonomy_tree=taxonomy_tree,
             gene_names=gene_names)
 
-    print("starting to score")
-    t0 = time.time()
-
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
 
@@ -139,7 +222,7 @@ def find_markers_for_all_taxonomy_pairs(
     for col0 in range(0, n_pairs, n_per):
         col1 = col0+n_per
         tmp_path = mkstemp_clean(
-            dir=tmp_dir,
+            dir=inner_tmp_dir,
             prefix=f'columns_{col0}_{col1}_',
             suffix='.h5')
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
@@ -239,13 +322,74 @@ def find_markers_for_all_taxonomy_pairs(
         max_bytes=max_bytes,
         tmp_dir=None)
 
-    shutil.move(
-        src=tmp_thinned_path,
-        dst=output_path)
+    _clean_up(inner_tmp_dir)
+    return tmp_thinned_path
+
+
+def add_sparse_markers_to_file(
+        h5_path,
+        n_genes,
+        max_gb,
+        tmp_dir,
+        delete_dense=False):
+    """
+    Add the sparse representation of marker genes to
+    an HDF5 file containing the dense representation
+    of the marker genes.
+
+    if delete_dense is True, then delete the groups/datasets
+    that contain the dense representations of marker genes
+    from the file after the sparse representations have been
+    added.
+    """
+
+    tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
+
+    add_sparse_markers_by_pair_to_h5(h5_path)
+
+    with h5py.File(h5_path, 'a') as dst:
+        dst.create_group('sparse_by_gene')
+
+    for direction in ('up', 'down'):
+        transposed_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='transposed_',
+            suffix='.h5')
+
+        with h5py.File(h5_path, 'r') as src:
+            transpose_sparse_matrix_on_disk(
+                indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
+                indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
+                data_handle=None,
+                n_indices=n_genes,
+                max_gb=max_gb,
+                output_path=transposed_path)
+
+        with h5py.File(transposed_path, 'r') as src:
+            with h5py.File(h5_path, 'a') as dst:
+                grp = dst['sparse_by_gene']
+                grp.create_dataset(
+                    f'{direction}_gene_idx',
+                    data=src['indptr'],
+                    chunks=src['indptr'].chunks)
+                grp.create_dataset(
+                    f'{direction}_pair_idx',
+                    data=src['indices'],
+                    chunks=src['indices'].chunks)
+
+    if delete_dense:
+        tmp_path = mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5')
+
+        copy_h5_excluding_data(
+            src_path=h5_path,
+            dst_path=tmp_path,
+            excluded_groups=['markers', 'up_regulated'])
+
+        shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
-    duration = time.time()-t0
-    print(f"that took {duration/3600.0:.2e} hrs")
 
 
 def _find_markers_worker(

@@ -7,15 +7,14 @@ import numpy as np
 import warnings
 import time
 
-from cell_type_mapper.utils.sparse_utils import (
-    downsample_indptr,
-    mask_indptr_by_indices)
-
 from cell_type_mapper.binary_array.binary_array import (
     BinarizedBooleanArray)
 
+from cell_type_mapper.diff_exp.sparse_markers import (
+    SparseMarkersAbstract)
 
-class SparseMarkersByPair(object):
+
+class SparseMarkersByPair(SparseMarkersAbstract):
     """"
     Class to contain the sparse summary of the marker array
 
@@ -35,60 +34,64 @@ class SparseMarkersByPair(object):
            self,
            gene_idx,
            pair_idx):
-        self.gene_idx = np.array(gene_idx)
-        self.pair_idx = np.array(pair_idx)
-        self.dtype = self.gene_idx.dtype
+        super().__init__(
+            indices=np.copy(gene_idx),
+            indptr=np.copy(pair_idx))
 
-    def keep_only_pairs(self, pairs_to_keep):
+    @property
+    def gene_idx(self):
+        return self.indices
+
+    @property
+    def pair_idx(self):
+        return self.indptr
+
+    def keep_only_pairs(self, pairs_to_keep, in_place=True):
         """
         Downsample, keeping only the pairs denoted by the indexes
         in pairs_to_keep
         """
-        (self.pair_idx,
-         self.gene_idx) = downsample_indptr(
-             indptr_old=self.pair_idx,
-             indices_old=self.gene_idx,
-             indptr_to_keep=pairs_to_keep)
+        if in_place:
+            self.keep_only_indptr(indptr_to_keep=pairs_to_keep)
+            return None
+        else:
+            other = SparseMarkersByPair(
+                pair_idx=self.pair_idx,
+                gene_idx=self.gene_idx)
+            other.keep_only_indptr(indptr_to_keep=pairs_to_keep)
+            return other
 
-    def keep_only_genes(self, genes_to_keep):
+    def keep_only_genes(self, genes_to_keep, in_place=True):
         """
         This will work by creating a map between old gene idx and
         new gene idx. This is done because downsampling the sparse
         matrix is too expensive.
         """
-        gene_map = {
-            nn: ii for ii, nn in enumerate(genes_to_keep)}
-
-        (self.pair_idx,
-         self.gene_idx) = mask_indptr_by_indices(
-             indptr_old=self.pair_idx,
-             indices_old=self.gene_idx,
-             indices_map=gene_map)
-        self.gene_idx = self.gene_idx.astype(self.dtype)
+        if in_place:
+            self.keep_only_indices(
+                indices_to_keep=genes_to_keep)
+            return None
+        else:
+            other = SparseMarkersByPair(
+                pair_idx=self.pair_idx,
+                gene_idx=self.gene_idx)
+            other.keep_only_indices(
+                indices_to_keep=genes_to_keep)
+            return other
 
     def get_genes_for_pair(self, pair_idx):
-        if pair_idx >= len(self.pair_idx)-1:
-            raise RuntimeError(
-                f"{pair_idx} is an invalid pair_idx; "
-                f"len(self.pair_idx) = {len(self.pair_idx)}")
-        return np.copy(
-            self.gene_idx[
-                   self.pair_idx[pair_idx]:self.pair_idx[pair_idx+1]])
+        return self.get_indices_for_indptr(indptr_idx=pair_idx)
 
     def get_sparse_genes_for_pair_array(self, pair_idx_array):
         """
         Take an array of pair indices and return the pair_idx, gene_idx
         (a la sparse matrices indptr, indices) for that group of taxon
         pairs.
+
+        Returns new_pairs, new_genes
         """
-
-        (new_pairs,
-         new_genes) = downsample_indptr(
-             indptr_old=self.pair_idx,
-             indices_old=self.gene_idx,
-             indptr_to_keep=pair_idx_array)
-
-        return (new_pairs, new_genes)
+        return self.get_sparse_arrays_for_indptr_array(
+            indptr_idx_array=pair_idx_array)
 
 
 def add_sparse_markers_by_pair_to_h5(
