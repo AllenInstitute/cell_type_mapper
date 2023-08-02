@@ -97,7 +97,9 @@ def score_differential_genes(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
-        fold_change=2.0):
+        fold_change=2.0,
+        boring_t=None,
+        big_nu=None):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -123,6 +125,17 @@ def score_differential_genes(
     fold_change:
         Genes must have a fold changes > fold_change between the
         two populations to be considered a marker gene.
+
+    boring_t:
+       If not None, values of the t-test statistic must be
+       outisde the range (-boring_t, boring_t) to be considered
+       "interesting." "Uninteresting" values will be given a CDF
+       value of 0.5
+
+    big_nu:
+        If not None, Student t-test distributions with more degrees
+        of freedom than big_nu will be approximated with the
+        normal distribution.
 
     Returns
     -------
@@ -170,7 +183,9 @@ def score_differential_genes(
                 n1=stats_1['n_cells'],
                 mean2=stats_2['mean'],
                 var2=stats_2['var'],
-                n2=stats_2['n_cells'])
+                n2=stats_2['n_cells'],
+                boring_t=boring_t,
+                big_nu=big_nu)
 
     pvalue_valid = (pvalues < p_th)
 
@@ -204,7 +219,9 @@ def diffexp_p_values(
         n1,
         mean2,
         var2,
-        n2):
+        n2,
+        boring_t=None,
+        big_nu=None):
     """
     Parameters (np.ndarrays of shape (n_genes, ))
     ---------------------------------------------
@@ -214,6 +231,17 @@ def diffexp_p_values(
     mean2 -- mean gene expression values in pop2
     var2 -- variance of gene expression values in pop2
     n2 -- number of cells in pop2
+
+    boring_t:
+       If not None, values of the t-test statistic must be
+       outisde the range (-boring_t, boring_t) to be considered
+       "interesting." "Uninteresting" values will be given a CDF
+       value of 0.5
+
+    big_nu:
+        If not None, Student t-test distributions with more degrees
+        of freedom than big_nu will be approximated with the
+        normal distribution.
 
     Returns
     -------
@@ -233,7 +261,9 @@ def diffexp_p_values(
                     n1=n1,
                     mean2=mean2,
                     var2=var2,
-                    n2=n2)
+                    n2=n2,
+                    boring_t=boring_t,
+                    big_nu=big_nu)
 
     pvalues = correct_ttest(pvalues)
     return pvalues
