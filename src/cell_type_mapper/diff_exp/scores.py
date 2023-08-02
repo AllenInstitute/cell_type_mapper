@@ -382,6 +382,51 @@ def aggregate_stats(
     not contain the 'ge1' column. If you are reading one of those,
     'ge1' will be returned as None.
     """
+    if not hasattr(aggregate_stats, 'cache'):
+        aggregate_stats.cache = dict()
+    leaf_population.sort()
+    leaf_key = tuple(leaf_population)
+    if leaf_key not in aggregate_stats.cache:
+        data = _aggregate_stats(
+                   leaf_population,
+                   precomputed_stats)
+        aggregate_stats.cache[leaf_key] = data
+    return aggregate_stats.cache[leaf_key]
+
+def _aggregate_stats(
+       leaf_population,
+       precomputed_stats):
+    """
+    Parameters
+    ----------
+    leaf_population:
+        List of names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'sum' -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
+            'gt0'
+            'gt1'
+            'ge1'
+
+    Returns
+    -------
+    Dict with
+        'mean' -- mean value of all gene expression
+        'var' -- variance of all gene expression
+        'n_cells' -- number of cells in the population
+
+    Note
+    -----
+    output mean and var are in units of log2(CPM+1)
+
+    Some historical versions of precomputed_stats files did
+    not contain the 'ge1' column. If you are reading one of those,
+    'ge1' will be returned as None.
+    """
     n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
 
     sum_arr = np.zeros(n_genes, dtype=float)
