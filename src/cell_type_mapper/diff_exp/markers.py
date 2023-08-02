@@ -18,6 +18,9 @@ from cell_type_mapper.utils.h5_utils import (
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
+from cell_type_mapper.utils.stats_utils import (
+    boring_t_from_p_value)
+
 from cell_type_mapper.diff_exp.scores import (
     read_precomputed_stats,
     _get_this_cluster_stats,
@@ -427,6 +430,8 @@ def _find_markers_worker(
         will be stored (this process creates that file)
     """
 
+    boring_t = boring_t_from_p_value(p_th)
+
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
     col0 = min(idx_values)
@@ -459,7 +464,8 @@ def _find_markers_worker(
                          precomputed_stats=cluster_stats,
                          p_th=p_th,
                          q1_th=q1_th,
-                         qdiff_th=qdiff_th)
+                         qdiff_th=qdiff_th,
+                         boring_t=boring_t)
 
         this_col = idx-col0
         marker_mask.set_col(
