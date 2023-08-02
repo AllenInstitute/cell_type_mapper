@@ -225,8 +225,8 @@ def diffexp_p_values(
     means and variances in input are in units of log2(CPM+1)
     """
 
-    (tt_stat,
-     tt_nunu,
+    (_,
+     _,
      pvalues) = welch_t_test(
                     mean1=mean1,
                     var1=var1,
