@@ -346,6 +346,8 @@ def add_sparse_markers_to_file(
     added.
     """
 
+    t0 = time.time()
+
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
 
     add_sparse_markers_by_pair_to_h5(h5_path)
@@ -393,6 +395,7 @@ def add_sparse_markers_to_file(
         shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
+    print(f"adding sparse markers took {time.time()-t0:.2e} seconds")
 
 
 def _find_markers_worker(
