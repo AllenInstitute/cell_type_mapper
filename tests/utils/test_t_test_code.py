@@ -35,7 +35,7 @@ def test_t_test_approx(boring_t, big_nu):
 
         (_,
          _,
-         exact_p) = stats_utils.approximate_welch_t_test(
+         exact_p) = stats_utils.exact_welch_t_test(
             mean1=None,
             var1=None,
             n1=None,
@@ -81,6 +81,42 @@ def test_t_test_approx(boring_t, big_nu):
         atol=0.0,
         rtol=1.0e-6)
 
+
+def test_when_boring_t_is_zero():
+    rng = np.random.default_rng(671231)
+    n_genes = 220
+    mean1 = rng.random(n_genes)
+    var1 = rng.random(n_genes)
+    n1 = 45
+    mean2 = rng.random(n_genes)
+    var2 = rng.random(n_genes)
+    n2 = 36
+    (_,
+     _,
+     exact_p) = stats_utils.exact_welch_t_test(
+         mean1=mean1,
+         var1=var1,
+         n1=n1,
+         mean2=mean2,
+         var2=var2,
+         n2=n2)
+    (_,
+     _,
+     approx_p) = stats_utils.approximate_welch_t_test(
+         mean1=mean1,
+         var1=var1,
+         n1=n1,
+         mean2=mean2,
+         var2=var2,
+         n2=n2,
+         boring_t=0.0,
+         big_nu=None)
+
+    np.testing.assert_allclose(
+        approx_p,
+        exact_p,
+        atol=0.0,
+        rtol=1.0e-6)
 
 @pytest.mark.parametrize(
     'p_value', [0.01, 0.02, 0.005, 0.003])

@@ -207,6 +207,7 @@ def approximate_welch_t_test(
         interesting = np.logical_or(
             tt < -boring_t,
             tt > boring_t)
+        interesting_idx = np.where(interesting)[0]
 
         cdf = 0.5*np.ones(len(tt), dtype=float)
 
@@ -220,10 +221,10 @@ def approximate_welch_t_test(
         small_nu_mask = np.logical_not(big_nu_mask)
 
         if big_nu_mask.sum() > 0:
-            cdf[interesting][big_nu_mask] = scipy_stats.norm.cdf(
+            cdf[interesting_idx[big_nu_mask]] = scipy_stats.norm.cdf(
                 tt[big_nu_mask])
         if small_nu_mask.sum() > 0:
-            cdf[interesting][small_nu_mask] = scipy_stats.t.cdf(
+            cdf[interesting_idx[small_nu_mask]] = scipy_stats.t.cdf(
                 tt[small_nu_mask],
                 df=nu[small_nu_mask])
 
@@ -311,4 +312,3 @@ def boring_t_from_p_value(p_value):
     fine_cdf = scipy_stats.norm.cdf(fine_t)
     value = np.interp(0.5*p_value, fine_cdf, fine_t)
     return value
-    
