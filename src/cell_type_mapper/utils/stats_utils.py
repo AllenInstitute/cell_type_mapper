@@ -293,3 +293,22 @@ def correct_ttest(ttest_metric):
     ordered_p[sorted_t] = corrected_p
     ordered_p = np.where(ordered_p < 1.0, ordered_p, 1.0)
     return ordered_p
+
+
+def boring_t_from_p_value(p_value):
+    """
+    Return the value of boring_t that will ensure
+    p_values <= p_value are calculated exactly
+    """
+    if p_value < 1.0e-11:
+        raise RuntimeError(
+            "cannot calculate boring_t for p_value < 1.0e-11; "
+            f"you gave p_value = {p_value:.2e}")
+    gross_t = np.arange(-7, 0, 1)
+    gross_cdf = scipy_stats.norm.cdf(gross_t)
+    gross_idx = np.searchsorted(gross_cdf, 0.5*p_value)
+    fine_t = np.linspace(gross_t[gross_idx-1], gross_t[gross_idx+1], 1000)
+    fine_cdf = scipy_stats.norm.cdf(fine_t)
+    value = np.interp(0.5*p_value, fine_cdf, fine_t)
+    return value
+    

@@ -6,6 +6,7 @@ import pytest
 
 import itertools
 import numpy as np
+import scipy.stats
 from unittest.mock import patch
 
 import cell_type_mapper.utils.stats_utils as stats_utils
@@ -41,7 +42,6 @@ def test_t_test_approx(boring_t, big_nu):
             mean2=None,
             var2=None,
             n2=None)
-
 
         (_,
          _,
@@ -80,3 +80,12 @@ def test_t_test_approx(boring_t, big_nu):
         np.ones(inexact.sum()),
         atol=0.0,
         rtol=1.0e-6)
+
+
+@pytest.mark.parametrize(
+    'p_value', [0.01, 0.02, 0.005, 0.003])
+def test_boring_t_calc(p_value):
+    boring_t = stats_utils.boring_t_from_p_value(p_value)
+    truth = scipy.stats.norm.cdf(boring_t)
+    np.testing.assert_allclose(
+        truth, 0.5*p_value, atol=0.0, rtol=1.0e-3)
