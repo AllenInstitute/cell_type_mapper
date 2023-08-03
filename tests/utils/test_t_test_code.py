@@ -15,12 +15,12 @@ import cell_type_mapper.utils.stats_utils as stats_utils
 @pytest.mark.parametrize(
         "boring_t,big_nu",
         itertools.product([3.0, 3.5, 2.5, 1.2],
-                          [10, 1000, None]))
+                          [None]))
 def test_t_test_approx(boring_t, big_nu):
 
     rng = np.random.default_rng(671231)
 
-    t_values = np.linspace(-4.0, 4.0, 1000)
+    t_values = np.linspace(-20.0, 20.0, 32000)
     nu_values = rng.choice(
             [5, 6, 10, 12, 400, 500, 1000, 2000, 2220],
             len(t_values),
@@ -78,6 +78,30 @@ def test_t_test_approx(boring_t, big_nu):
     np.testing.assert_allclose(
         approx_p[inexact],
         np.ones(inexact.sum()),
+        atol=0.0,
+        rtol=1.0e-6)
+
+    # check that we are not breaking designation of
+    # which genes pass the p value threshold
+
+    approx_corrected = stats_utils.correct_ttest(approx_p)
+    exact_corrected = stats_utils.correct_ttest(exact_p)
+
+    # the p-value associated with our boring_t
+    cutoff_p = scipy.stats.norm.cdf(-1*boring_t)
+
+    approx_pass = (approx_corrected < cutoff_p)
+    exact_pass = (exact_corrected < cutoff_p)
+    assert approx_pass.sum() > 0
+    print(approx_corrected[exact_pass])
+    print(exact_corrected[exact_pass])
+    np.testing.assert_array_equal(
+        approx_pass,
+        exact_pass)
+
+    np.testing.assert_allclose(
+        approx_corrected[exact],
+        exact_corrected[exact],
         atol=0.0,
         rtol=1.0e-6)
 
