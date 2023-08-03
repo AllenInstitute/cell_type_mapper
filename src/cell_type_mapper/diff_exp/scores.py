@@ -5,7 +5,8 @@ import warnings
 
 from cell_type_mapper.utils.stats_utils import (
     welch_t_test,
-    correct_ttest)
+    correct_ttest,
+    approx_correct_ttest)
 
 
 def _get_this_cluster_stats(
@@ -185,7 +186,8 @@ def score_differential_genes(
                 var2=stats_2['var'],
                 n2=stats_2['n_cells'],
                 boring_t=boring_t,
-                big_nu=big_nu)
+                big_nu=big_nu,
+                p_th=p_th)
 
     pvalue_valid = (pvalues < p_th)
 
@@ -221,7 +223,8 @@ def diffexp_p_values(
         var2,
         n2,
         boring_t=None,
-        big_nu=None):
+        big_nu=None,
+        p_th=None):
     """
     Parameters (np.ndarrays of shape (n_genes, ))
     ---------------------------------------------
@@ -242,6 +245,11 @@ def diffexp_p_values(
         If not None, Student t-test distributions with more degrees
         of freedom than big_nu will be approximated with the
         normal distribution.
+
+    p_th:
+       If not None, p-values above this threshold will not be
+       passed to the correct_ttest function (since they
+       are already going to fail a threshold cut)
 
     Returns
     -------
@@ -265,7 +273,11 @@ def diffexp_p_values(
                     boring_t=boring_t,
                     big_nu=big_nu)
 
-    pvalues = correct_ttest(pvalues)
+    if p_th is None:
+        pvalues = correct_ttest(pvalues)
+    else:
+        pvalues = approx_correct_ttest(pvalues, p_th=p_th)
+
     return pvalues
 
 
