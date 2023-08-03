@@ -311,4 +311,4 @@ def boring_t_from_p_value(p_value):
     fine_t = np.linspace(gross_t[gross_idx-1], gross_t[gross_idx+1], 1000)
     fine_cdf = scipy_stats.norm.cdf(fine_t)
     value = np.interp(0.5*p_value, fine_cdf, fine_t)
-    return value
+    return -1*value

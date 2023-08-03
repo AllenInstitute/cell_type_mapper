@@ -122,6 +122,7 @@ def test_when_boring_t_is_zero():
     'p_value', [0.01, 0.02, 0.005, 0.003])
 def test_boring_t_calc(p_value):
     boring_t = stats_utils.boring_t_from_p_value(p_value)
-    truth = scipy.stats.norm.cdf(boring_t)
+    assert boring_t > 0
+    truth = scipy.stats.norm.cdf(-1*boring_t)
     np.testing.assert_allclose(
         truth, 0.5*p_value, atol=0.0, rtol=1.0e-3)
