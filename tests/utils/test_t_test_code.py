@@ -151,3 +151,26 @@ def test_boring_t_calc(p_value):
     truth = scipy.stats.norm.cdf(-1*boring_t)
     np.testing.assert_allclose(
         truth, 0.5*p_value, atol=0.0, rtol=1.0e-3)
+
+
+@pytest.mark.parametrize(
+    "p_th", [0.01, 0.0001, 0.000001])
+def test_approx_correct_ttest(p_th):
+    rng = np.random.default_rng(22312)
+    log_vals = rng.integers(-10, 0, 32000)
+    raw = np.power(10.0, log_vals)
+
+    shld_match = (raw<p_th)
+    assert shld_match.sum() > 0
+
+    exact = stats_utils.correct_ttest(raw)
+    approx = stats_utils.approx_correct_ttest(raw, p_th=p_th)
+
+    assert (exact[raw>=p_th] >= p_th).all()
+    assert not np.allclose(exact, raw)
+
+    np.testing.assert_allclose(
+        exact[shld_match],
+        approx[shld_match],
+        rtol=0.0,
+        atol=1.0e-6)

@@ -262,7 +262,7 @@ def _calculate_tt_nu(
     return tt, nu
 
 
-def correct_ttest(ttest_metric):
+def correct_ttest(ttest_metric, padding=0):
     """
     Apply Holm-Bonferroni correction to Welch's t-test to correct
     for multiple hypothesis testing
@@ -271,17 +271,23 @@ def correct_ttest(ttest_metric):
     ----------
     ttest_metric -- raw p-values from t_test
 
+    padding -- number of p-values that have not been passed
+    to this method (for use when running approx_correct_ttest
+    to only care about p-values that are above a certain
+    threshold before correction)
+
     Returns
     -------
     the corrected p-values
     """
-    ttest_metric = np.where(np.isfinite(ttest_metric),
-                            ttest_metric,
-                            1.0)
+    if padding == 0:
+        ttest_metric = np.where(np.isfinite(ttest_metric),
+                                ttest_metric,
+                                1.0)
 
     n_p = len(ttest_metric)
     sorted_t = np.argsort(ttest_metric)
-    t_denom = n_p+1-np.arange(1, n_p+1, dtype=int)
+    t_denom = n_p+padding+1-np.arange(1, n_p+1, dtype=int)
 
     # here we get a list that is the running maximum of the
     # corrected p-values. This is how we handle the
@@ -294,6 +300,33 @@ def correct_ttest(ttest_metric):
     ordered_p[sorted_t] = corrected_p
     ordered_p = np.where(ordered_p < 1.0, ordered_p, 1.0)
     return ordered_p
+
+
+def approx_correct_ttest(ttest_metric, p_th):
+    """
+    Apply Holm-Bonferroni correction to Welch's t-test to correct
+    for multiple hypothesis testing
+
+    Parameters
+    ----------
+    ttest_metric -- raw p-values from t_test
+
+    p_th -- do not bother correcting p-values above this
+    value
+
+    Returns
+    -------
+    the corrected p-values
+    """
+    result = np.where(np.isfinite(ttest_metric),
+                      ttest_metric,
+                      1.0)
+
+    interesting_idx = np.where(result < p_th)[0]
+    result[interesting_idx] = correct_ttest(
+        result[interesting_idx],
+        padding=len(result)-len(interesting_idx))
+    return result
 
 
 def boring_t_from_p_value(p_value):
