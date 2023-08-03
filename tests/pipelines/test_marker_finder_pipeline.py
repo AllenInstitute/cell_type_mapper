@@ -31,11 +31,17 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
+from cell_type_mapper.binary_array.binary_array import (
+    BinarizedBooleanArray)
+
 from cell_type_mapper.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
 
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
+
+from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
+    MarkerGeneArrayPureSparse)
 
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
@@ -51,12 +57,14 @@ def tree_fixture(
 
 
 
+@pytest.mark.parametrize("delete_dense", [True, False])
 def test_marker_finding_pipeline(
         h5ad_path_fixture,
         column_hierarchy,
         tmp_dir_fixture,
         gene_names,
-        tree_fixture):
+        tree_fixture,
+        delete_dense):
 
     tmp_dir = tmp_dir_fixture
 
@@ -90,11 +98,16 @@ def test_marker_finding_pipeline(
             taxonomy_tree=taxonomy_tree,
             output_path=marker_path,
             n_processors=n_processors,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            delete_dense=delete_dense)
 
     with h5py.File(marker_path, 'r') as in_file:
-        assert 'markers/data' in in_file
-        assert 'up_regulated/data' in in_file
+        if delete_dense:
+            assert 'markers' not in in_file
+            assert 'up_regulated' not in in_file
+        else:
+            assert 'markers/data' in in_file
+            assert 'up_regulated/data' in in_file
         assert 'gene_names' in in_file
         assert 'full_gene_names' in in_file
         assert 'pair_to_idx' in in_file
@@ -113,17 +126,41 @@ def test_marker_finding_pipeline(
     precomputed_stats = read_precomputed_stats(precompute_path)
     tree_as_leaves = convert_tree_to_leaves(tree_fixture)
 
-    markers = BackedBinarizedBooleanArray(
-        h5_path=marker_path,
-        h5_group='markers',
-        n_rows=len(gene_names),
-        n_cols=n_cols)
+    if delete_dense:
+        raw_gene_to_idx = {gene: ii for ii, gene in enumerate(gene_names)}
 
-    up_regulated = BackedBinarizedBooleanArray(
-        h5_path=marker_path,
-        h5_group='up_regulated',
-        n_rows=len(gene_names),
-        n_cols=n_cols)
+        marker_parent = MarkerGeneArrayPureSparse.from_cache_path(
+            marker_path)
+
+        filtered_idx_to_gene = {ii: gene
+                                for ii, gene in enumerate(marker_parent.gene_names)}
+
+        markers = BinarizedBooleanArray(
+            n_rows=len(filtered_gene_names),
+            n_cols=n_cols)
+        up_regulated = BinarizedBooleanArray(
+            n_rows=len(filtered_gene_names),
+            n_cols=n_cols)
+
+        for i_pair in range(n_cols):
+            (marker_mask,
+             up_mask) = marker_parent.marker_mask_from_pair_idx(
+                            pair_idx=i_pair)
+            markers.set_col(i_pair, marker_mask)
+            up_regulated.set_col(i_pair, up_mask)
+
+    else:
+        markers = BackedBinarizedBooleanArray(
+            h5_path=marker_path,
+            h5_group='markers',
+            n_rows=len(filtered_gene_names),
+            n_cols=n_cols)
+
+        up_regulated = BackedBinarizedBooleanArray(
+            h5_path=marker_path,
+            h5_group='up_regulated',
+            n_rows=len(filtered_gene_names),
+            n_cols=n_cols)
 
     tot_markers = 0
     marker_sum = 0
@@ -168,6 +205,12 @@ def test_marker_finding_pipeline(
                 np.testing.assert_array_equal(
                     expected_markers,
                     actual_markers)
+
+                if delete_dense:
+                    # in this case, we won't have up=True unless
+                    # a gene is also a marker
+                    expected_up_reg = expected_up_reg[expected_markers]
+                    actual_up_reg = actual_up_reg[expected_markers]
 
                 np.testing.assert_array_equal(
                     expected_up_reg,
@@ -227,7 +270,8 @@ def test_select_marker_genes_v2(
             taxonomy_tree=taxonomy_tree,
             output_path=marker_path,
             n_processors=n_processors,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            delete_dense=False)
 
     marker_array = MarkerGeneArray.from_cache_path(
         cache_path=marker_path)

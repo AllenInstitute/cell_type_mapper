@@ -96,7 +96,8 @@ def ref_marker_path_fixture(
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=0.006)
+        max_gb=0.006,
+        delete_dense=False)
 
     with h5py.File(ref_marker_path, 'r') as in_file:
         assert len(in_file.keys()) > 0

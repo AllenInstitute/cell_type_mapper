@@ -51,7 +51,8 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_gb=20):
+        max_gb=20,
+        delete_dense=True):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -82,6 +83,10 @@ def find_markers_for_all_taxonomy_pairs(
 
     max_gb:
         maximum number of GB to load at once
+
+    delete_dense:
+        If True, delete the dense representation of marker
+        arrays from the HDF5 file
 
     Returns
     --------
@@ -130,7 +135,8 @@ def find_markers_for_all_taxonomy_pairs(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        delete_dense=delete_dense)
 
     shutil.move(
         src=tmp_thinned_path,
