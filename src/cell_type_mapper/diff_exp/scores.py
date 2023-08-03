@@ -393,6 +393,7 @@ def aggregate_stats(
         aggregate_stats.cache[leaf_key] = data
     return aggregate_stats.cache[leaf_key]
 
+
 def _aggregate_stats(
        leaf_population,
        precomputed_stats):
