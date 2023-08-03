@@ -202,7 +202,8 @@ def create_dense_marker_file(
     tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
-           precomputed_stats_path)
+           precomputed_stats_path,
+           omit_keys=['gt1', 'gt0'])
     cluster_stats = precomputed_stats['cluster_stats']
     gene_names = precomputed_stats['gene_names']
     del precomputed_stats

@@ -3,6 +3,9 @@ import h5py
 import numpy as np
 import warnings
 
+from cell_type_mapper.utils.utils import (
+    choose_int_dtype)
+
 from cell_type_mapper.utils.stats_utils import (
     welch_t_test,
     correct_ttest,
@@ -46,7 +49,8 @@ def _get_this_cluster_stats(
 
 
 def read_precomputed_stats(
-        precomputed_stats_path):
+        precomputed_stats_path,
+        omit_keys=None):
     """
     Read in the precomputed stats file at
     precomputed_stats path and return a dict
@@ -62,6 +66,17 @@ def read_precomputed_stats(
             'ge1'
     """
 
+    all_keys = ['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1']
+
+    if omit_keys is not None:
+        new_keys = []
+        for k in all_keys:
+            if k in omit_keys:
+                continue
+            else:
+                new_keys.append(k)
+        all_keys = new_keys
+
     precomputed_stats = dict()
     raw_data = dict()
     with h5py.File(precomputed_stats_path, 'r') as in_file:
@@ -72,9 +87,13 @@ def read_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
-        for k in ('n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+        for k in all_keys:
             if k in in_file:
                 raw_data[k] = in_file[k][()]
+                if k in ('gt0', 'gt1', 'ge1'):
+                    new_dtype = choose_int_dtype(
+                        (raw_data[k].min(), raw_data[k].max()))
+                    raw_data[k] = raw_data[k].astype(new_dtype)
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
@@ -82,7 +101,9 @@ def read_precomputed_stats(
         this = dict()
         if 'n_cells' in raw_data:
             this['n_cells'] = raw_data['n_cells'][idx]
-        for k in ('sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+        for k in all_keys:
+            if k == 'n_cells':
+                continue
             if k in raw_data:
                 this[k] = raw_data[k][idx, :]
         cluster_stats[leaf_name] = this
@@ -170,13 +191,21 @@ def score_differential_genes(
             (P_i1j-Pi2j)/max(P_i1j, P_i2j) > qdiff_th
     """
 
+    keep_only = [
+        'mean',
+        'var',
+        'n_cells',
+        'ge1']
+
     stats_1 = aggregate_stats(
                 leaf_population=leaf_population_1,
-                precomputed_stats=precomputed_stats)
+                precomputed_stats=precomputed_stats,
+                keep_only=keep_only)
 
     stats_2 = aggregate_stats(
                 leaf_population=leaf_population_2,
-                precomputed_stats=precomputed_stats)
+                precomputed_stats=precomputed_stats,
+                keep_only=keep_only)
 
     pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
@@ -362,7 +391,8 @@ def diffexp_score(
 
 def aggregate_stats(
        leaf_population,
-       precomputed_stats):
+       precomputed_stats,
+       keep_only=None):
     """
     Parameters
     ----------
@@ -378,6 +408,9 @@ def aggregate_stats(
             'gt0'
             'gt1'
             'ge1'
+
+    keep_only:
+        If specified, a list of the datasets to keep in the output
 
     Returns
     -------
@@ -401,14 +434,16 @@ def aggregate_stats(
     if leaf_key not in aggregate_stats.cache:
         data = _aggregate_stats(
                    leaf_population,
-                   precomputed_stats)
+                   precomputed_stats,
+                   keep_only=keep_only)
         aggregate_stats.cache[leaf_key] = data
     return aggregate_stats.cache[leaf_key]
 
 
 def _aggregate_stats(
        leaf_population,
-       precomputed_stats):
+       precomputed_stats,
+       keep_only=None):
     """
     Parameters
     ----------
@@ -453,11 +488,21 @@ def _aggregate_stats(
     for leaf_node in leaf_population:
         these_stats = precomputed_stats[leaf_node]
 
-        n_cells += these_stats['n_cells']
-        sum_arr += these_stats['sum']
-        sumsq_arr += these_stats['sumsq']
-        gt0 += these_stats['gt0']
-        gt1 += these_stats['gt1']
+        if 'n_cells' in these_stats:
+            n_cells += these_stats['n_cells']
+
+        if 'sum' in these_stats:
+            sum_arr += these_stats['sum']
+
+        if 'sumsq' in these_stats:
+            sumsq_arr += these_stats['sumsq']
+
+        if 'gt0' in these_stats:
+            gt0 += these_stats['gt0']
+
+        if 'gt1' in these_stats:
+            gt1 += these_stats['gt1']
+
         if 'ge1' in these_stats:
             ge1 += these_stats['ge1']
         else:
@@ -470,12 +515,20 @@ def _aggregate_stats(
         warnings.warn("precomputed stats file does not have 'ge1' data")
         ge1 = None
 
-    return {'mean': mu,
-            'var': var,
-            'n_cells': n_cells,
-            'gt0': gt0,
-            'gt1': gt1,
-            'ge1': ge1}
+    result = {'mean': mu,
+              'var': var,
+              'n_cells': n_cells,
+              'gt0': gt0,
+              'gt1': gt1,
+              'ge1': ge1}
+
+    if keep_only is not None:
+        keep_only = set(keep_only)
+        key_list = list(result.keys())
+        for el in key_list:
+            if el not in keep_only:
+                result.pop(el)
+    return result
 
 
 def rank_genes(
