@@ -5,9 +5,6 @@ import re
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
 
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
-
 from cell_type_mapper.data.cellranger_6_lookup import (
     cellranger_6_lookup)
 
@@ -130,19 +127,29 @@ def map_aibs_gene_names(raw_gene_names):
     raw_gene_names = list(raw_gene_names)
     raw_gene_names.sort()
 
-    gene_id_mapper = GeneIdMapper.from_default()
-    first_pass = gene_id_mapper.map_gene_identifiers(
-        gene_id_list=raw_gene_names)
-
     # Look to see if any unmapped symbols are made easier
     # by the presence of Ensembl IDs in the gene symbol
+    bad_ct = 0
+    bad_symbols = []
     used_ensembl = set()
     symbol_to_ensembl = dict()
-    for symbol, ensembl in zip(raw_gene_names, first_pass):
-
-        if not is_ensembl(ensembl):
+    for symbol in raw_gene_names:
+        ensembl = None
+        if symbol in cellranger_6_lookup:
+            candidates = cellranger_6_lookup[symbol]
+            if len(candidates) == 1:
+                ensembl = candidates[0]
+        else:
             if " " in symbol:
                 ensembl = symbol.split()[1]
+                if not is_ensembl(ensembl):
+                    ensembl = None
+            if ensembl is None:
+                bad_symbols.append(symbol)
+
+        if ensembl is None:
+            ensembl = f"bad_{bad_ct}"
+            bad_ct += 1
 
         if ensembl in used_ensembl:
             other = []
@@ -156,49 +163,34 @@ def map_aibs_gene_names(raw_gene_names):
         symbol_to_ensembl[symbol] = ensembl
         used_ensembl.add(ensembl)
 
+    if len(bad_symbols) > 0:
+        raise RuntimeError(
+            "Could not find Ensembl IDs for\n"
+            f"{json.dumps(bad_symbols, indent=2)}")
+
     # final pass, attempting to see if any ambiguities have been
     # resolved by the EnsemblIDs dangling in gene symbols
-    bad_symbols = []
     for symbol in symbol_to_ensembl:
         ensembl = symbol_to_ensembl[symbol]
         if is_ensembl(ensembl):
             continue
 
-        if symbol not in cellranger_6_lookup:
+        candidates = cellranger_6_lookup[symbol]
+        ensembl = None
+        valid_candidates = []
+        for c in candidates:
+            if c not in used_ensembl:
+                valid_candidates.append(c)
+        if len(valid_candidates) > 1:
+            raise RuntimeError(
+                f"Too many possible Ensembl IDs for {symbol}")
+        elif len(valid_candidates) == 1:
+            ensembl = valid_candidates[0]
+
+        if ensembl is None:
             bad_symbols.append(symbol)
         else:
-            candidates = cellranger_6_lookup[symbol]
-            if len(candidates) == 1:
-                ensembl = candidates[0]
-                if ensembl in used_ensembl:
-                    other = []
-                    for s in symbol_to_ensembl:
-                        if symbol_to_ensembl[s] == ensembl:
-                            other.append(s)
-                    raise RuntimeError(
-                        f"more than one gene symbol maps to {ensembl}:\n"
-                        f"{symbol} and {json.dumps(other)}")
-            else:
-                ensembl = None
-                valid_candidates = []
-                for c in candidates:
-                    if c not in used_ensembl:
-                        valid_candidates.append(c)
-                if len(valid_candidates) > 1:
-                    raise RuntimeError(
-                        f"Too many possible Ensembl IDs for {symbol}")
-                elif len(valid_candidates) == 1:
-                    ensembl = valid_candidates[0]
-
-            if ensembl is None:
-                bad_symbols.append(symbol)
-            else:
-                symbol_to_ensembl[symbol] = ensembl
-                used_ensembl.add(ensembl)
-
-    if len(bad_symbols) > 0:
-        raise RuntimeError(
-            "Could not find Ensembl IDs for\n"
-            f"{json.dumps(bad_symbols, indent=2)}")
+            symbol_to_ensembl[symbol] = ensembl
+            used_ensembl.add(ensembl)
 
     return symbol_to_ensembl
