@@ -392,7 +392,8 @@ def diffexp_score(
 def aggregate_stats(
        leaf_population,
        precomputed_stats,
-       keep_only=None):
+       keep_only=None,
+       cache=True):
     """
     Parameters
     ----------
@@ -412,6 +413,9 @@ def aggregate_stats(
     keep_only:
         If specified, a list of the datasets to keep in the output
 
+    cache:
+        If True, cache results for future access
+
     Returns
     -------
     Dict with
@@ -427,6 +431,12 @@ def aggregate_stats(
     not contain the 'ge1' column. If you are reading one of those,
     'ge1' will be returned as None.
     """
+    if not cache:
+        return _aggregate_stats(
+            leaf_population,
+            precomputed_stats,
+            keep_only=keep_only)
+
     if not hasattr(aggregate_stats, 'cache'):
         aggregate_stats.cache = dict()
     leaf_population.sort()

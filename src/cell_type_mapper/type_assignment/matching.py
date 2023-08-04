@@ -162,7 +162,8 @@ def get_leaf_means(
         # gt1/0 threshold do not actually matter here
         stats = aggregate_stats(
                     leaf_population=[leaf,],
-                    precomputed_stats=precomputed_stats['cluster_stats'])
+                    precomputed_stats=precomputed_stats['cluster_stats'],
+                    cache=False)
         this_mean = stats['mean']
         if data is None:
             n_genes = len(this_mean)
