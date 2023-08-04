@@ -204,7 +204,8 @@ def run_type_assignment_on_h5ad_cpu(
     # profiles for each leaf in the taxonomy
     leaf_node_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
-        precompute_path=precomputed_stats_path)
+        precompute_path=precomputed_stats_path,
+        for_marker_selection=False)
 
     print("starting type assignment")
     chunk_index = -1

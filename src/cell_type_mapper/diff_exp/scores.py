@@ -50,7 +50,8 @@ def _get_this_cluster_stats(
 
 def read_precomputed_stats(
         precomputed_stats_path,
-        omit_keys=None):
+        omit_keys=None,
+        for_marker_selection=True):
     """
     Read in the precomputed stats file at
     precomputed_stats path and return a dict
@@ -64,18 +65,10 @@ def read_precomputed_stats(
             'gt0'
             'gt1'
             'ge1'
+
+    if for_marker_selection is True and 'sumsq' or 'ge1' are missing,
+    raise an error
     """
-
-    all_keys = ['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1']
-
-    if omit_keys is not None:
-        new_keys = []
-        for k in all_keys:
-            if k in omit_keys:
-                continue
-            else:
-                new_keys.append(k)
-        all_keys = new_keys
 
     precomputed_stats = dict()
     raw_data = dict()
@@ -86,6 +79,32 @@ def read_precomputed_stats(
 
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
+
+        all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
+        all_keys = list(all_keys.intersection(set(in_file.keys())))
+
+        if omit_keys is not None:
+            new_keys = []
+            for k in all_keys:
+                if k in omit_keys:
+                    continue
+                else:
+                    new_keys.append(k)
+            all_keys = new_keys
+
+        if 'n_cells' not in all_keys or 'sum' not in all_keys:
+            raise RuntimeError(
+                "'n_cells' and 'sum' must be in precomputed stats "
+                f"file. The file\n{precomputed_stats_path}\n"
+                f"contains {in_file.keys()}")
+
+        if for_marker_selection:
+            if 'sumsq' not in all_keys or 'ge1' not in all_keys:
+                raise RuntimeError(
+                    "'sumsq' and 'ge1' must be in precomputed stats "
+                    "file in order to use it for marker selection. The "
+                    f"file\n{precomputed_stats_path}\n"
+                    f"contains {in_file.keys()}")
 
         for k in all_keys:
             if k in in_file:

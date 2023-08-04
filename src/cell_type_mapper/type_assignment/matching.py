@@ -144,13 +144,19 @@ def assemble_query_data(
 
 def get_leaf_means(
         taxonomy_tree,
-        precompute_path):
+        precompute_path,
+        for_marker_selection=True):
     """
     Returns a CellByGeneMatrix in which each cell
     is a cluster and the .data array contains
     the mean gene expression profile of the cluster.
+
+    If for_marker_selection is True and 'sumsq' or 'ge1' are missing,
+    raise an error
     """
-    precomputed_stats = read_precomputed_stats(precompute_path)
+    precomputed_stats = read_precomputed_stats(
+        precompute_path,
+        for_marker_selection=for_marker_selection)
     leaf_names = taxonomy_tree.all_leaves
     leaf_names.sort()
     result = dict()

@@ -148,6 +148,29 @@ def ab_initio_assignment_fixture(
            'ab_initio_config': config}
 
 
+@pytest.fixture(scope='module')
+def precomputed_stats_fixture(
+        ab_initio_assignment_fixture,
+        tmp_dir_fixture):
+    """
+    Remove 'ge1', 'gt0', 'gt1', 'sumsq' from
+    the precomputed stats file and see if we can still
+    run cell type assignment.
+    """
+    src_path = ab_initio_assignment_fixture['ab_initio_config']['precomputed_stats']['path']
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_stats_cleaned_',
+        suffix='.h5')
+
+    with h5py.File(src_path, 'r') as src:
+        with h5py.File(dst_path, 'w') as dst:
+            for k in src.keys():
+                if k in ('sumsq', 'gt0', 'gt1', 'ge1'):
+                    continue
+                dst.create_dataset(k, data=src[k][()])
+    return dst_path
+
 @pytest.mark.parametrize(
         'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
         [(True, True, True, False, False, False),
@@ -167,6 +190,7 @@ def test_mapping_from_markers(
         raw_query_cell_x_gene_fixture,
         raw_query_h5ad_fixture,
         taxonomy_tree_dict,
+        precomputed_stats_fixture,
         tmp_dir_fixture,
         flatten,
         use_csv,
@@ -211,7 +235,7 @@ def test_mapping_from_markers(
     config['query_path'] = baseline_config['query_path']
 
     # just reuse the precomputed stats file that has already been generated
-    config['precomputed_stats'] = {'path': baseline_config['precomputed_stats']['path']}
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
     config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
     if just_once:
