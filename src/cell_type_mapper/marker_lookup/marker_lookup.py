@@ -2,6 +2,13 @@ import pathlib
 import re
 
 
+from cell_type_mapper.gene_id.gene_id_mapper import (
+    GeneIdMapper)
+
+from cell_type_mapper.data.aibs_symbol_mapping import (
+    aibs_symbol_mapping)
+
+
 def marker_lookup_from_tree_and_csv(
         taxonomy_tree,
         csv_dir):
@@ -77,3 +84,61 @@ def marker_lookup_from_tree_and_csv(
         marker_lookup[parent_key] = gene_symbols
 
     return marker_lookup
+
+
+def map_aibs_marker_lookup(
+        raw_markers):
+    """
+    Translate marker genes named in raw_markers to Ensembl IDs
+    using both canonical mappings and AIBS internal mapping.
+
+    raw_markers is a dict mapping parent nodes to lists
+    of marker identifiers.
+
+    return a similar dict, with the names of the marker genes
+    mapped to Ensembl IDs.
+    """
+    gene_id_mapper = GeneIdMapper.from_default()
+
+    # create bespoke symbol-to-EnsemblID mapping that
+    # uses AIBS conventions in cases where the gene symbol
+    # maps to more than one EnsemblID
+    all_markers = set()
+    for k in raw_markers:
+        all_markers = all_markers.union(set(raw_markers[k]))
+    all_markers = list(all_markers)
+    all_markers.sort()
+    first_pass = gene_id_mapper.map_gene_identifiers(
+        gene_id_list=all_markers)
+
+    used_ensembl = set()
+    symbol_to_ensembl = dict()
+    for symbol, ensembl in zip(all_markers, first_pass):
+
+        if not gene_id_mapper._is_ensembl(ensembl):
+            if symbol in aibs_symbol_mapping:
+                ensembl = aibs_symbol_mapping[symbol]
+            elif " " in symbol:
+                ensembl = symbol.split()[1]
+            else:
+                raise RuntimeError(
+                    f"cannot map gene symbol {symbol} to EnsemblID")
+
+        if not gene_id_mapper._is_ensembl(ensembl):
+            raise RuntimeError(
+                f"could not find EnsemblID for gene_symbol {symbol}; "
+                f"best guess: {ensembl}")
+
+        if ensembl in used_ensembl:
+            raise RuntimeError(
+                f"more than one gene symbol maps to {ensembl}")
+
+        symbol_to_ensembl[symbol] = ensembl
+        used_ensembl.add(ensembl)
+
+    result = dict()
+    for k in raw_markers:
+        new_markers = [symbol_to_ensembl[s] for s in raw_markers[k]]
+        result[k] = new_markers
+
+    return result

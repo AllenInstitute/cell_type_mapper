@@ -9,9 +9,6 @@ import copy
 import h5py
 import json
 
-from cell_type_mapper.data.aibs_symbol_mapping import (
-    aibs_symbol_mapping)
-
 from cell_type_mapper.utils.utils import (
     get_timestamp)
 
@@ -19,10 +16,8 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 from cell_type_mapper.marker_lookup.marker_lookup import (
-    marker_lookup_from_tree_and_csv)
-
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
+    marker_lookup_from_tree_and_csv,
+    map_aibs_marker_lookup)
 
 
 class MarkerCacheInputSchema(argschema.ArgSchema):
@@ -81,48 +76,7 @@ class MarkerCacheRunner(argschema.ArgSchemaParser):
             csv_dir=self.args['marker_dir'],
             taxonomy_tree=taxonomy_tree)
 
-        gene_id_mapper = GeneIdMapper.from_default()
-
-        # create bespoke symbol-to-EnsemblID mapping that
-        # uses AIBS conventions in cases where the gene symbol
-        # maps to more than one EnsemblID
-        all_markers = set()
-        for k in raw_markers:
-            all_markers = all_markers.union(set(raw_markers[k]))
-        all_markers = list(all_markers)
-        all_markers.sort()
-        first_pass = gene_id_mapper.map_gene_identifiers(
-            gene_id_list=all_markers)
-
-        used_ensembl = set()
-        symbol_to_ensembl = dict()
-        for symbol, ensembl in zip(all_markers, first_pass):
-
-            if not gene_id_mapper._is_ensembl(ensembl):
-                if symbol in aibs_symbol_mapping:
-                    ensembl = aibs_symbol_mapping[symbol]
-                elif " " in symbol:
-                    ensembl = symbol.split()[1]
-                else:
-                    raise RuntimeError(
-                        f"cannot map gene symbol {symbol} to EnsemblID")
-
-            if not gene_id_mapper._is_ensembl(ensembl):
-                raise RuntimeError(
-                    f"could not find EnsemblID for gene_symbol {symbol}; "
-                    f"best guess: {ensembl}")
-
-            if ensembl in used_ensembl:
-                raise RuntimeError(
-                    f"more than one gene symbol maps to {ensembl}")
-
-            symbol_to_ensembl[symbol] = ensembl
-            used_ensembl.add(ensembl)
-
-        result = dict()
-        for k in raw_markers:
-            new_markers = [symbol_to_ensembl[s] for s in raw_markers[k]]
-            result[k] = new_markers
+        result = map_aibs_marker_lookup(raw_markers)
 
         result['metadata'] = copy.deepcopy(self.args)
         result['metadata']['generated_on'] = get_timestamp()
