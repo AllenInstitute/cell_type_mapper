@@ -105,7 +105,8 @@ def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
-        baseline_tree_fixture):
+        baseline_tree_fixture,
+        baseline_tree_without_cells_fixture):
 
     test_tree = TaxonomyTree.from_data_release(
             cell_metadata_path=cell_metadata_fixture,
@@ -113,6 +114,22 @@ def test_all_this(
             cluster_membership_path=cluster_membership_fixture,
             hierarchy=['class', 'subclass', 'supertype', 'cluster'])
     assert test_tree == baseline_tree_fixture
+    assert test_tree != baseline_tree_without_cells_fixture
+
+
+def test_no_cell_metadata(
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_tree_without_cells_fixture,
+        baseline_tree_fixture):
+
+    test_tree = TaxonomyTree.from_data_release(
+            cell_metadata_path=None,
+            cluster_annotation_path=cluster_annotation_term_fixture,
+            cluster_membership_path=cluster_membership_fixture,
+            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+    assert test_tree == baseline_tree_without_cells_fixture
+    assert test_tree != baseline_tree_fixture
 
 
 def test_de_aliasing(

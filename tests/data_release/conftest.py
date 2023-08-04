@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import numpy as np
 import pathlib
 import shutil
@@ -311,7 +312,7 @@ def cluster_annotation_term_fixture(
 
 
 @pytest.fixture(scope='module')
-def baseline_tree_fixture(
+def baseline_tree_data_fixture(
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
@@ -338,6 +339,20 @@ def baseline_tree_fixture(
             this[parent].sort()
         data[parent_level] = this
 
+    return data
+
+@pytest.fixture(scope='module')
+def baseline_tree_fixture(
+        baseline_tree_data_fixture):
+    return TaxonomyTree(data=baseline_tree_data_fixture)
+
+
+@pytest.fixture(scope='module')
+def baseline_tree_without_cells_fixture(
+        baseline_tree_data_fixture):
+    data = copy.deepcopy(baseline_tree_data_fixture)
+    for k in data['cluster']:
+        data['cluster'][k] = []
     return TaxonomyTree(data=data)
 
 
