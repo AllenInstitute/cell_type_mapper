@@ -98,7 +98,6 @@ def map_aibs_marker_lookup(
     return a similar dict, with the names of the marker genes
     mapped to Ensembl IDs.
     """
-    gene_id_mapper = GeneIdMapper.from_default()
 
     # create bespoke symbol-to-EnsemblID mapping that
     # uses AIBS conventions in cases where the gene symbol
@@ -107,13 +106,34 @@ def map_aibs_marker_lookup(
     for k in raw_markers:
         all_markers = all_markers.union(set(raw_markers[k]))
     all_markers = list(all_markers)
-    all_markers.sort()
+
+    symbol_to_ensembl = map_aibs_gene_names(all_markers)
+
+    result = dict()
+    for k in raw_markers:
+        new_markers = [symbol_to_ensembl[s] for s in raw_markers[k]]
+        result[k] = new_markers
+
+    return result
+
+
+def map_aibs_gene_names(raw_gene_names):
+    """
+    Take a list of gene names; return a dict mapping them
+    to Ensembl IDs, accounting for AIBS-specific gene
+    symbol conventions
+    """
+    raw_gene_names = set(raw_gene_names)
+    raw_gene_names = list(raw_gene_names)
+    raw_gene_names.sort()
+
+    gene_id_mapper = GeneIdMapper.from_default()
     first_pass = gene_id_mapper.map_gene_identifiers(
-        gene_id_list=all_markers)
+        gene_id_list=raw_gene_names)
 
     used_ensembl = set()
     symbol_to_ensembl = dict()
-    for symbol, ensembl in zip(all_markers, first_pass):
+    for symbol, ensembl in zip(raw_gene_names, first_pass):
 
         if not gene_id_mapper._is_ensembl(ensembl):
             if symbol in aibs_symbol_mapping:
@@ -136,9 +156,4 @@ def map_aibs_marker_lookup(
         symbol_to_ensembl[symbol] = ensembl
         used_ensembl.add(ensembl)
 
-    result = dict()
-    for k in raw_markers:
-        new_markers = [symbol_to_ensembl[s] for s in raw_markers[k]]
-        result[k] = new_markers
-
-    return result
+    return symbol_to_ensembl
