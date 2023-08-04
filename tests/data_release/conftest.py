@@ -18,8 +18,8 @@ from cell_type_mapper.taxonomy.data_release_utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.cellranger_6_lookup import (
+    cellranger_6_lookup)
 
 
 def _create_word(rng):
@@ -367,10 +367,12 @@ def expected_marker_lookup_fixture(
 
     gene_symbol_list = []
     used_ens = set()
-    for gene_id in gene_id_lookup:
-        if gene_id_lookup[gene_id] in used_ens:
+    for gene_id in cellranger_6_lookup:
+        if len(cellranger_6_lookup[gene_id]) > 1:
             continue
-        used_ens.add(gene_id_lookup[gene_id])
+        if cellranger_6_lookup[gene_id][0] in used_ens:
+            continue
+        used_ens.add(cellranger_6_lookup[gene_id][0])
         gene_symbol_list.append(gene_id)
 
     true_lookup = dict()
