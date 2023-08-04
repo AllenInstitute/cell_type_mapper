@@ -142,8 +142,13 @@ def map_aibs_gene_names(raw_gene_names):
                 ensembl = symbol.split()[1]
 
         if ensembl in used_ensembl:
+            other = []
+            for s in symbol_to_ensembl:
+                if symbol_to_ensembl[s] == ensembl:
+                    other.append(s)
             raise RuntimeError(
-                f"more than one gene symbol maps to {ensembl}")
+                f"more than one gene symbol maps to {ensembl}:\n"
+                f"{symbol} and {json.dumps(other)}")
 
         symbol_to_ensembl[symbol] = ensembl
         used_ensembl.add(ensembl)
