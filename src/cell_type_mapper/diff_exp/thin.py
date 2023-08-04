@@ -71,6 +71,9 @@ def thin_marker_file(
     rows_to_keep = np.array(rows_to_keep)
     rows_to_keep = np.sort(rows_to_keep)
     n_keep = len(rows_to_keep)
+    if n_keep == 0:
+        raise RuntimeError(
+            "No rows to keep in thin_marker_file")
 
     rows_at_a_time = max(1000, max_bytes//base_shape[1])
 

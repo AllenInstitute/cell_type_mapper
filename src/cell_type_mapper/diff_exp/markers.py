@@ -18,6 +18,9 @@ from cell_type_mapper.utils.h5_utils import (
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
+from cell_type_mapper.utils.stats_utils import (
+    boring_t_from_p_value)
+
 from cell_type_mapper.diff_exp.scores import (
     read_precomputed_stats,
     _get_this_cluster_stats,
@@ -48,7 +51,8 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_gb=20):
+        max_gb=20,
+        delete_dense=True):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -79,6 +83,10 @@ def find_markers_for_all_taxonomy_pairs(
 
     max_gb:
         maximum number of GB to load at once
+
+    delete_dense:
+        If True, delete the dense representation of marker
+        arrays from the HDF5 file
 
     Returns
     --------
@@ -127,7 +135,8 @@ def find_markers_for_all_taxonomy_pairs(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        delete_dense=delete_dense)
 
     shutil.move(
         src=tmp_thinned_path,
@@ -193,7 +202,8 @@ def create_dense_marker_file(
     tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
-           precomputed_stats_path)
+           precomputed_stats_path,
+           omit_keys=['gt1', 'gt0'])
     cluster_stats = precomputed_stats['cluster_stats']
     gene_names = precomputed_stats['gene_names']
     del precomputed_stats
@@ -343,6 +353,8 @@ def add_sparse_markers_to_file(
     added.
     """
 
+    t0 = time.time()
+
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
 
     add_sparse_markers_by_pair_to_h5(h5_path)
@@ -390,6 +402,7 @@ def add_sparse_markers_to_file(
         shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
+    print(f"adding sparse markers took {time.time()-t0:.2e} seconds")
 
 
 def _find_markers_worker(
@@ -427,6 +440,8 @@ def _find_markers_worker(
         will be stored (this process creates that file)
     """
 
+    boring_t = boring_t_from_p_value(p_th)
+
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
     col0 = min(idx_values)
@@ -459,7 +474,8 @@ def _find_markers_worker(
                          precomputed_stats=cluster_stats,
                          p_th=p_th,
                          q1_th=q1_th,
-                         qdiff_th=qdiff_th)
+                         qdiff_th=qdiff_th,
+                         boring_t=boring_t)
 
         this_col = idx-col0
         marker_mask.set_col(

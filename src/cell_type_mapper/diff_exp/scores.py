@@ -3,9 +3,13 @@ import h5py
 import numpy as np
 import warnings
 
+from cell_type_mapper.utils.utils import (
+    choose_int_dtype)
+
 from cell_type_mapper.utils.stats_utils import (
     welch_t_test,
-    correct_ttest)
+    correct_ttest,
+    approx_correct_ttest)
 
 
 def _get_this_cluster_stats(
@@ -45,7 +49,8 @@ def _get_this_cluster_stats(
 
 
 def read_precomputed_stats(
-        precomputed_stats_path):
+        precomputed_stats_path,
+        omit_keys=None):
     """
     Read in the precomputed stats file at
     precomputed_stats path and return a dict
@@ -61,6 +66,17 @@ def read_precomputed_stats(
             'ge1'
     """
 
+    all_keys = ['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1']
+
+    if omit_keys is not None:
+        new_keys = []
+        for k in all_keys:
+            if k in omit_keys:
+                continue
+            else:
+                new_keys.append(k)
+        all_keys = new_keys
+
     precomputed_stats = dict()
     raw_data = dict()
     with h5py.File(precomputed_stats_path, 'r') as in_file:
@@ -71,9 +87,13 @@ def read_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
-        for k in ('n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+        for k in all_keys:
             if k in in_file:
                 raw_data[k] = in_file[k][()]
+                if k in ('gt0', 'gt1', 'ge1'):
+                    new_dtype = choose_int_dtype(
+                        (raw_data[k].min(), raw_data[k].max()))
+                    raw_data[k] = raw_data[k].astype(new_dtype)
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
@@ -81,7 +101,9 @@ def read_precomputed_stats(
         this = dict()
         if 'n_cells' in raw_data:
             this['n_cells'] = raw_data['n_cells'][idx]
-        for k in ('sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+        for k in all_keys:
+            if k == 'n_cells':
+                continue
             if k in raw_data:
                 this[k] = raw_data[k][idx, :]
         cluster_stats[leaf_name] = this
@@ -97,7 +119,9 @@ def score_differential_genes(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
-        fold_change=2.0):
+        fold_change=2.0,
+        boring_t=None,
+        big_nu=None):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -123,6 +147,17 @@ def score_differential_genes(
     fold_change:
         Genes must have a fold changes > fold_change between the
         two populations to be considered a marker gene.
+
+    boring_t:
+       If not None, values of the t-test statistic must be
+       outisde the range (-boring_t, boring_t) to be considered
+       "interesting." "Uninteresting" values will be given a CDF
+       value of 0.5
+
+    big_nu:
+        If not None, Student t-test distributions with more degrees
+        of freedom than big_nu will be approximated with the
+        normal distribution.
 
     Returns
     -------
@@ -156,13 +191,21 @@ def score_differential_genes(
             (P_i1j-Pi2j)/max(P_i1j, P_i2j) > qdiff_th
     """
 
+    keep_only = [
+        'mean',
+        'var',
+        'n_cells',
+        'ge1']
+
     stats_1 = aggregate_stats(
                 leaf_population=leaf_population_1,
-                precomputed_stats=precomputed_stats)
+                precomputed_stats=precomputed_stats,
+                keep_only=keep_only)
 
     stats_2 = aggregate_stats(
                 leaf_population=leaf_population_2,
-                precomputed_stats=precomputed_stats)
+                precomputed_stats=precomputed_stats,
+                keep_only=keep_only)
 
     pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
@@ -170,7 +213,10 @@ def score_differential_genes(
                 n1=stats_1['n_cells'],
                 mean2=stats_2['mean'],
                 var2=stats_2['var'],
-                n2=stats_2['n_cells'])
+                n2=stats_2['n_cells'],
+                boring_t=boring_t,
+                big_nu=big_nu,
+                p_th=p_th)
 
     pvalue_valid = (pvalues < p_th)
 
@@ -204,7 +250,10 @@ def diffexp_p_values(
         n1,
         mean2,
         var2,
-        n2):
+        n2,
+        boring_t=None,
+        big_nu=None,
+        p_th=None):
     """
     Parameters (np.ndarrays of shape (n_genes, ))
     ---------------------------------------------
@@ -214,6 +263,22 @@ def diffexp_p_values(
     mean2 -- mean gene expression values in pop2
     var2 -- variance of gene expression values in pop2
     n2 -- number of cells in pop2
+
+    boring_t:
+       If not None, values of the t-test statistic must be
+       outisde the range (-boring_t, boring_t) to be considered
+       "interesting." "Uninteresting" values will be given a CDF
+       value of 0.5
+
+    big_nu:
+        If not None, Student t-test distributions with more degrees
+        of freedom than big_nu will be approximated with the
+        normal distribution.
+
+    p_th:
+       If not None, p-values above this threshold will not be
+       passed to the correct_ttest function (since they
+       are already going to fail a threshold cut)
 
     Returns
     -------
@@ -225,17 +290,23 @@ def diffexp_p_values(
     means and variances in input are in units of log2(CPM+1)
     """
 
-    (tt_stat,
-     tt_nunu,
+    (_,
+     _,
      pvalues) = welch_t_test(
                     mean1=mean1,
                     var1=var1,
                     n1=n1,
                     mean2=mean2,
                     var2=var2,
-                    n2=n2)
+                    n2=n2,
+                    boring_t=boring_t,
+                    big_nu=big_nu)
 
-    pvalues = correct_ttest(pvalues)
+    if p_th is None:
+        pvalues = correct_ttest(pvalues)
+    else:
+        pvalues = approx_correct_ttest(pvalues, p_th=p_th)
+
     return pvalues
 
 
@@ -320,7 +391,59 @@ def diffexp_score(
 
 def aggregate_stats(
        leaf_population,
-       precomputed_stats):
+       precomputed_stats,
+       keep_only=None):
+    """
+    Parameters
+    ----------
+    leaf_population:
+        List of names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'sum' -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
+            'gt0'
+            'gt1'
+            'ge1'
+
+    keep_only:
+        If specified, a list of the datasets to keep in the output
+
+    Returns
+    -------
+    Dict with
+        'mean' -- mean value of all gene expression
+        'var' -- variance of all gene expression
+        'n_cells' -- number of cells in the population
+
+    Note
+    -----
+    output mean and var are in units of log2(CPM+1)
+
+    Some historical versions of precomputed_stats files did
+    not contain the 'ge1' column. If you are reading one of those,
+    'ge1' will be returned as None.
+    """
+    if not hasattr(aggregate_stats, 'cache'):
+        aggregate_stats.cache = dict()
+    leaf_population.sort()
+    leaf_key = tuple(leaf_population)
+    if leaf_key not in aggregate_stats.cache:
+        data = _aggregate_stats(
+                   leaf_population,
+                   precomputed_stats,
+                   keep_only=keep_only)
+        aggregate_stats.cache[leaf_key] = data
+    return aggregate_stats.cache[leaf_key]
+
+
+def _aggregate_stats(
+       leaf_population,
+       precomputed_stats,
+       keep_only=None):
     """
     Parameters
     ----------
@@ -365,11 +488,21 @@ def aggregate_stats(
     for leaf_node in leaf_population:
         these_stats = precomputed_stats[leaf_node]
 
-        n_cells += these_stats['n_cells']
-        sum_arr += these_stats['sum']
-        sumsq_arr += these_stats['sumsq']
-        gt0 += these_stats['gt0']
-        gt1 += these_stats['gt1']
+        if 'n_cells' in these_stats:
+            n_cells += these_stats['n_cells']
+
+        if 'sum' in these_stats:
+            sum_arr += these_stats['sum']
+
+        if 'sumsq' in these_stats:
+            sumsq_arr += these_stats['sumsq']
+
+        if 'gt0' in these_stats:
+            gt0 += these_stats['gt0']
+
+        if 'gt1' in these_stats:
+            gt1 += these_stats['gt1']
+
         if 'ge1' in these_stats:
             ge1 += these_stats['ge1']
         else:
@@ -382,12 +515,20 @@ def aggregate_stats(
         warnings.warn("precomputed stats file does not have 'ge1' data")
         ge1 = None
 
-    return {'mean': mu,
-            'var': var,
-            'n_cells': n_cells,
-            'gt0': gt0,
-            'gt1': gt1,
-            'ge1': ge1}
+    result = {'mean': mu,
+              'var': var,
+              'n_cells': n_cells,
+              'gt0': gt0,
+              'gt1': gt1,
+              'ge1': ge1}
+
+    if keep_only is not None:
+        keep_only = set(keep_only)
+        key_list = list(result.keys())
+        for el in key_list:
+            if el not in keep_only:
+                result.pop(el)
+    return result
 
 
 def rank_genes(
