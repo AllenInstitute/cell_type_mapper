@@ -1,8 +1,10 @@
 import json
-import re
 import warnings
 
 import cell_type_mapper.utils.utils as utils
+
+from cell_type_mapper.gene_id.utils import (
+    is_ensembl)
 
 from cell_type_mapper.data.gene_id_lookup import (
     gene_id_lookup)
@@ -19,21 +21,10 @@ class GeneIdMapper(object):
         (i.e. gene symbols or NCBI identifiers). The values are the
         corresponding EnsemblIDs.
         """
-        self._ens_pattern = re.compile('ENS[A-Z]+[0-9]+')
         self.random_name_generator = RandomNameGenerator()
         self._lookup = data
         self.log = log
         self._preferred_type = "EnsemblID"
-
-    def _is_ensembl(self, gene_id):
-        """
-        gene_id is a string. Return a boolean indicating whether
-        or not it is an EnsemblID
-        """
-        match = self._ens_pattern.fullmatch(gene_id)
-        if match is None:
-            return False
-        return True
 
     @classmethod
     def from_default(cls, log=None):
@@ -67,7 +58,7 @@ class GeneIdMapper(object):
         unmappable_genes = 0
         output = []
         for input_gene in gene_id_list:
-            if self._is_ensembl(input_gene):
+            if is_ensembl(input_gene):
                 output.append(input_gene)
             else:
                 if input_gene in self._lookup:

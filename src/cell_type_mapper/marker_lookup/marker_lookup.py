@@ -2,6 +2,9 @@ import json
 import pathlib
 import re
 
+from cell_type_mapper.gene_id.utils import (
+    is_ensembl)
+
 from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
@@ -137,7 +140,7 @@ def map_aibs_gene_names(raw_gene_names):
     symbol_to_ensembl = dict()
     for symbol, ensembl in zip(raw_gene_names, first_pass):
 
-        if not gene_id_mapper._is_ensembl(ensembl):
+        if not is_ensembl(ensembl):
             if " " in symbol:
                 ensembl = symbol.split()[1]
 
@@ -158,7 +161,7 @@ def map_aibs_gene_names(raw_gene_names):
     bad_symbols = []
     for symbol in symbol_to_ensembl:
         ensembl = symbol_to_ensembl[symbol]
-        if gene_id_mapper._is_ensembl(ensembl):
+        if is_ensembl(ensembl):
             continue
 
         if symbol not in cellranger_6_lookup:
