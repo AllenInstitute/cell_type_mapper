@@ -74,18 +74,14 @@ def summary_stats_fixture(
         n_genes):
     result = {
         'a':{
+            'mean': a_mean,
             'n_cells': n_a,
-            'sum': n_a*a_mean,
-            'sumsq': np.zeros(n_genes),
-            'gt1': np.zeros(n_genes, dtype=int),
-            'gt0': np.zeros(n_genes, dtype=int),
+            'var': np.zeros(n_genes),
             'ge1': np.zeros(n_genes, dtype=int)},
         'b':{
+            'mean': b_mean,
             'n_cells': n_b,
-            'sum': n_b*b_mean,
-            'sumsq': np.zeros(n_genes),
-            'gt1': np.zeros(n_genes, dtype=int),
-            'gt0': np.zeros(n_genes, dtype=int),
+            'var': np.zeros(n_genes),
             'ge1': np.zeros(n_genes, dtype=int)}}
     return result
 
@@ -146,8 +142,8 @@ def test_score_differential_genes_quantitatively(
             (scores,
              is_marker,
              up_mask) = score_differential_genes(
-                 leaf_population_1=['a'],
-                 leaf_population_2=['b'],
+                 node_1='a',
+                 node_2='b',
                  precomputed_stats=summary_stats_fixture,
                  p_th=p_th,
                  q1_th=0.5,

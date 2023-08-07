@@ -3,7 +3,6 @@ import json
 import numpy as np
 
 from cell_type_mapper.diff_exp.scores import (
-    aggregate_stats,
     read_precomputed_stats)
 
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
@@ -155,7 +154,8 @@ def get_leaf_means(
     raise an error
     """
     precomputed_stats = read_precomputed_stats(
-        precompute_path,
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
         for_marker_selection=for_marker_selection)
     leaf_names = taxonomy_tree.all_leaves
     leaf_names.sort()
@@ -166,10 +166,8 @@ def get_leaf_means(
 
     for i_leaf, leaf in enumerate(leaf_names):
         # gt1/0 threshold do not actually matter here
-        stats = aggregate_stats(
-                    leaf_population=[leaf,],
-                    precomputed_stats=precomputed_stats['cluster_stats'],
-                    cache=False)
+        leaf_key = f'{taxonomy_tree.leaf_level}/{leaf}'
+        stats = precomputed_stats['cluster_stats'][leaf_key]
         this_mean = stats['mean']
         if data is None:
             n_genes = len(this_mean)
