@@ -48,7 +48,7 @@ def test_marker_creation_function_bad_dir(
         cluster_annotation_path=cluster_annotation_term_fixture,
         hierarchy=['class', 'subclass', 'supertype', 'cluster'])
 
-    with pytest.raises(RuntimeError, match="does not exist"):
+    with pytest.raises(RuntimeError, match="Could not find marker sets"):
         marker_lookup_from_tree_and_csv(
             taxonomy_tree=taxonomy_tree,
             csv_dir=bad_marker_gene_csv_dir)

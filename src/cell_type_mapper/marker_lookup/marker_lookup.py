@@ -46,6 +46,9 @@ def marker_lookup_from_tree_and_csv(
     int_re = re.compile('[0-9]+')
     parent_to_path = dict()
     parent_list = taxonomy_tree.all_parents
+
+    missing_marker_sets = []
+
     for parent_node in parent_list:
         if parent_node is None:
             fname = 'marker.1.root.csv'
@@ -67,9 +70,17 @@ def marker_lookup_from_tree_and_csv(
             munged = readable_name.replace(' ', '+').replace('/', '__')
             fname = f'marker.{level_idx}.{munged}.csv'
         fpath = csv_dir / fname
-        if not fpath.is_file():
-            raise RuntimeError(f"{fname} does not exist")
-        parent_to_path[parent_key] = fpath
+        if fpath.is_file():
+            parent_to_path[parent_key] = fpath
+        else:
+            missing_marker_sets.append((parent_key, fpath.name))
+
+    if len(missing_marker_sets) > 0:
+        msg = ''
+        for marker_set in missing_marker_sets:
+            msg += f'{marker_set}\n'
+        raise RuntimeError(
+            f"Could not find marker sets\n{msg}")
 
     marker_lookup = dict()
     for parent_key in parent_to_path:
