@@ -162,9 +162,6 @@ def run_mapping(config, output_path, log_path=None):
     else:
         tmp_dir = None
 
-    output = dict()
-    csv_result = dict()
-
     output_path = pathlib.Path(output_path)
     if log_path is not None:
         log_path = pathlib.Path(log_path)
@@ -192,34 +189,11 @@ def run_mapping(config, output_path, log_path=None):
                 dir=config['extended_result_dir'],
                 prefix='result_buffer_')
 
-        type_assignment = _run_mapping(
+        output = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             tmp_result_dir=tmp_result_dir,
             log=log)
-        output["results"] = type_assignment["assignments"]
-        output["marker_genes"] = type_assignment["marker_genes"]
-        output["taxonomy_tree"] = \
-            json.loads(type_assignment["metadata_taxonomy_tree"].to_str())
-        csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
-        csv_result["assignments"] = type_assignment["assignments"]
-
-        if config['csv_result_path'] is not None:
-
-            if config['type_assignment']['bootstrap_iteration'] == 1:
-                confidence_key = 'avg_correlation'
-                confidence_label = 'correlation_coefficient'
-            else:
-                confidence_key = 'bootstrapping_probability'
-                confidence_label = 'bootstrapping_probability'
-
-            blob_to_csv(
-                results_blob=csv_result.get("assignments"),
-                taxonomy_tree=csv_result.get("taxonomy_tree"),
-                output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'],
-                confidence_key=confidence_key,
-                confidence_label=confidence_label)
 
         _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
@@ -373,10 +347,33 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    return {"assignments": result,
-            "marker_genes": marker_gene_lookup,
-            "mapping_taxonomy_tree": taxonomy_tree,
-            "metadata_taxonomy_tree": tree_for_metadata}
+    csv_result = dict()
+    csv_result["taxonomy_tree"] = taxonomy_tree
+    csv_result["assignments"] = result
+
+    if config['csv_result_path'] is not None:
+
+        if config['type_assignment']['bootstrap_iteration'] == 1:
+            confidence_key = 'avg_correlation'
+            confidence_label = 'correlation_coefficient'
+        else:
+            confidence_key = 'bootstrapping_probability'
+            confidence_label = 'bootstrapping_probability'
+
+        blob_to_csv(
+            results_blob=csv_result.get("assignments"),
+            taxonomy_tree=csv_result.get("taxonomy_tree"),
+            output_path=config['csv_result_path'],
+            metadata_path=config['extended_result_path'],
+            confidence_key=confidence_key,
+            confidence_label=confidence_label)
+
+    output = dict()
+    output["results"] = result
+    output["marker_genes"] = marker_gene_lookup
+    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+
+    return output
 
 
 def main():
