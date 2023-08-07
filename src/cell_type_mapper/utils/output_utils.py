@@ -1,4 +1,5 @@
 import json
+import pandas as pd
 import pathlib
 
 
@@ -52,33 +53,30 @@ def blob_to_csv(
             str_readable_hierarchy = json.dumps(readable_hierarchy)
             dst.write(f'# readable taxonomy hierarchy = '
                       f'{str_readable_hierarchy}\n')
-        header = 'cell_id,'
-        for level in taxonomy_tree.hierarchy:
-            readable_level = taxonomy_tree.level_to_name(
-                level_label=level)
-            header += f'{readable_level}_label,{readable_level}_name,'
-            if level == taxonomy_tree.leaf_level:
-                header += f'{readable_level}_alias,'
-            header += f'{readable_level}_{confidence_label},'
-        header = header[:-1] + '\n'
-        dst.write(header)
+
+        csv_data = []
         for cell in results_blob:
-            values = [cell['cell_id']]
+            values = {'cell_id': cell['cell_id']}
             for level in taxonomy_tree.hierarchy:
+                readable_level = taxonomy_tree.level_to_name(level_label=level)
                 label = cell[level]['assignment']
                 name = taxonomy_tree.label_to_name(
                             level=level,
                             label=label,
                             name_key='name')
-                values.append(label)
-                values.append(name)
+                values[f'{readable_level}_label'] = label
+                values[f'{readable_level}_name'] = name
 
                 if level == taxonomy_tree.leaf_level:
                     alias = taxonomy_tree.label_to_name(
                                 level=level,
                                 label=label,
                                 name_key='alias')
-                    values.append(alias)
+                    values[f'{readable_level}_alias'] = alias
 
-                values.append(f"{cell[level][confidence_key]:.4f}")
-            dst.write(",".join(values)+"\n")
+                values[f"{readable_level}_{confidence_label}"] = \
+                    cell[level][confidence_key]
+
+            csv_data.append(values)
+        csv_df = pd.DataFrame(csv_data)
+        csv_df.to_csv(dst, index=False, float_format='%.4f')
