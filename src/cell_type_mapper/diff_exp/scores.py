@@ -140,10 +140,6 @@ def read_raw_precomputed_stats(
         for k in all_keys:
             if k in in_file:
                 raw_data[k] = in_file[k][()]
-                if k in ('gt0', 'gt1', 'ge1'):
-                    new_dtype = choose_int_dtype(
-                        (raw_data[k].min(), raw_data[k].max()))
-                    raw_data[k] = raw_data[k].astype(new_dtype)
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
