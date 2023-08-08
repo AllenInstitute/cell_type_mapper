@@ -1,5 +1,6 @@
 import pytest
 
+import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.utils import (
@@ -7,6 +8,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.output_utils import (
+    blob_to_df,
     blob_to_csv)
 
 
@@ -24,10 +26,12 @@ def results_fixture():
         {'cell_id': 'a',
          'level1': {'assignment': 'alice',
                     'confidence': 0.01234567,
-                    'corr': 0.112253},
+                    'corr': 0.112253,
+                    'runners_up': ['a', 'b', 'd']},
          'level3': {'assignment': 'bob',
                     'confidence': 0.2,
-                    'corr': 0.4},
+                    'corr': 0.4,
+                    'runners_up': ['c']},
          'level7': {'assignment': 'cheryl',
                     'confidence': 0.245,
                     'corr': 0.33332}
@@ -38,13 +42,87 @@ def results_fixture():
                     'corr': 0.1},
          'level3': {'assignment': 'dodger',
                     'confidence': 0.3,
-                    'corr': 0.9},
+                    'corr': 0.9,
+                    'runners_up': ['a', 'f', 'b', 'b']},
          'level7': {'assignment': 'brooklyn',
                     'confidence': 0.5,
                     'corr': 0.11723}
         }
     ]
     return results
+
+
+def test_blob_to_df(results_fixture):
+
+    class DummyTree(object):
+        hierarchy = ['level1', 'level3', 'level7']
+        @property
+        def leaf_level(self):
+            return 'level7'
+        def label_to_name(self, level, label, name_key='gar'):
+            return label
+        def level_to_name(self, level_label):
+            return level_label
+
+    actual_df = blob_to_df(
+        results_blob=results_fixture,
+        taxonomy_tree=DummyTree())
+
+    assert len(actual_df) == 2
+
+    expected_columns = set([
+        "cell_id",
+        "level1_name",
+        "level1_label",
+        "level1_confidence",
+        "level1_corr",
+        "level1_runners_up_0",
+        "level1_runners_up_1",
+        "level1_runners_up_2",
+        "level3_name",
+        "level3_label",
+        "level3_confidence",
+        "level3_corr",
+        "level3_runners_up_0",
+        "level3_runners_up_1",
+        "level3_runners_up_2",
+        "level3_runners_up_3",
+        "level7_name",
+        "level7_label",
+        "level7_alias",
+        "level7_confidence",
+        "level7_corr"])
+
+    assert set(actual_df.columns) == expected_columns
+
+    for record in results_fixture:
+        sub_df = actual_df[actual_df['cell_id']==record['cell_id']]
+        assert len(sub_df) == 1
+        for level in ('level1', 'level3', 'level7'):
+            for k in ('name', 'label'):
+                assert sub_df[f'{level}_{k}'].values == record[level]['assignment']
+            if level == 'level7':
+                assert sub_df[f'{level}_alias'].values == record[level]['assignment']
+            for k in ('confidence', 'corr'):
+                np.testing.assert_allclose(
+                    sub_df[f'{level}_{k}'],
+                    record[level][k])
+
+            if level == 'level7':
+                continue
+            if 'runners_up' in record[level]:
+                expected_runners_up = record[level]['runners_up']
+            else:
+                expected_runners_up = []
+            for idx in range(len(expected_runners_up)):
+                assert sub_df[f'{level}_runners_up_{idx}'].values == expected_runners_up[idx]
+
+            if level == 'level1' and len(expected_runners_up) < 3:
+                for idx in range(len(expected_runners_up), 3):
+                    sub_df[f'{level}_runners_up_{idx}'].values is None
+            elif level == 'level3' and len(expected_runners_up) < 4:
+                for idx in range(len(expected_runners_up), 4):
+                    sub_df[f'{level}_runners_up_{idx}'] is None
 
 
 @pytest.mark.parametrize('with_metadata', [True, False])

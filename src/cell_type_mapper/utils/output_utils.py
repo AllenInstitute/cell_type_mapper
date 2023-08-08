@@ -1,4 +1,5 @@
 import json
+import pandas as pd
 import pathlib
 
 
@@ -52,33 +53,88 @@ def blob_to_csv(
             str_readable_hierarchy = json.dumps(readable_hierarchy)
             dst.write(f'# readable taxonomy hierarchy = '
                       f'{str_readable_hierarchy}\n')
-        header = 'cell_id,'
+
+        csv_df = blob_to_df(
+            results_blob=results_blob,
+            taxonomy_tree=taxonomy_tree)
+
+        column_rename = dict()
         for level in taxonomy_tree.hierarchy:
-            readable_level = taxonomy_tree.level_to_name(
-                level_label=level)
-            header += f'{readable_level}_label,{readable_level}_name,'
+            readable_level = taxonomy_tree.level_to_name(level_label=level)
+            src_key = f"{readable_level}_{confidence_key}"
+            dst_key = f"{readable_level}_{confidence_label}"
+            column_rename[src_key] = dst_key
+        csv_df.rename(mapper=column_rename, axis=1, inplace=True)
+
+        columns_to_drop = []
+        for col in csv_df.columns:
+            if col == 'cell_id':
+                continue
+            if 'name' in col or 'label' in col or 'alias' in col:
+                continue
+            if confidence_label in col:
+                continue
+            columns_to_drop.append(col)
+
+        if len(columns_to_drop) > 0:
+            csv_df.drop(columns_to_drop, axis=1, inplace=True)
+
+        csv_df.to_csv(dst, index=False, float_format='%.4f')
+
+
+def blob_to_df(
+        results_blob,
+        taxonomy_tree):
+    """
+    Convert a JSON blob of results into a pandas dataframe
+    """
+    records = []
+    for cell in results_blob:
+        this_record = {'cell_id': cell['cell_id']}
+        for level in taxonomy_tree.hierarchy:
+            readable_level = taxonomy_tree.level_to_name(level_label=level)
+            label = cell[level]['assignment']
+            name = taxonomy_tree.label_to_name(
+                        level=level,
+                        label=label,
+                        name_key='name')
+            this_record[f'{readable_level}_label'] = label
+            this_record[f'{readable_level}_name'] = name
             if level == taxonomy_tree.leaf_level:
-                header += f'{readable_level}_alias,'
-            header += f'{readable_level}_{confidence_label},'
-        header = header[:-1] + '\n'
-        dst.write(header)
-        for cell in results_blob:
-            values = [cell['cell_id']]
-            for level in taxonomy_tree.hierarchy:
-                label = cell[level]['assignment']
-                name = taxonomy_tree.label_to_name(
+                alias = taxonomy_tree.label_to_name(
                             level=level,
                             label=label,
-                            name_key='name')
-                values.append(label)
-                values.append(name)
+                            name_key='alias')
+                this_record[f'{readable_level}_alias'] = alias
 
-                if level == taxonomy_tree.leaf_level:
-                    alias = taxonomy_tree.label_to_name(
-                                level=level,
-                                label=label,
-                                name_key='alias')
-                    values.append(alias)
+            for element in cell[level]:
+                if element == 'assignment':
+                    continue
+                value = cell[level][element]
+                if isinstance(value, list):
+                    for idx in range(len(value)):
+                        key = f'{readable_level}_{element}_{idx}'
+                        this_record[key] = value[idx]
+                else:
+                    key = f'{readable_level}_{element}'
+                    this_record[key] = value
 
-                values.append(f"{cell[level][confidence_key]:.4f}")
-            dst.write(",".join(values)+"\n")
+        records.append(this_record)
+
+    df = pd.DataFrame(records)
+
+    for col in df.columns:
+        convert_to_category = False
+        if 'label' in col:
+            convert_to_category = True
+        elif 'name' in col:
+            convert_to_category = True
+        elif 'alias' in col:
+            convert_to_category = True
+        elif 'assignment' in col:
+            convert_to_category = True
+
+        if convert_to_category:
+            df[col] = df[col].astype('category')
+
+    return df

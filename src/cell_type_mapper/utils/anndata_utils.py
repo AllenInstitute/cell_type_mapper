@@ -2,6 +2,7 @@ import anndata
 from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
 import h5py
+import pandas as pd
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -44,6 +45,65 @@ def write_uns_to_h5ad(h5ad_path, uns_value):
             write_elem(dst, key='uns', val=uns_value)
         except TypeError:
             write_elem(dst, k='uns', elem=uns_value)
+
+
+def does_obsm_have_key(h5ad_path, obsm_key):
+    """
+    Return a boolean assessing whether or not obsm has
+    the specified key
+    """
+    with h5py.File(h5ad_path, 'r') as src:
+        k_list = set(src['obsm'].keys())
+    return obsm_key in k_list
+
+
+def append_to_obsm(
+        h5ad_path,
+        obsm_key,
+        obsm_value,
+        clobber=False):
+    """
+    Add some data to the 'obsm' element of an H5AD file.
+
+    Parameters
+    ----------
+    h5ad_path:
+        Path to the H5AD file
+    obsm_key:
+        The key in obsm to which the new data will be assigned
+    obsm_value:
+        The data to be written
+    clobber:
+        If False, raise an error if obsm_key is already in
+        obsm.
+    """
+    if isinstance(obsm_value, pd.DataFrame):
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        obs_keys = list(obs.index.values)
+        these_keys = list(obsm_value.index.values)
+        if not obs_keys == these_keys:
+            raise RuntimeError(
+                "Cannot write dataframe to obsm; index values "
+                "are not the same as the index values in obs")
+
+    with h5py.File(h5ad_path, 'a') as dst:
+        obsm = read_elem(dst['obsm'])
+        if not isinstance(obsm, dict):
+            raise RuntimeError(
+                f"'obsm' is not a dict; it is a {type(obsm)}\n"
+                "Unclear how to proceed")
+        if not clobber:
+            if obsm_key in obsm:
+                raise RuntimeError(
+                    f"{obsm_key} already in obsm. Cannot write "
+                    f"data to {h5ad_path}")
+
+        obsm[obsm_key] = obsm_value
+
+        try:
+            write_elem(dst, key='obsm', val=obsm)
+        except TypeError:
+            write_elem(dst, k='obsm', elem=obsm)
 
 
 def copy_layer_to_x(

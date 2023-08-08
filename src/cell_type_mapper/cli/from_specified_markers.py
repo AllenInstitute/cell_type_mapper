@@ -1,6 +1,7 @@
 import argschema
 import h5py
 import json
+from marshmallow import post_load
 import multiprocessing
 import numpy as np
 import pathlib
@@ -18,10 +19,14 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_uns_from_h5ad)
+    read_uns_from_h5ad,
+    read_df_from_h5ad,
+    does_obsm_have_key,
+    append_to_obsm)
 
 from cell_type_mapper.utils.output_utils import (
-    blob_to_csv)
+    blob_to_csv,
+    blob_to_df)
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
@@ -81,11 +86,25 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         "results will be saved from each process.")
 
     extended_result_path = argschema.fields.OutputFile(
-        required=True,
+        required=False,
         default=None,
-        allow_none=False,
+        allow_none=True,
         description="Path to JSON file where extended results "
         "will be saved.")
+
+    obsm_key = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="If not None, save the results of the "
+        "mapping in query_path.obsm under this key")
+
+    obsm_clobber = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description="If True, allow the code to overwrite an "
+        "existing element in query_path.obsm")
 
     csv_result_path = argschema.fields.OutputFile(
         required=False,
@@ -137,6 +156,37 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="If true, flatten the taxonomy so that we are "
         "mapping directly to the leaf node")
 
+    @post_load
+    def check_result_dst(self, data, **kwargs):
+        """
+        Make sure that there is somewhere, either extended_result_path
+        or obsm_key, where we can store the extended results.
+        """
+        if data['extended_result_path'] is None:
+            if data['obsm_key'] is None:
+                msg = ("You must specify at least one of extended_result_path "
+                       "and/or obsm_key")
+                raise RuntimeError(msg)
+        return data
+
+    @post_load
+    def check_obsm_key(self, data, **kwargs):
+        """
+        If obsm_key is not None, make sure that key has not already
+        been assigned in query_path.obsm
+        """
+        if data['obsm_key'] is None:
+            return data
+
+        if does_obsm_have_key(data['query_path'], data['obsm_key']):
+            if not data['obsm_clobber']:
+                msg = (f"obsm in {data['query_path']} already has key "
+                       f"{data['obsm_key']}; to overwrite, set obsm_clobber "
+                       "to True.")
+                raise RuntimeError(msg)
+
+        return data
+
 
 class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = HierarchicalSchemaSpecifiedMarkers
@@ -162,10 +212,9 @@ def run_mapping(config, output_path, log_path=None):
     else:
         tmp_dir = None
 
-    output = dict()
-    csv_result = dict()
+    if output_path is not None:
+        output_path = pathlib.Path(output_path)
 
-    output_path = pathlib.Path(output_path)
     if log_path is not None:
         log_path = pathlib.Path(log_path)
 
@@ -192,34 +241,11 @@ def run_mapping(config, output_path, log_path=None):
                 dir=config['extended_result_dir'],
                 prefix='result_buffer_')
 
-        type_assignment = _run_mapping(
+        output = _run_mapping(
             config=config,
             tmp_dir=tmp_dir,
             tmp_result_dir=tmp_result_dir,
             log=log)
-        output["results"] = type_assignment["assignments"]
-        output["marker_genes"] = type_assignment["marker_genes"]
-        output["taxonomy_tree"] = \
-            json.loads(type_assignment["metadata_taxonomy_tree"].to_str())
-        csv_result["taxonomy_tree"] = type_assignment["mapping_taxonomy_tree"]
-        csv_result["assignments"] = type_assignment["assignments"]
-
-        if config['csv_result_path'] is not None:
-
-            if config['type_assignment']['bootstrap_iteration'] == 1:
-                confidence_key = 'avg_correlation'
-                confidence_label = 'correlation_coefficient'
-            else:
-                confidence_key = 'bootstrapping_probability'
-                confidence_label = 'bootstrapping_probability'
-
-            blob_to_csv(
-                results_blob=csv_result.get("assignments"),
-                taxonomy_tree=csv_result.get("taxonomy_tree"),
-                output_path=config['csv_result_path'],
-                metadata_path=config['extended_result_path'],
-                confidence_key=confidence_key,
-                confidence_label=confidence_label)
 
         _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
@@ -240,8 +266,9 @@ def run_mapping(config, output_path, log_path=None):
         if "AIBS_CDM_gene_mapping" in uns:
             output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
 
-        with open(output_path, "w") as out_file:
-            out_file.write(json.dumps(output, indent=2))
+        if output_path is not None:
+            with open(output_path, "w") as out_file:
+                out_file.write(json.dumps(output, indent=2))
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
@@ -373,10 +400,55 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    return {"assignments": result,
-            "marker_genes": marker_gene_lookup,
-            "mapping_taxonomy_tree": taxonomy_tree,
-            "metadata_taxonomy_tree": tree_for_metadata}
+    csv_result = dict()
+    csv_result["taxonomy_tree"] = taxonomy_tree
+    csv_result["assignments"] = result
+
+    if config['csv_result_path'] is not None:
+
+        if config['type_assignment']['bootstrap_iteration'] == 1:
+            confidence_key = 'avg_correlation'
+            confidence_label = 'correlation_coefficient'
+        else:
+            confidence_key = 'bootstrapping_probability'
+            confidence_label = 'bootstrapping_probability'
+
+        blob_to_csv(
+            results_blob=csv_result.get("assignments"),
+            taxonomy_tree=csv_result.get("taxonomy_tree"),
+            output_path=config['csv_result_path'],
+            metadata_path=config['extended_result_path'],
+            confidence_key=confidence_key,
+            confidence_label=confidence_label)
+
+    if config['obsm_key']:
+
+        df = blob_to_df(
+            results_blob=result,
+            taxonomy_tree=taxonomy_tree).set_index('cell_id')
+
+        # need to make sure that the rows are written in
+        # the same order that they occur in the obs
+        # dataframe
+
+        obs = read_df_from_h5ad(
+            h5ad_path=config['query_path'],
+            df_name='obs')
+
+        df = df.loc[obs.index.values]
+
+        append_to_obsm(
+            h5ad_path=config['query_path'],
+            obsm_key=config['obsm_key'],
+            obsm_value=df,
+            clobber=config['obsm_clobber'])
+
+    output = dict()
+    output["results"] = result
+    output["marker_genes"] = marker_gene_lookup
+    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+
+    return output
 
 
 def main():
