@@ -81,11 +81,18 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         "results will be saved from each process.")
 
     extended_result_path = argschema.fields.OutputFile(
-        required=True,
+        required=False,
         default=None,
-        allow_none=False,
+        allow_none=True,
         description="Path to JSON file where extended results "
         "will be saved.")
+
+    obsm_key = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="If not None, save the results of the "
+        "mapping in query_path.obsm under this key")
 
     csv_result_path = argschema.fields.OutputFile(
         required=False,
