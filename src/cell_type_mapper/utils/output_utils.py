@@ -120,4 +120,20 @@ def blob_to_df(
                     this_record[key] = value
 
         records.append(this_record)
-    return pd.DataFrame(records)
+    df = pd.DataFrame(records)
+
+    for col in df.columns:
+        convert_to_category = False
+        if 'label' in col:
+            convert_to_category = True
+        elif 'name' in col:
+            convert_to_category = True
+        elif 'alias' in col:
+            convert_to_category = True
+        elif 'assignment' in col:
+            convert_to_category = True
+
+        if convert_to_category:
+            df[col] = df[col].astype('category')
+
+    return df
