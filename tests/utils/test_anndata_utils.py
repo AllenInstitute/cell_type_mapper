@@ -16,7 +16,8 @@ from cell_type_mapper.utils.anndata_utils import (
     write_df_to_h5ad,
     copy_layer_to_x,
     read_uns_from_h5ad,
-    write_uns_to_h5ad)
+    write_uns_to_h5ad,
+    append_to_obsm)
 
 
 @pytest.fixture(scope='module')
@@ -243,3 +244,73 @@ def test_read_empty_uns(tmp_dir_fixture):
     actual = read_uns_from_h5ad(h5ad_path)
     assert isinstance(actual, dict)
     assert len(actual) == 0
+
+
+def test_append_to_obsm(tmp_dir_fixture):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='adata_with_obsm_',
+        suffix='.h5ad')
+
+    rng = np.random.default_rng(6123412)
+
+    n_obs = 25
+    n_var = 32
+    expected_obsm = {
+        'a': rng.integers(9, 122, (n_obs, 3)),
+        'b': rng.integers(9, 122, (n_obs, 2))
+    }
+    a_data = anndata.AnnData(
+        X=rng.random((n_obs, n_var)),
+        obsm=expected_obsm)
+
+    a_data.write_h5ad(h5ad_path)
+
+    # make sure cannot overwrite with clobber=False
+    with pytest.raises(RuntimeError, match='already in obsm'):
+        append_to_obsm(
+            h5ad_path=h5ad_path,
+            obsm_key='a',
+            obsm_value=np.zeros((n_obs, 4), dtype=int),
+            clobber=False)
+
+    expected_c = rng.integers(14, 38, (n_obs, 6))
+    append_to_obsm(
+        h5ad_path=h5ad_path,
+        obsm_key='c',
+        obsm_value=expected_c,
+        clobber=False)
+
+    roundtrip = anndata.read_h5ad(h5ad_path)
+    actual_obsm = roundtrip.obsm
+    np.testing.assert_array_equal(
+        actual_obsm['a'],
+        expected_obsm['a'])
+    np.testing.assert_array_equal(
+        actual_obsm['b'],
+        expected_obsm['b'])
+    np.testing.assert_array_equal(
+        actual_obsm['c'],
+        expected_c)
+
+    # use clobber
+    new_a = rng.integers(12, 99, (n_obs, 13))
+    append_to_obsm(
+        h5ad_path=h5ad_path,
+        obsm_key='a',
+        obsm_value=new_a,
+        clobber=True)
+
+    roundtrip = anndata.read_h5ad(h5ad_path)
+    actual_obsm = roundtrip.obsm
+
+    np.testing.assert_array_equal(
+        actual_obsm['a'],
+        new_a)
+    np.testing.assert_array_equal(
+        actual_obsm['b'],
+        expected_obsm['b'])
+    np.testing.assert_array_equal(
+        actual_obsm['c'],
+        expected_c)

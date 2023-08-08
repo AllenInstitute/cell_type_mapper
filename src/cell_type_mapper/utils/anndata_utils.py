@@ -46,6 +46,46 @@ def write_uns_to_h5ad(h5ad_path, uns_value):
             write_elem(dst, k='uns', elem=uns_value)
 
 
+def append_to_obsm(
+        h5ad_path,
+        obsm_key,
+        obsm_value,
+        clobber=False):
+    """
+    Add some data to the 'obsm' element of an H5AD file.
+
+    Parameters
+    ----------
+    h5ad_path:
+        Path to the H5AD file
+    obsm_key:
+        The key in obsm to which the new data will be assigned
+    obsm_value:
+        The data to be written
+    clobber:
+        If False, raise an error if obsm_key is already in
+        obsm.
+    """
+    with h5py.File(h5ad_path, 'a') as dst:
+        obsm = read_elem(dst['obsm'])
+        if not isinstance(obsm, dict):
+            raise RuntimeError(
+                f"'obsm' is not a dict; it is a {type(obsm)}\n"
+                "Unclear how to proceed")
+        if not clobber:
+            if obsm_key in obsm:
+                raise RuntimeError(
+                    f"{obsm_key} already in obsm. Cannot write "
+                    f"data to {h5ad_path}")
+
+        obsm[obsm_key] = obsm_value
+
+        try:
+            write_elem(dst, key='obsm', val=obsm)
+        except TypeError:
+            write_elem(dst, k='obsm', elem=obsm)
+
+
 def copy_layer_to_x(
         original_h5ad_path,
         new_h5ad_path,
