@@ -2,6 +2,7 @@ import anndata
 from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
 import h5py
+import pandas as pd
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -76,6 +77,15 @@ def append_to_obsm(
         If False, raise an error if obsm_key is already in
         obsm.
     """
+    if isinstance(obsm_value, pd.DataFrame):
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        obs_keys = list(obs.index.values)
+        these_keys = list(obsm_value.index.values)
+        if not obs_keys == these_keys:
+            raise RuntimeError(
+                "Cannot write dataframe to obsm; index values "
+                "are not the same as the index values in obs")
+
     with h5py.File(h5ad_path, 'a') as dst:
         obsm = read_elem(dst['obsm'])
         if not isinstance(obsm, dict):

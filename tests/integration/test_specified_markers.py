@@ -4,6 +4,7 @@ import anndata
 import copy
 import h5py
 import json
+import numbers
 import numpy as np
 import os
 import pandas as pd

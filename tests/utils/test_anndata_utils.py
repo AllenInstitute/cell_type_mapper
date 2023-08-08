@@ -348,3 +348,62 @@ def test_does_obsm_have_key(tmp_dir_fixture):
     assert not does_obsm_have_key(h5ad_path, 'a')
     assert not does_obsm_have_key(h5ad_path, 'b')
     assert not does_obsm_have_key(h5ad_path, 'x')
+
+
+def test_appending_obsm_to_obs(tmp_dir_fixture):
+    """
+    Test that, if we are adding a dataframe
+    to obsm, an error is raised if that dataframe's
+    index is not aligned to the index in obs.
+    """
+    rng = np.random.default_rng(4321233)
+    obs_data = [
+        {'a': 'foo', 'x': 1},
+        {'a': 'bar', 'x': 3},
+        {'a': 'baz', 'x': 4}
+    ]
+    obs = pd.DataFrame(obs_data).set_index('a')
+    a_data = anndata.AnnData(
+        X=rng.random((3, 4)),
+        obs=obs)
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dummy_h5ad_',
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    bad_obsm_data = [
+        {'a': 'throat warbler', 'z': 3},
+        {'a': 'yacht', 'z': 4},
+        {'a': 'mangrove', 'z': 5}
+    ]
+    bad_obsm = pd.DataFrame(bad_obsm_data).set_index('a')
+    with pytest.raises(RuntimeError, match='index values are not the same'):
+        append_to_obsm(
+            h5ad_path=h5ad_path,
+            obsm_key='test',
+            obsm_value=bad_obsm)
+
+
+    bad_obsm_data = [
+        {'d': 'baz', 'z': 3},
+        {'d': 'foo', 'z': 4},
+        {'d': 'bar', 'z': 5}
+    ]
+    bad_obsm = pd.DataFrame(bad_obsm_data).set_index('d')
+    with pytest.raises(RuntimeError, match='index values are not the same'):
+        append_to_obsm(
+            h5ad_path=h5ad_path,
+            obsm_key='test',
+            obsm_value=bad_obsm)
+
+    good_obsm = bad_obsm.loc[['foo', 'bar', 'baz']]
+    append_to_obsm(
+        h5ad_path=h5ad_path,
+        obsm_key='test',
+        obsm_value=good_obsm)
+
+    roundtrip = anndata.read_h5ad(h5ad_path)
+    roundtrip_obsm = roundtrip.obsm
+    assert 'test' in roundtrip_obsm
+    assert list(roundtrip_obsm['test'].z.values) == [4, 5, 3]

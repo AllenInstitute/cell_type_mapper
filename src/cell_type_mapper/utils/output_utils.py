@@ -120,6 +120,7 @@ def blob_to_df(
                     this_record[key] = value
 
         records.append(this_record)
+
     df = pd.DataFrame(records)
 
     for col in df.columns:

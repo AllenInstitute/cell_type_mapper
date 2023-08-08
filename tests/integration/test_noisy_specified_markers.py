@@ -18,10 +18,12 @@ import copy
 import h5py
 import json
 import numpy as np
+import numbers
 import os
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import shutil
 import tempfile
 
 from cell_type_mapper.utils.utils import (
@@ -393,3 +395,304 @@ def test_mapping_from_markers(
         assert with_runners_up == 0
 
     assert without_runners_up > 0
+
+
+@pytest.mark.parametrize(
+        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass,'
+        'clobber',
+        [(True, True, True, False, False, False, False),
+         (True, False, True, False, False, False, False),
+         (False, True, True, False, False, False, False),
+         (False, False, True, False, False, False, False),
+         (False, True, True, False, False, False, False),
+         (False, True, True, True, False, False, False),
+         (True, True, True, True, False, False, False),
+         (True, True, True, True, True, False, False),
+         (False, True, True, True, True, False, False),
+         (False, True, True, False, True, False, False),
+         (True, True, True, False, True, False, False),
+         (False, True, True, True, True, True, False),
+         (False, True, True, False, True, True, True),
+         (True, True, True, False, True, True, True),
+         (False, True, True, True, True, True, True),
+         (False, True, True, False, True, True, True)])
+def test_mapping_from_markers_to_query_h5ad(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        use_csv,
+        use_tmp_dir,
+        use_gpu,
+        just_once,
+        drop_subclass,
+        clobber):
+    """
+    Test that we correctly write output to query_path.obsm when
+    specified to do so
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+
+    clobber will make sure that the query h5ad file already has
+    a field in obsm where we are trying to write and will
+    overwrite it
+    """
+
+    obsm_key = 'cdm_mapping'
+
+    if use_gpu and not is_torch_available():
+        return
+
+    # copy query file to a new location so that we can
+    # test the option to write the mapping to query_path.obsm
+    query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_file_for_obsm_',
+        suffix='.h5ad')
+
+    src = anndata.read_h5ad(noisy_raw_query_h5ad_fixture, backed='r')
+
+    if clobber:
+        obsm = {obsm_key: src.obs}
+    else:
+        obsm = None
+
+    dst = anndata.AnnData(
+            X=src.X[()],
+            obs=src.obs,
+            var=src.var,
+            obsm=obsm)
+
+    dst.write_h5ad(query_path)
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    if use_csv:
+        csv_path = mkstemp_clean(
+            dir=this_tmp,
+            suffix='.csv')
+    else:
+        csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = query_path
+
+    config['extended_result_path'] = result_path
+    config['obsm_key'] = obsm_key
+    config['obsm_clobber'] = clobber
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 10
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    json_results = json.load(open(result_path, 'rb'))
+
+    taxonomy_tree = TaxonomyTree(data=json_results['taxonomy_tree'])
+
+    a_data = anndata.read_h5ad(query_path, backed='r')
+    obs = a_data.obs
+    pd_results = a_data.obsm[obsm_key]
+    assert list(pd_results.index.values) == list(obs.index.values)
+
+    pd_results = pd_results.to_dict(orient='index')
+    baseline_results = {cell['cell_id']: cell
+                        for cell in json_results['results']}
+
+    assert set(pd_results.keys()) == set(baseline_results.keys())
+    assert len(pd_results) > 0
+
+    # test that results recorded in JSON and results recorded
+    # in obsm are identical
+    ct_runners_up = 0
+    for cell_id in pd_results:
+        pd_cell = pd_results[cell_id]
+        baseline_cell = baseline_results[cell_id]
+        for level in baseline_cell:
+            if level == 'cell_id':
+                continue
+            readable_level = taxonomy_tree.level_to_name(level)
+            assn_key = f'{readable_level}_label'
+            assert pd_cell[assn_key] == baseline_cell[level]['assignment']
+            node_name = taxonomy_tree.label_to_name(
+                level=level,
+                label=baseline_cell[level]['assignment'])
+            name_key = f'{readable_level}_name'
+            assert pd_cell[name_key] == node_name
+            if level == taxonomy_tree.leaf_level:
+                alias = taxonomy_tree.label_to_name(
+                    level=level,
+                    label=baseline_cell[level]['assignment'],
+                    name_key='alias')
+                alias_key = f'{readable_level}_alias'
+                assert pd_cell[alias_key] == alias
+
+            for k in ('bootstrapping_probability', 'avg_correlation'):
+                pd_key = f'{readable_level}_{k}'
+                np.testing.assert_allclose(
+                    pd_cell[pd_key],
+                    baseline_cell[level][k])
+
+            for column in baseline_cell[level]:
+                if 'runner_up' not in column:
+                    continue
+                baseline_runners = baseline_cell[level][column]
+                for idx in range(len(baseline_runners)):
+                    ct_runners_up += 1
+                    pd_key = f'{readable_level}_{column}_{idx}'
+                    if isinstance(baseline_runners[idx], numbers.Number):
+                        np.testing.assert_allclose(
+                            pd_cell[pd_key],
+                            baseline_runners[idx])
+                    else:
+                        assert pd_cell[pd_key] == baseline_runners[idx]
+
+    os.environ[env_var] = ''
+    if not just_once:
+        assert ct_runners_up > 0
+
+
+@pytest.mark.parametrize(
+    'extended_result_path,obsm_key,obsm_clobber,error_msg',
+    [
+     (None, None, False, 'at least one of'),
+     (None, 'cdm_mapping', False, 'already has key cdm_mapping'),
+     ('junk_file', 'cdm_mapping', False, 'already has key cdm_mapping'),
+     (None, 'cdm_mapping', True, None),
+     (None, 'hooplah', False, None),
+     ('junk_file', None, False, None)
+    ]
+)
+def test_mapping_from_markers_to_query_h5ad_config_errors(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        extended_result_path,
+        obsm_key,
+        obsm_clobber,
+        error_msg):
+    """
+    Test that we get appropriate config errors when we do not
+    specify a location for the extended output
+    """
+
+    # copy query file to a new location so that we can
+    # test the option to write the mapping to query_path.obsm
+    query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_file_for_obsm_errors_',
+        suffix='.h5ad')
+
+    src = anndata.read_h5ad(noisy_raw_query_h5ad_fixture, backed='r')
+    assert len(src.obsm) == 0
+
+    obsm = {'cdm_mapping': src.obs}
+
+    dst = anndata.AnnData(
+            X=src.X[()],
+            obs=src.obs,
+            var=src.var,
+            obsm=obsm)
+
+    dst.write_h5ad(query_path)
+
+    if extended_result_path is not None:
+        result_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix=extended_result_path,
+            suffix='.json')
+    else:
+        result_path = None
+
+
+    config = dict()
+    config['tmp_dir'] = None
+
+    config['query_path'] = query_path
+
+    config['extended_result_path'] = result_path
+    config['obsm_key'] = obsm_key
+    config['obsm_clobber'] = obsm_clobber
+    config['csv_result_path'] = None
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 10
+    }
+
+    if error_msg is not None:
+        with pytest.raises(RuntimeError, match=error_msg):
+            FromSpecifiedMarkersRunner(
+                args= [],
+                input_data=config)
+    else:
+        runner = FromSpecifiedMarkersRunner(
+                args= [],
+                input_data=config)
+        runner.run()
