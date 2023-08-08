@@ -46,6 +46,16 @@ def write_uns_to_h5ad(h5ad_path, uns_value):
             write_elem(dst, k='uns', elem=uns_value)
 
 
+def does_obsm_have_key(h5ad_path, obsm_key):
+    """
+    Return a boolean assessing whether or not obsm has
+    the specified key
+    """
+    with h5py.File(h5ad_path, 'r') as src:
+        k_list = set(src['obsm'].keys())
+    return obsm_key in k_list
+
+
 def append_to_obsm(
         h5ad_path,
         obsm_key,

@@ -17,7 +17,8 @@ from cell_type_mapper.utils.anndata_utils import (
     copy_layer_to_x,
     read_uns_from_h5ad,
     write_uns_to_h5ad,
-    append_to_obsm)
+    append_to_obsm,
+    does_obsm_have_key)
 
 
 @pytest.fixture(scope='module')
@@ -314,3 +315,36 @@ def test_append_to_obsm(tmp_dir_fixture):
     np.testing.assert_array_equal(
         actual_obsm['c'],
         expected_c)
+
+
+def test_does_obsm_have_key(tmp_dir_fixture):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='adata_with_obsm_',
+        suffix='.h5ad')
+
+    rng = np.random.default_rng(6123412)
+
+    n_obs = 25
+    n_var = 32
+    expected_obsm = {
+        'a': rng.integers(9, 122, (n_obs, 3)),
+        'b': rng.integers(9, 122, (n_obs, 2))
+    }
+    a_data = anndata.AnnData(
+        X=rng.random((n_obs, n_var)),
+        obsm=expected_obsm)
+
+    a_data.write_h5ad(h5ad_path)
+    assert does_obsm_have_key(h5ad_path, 'a')
+    assert does_obsm_have_key(h5ad_path, 'b')
+    assert not does_obsm_have_key(h5ad_path, 'x')
+
+    # try without obsm
+    a_data = anndata.AnnData(
+        X=rng.random((n_obs, n_var)))
+    a_data.write_h5ad(h5ad_path)
+    assert not does_obsm_have_key(h5ad_path, 'a')
+    assert not does_obsm_have_key(h5ad_path, 'b')
+    assert not does_obsm_have_key(h5ad_path, 'x')
