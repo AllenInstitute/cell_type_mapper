@@ -54,29 +54,70 @@ def blob_to_csv(
             dst.write(f'# readable taxonomy hierarchy = '
                       f'{str_readable_hierarchy}\n')
 
-        csv_data = []
-        for cell in results_blob:
-            values = {'cell_id': cell['cell_id']}
-            for level in taxonomy_tree.hierarchy:
-                readable_level = taxonomy_tree.level_to_name(level_label=level)
-                label = cell[level]['assignment']
-                name = taxonomy_tree.label_to_name(
+        csv_df = blob_to_df(
+            results_blob=results_blob,
+            taxonomy_tree=taxonomy_tree)
+
+        column_rename = dict()
+        for level in taxonomy_tree.hierarchy:
+            readable_level = taxonomy_tree.level_to_name(level_label=level)
+            src_key = f"{readable_level}_{confidence_key}"
+            dst_key = f"{readable_level}_{confidence_label}"
+            column_rename[src_key] = dst_key
+        csv_df.rename(mapper=column_rename, axis=1, inplace=True)
+
+        columns_to_drop = []
+        for col in csv_df.columns:
+            if col == 'cell_id':
+                continue
+            if 'name' in col or 'label' in col or 'alias' in col:
+                continue
+            if confidence_label in col:
+                continue
+            columns_to_drop.append(col)
+
+        if len(columns_to_drop) > 0:
+            csv_df.drop(columns_to_drop, axis=1, inplace=True)
+
+        csv_df.to_csv(dst, index=False, float_format='%.4f')
+
+
+def blob_to_df(
+        results_blob,
+        taxonomy_tree):
+    """
+    Convert a JSON blob of results into a pandas dataframe
+    """
+    records = []
+    for cell in results_blob:
+        this_record = {'cell_id': cell['cell_id']}
+        for level in taxonomy_tree.hierarchy:
+            readable_level = taxonomy_tree.level_to_name(level_label=level)
+            label = cell[level]['assignment']
+            name = taxonomy_tree.label_to_name(
+                        level=level,
+                        label=label,
+                        name_key='name')
+            this_record[f'{readable_level}_label'] = label
+            this_record[f'{readable_level}_name'] = name
+            if level == taxonomy_tree.leaf_level:
+                alias = taxonomy_tree.label_to_name(
                             level=level,
                             label=label,
-                            name_key='name')
-                values[f'{readable_level}_label'] = label
-                values[f'{readable_level}_name'] = name
+                            name_key='alias')
+                this_record[f'{readable_level}_alias'] = alias
 
-                if level == taxonomy_tree.leaf_level:
-                    alias = taxonomy_tree.label_to_name(
-                                level=level,
-                                label=label,
-                                name_key='alias')
-                    values[f'{readable_level}_alias'] = alias
+            for element in cell[level]:
+                if element == 'assignment':
+                    continue
+                value = cell[level][element]
+                if isinstance(value, list):
+                    for idx in range(len(value)):
+                        key = f'{readable_level}_{element}_{idx}'
+                        this_record[key] = value[idx]
+                else:
+                    key = f'{readable_level}_{element}'
+                    this_record[key] = value
 
-                values[f"{readable_level}_{confidence_label}"] = \
-                    cell[level][confidence_key]
-
-            csv_data.append(values)
-        csv_df = pd.DataFrame(csv_data)
-        csv_df.to_csv(dst, index=False, float_format='%.4f')
+        records.append(this_record)
+    return pd.DataFrame(records)
