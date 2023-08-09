@@ -45,7 +45,7 @@ def main():
         assert label not in cluster_to_row
         cluster_to_row[label] = i_col
 
-    out_path = '/allen/aibs/technology/danielsf/knowledge_base/scratch/abc_revision_230830/abc_stats_230807.h5'
+    out_path = '/allen/aibs/technology/danielsf/knowledge_base/scratch/abc_revision_230830/abc_stats_230809.h5'
     with h5py.File(out_path, 'w') as dst:
         dst.create_dataset('sum', data=data)
         dst.create_dataset('n_cells', data=np.ones(data.shape[0], dtype=int))
