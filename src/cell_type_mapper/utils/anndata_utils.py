@@ -3,6 +3,7 @@ from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
 import h5py
 import pandas as pd
+import warnings
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -129,7 +130,16 @@ def copy_layer_to_x(
     output.write_h5ad(new_h5ad_path)
     with h5py.File(original_h5ad_path, 'r') as src:
         attrs = dict(src[layer_key].attrs)
-    encoding_type = attrs['encoding-type']
+
+    if 'encoding-type' in attrs:
+        encoding_type = attrs['encoding-type']
+    else:
+        warnings.warn(
+            f"{original_h5ad_path}['{layer_key}'] had no "
+            "encoding-type listed; will assume it is a "
+            "dense array")
+        encoding_type = 'array'
+
     if encoding_type == 'array':
         _copy_layer_to_x_dense(
             original_h5ad_path=original_h5ad_path,
