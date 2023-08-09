@@ -164,6 +164,18 @@ def _copy_layer_to_x_dense(
         data = src[layer_key]
         attrs = dict(src[layer_key].attrs)
         chunks = data.chunks
+        if chunks is None:
+            row_chunk = min(10000, data.shape[0]//10)
+            if row_chunk == 0:
+                row_chunk = data.shape[0]
+            # col_chunk = min(10000, data.shape[1]//10)
+            col_chunk = data.shape[1]
+            if col_chunk == 0:
+                col_chunk = data.shape[1]
+
+            chunks = (row_chunk, col_chunk)
+            print(f"setting chunks to {chunks}")
+
         with h5py.File(new_h5ad_path, 'a') as dst:
             if 'X' in dst:
                 del dst['X']
@@ -174,10 +186,19 @@ def _copy_layer_to_x_dense(
                 chunks=chunks,
                 dtype=data.dtype)
 
+            written_attrs = set()
             for k in attrs:
                 dst_dataset.attrs.create(
                     name=k,
                     data=attrs[k])
+                written_attrs.add(k)
+
+            if 'encoding-type' not in written_attrs:
+                dst_dataset.attrs.create(
+                    name='encoding-type',
+                    data='array')
+
+            print('wrote attrs')
 
             if chunks is None:
                 chunks = data.shape
