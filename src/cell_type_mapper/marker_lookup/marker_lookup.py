@@ -134,6 +134,8 @@ def map_aibs_gene_names(raw_gene_names):
     to Ensembl IDs, accounting for AIBS-specific gene
     symbol conventions
     """
+    error_msg = ""
+
     raw_gene_names = set(raw_gene_names)
     raw_gene_names = list(raw_gene_names)
     raw_gene_names.sort()
@@ -167,17 +169,17 @@ def map_aibs_gene_names(raw_gene_names):
             for s in symbol_to_ensembl:
                 if symbol_to_ensembl[s] == ensembl:
                     other.append(s)
-            raise RuntimeError(
+            error_msg += (
                 f"more than one gene symbol maps to {ensembl}:\n"
-                f"{symbol} and {json.dumps(other)}")
+                f"    {symbol} and {json.dumps(other)}\n")
 
         symbol_to_ensembl[symbol] = ensembl
         used_ensembl.add(ensembl)
 
     if len(bad_symbols) > 0:
-        raise RuntimeError(
+        error_msg += (
             "Could not find Ensembl IDs for\n"
-            f"{json.dumps(bad_symbols, indent=2)}")
+            f"{json.dumps(bad_symbols, indent=2)}\n")
 
     # final pass, attempting to see if any ambiguities have been
     # resolved by the EnsemblIDs dangling in gene symbols
@@ -185,7 +187,8 @@ def map_aibs_gene_names(raw_gene_names):
         ensembl = symbol_to_ensembl[symbol]
         if is_ensembl(ensembl):
             continue
-
+        if symbol not in cellranger_6_lookup:
+            continue
         candidates = cellranger_6_lookup[symbol]
         ensembl = None
         valid_candidates = []
@@ -193,8 +196,8 @@ def map_aibs_gene_names(raw_gene_names):
             if c not in used_ensembl:
                 valid_candidates.append(c)
         if len(valid_candidates) > 1:
-            raise RuntimeError(
-                f"Too many possible Ensembl IDs for {symbol}")
+            error_msg += (
+                f"Too many possible Ensembl IDs for {symbol}\n")
         elif len(valid_candidates) == 1:
             ensembl = valid_candidates[0]
 
@@ -204,4 +207,6 @@ def map_aibs_gene_names(raw_gene_names):
             symbol_to_ensembl[symbol] = ensembl
             used_ensembl.add(ensembl)
 
+    if len(error_msg) > 0:
+        raise RuntimeError(error_msg)
     return symbol_to_ensembl
