@@ -94,6 +94,7 @@ def marker_lookup_from_tree_and_csv(
 
         marker_lookup[parent_key] = gene_symbols
 
+    print("successfully got raw marker lookup")
     return marker_lookup
 
 
