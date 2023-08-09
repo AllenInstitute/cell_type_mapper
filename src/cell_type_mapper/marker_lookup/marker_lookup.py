@@ -8,6 +8,9 @@ from cell_type_mapper.gene_id.utils import (
 from cell_type_mapper.data.cellranger_6_lookup import (
     cellranger_6_lookup)
 
+from cell_type_mapper.data.gene_id_lookup import (
+    gene_id_lookup)
+
 
 def marker_lookup_from_tree_and_csv(
         taxonomy_tree,
@@ -177,28 +180,31 @@ def map_aibs_gene_names(raw_gene_names):
         symbol_to_ensembl[symbol] = ensembl
         used_ensembl.add(ensembl)
 
-    if len(bad_symbols) > 0:
-        error_msg += (
-            "Could not find Ensembl IDs for\n"
-            f"{json.dumps(bad_symbols, indent=2)}\n")
-
     # final pass, attempting to see if any ambiguities have been
     # resolved by the EnsemblIDs dangling in gene symbols
     for symbol in symbol_to_ensembl:
-        ensembl = symbol_to_ensembl[symbol]
-        if is_ensembl(ensembl):
+        if is_ensembl(symbol_to_ensembl[symbol]):
             continue
         if symbol not in cellranger_6_lookup:
             continue
         candidates = cellranger_6_lookup[symbol]
+
         ensembl = None
         valid_candidates = []
         for c in candidates:
             if c not in used_ensembl:
                 valid_candidates.append(c)
         if len(valid_candidates) > 1:
-            error_msg += (
-                f"Too many possible Ensembl IDs for {symbol}\n")
+            # last ditch effort; look in gene_id_lookup
+            if symbol in gene_id_lookup:
+                if gene_id_lookup[symbol] not in used_ensembl:
+                    ensembl = gene_id_lookup[symbol]
+
+            if ensembl is None:
+                error_msg += (
+                    f"Too many possible Ensembl IDs for {symbol}\n"
+                    f"    {valid_candidates}\n")
+
         elif len(valid_candidates) == 1:
             ensembl = valid_candidates[0]
 
@@ -207,6 +213,11 @@ def map_aibs_gene_names(raw_gene_names):
         else:
             symbol_to_ensembl[symbol] = ensembl
             used_ensembl.add(ensembl)
+
+    if len(bad_symbols) > 0:
+        error_msg += (
+            "Could not find Ensembl IDs for\n"
+            f"{json.dumps(bad_symbols, indent=2)}\n")
 
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)

@@ -72,10 +72,20 @@ def test_aibs_gene_name_mapper_fn():
         map_aibs_gene_names(gene_symbols)
 
     # Ccl27a has 3 possible IDs
+    # this one wil pass because Ccl27a also
+    # appears in gene_id_lookup
     gene_symbols = [
         "Gm38336",
         "Ccl27a",
         "Ccl27a ENSMUSG00000095247"]
+    map_aibs_gene_names(gene_symbols)
+
+    # this one won't because we are specifying the gene_id_lookup
+    # value in the symbol name
+    gene_symbols = [
+        "Gm38336",
+        "Ccl27a",
+        "Ccl27a ENSMUSG00000073888"]
     with pytest.raises(RuntimeError, match="Too many possible Ensembl"):
         map_aibs_gene_names(gene_symbols)
 
