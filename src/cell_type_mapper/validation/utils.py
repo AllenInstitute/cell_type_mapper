@@ -160,7 +160,7 @@ def map_gene_ids_in_var(
 
 def _get_minmax_x_using_anndata(
         h5ad_path,
-        rows_at_a_time=10000,
+        rows_at_a_time=100000,
         layer='X'):
     """
     If you cannot intuit how X is encoded in the h5ad file, just use
