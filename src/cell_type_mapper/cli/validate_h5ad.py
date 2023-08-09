@@ -58,6 +58,14 @@ class ValidationInputSchema(argschema.ArgSchema):
         "will be a form of integer. If False, it will contain the same "
         "cell by gene data as the input h5ad file.")
 
+    check_max = argschema.fields.Bool(
+        required=False,
+        default=True,
+        allow_none=False,
+        description="If true, check that the maximum value of "
+        "the data is >= 20; if not, warn the user that the data "
+        "may actually be log normalized")
+
     output_dir = argschema.fields.OutputDir(
         required=False,
         default=None,
@@ -145,12 +153,18 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
         try:
             gene_id_mapper = GeneIdMapper.from_default(log=command_log)
+            if self.args['check_max']:
+                expected_max = 20
+            else:
+                expected_max = None
+
             result_path, has_warnings = validate_h5ad(
                 h5ad_path=self.args['h5ad_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
                 gene_id_mapper=gene_id_mapper,
                 log=command_log,
+                expected_max=expected_max,
                 tmp_dir=self.args['tmp_dir'],
                 valid_h5ad_path=self.args["valid_h5ad_path"],
                 round_to_int=self.args["round_to_int"])
