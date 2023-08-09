@@ -180,7 +180,7 @@ def _get_minmax_x_using_anndata(
     n_rows = a_data.X.shape[0]
     for r0 in range(0, n_rows, rows_at_a_time):
         r1 = min(n_rows, r0+rows_at_a_time)
-        chunk = a_data.chunk_X[np.arange(r0, r1)]
+        chunk = a_data.chunk_X(np.arange(r0, r1))
         this_max = chunk.max()
         if max_val is None or this_max > max_val:
             max_val = this_max
