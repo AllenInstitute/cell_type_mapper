@@ -151,7 +151,9 @@ def summary_plots_for_one_file(
     grid_width = 20
     msg_width = 20
 
-    full_width = msg_width+3*(grid_height+grid_gap)+1
+    n_fig_cols = 4
+
+    full_width = msg_width+n_fig_cols*(grid_height+grid_gap)+1
     full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1
     grid = gridspec.GridSpec(nrows=full_height, ncols=full_width)
 
@@ -176,7 +178,7 @@ def summary_plots_for_one_file(
         r0 = i_row*grid_gap+i_row*grid_height
         r1 = r0 + grid_height
         assert r1 < full_height
-        for i_col in range(2):
+        for i_col in range(n_fig_cols-1):
             c0 = msg_width+(i_col+1)*grid_gap+i_col*grid_width
             c1 = c0 + grid_width
             assert c1 < full_width
@@ -185,7 +187,7 @@ def summary_plots_for_one_file(
             axis_list.append(this_axis)
         sub_axis_lists.append(this_sub_list)
 
-    c0 = msg_width+3*grid_gap+2*grid_width
+    c0 = msg_width+n_fig_cols*grid_gap+(n_fig_cols-1)*grid_width
     c1 = c0 + grid_width
     histogram_axis = fig.add_subplot(
         grid[0:grid_height, c0:c1])
@@ -281,6 +283,19 @@ def summary_plots_for_one_file(
             label_x_axis=label_x_axis,
             label_y_axis=False,)
 
+        plot_confusion_matrix(
+            figure=fig,
+            axis=this_axis_list[2],
+            true_labels=these_truth,
+            experimental_labels=these_experiments,
+            label_order=label_order,
+            normalize_by=None,
+            fontsize=20,
+            title=f"{level} raw count",
+            is_log=is_log10,
+            label_x_axis=label_x_axis,
+            label_y_axis=False,)
+
     msg = f"query set: {query_path_str}\n"
     msg += f"{n_cells} query cells\n"
     msg += "\naccuracy\n=========\n"
@@ -361,7 +376,8 @@ def plot_confusion_matrix(
     img = np.ma.masked_array(
         img, mask=(img == 0))
 
-    img = img.astype(float)
+    if normalize_by is not None:
+        img = img.astype(float)
 
     if normalize_by == 'truth':
         for ii in range(img.shape[0]):
@@ -372,20 +388,24 @@ def plot_confusion_matrix(
             denom = img[:, ii].sum()
             img[:, ii] /= max(1, denom)
     else:
-        raise RuntimeError(
-            f"normalize_by {normalize_by} makes no sense")
+        if normalize_by is not None:
+            raise RuntimeError(
+                f"normalize_by {normalize_by} makes no sense")
 
-    if is_log:
-        cax_title = 'log10(normalized count)'
-        with np.errstate(divide='ignore'):
-            valid = (img > 0.0)
-            min_val = np.log10(np.min(img[valid]))
-            img = np.where(
-                img > 0.0,
-                np.log10(img),
-                min_val-2)
+    if normalize_by is not None:
+        if is_log:
+            cax_title = 'log10(normalized count)'
+            with np.errstate(divide='ignore'):
+                valid = (img > 0.0)
+                min_val = np.log10(np.min(img[valid]))
+                img = np.where(
+                    img > 0.0,
+                    np.log10(img),
+                    min_val-2)
+        else:
+            cax_title = 'normalized count'
     else:
-        cax_title = 'normalized count'
+        cax_title = 'raw count'
 
     display_img = axis.imshow(img, cmap='cool')
     divider = make_axes_locatable(axis)
