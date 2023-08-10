@@ -14,7 +14,7 @@ from hierarchical_mapping.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
-def summary_plots_for_one_file(
+def single_summary_plot_pdf(
         classification_path,
         ground_truth_column_list,
         plot_path,
@@ -22,7 +22,7 @@ def summary_plots_for_one_file(
         munge_ints=False,
         is_flat=False):
     with PdfPages(plot_path) as pdf_handle:
-        _summary_plots(
+        summary_plots_for_one_file(
             classification_path=classification_path,
             ground_truth_column_list=ground_truth_column_list,
             pdf_handle=pdf_handle,
@@ -31,7 +31,7 @@ def summary_plots_for_one_file(
             is_flat=is_flat)
 
 
-def _summary_plots(
+def summary_plots_for_one_file(
         classification_path,
         ground_truth_column_list,
         pdf_handle,
