@@ -8,6 +8,7 @@ import pandas as pd
 from cell_type_mapper.marker_lookup.marker_lookup import (
     map_aibs_gene_names)
 from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
+from cell_type_mapper.utils.utils import get_timestamp
 
 def main():
     data_dir = pathlib.Path('/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian/ABC_handoff/metadata/WMB-taxonomy/20230830')
@@ -15,7 +16,14 @@ def main():
 
     mean_path = pathlib.Path(
         "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT21.0.root_mouse/cl.means.v9_locked.csv")
-    assert mean_path.is_file()
+    if not mean_path.is_file():
+        raise RuntimeError(
+            f"{mean_path.resolve().absolute()}\nis not a file")
+
+    metadata = {
+        'src': str(mean_path.resolve().absolute()),
+        'generated_on': get_timestamp().replace('-', '')
+    }
 
     tree = TaxonomyTree.from_data_release(
         cell_metadata_path=None,
@@ -45,7 +53,7 @@ def main():
         assert label not in cluster_to_row
         cluster_to_row[label] = i_col
 
-    out_path = '/allen/aibs/technology/danielsf/knowledge_base/scratch/abc_revision_230830/abc_stats_230809.h5'
+    out_path = '/allen/aibs/technology/danielsf/knowledge_base/scratch/abc_revision_230830/precomputed_stats_ABC_revision_230830.h5'
     with h5py.File(out_path, 'w') as dst:
         dst.create_dataset('sum', data=data)
         dst.create_dataset('n_cells', data=np.ones(data.shape[0], dtype=int))
@@ -55,6 +63,9 @@ def main():
             'col_names', data=json.dumps(gene_names).encode('utf-8'))
         dst.create_dataset('taxonomy_tree',
             data=tree.to_str().encode('utf-8'))
+
+        dst.create_dataset(
+            metadata=json.dumps(metadata).encode('utf-8'))
 
 if __name__ == "__main__":
     main()
