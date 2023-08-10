@@ -204,9 +204,10 @@ def summary_plots_for_one_file(
         else:
             label_order = []
             for leaf in leaf_order:
-                this = inverted_tree[level][leaf]
-                if this not in label_order:
-                    label_order.append(this)
+                if leaf in inverted_tree[level]:
+                    this = inverted_tree[level][leaf]
+                    if this not in label_order:
+                        label_order.append(this)
 
         these_experiments = []
         these_truth = []
