@@ -56,9 +56,11 @@ def summary_plots_for_one_file(
         if "RAN" in line or "BENCHMARK" in line:
             timing_statements.append(line)
 
-    tree_path = results['config']['precomputed_stats']['taxonomy_tree']
-    (taxonomy_tree,
-     inverted_tree) = invert_tree(tree_path)
+    precomputed_path = results['config']['precomputed_stats']
+    with h5py.File(precomputed_path, 'r') as src:
+        taxonomy_tree = TaxonomyTree(
+            data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
+    inverted_tree = invert_tree(taxonomy_tree)
     if not is_flat:
         results_lookup = {
             cell['cell_id']: cell for cell in results["results"]}
@@ -407,8 +409,7 @@ def split_sentence(sentence, char_lim=60):
     return line_list
 
 
-def invert_tree(taxonomy_tree_path):
-    tree = TaxonomyTree.from_json_file(taxonomy_tree_path)
+def invert_tree(tree):
     as_leaves = tree.as_leaves
     inverse_lookup = dict()
     for level in as_leaves:
@@ -416,4 +417,4 @@ def invert_tree(taxonomy_tree_path):
         for parent in as_leaves[level]:
             for leaf in as_leaves[level][parent]:
                 inverse_lookup[level][leaf] = parent
-    return tree, inverse_lookup
+    return inverse_lookup
