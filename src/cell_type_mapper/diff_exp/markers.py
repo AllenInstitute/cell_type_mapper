@@ -10,7 +10,8 @@ import time
 from cell_type_mapper.utils.utils import (
     print_timing,
     _clean_up,
-    mkstemp_clean)
+    mkstemp_clean,
+    choose_int_dtype)
 
 from cell_type_mapper.utils.h5_utils import (
     copy_h5_excluding_data)
@@ -28,9 +29,6 @@ from cell_type_mapper.diff_exp.scores import (
 
 from cell_type_mapper.utils.csc_to_csr import (
     transpose_sparse_matrix_on_disk)
-
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
 
 from cell_type_mapper.binary_array.backed_binary_array import (
     BackedBinarizedBooleanArray)
@@ -306,26 +304,40 @@ def create_dense_marker_file(
         n_cols=n_pairs)
 
     print("copying from temp files")
+    blank_up = np.zeros(n_genes, dtype=bool)
+    blank_marker = np.zeros(n_genes, dtype=bool)
     for col0 in tmp_path_dict:
-        markers = BinarizedBooleanArray.read_from_h5(
-            h5_path=tmp_path_dict[col0],
-            h5_group='markers')
-        up_reg = BinarizedBooleanArray.read_from_h5(
-            h5_path=tmp_path_dict[col0],
-            h5_group='up_regulated')
+        tmp_path = tmp_path_dict[col0]
+        with h5py.File(tmp_path, 'r') as src:
+            pair_idx_values = json.loads(
+                src['pair_idx_values'][()].decode('utf-8'))
 
-        marker_flag.copy_other_as_columns(
-            other=markers, col0=col0)
-        up_regulated_flag.copy_other_as_columns(
-            other=up_reg, col0=col0)
+            for pair_idx in pair_idx_values:
+                blank_up[:] = False
+                blank_marker[:] = False
+                down = src[f'{pair_idx}/down'][()]
+                up = src[f'{pair_idx}/up'][()]
+                blank_up[up] = True
+                blank_marker[up] = True
+                blank_marker[down] = True
+                marker_flag.set_col(pair_idx, blank_marker)
+                up_regulated_flag.set_col(pair_idx, blank_up)
 
         tmp_path_dict[col0].unlink()
+
+    # must delete them so they get flushed to disk
+    del marker_flag
+    del up_regulated_flag
 
     tmp_thinned_path = pathlib.Path(
         mkstemp_clean(
             dir=tmp_dir,
             prefix='thinned_',
             suffix='.h5'))
+
+    with h5py.File(tmp_output_path, 'r') as src:
+        assert src['up_regulated/data'][()].sum() > 0
+        assert src['markers/data'][()].sum() > 0
 
     thin_marker_file(
         marker_file_path=tmp_output_path,
@@ -441,6 +453,9 @@ def _find_markers_worker(
         will be stored (this process creates that file)
     """
 
+    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
+    idx_dtype = choose_int_dtype((0, n_genes))
+
     boring_t = boring_t_from_p_value(p_th)
 
     idx_values = list(idx_to_pair.keys())
@@ -449,16 +464,9 @@ def _find_markers_worker(
     if col0 % 8 != 0:
         raise RuntimeError(
             f"col0 ({col0}) is not an integer multiple of 8")
-    n_sibling_pairs = len(idx_to_pair)
 
-    marker_mask = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_sibling_pairs)
-
-    up_regulated_mask = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_sibling_pairs)
-
+    up_reg_lookup = dict()
+    down_reg_lookup = dict()
     for idx in idx_values:
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
@@ -476,24 +484,25 @@ def _find_markers_worker(
                          qdiff_th=qdiff_th,
                          boring_t=boring_t)
 
-        this_col = idx-col0
-        marker_mask.set_col(
-            this_col,
-            validity_mask)
-        up_regulated_mask.set_col(
-            this_col,
-            up_mask.astype(bool))
+        up_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask, up_mask))[0].astype(idx_dtype)
+        down_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask,
+                           np.logical_not(up_mask)))[0].astype(idx_dtype)
 
-    marker_mask.write_to_h5(
-        h5_path=tmp_path,
-        h5_group='markers')
-    up_regulated_mask.write_to_h5(
-        h5_path=tmp_path,
-        h5_group='up_regulated')
     with h5py.File(tmp_path, 'a') as out_file:
         out_file.create_dataset(
-            'col0',
-            data=col0)
+            'pair_idx_values',
+            data=json.dumps(list(up_reg_lookup.keys())).encode('utf-8'))
+        for idx in up_reg_lookup:
+            out_file.create_dataset(
+                f'{idx}/up',
+                data=up_reg_lookup[idx],
+                dtype=idx_dtype)
+            out_file.create_dataset(
+                f'{idx}/down',
+                data=down_reg_lookup[idx],
+                dtype=idx_dtype)
 
 
 def _prep_output_file(

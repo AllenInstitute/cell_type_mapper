@@ -204,15 +204,16 @@ def test_marker_finding_pipeline(
                 actual_markers = markers.get_col(idx)
                 actual_up_reg = up_regulated.get_col(idx)
 
+                if expected_markers.sum() > 0:
+                    assert actual_markers.sum() > 0
                 np.testing.assert_array_equal(
                     expected_markers,
                     actual_markers)
 
-                if delete_dense:
-                    # in this case, we won't have up=True unless
-                    # a gene is also a marker
-                    expected_up_reg = expected_up_reg[expected_markers]
-                    actual_up_reg = actual_up_reg[expected_markers]
+                # we won't have up=True unless
+                # a gene is also a marker
+                expected_up_reg = expected_up_reg[expected_markers]
+                actual_up_reg = actual_up_reg[expected_markers]
 
                 np.testing.assert_array_equal(
                     expected_up_reg,
