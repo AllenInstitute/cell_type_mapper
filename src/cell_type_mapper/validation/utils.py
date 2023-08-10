@@ -177,7 +177,6 @@ def _get_minmax_x_using_anndata(
     max_val = None
     min_val = None
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    n_rows = a_data.X.shape[0]
     chunk_iterator = a_data.chunked_X(rows_at_a_time)
     for chunk_package in chunk_iterator:
         chunk = chunk_package[0]

@@ -15,6 +15,7 @@ from cell_type_mapper.utils.torch_utils import (
     use_torch)
 
 from cell_type_mapper.utils.utils import (
+    get_timestamp,
     mkstemp_clean,
     _clean_up)
 
@@ -202,13 +203,19 @@ def run_mapping(config, output_path, log_path=None):
 
     log = CommandLog()
 
+    # create this now in case _run_mapping errors
+    # before creating the output dict (the finally
+    # block will add some logging info to output)
+    output = dict()
+
     if 'tmp_dir' not in config:
         raise RuntimeError("did not specify tmp_dir")
 
     if config['tmp_dir'] is not None:
+        timestamp = get_timestamp().replace('-', '')
         tmp_dir = tempfile.mkdtemp(
             dir=config['tmp_dir'],
-            prefix='cell_type_mapper_')
+            prefix=f'cell_type_mapper_{timestamp}_')
     else:
         tmp_dir = None
 
