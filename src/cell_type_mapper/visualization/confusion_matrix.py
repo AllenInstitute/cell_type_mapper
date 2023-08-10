@@ -20,7 +20,10 @@ def single_summary_plot_pdf(
         plot_path,
         is_log10=False,
         munge_ints=False,
-        is_flat=False):
+        is_flat=False,
+        confidence_key='bootstrapping_probability',
+        leaf_order=None):
+
     with PdfPages(plot_path) as pdf_handle:
         summary_plots_for_one_file(
             classification_path=classification_path,
@@ -28,7 +31,9 @@ def single_summary_plot_pdf(
             pdf_handle=pdf_handle,
             is_log10=is_log10,
             munge_ints=munge_ints,
-            is_flat=is_flat)
+            is_flat=is_flat,
+            confidence_key=confidence_key,
+            leaf_order=leaf_order)
 
 
 def summary_plots_for_one_file(
@@ -38,7 +43,8 @@ def summary_plots_for_one_file(
         is_log10,
         munge_ints,
         is_flat=False,
-        confidence_key='bootstrapping_probability'):
+        confidence_key='bootstrapping_probability',
+        leaf_order=None):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -107,33 +113,34 @@ def summary_plots_for_one_file(
     print(f"using ground truth {ground_truth_column}")
     assert ground_truth_column in query_obs.columns
 
-    leaf_list = taxonomy_tree.all_leaves
-    if munge_ints:
-        leaf_names = []
-        leaf_idx = []
-        int_pattern = re.compile('[0-9]+')
-        for n in leaf_list:
-            leaf_names.append(
-                taxonomy_tree.label_to_name(
-                    level=taxonomy_tree.leaf_level,
-                    label=n,
-                    name_key='alias'))
-            ii = int(int_pattern.findall(n)[0])
-            assert ii not in leaf_idx
-            leaf_idx.append(ii)
-        leaf_idx = np.array(leaf_idx)
-        leaf_names = np.array(leaf_names)
-        sorted_dex = np.argsort(leaf_idx)
-        leaf_order = leaf_names[sorted_dex]
-    else:
-        leaf_order = []
-        for n in leaf_list:
-            leaf_order.append(
-                taxonomy_tree.label_to_name(
-                    level=taxonomy_tree.leaf_level,
-                    label=n,
-                    name_key='alias'))
-        leaf_order.sort()
+    if leaf_order is None:
+        leaf_list = taxonomy_tree.all_leaves
+        if munge_ints:
+            leaf_names = []
+            leaf_idx = []
+            int_pattern = re.compile('[0-9]+')
+            for n in leaf_list:
+                leaf_names.append(
+                    taxonomy_tree.label_to_name(
+                        level=taxonomy_tree.leaf_level,
+                        label=n,
+                        name_key='alias'))
+                ii = int(int_pattern.findall(n)[0])
+                assert ii not in leaf_idx
+                leaf_idx.append(ii)
+            leaf_idx = np.array(leaf_idx)
+            leaf_names = np.array(leaf_names)
+            sorted_dex = np.argsort(leaf_idx)
+            leaf_order = leaf_names[sorted_dex]
+        else:
+            leaf_order = []
+            for n in leaf_list:
+                leaf_order.append(
+                    taxonomy_tree.label_to_name(
+                        level=taxonomy_tree.leaf_level,
+                        label=n,
+                        name_key='alias'))
+            leaf_order.sort()
 
     obs = query_obs
 
