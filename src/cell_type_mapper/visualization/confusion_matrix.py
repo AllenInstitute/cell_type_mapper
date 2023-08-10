@@ -10,7 +10,7 @@ import numpy as np
 import pathlib
 import re
 
-from hierarchical_mapping.taxonomy.taxonomy_tree import (
+from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
@@ -37,7 +37,8 @@ def summary_plots_for_one_file(
         pdf_handle,
         is_log10,
         munge_ints,
-        is_flat=False):
+        is_flat=False,
+        confidence_key='bootstrapping_probability'):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -46,9 +47,6 @@ def summary_plots_for_one_file(
     n_cells = len(results['results'])
     query_path = pathlib.Path(results['config']['query_path'])
     query_path_str = f"{query_path.parent.name}/{query_path.name}"
-    reference_path = pathlib.Path(
-        results['config']['precomputed_stats']['reference_path'])
-    reference_path_str = f"{reference_path.parent.name}/{reference_path.name}"
 
     log = results['log']
     timing_statements = []
@@ -56,32 +54,49 @@ def summary_plots_for_one_file(
         if "RAN" in line or "BENCHMARK" in line:
             timing_statements.append(line)
 
-    precomputed_path = results['config']['precomputed_stats']
+    precomputed_path = results['config']['precomputed_stats']['path']
     with h5py.File(precomputed_path, 'r') as src:
         taxonomy_tree = TaxonomyTree(
             data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
     inverted_tree = invert_tree(taxonomy_tree)
+    raw_results = results.pop('results')
+
+    result_levels = set()
+    for cell in raw_results:
+        for level in taxonomy_tree.hierarchy:
+            if level not in cell:
+                continue
+            result_levels.add(level)
+            old = cell[level].pop('assignment')
+            if level == taxonomy_tree.leaf_level:
+                name_key = 'alias'
+            else:
+                name_key = 'name'
+            new_name = taxonomy_tree.label_to_name(
+               level=level,
+               label=old,
+               name_key=name_key)
+            cell[level]['assignment'] = new_name
+
     if not is_flat:
         results_lookup = {
-            cell['cell_id']: cell for cell in results["results"]}
+            cell['cell_id']: cell for cell in raw_results}
     else:
         results_lookup = dict()
-        for raw_cell in results["results"]:
+        for raw_cell in raw_results:
             cell = {'cell_id': raw_cell['cell_id']}
             for level in taxonomy_tree.hierarchy:
                 if level == taxonomy_tree.leaf_level:
                     cell[level] = {'assignment': raw_cell['assignment'],
-                                   'confidence': raw_cell['confidence']}
+                                   'confidence': raw_cell[confidence_key]}
                 else:
                     cell[level] = {
                         'assignment':
                         inverted_tree[level][raw_cell['assignment']],
-                        'confidence': 1.0}
+                        confidence_key: 1.0}
             results_lookup[raw_cell['cell_id']] = cell
 
     query_path = pathlib.Path(results['config']['query_path'])
-
-    result_levels = set(results['results'][0].keys())
 
     with h5py.File(query_path, 'r') as src:
         query_obs = read_elem(src['obs'])
@@ -98,7 +113,11 @@ def summary_plots_for_one_file(
         leaf_idx = []
         int_pattern = re.compile('[0-9]+')
         for n in leaf_list:
-            leaf_names.append(n)
+            leaf_names.append(
+                taxonomy_tree.label_to_name(
+                    level=taxonomy_tree.leaf_level,
+                    label=n,
+                    name_key='alias'))
             ii = int(int_pattern.findall(n)[0])
             assert ii not in leaf_idx
             leaf_idx.append(ii)
@@ -109,7 +128,11 @@ def summary_plots_for_one_file(
     else:
         leaf_order = []
         for n in leaf_list:
-            leaf_order.append(n)
+            leaf_order.append(
+                taxonomy_tree.label_to_name(
+                    level=taxonomy_tree.leaf_level,
+                    label=n,
+                    name_key='alias'))
         leaf_order.sort()
 
     obs = query_obs
@@ -150,7 +173,6 @@ def summary_plots_for_one_file(
             c0 = msg_width+(i_col+1)*grid_gap+i_col*grid_width
             c1 = c0 + grid_width
             assert c1 < full_width
-            print(r0, r1, c0, c1)
             this_axis = fig.add_subplot(grid[r0:r1, c0:c1])
             this_sub_list.append(this_axis)
             axis_list.append(this_axis)
@@ -206,7 +228,7 @@ def summary_plots_for_one_file(
                 confidence = 1.0
                 for ll in taxonomy_tree.hierarchy:
                     if ll in cell:
-                        confidence *= cell[ll]['confidence']
+                        confidence *= cell[ll][confidence_key]
             if truth == experiment:
                 good += 1
                 if level == taxonomy_tree.leaf_level:
@@ -215,7 +237,7 @@ def summary_plots_for_one_file(
                 bad += 1
                 if level == taxonomy_tree.leaf_level:
                     bad_confidence.append(confidence)
-
+        print(f"{level} {good} {bad}")
         msg = f"{level} correctly mapped: {good} -- {good/float(good+bad):.3e}"
         accuracy_statements.append(f"{msg}\n")
         print(msg)
@@ -252,7 +274,6 @@ def summary_plots_for_one_file(
             label_y_axis=False,)
 
     msg = f"query set: {query_path_str}\n"
-    msg += f"reference set: {reference_path_str}\n"
     msg += f"{n_cells} query cells\n"
     msg += "\naccuracy\n=========\n"
     for line in accuracy_statements:
@@ -415,6 +436,18 @@ def invert_tree(tree):
     for level in as_leaves:
         inverse_lookup[level] = dict()
         for parent in as_leaves[level]:
+            if level == tree.leaf_level:
+                name_key = 'alias'
+            else:
+                name_key = 'name'
+            parent_name = tree.label_to_name(
+                level=level,
+                label=parent,
+                name_key=name_key)
             for leaf in as_leaves[level][parent]:
-                inverse_lookup[level][leaf] = parent
+                alias = tree.label_to_name(
+                    level=tree.leaf_level,
+                    label=leaf,
+                    name_key='alias')
+                inverse_lookup[level][alias] = parent_name
     return inverse_lookup
