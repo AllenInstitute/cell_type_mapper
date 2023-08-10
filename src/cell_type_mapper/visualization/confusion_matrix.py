@@ -292,7 +292,7 @@ def summary_plots_for_one_file(
             normalize_by=None,
             fontsize=20,
             title=f"{level} raw count",
-            is_log=is_log10,
+            is_log=True,
             label_x_axis=label_x_axis,
             label_y_axis=False,)
 
@@ -392,29 +392,30 @@ def plot_confusion_matrix(
             raise RuntimeError(
                 f"normalize_by {normalize_by} makes no sense")
 
-    if normalize_by is not None:
-        if is_log:
-            cax_title = 'log10(normalized count)'
-            with np.errstate(divide='ignore'):
-                valid = (img > 0.0)
-                min_val = np.log10(np.min(img[valid]))
-                img = np.where(
-                    img > 0.0,
-                    np.log10(img),
-                    min_val-2)
-        else:
-            cax_title = 'normalized count'
-    else:
+    if normalize_by is None:
         cax_title = 'raw count'
+    else:
+        cax_title = 'normalized count'
+
+    if is_log:
+        cax_title = f'log10({cax_title})'
+        with np.errstate(divide='ignore'):
+            valid = (img > 0.0)
+            log10_img = np.log10(img.astype(float))
+            img = np.ma.masked_array(
+                log10_img, mask=(img == 0))
 
     display_img = axis.imshow(img, cmap='cool')
     divider = make_axes_locatable(axis)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    figure.colorbar(
+    cbar = figure.colorbar(
         display_img,
         ax=axis,
         cax=cax,
         label=cax_title)
+
+    cbar.ax.tick_params(axis="both", which="both", labelsize=fontsize)
+    cbar.ax.set_ylabel(ylabel=cax_title, fontdict={'fontsize': fontsize})
 
     for s in ('top', 'right', 'left', 'bottom'):
         axis.spines[s].set_visible(False)
