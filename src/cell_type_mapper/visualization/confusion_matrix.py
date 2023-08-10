@@ -400,7 +400,6 @@ def plot_confusion_matrix(
     if is_log:
         cax_title = f'log10({cax_title})'
         with np.errstate(divide='ignore'):
-            valid = (img > 0.0)
             log10_img = np.log10(img.astype(float))
             img = np.ma.masked_array(
                 log10_img, mask=(img == 0))
