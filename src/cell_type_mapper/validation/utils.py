@@ -160,7 +160,7 @@ def map_gene_ids_in_var(
 
 def _get_minmax_x_using_anndata(
         h5ad_path,
-        rows_at_a_time=10000,
+        rows_at_a_time=100000,
         layer='X'):
     """
     If you cannot intuit how X is encoded in the h5ad file, just use
@@ -177,10 +177,9 @@ def _get_minmax_x_using_anndata(
     max_val = None
     min_val = None
     a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    n_rows = a_data.X.shape[0]
-    for r0 in range(0, n_rows, rows_at_a_time):
-        r1 = min(n_rows, r0+rows_at_a_time)
-        chunk = a_data.chunk_X[np.arange(r0, r1)]
+    chunk_iterator = a_data.chunked_X(rows_at_a_time)
+    for chunk_package in chunk_iterator:
+        chunk = chunk_package[0]
         this_max = chunk.max()
         if max_val is None or this_max > max_val:
             max_val = this_max

@@ -1,5 +1,8 @@
 import pytest
 
+from cell_type_mapper.gene_id.utils import (
+    is_ensembl)
+
 from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
@@ -81,11 +84,10 @@ def test_is_ens():
     Test that mapper can correctly identify if an ID is an
     EnsemblID
     """
-    mapper = GeneIdMapper.from_default()
-    assert mapper._is_ensembl('ENSF6')
-    assert mapper._is_ensembl('ENSFBBD883346')
-    assert not mapper._is_ensembl('ENS7')
-    assert not mapper._is_ensembl('ENSGabc8899')
-    assert not mapper._is_ensembl('XYENSG8812')
-    assert not mapper._is_ensembl('ENS781abcd')
-    assert not mapper._is_ensembl('ENSG')
+    assert is_ensembl('ENSF6')
+    assert is_ensembl('ENSFBBD883346')
+    assert not is_ensembl('ENS7')
+    assert not is_ensembl('ENSGabc8899')
+    assert not is_ensembl('XYENSG8812')
+    assert not is_ensembl('ENS781abcd')
+    assert not is_ensembl('ENSG')

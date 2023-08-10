@@ -20,7 +20,7 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
-from cell_type_mapper.cli.precompute_stats import (
+from cell_type_mapper.cli.precompute_stats_from_all_cells import (
     PrecomputationRunner)
 
 

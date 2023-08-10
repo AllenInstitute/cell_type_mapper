@@ -123,7 +123,11 @@ def test_marker_finding_pipeline(
                                       in_file['gene_names'][()].decode('utf-8')))
 
     # check that we get the expected result
-    precomputed_stats = read_precomputed_stats(precompute_path)
+    precomputed_stats = read_precomputed_stats(
+        precomputed_stats_path=precompute_path,
+        taxonomy_tree=taxonomy_tree,
+        for_marker_selection=True)
+
     tree_as_leaves = convert_tree_to_leaves(tree_fixture)
 
     if delete_dense:
@@ -170,15 +174,13 @@ def test_marker_finding_pipeline(
     for level in pair_to_idx:
         for node1 in pair_to_idx[level]:
             for node2 in pair_to_idx[level][node1]:
-                pop1 = tree_as_leaves[level][node1]
-                pop2 = tree_as_leaves[level][node2]
                 cluster_stats = precomputed_stats['cluster_stats']
 
                 (_,
                  raw_expected_markers,
                  raw_expected_up_reg) = score_differential_genes(
-                    leaf_population_1=pop1,
-                    leaf_population_2=pop2,
+                    node_1=f'{level}/{node1}',
+                    node_2=f'{level}/{node2}',
                     precomputed_stats=cluster_stats,
                     p_th=0.01,
                     q1_th=0.5,

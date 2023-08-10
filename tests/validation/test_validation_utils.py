@@ -33,6 +33,12 @@ def create_h5ad_file(
         output_path,
         int_values=False,
         int_dtype=False):
+    """
+    density == None will result in an array that is
+    stored densely on h5ad without any of the expected
+    attrs (this technically violates the h5ad spec, but
+    I have seen it happen "in the wild")
+    """
 
     if int_dtype:
         if not int_values:
@@ -85,7 +91,7 @@ def create_h5ad_file(
         data = scipy_sparse.csc_matrix(raw_data)
         if is_chunked:
             chunks = (n_tot//9, )
-    elif density == 'array':
+    elif density == 'array' or density is None:
         data = raw_data
         if is_chunked:
             chunks = (n_rows//3, n_cols//3)
@@ -100,14 +106,15 @@ def create_h5ad_file(
 
     with h5py.File(output_path, 'a') as dst:
         attrs = dict(dst['X'].attrs)
-        if density == 'array':
+        if density == 'array' or density is None:
             del dst['X']
             dataset = dst.create_dataset(
                 'X',
                 data=data,
                 chunks=chunks)
-            for k in attrs:
-                dataset.attrs.create(name=k, data=attrs[k])
+            if density is not None:
+                for k in attrs:
+                    dataset.attrs.create(name=k, data=attrs[k])
 
         else:
             del dst['X']
@@ -128,7 +135,7 @@ def create_h5ad_file(
 
     with h5py.File(output_path, 'r') as src:
 
-        if density == 'array':
+        if density == 'array' or density is None:
             data = src['X']
         else:
             data = src['X/data']
@@ -152,7 +159,7 @@ def tmp_dir_fixture(
 
 @pytest.mark.parametrize(
     "density,is_chunked,max_coord,min_coord",
-    itertools.product(("array", "csr", "csc"),
+    itertools.product(("array", "csr", "csc", None),
                       (True, False),
                       ((0, 12), (54, 261), (23, 100)),
                       ((0, 7), (54, 263), (32, 122))))

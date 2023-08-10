@@ -44,7 +44,7 @@ def validate_h5ad(
     expected_max:
         If the max X value is less than this, emit a warning
         indicating that we think the normalization of the
-        data is incorrect
+        data is incorrect. If this is None, such test is done.
     tmp_dir:
        Dir where scratch data products can be written if needed
     layer:
@@ -130,19 +130,20 @@ def validate_h5ad(
         if not is_int:
             cast_to_int = True
 
-    x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
+    if expected_max is not None or cast_to_int:
+        x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
 
-    if x_minmax[1] < expected_max:
-        msg = "VALIDATION: CDM expects raw counts data. The maximum value "
-        msg += f"of the X matrix in {original_h5ad_path} is "
-        msg += f"{x_minmax[1]}, indicating that this may be "
-        msg += "log normalized data. CDM will proceed, but results "
-        msg += "may be suspect."
-        if log is not None:
-            log.warn(msg)
-        else:
-            warnings.warn(msg)
-        has_warnings = True
+        if expected_max is not None and x_minmax[1] < expected_max:
+            msg = "VALIDATION: CDM expects raw counts data. The maximum value "
+            msg += f"of the X matrix in {original_h5ad_path} is "
+            msg += f"{x_minmax[1]}, indicating that this may be "
+            msg += "log normalized data. CDM will proceed, but results "
+            msg += "may be suspect."
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
+            has_warnings = True
 
     if mapped_var is not None or cast_to_int:
         # Copy data over, if it has not already been copied

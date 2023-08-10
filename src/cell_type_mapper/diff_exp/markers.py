@@ -202,8 +202,9 @@ def create_dense_marker_file(
     tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
-           precomputed_stats_path,
-           omit_keys=['gt1', 'gt0'])
+           precomputed_stats_path=precomputed_stats_path,
+           taxonomy_tree=taxonomy_tree,
+           for_marker_selection=True)
     cluster_stats = precomputed_stats['cluster_stats']
     gene_names = precomputed_stats['gene_names']
     del precomputed_stats
@@ -464,13 +465,11 @@ def _find_markers_worker(
         node1 = sibling_pair[1]
         node2 = sibling_pair[2]
 
-        pop1 = tree_as_leaves[level][node1]
-        pop2 = tree_as_leaves[level][node2]
         (scores,
          validity_mask,
          up_mask) = score_differential_genes(
-                         leaf_population_1=pop1,
-                         leaf_population_2=pop2,
+                         node_1=f'{level}/{node1}',
+                         node_2=f'{level}/{node2}',
                          precomputed_stats=cluster_stats,
                          p_th=p_th,
                          q1_th=q1_th,

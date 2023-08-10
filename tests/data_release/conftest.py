@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import numpy as np
 import pathlib
 import shutil
@@ -17,8 +18,8 @@ from cell_type_mapper.taxonomy.data_release_utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.cellranger_6_lookup import (
+    cellranger_6_lookup)
 
 
 def _create_word(rng):
@@ -311,7 +312,7 @@ def cluster_annotation_term_fixture(
 
 
 @pytest.fixture(scope='module')
-def baseline_tree_fixture(
+def baseline_tree_data_fixture(
         cell_to_cluster_fixture,
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
@@ -338,6 +339,20 @@ def baseline_tree_fixture(
             this[parent].sort()
         data[parent_level] = this
 
+    return data
+
+@pytest.fixture(scope='module')
+def baseline_tree_fixture(
+        baseline_tree_data_fixture):
+    return TaxonomyTree(data=baseline_tree_data_fixture)
+
+
+@pytest.fixture(scope='module')
+def baseline_tree_without_cells_fixture(
+        baseline_tree_data_fixture):
+    data = copy.deepcopy(baseline_tree_data_fixture)
+    for k in data['cluster']:
+        data['cluster'][k] = []
     return TaxonomyTree(data=data)
 
 
@@ -352,10 +367,12 @@ def expected_marker_lookup_fixture(
 
     gene_symbol_list = []
     used_ens = set()
-    for gene_id in gene_id_lookup:
-        if gene_id_lookup[gene_id] in used_ens:
+    for gene_id in cellranger_6_lookup:
+        if len(cellranger_6_lookup[gene_id]) > 1:
             continue
-        used_ens.add(gene_id_lookup[gene_id])
+        if cellranger_6_lookup[gene_id][0] in used_ens:
+            continue
+        used_ens.add(cellranger_6_lookup[gene_id][0])
         gene_symbol_list.append(gene_id)
 
     true_lookup = dict()

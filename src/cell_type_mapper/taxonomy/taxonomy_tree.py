@@ -117,6 +117,9 @@ class TaxonomyTree(object):
         ----------
         cell_metadata_path:
             path to cell_metadata.csv; the file mapping cells to clusters
+            (This can be None, in which case the taxonomy tree will have no
+            data mapping cells to clusters; it will only encode the
+            parent-child relationships between taxonomic nodes)
         cluster_annotation_path:
             path to cluster_annotation_term.csv; the file containing
             parent-child relationships
@@ -128,9 +131,14 @@ class TaxonomyTree(object):
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
         """
-        cell_metadata_path = pathlib.Path(cell_metadata_path)
         cluster_annotation_path = pathlib.Path(cluster_annotation_path)
         cluster_membership_path = pathlib.Path(cluster_membership_path)
+
+        if cell_metadata_path is not None:
+            cell_metadata_path = pathlib.Path(cell_metadata_path)
+            cell_path_str = str(cell_metadata_path.resolve().absolute())
+        else:
+            cell_path_str = None
 
         data = dict()
         data['metadata'] = {
@@ -138,7 +146,7 @@ class TaxonomyTree(object):
             'timestamp': get_timestamp(),
             'params': {
                 'cell_metadata_path':
-                    str(cell_metadata_path.resolve().absolute()),
+                    cell_path_str,
                 'cluster_annotation_path':
                     str(cluster_annotation_path.resolve().absolute()),
                 'cluster_membership_path':
@@ -146,9 +154,6 @@ class TaxonomyTree(object):
                 'hierarchy': hierarchy}}
 
         leaf_level = hierarchy[-1]
-
-        cell_to_alias = get_cell_to_cluster_alias(
-            csv_path=cell_metadata_path)
 
         rough_tree = get_tree_above_leaves(
             csv_path=cluster_annotation_path,
@@ -191,19 +196,6 @@ class TaxonomyTree(object):
             valid_term_set_labels=hierarchy,
             name_column='cluster_annotation_term_name')
 
-        # now add leaves (referring to them by their labels)
-        leaves = dict()
-        for cell in cell_to_alias:
-            alias = cell_to_alias[cell]
-            leaf = alias_to_cluster_label[alias]
-            if leaf not in leaves:
-                leaves[leaf] = []
-            leaves[leaf].append(cell)
-        for leaf in leaves:
-            leaves[leaf].sort()
-
-        data[hierarchy[-1]] = leaves
-
         # create a mapp from [level][node] to all
         # alternative naming schemes
         final_name_map = dict()
@@ -227,6 +219,28 @@ class TaxonomyTree(object):
         for k in cluster_to_alias:
             final_name_map[k[0]][k[1]]['alias'] = cluster_to_alias[k]
         data['name_mapper'] = final_name_map
+
+        # now add leaves (referring to them by their labels)
+        leaves = dict()
+
+        if cell_metadata_path is not None:
+            cell_to_alias = get_cell_to_cluster_alias(
+                csv_path=cell_metadata_path)
+
+            for cell in cell_to_alias:
+                alias = cell_to_alias[cell]
+                leaf = alias_to_cluster_label[alias]
+                if leaf not in leaves:
+                    leaves[leaf] = []
+                leaves[leaf].append(cell)
+            for leaf in leaves:
+                leaves[leaf].sort()
+        else:
+            for parent in data[hierarchy[-2]].keys():
+                for child in data[hierarchy[-2]][parent]:
+                    leaves[child] = []
+
+        data[hierarchy[-1]] = leaves
 
         return cls(data=data)
 

@@ -1,5 +1,15 @@
+import json
 import pathlib
 import re
+
+from cell_type_mapper.gene_id.utils import (
+    is_ensembl)
+
+from cell_type_mapper.data.cellranger_6_lookup import (
+    cellranger_6_lookup)
+
+from cell_type_mapper.data.gene_id_lookup import (
+    gene_id_lookup)
 
 
 def marker_lookup_from_tree_and_csv(
@@ -39,6 +49,9 @@ def marker_lookup_from_tree_and_csv(
     int_re = re.compile('[0-9]+')
     parent_to_path = dict()
     parent_list = taxonomy_tree.all_parents
+
+    missing_marker_sets = []
+
     for parent_node in parent_list:
         if parent_node is None:
             fname = 'marker.1.root.csv'
@@ -60,9 +73,17 @@ def marker_lookup_from_tree_and_csv(
             munged = readable_name.replace(' ', '+').replace('/', '__')
             fname = f'marker.{level_idx}.{munged}.csv'
         fpath = csv_dir / fname
-        if not fpath.is_file():
-            raise RuntimeError(f"{fname} does not exist")
-        parent_to_path[parent_key] = fpath
+        if fpath.is_file():
+            parent_to_path[parent_key] = fpath
+        else:
+            missing_marker_sets.append((parent_key, fpath.name))
+
+    if len(missing_marker_sets) > 0:
+        msg = ''
+        for marker_set in missing_marker_sets:
+            msg += f'{marker_set}\n'
+        raise RuntimeError(
+            f"Could not find marker sets\n{msg}")
 
     marker_lookup = dict()
     for parent_key in parent_to_path:
@@ -76,4 +97,128 @@ def marker_lookup_from_tree_and_csv(
 
         marker_lookup[parent_key] = gene_symbols
 
+    print("successfully got raw marker lookup")
     return marker_lookup
+
+
+def map_aibs_marker_lookup(
+        raw_markers):
+    """
+    Translate marker genes named in raw_markers to Ensembl IDs
+    using both canonical mappings and AIBS internal mapping.
+
+    raw_markers is a dict mapping parent nodes to lists
+    of marker identifiers.
+
+    return a similar dict, with the names of the marker genes
+    mapped to Ensembl IDs.
+    """
+
+    # create bespoke symbol-to-EnsemblID mapping that
+    # uses AIBS conventions in cases where the gene symbol
+    # maps to more than one EnsemblID
+    all_markers = set()
+    for k in raw_markers:
+        all_markers = all_markers.union(set(raw_markers[k]))
+    all_markers = list(all_markers)
+
+    symbol_to_ensembl = map_aibs_gene_names(all_markers)
+
+    result = dict()
+    for k in raw_markers:
+        new_markers = [symbol_to_ensembl[s] for s in raw_markers[k]]
+        result[k] = new_markers
+
+    return result
+
+
+def map_aibs_gene_names(raw_gene_names):
+    """
+    Take a list of gene names; return a dict mapping them
+    to Ensembl IDs, accounting for AIBS-specific gene
+    symbol conventions
+    """
+    error_msg = ""
+
+    raw_gene_names = set(raw_gene_names)
+    raw_gene_names = list(raw_gene_names)
+    raw_gene_names.sort()
+
+    # Look to see if any unmapped symbols are made easier
+    # by the presence of Ensembl IDs in the gene symbol
+    bad_ct = 0
+    bad_symbols = []
+    used_ensembl = set()
+    symbol_to_ensembl = dict()
+    for symbol in raw_gene_names:
+        ensembl = None
+        if symbol in cellranger_6_lookup:
+            candidates = cellranger_6_lookup[symbol]
+            if len(candidates) == 1:
+                ensembl = candidates[0]
+        else:
+            if " " in symbol:
+                ensembl = symbol.split()[1]
+                if not is_ensembl(ensembl):
+                    ensembl = None
+            if ensembl is None:
+                bad_symbols.append(symbol)
+
+        if ensembl is None:
+            ensembl = f"bad_{bad_ct}"
+            bad_ct += 1
+
+        if ensembl in used_ensembl:
+            other = []
+            for s in symbol_to_ensembl:
+                if symbol_to_ensembl[s] == ensembl:
+                    other.append(s)
+            error_msg += (
+                f"more than one gene symbol maps to {ensembl}:\n"
+                f"    {symbol} and {json.dumps(other)}\n")
+
+        symbol_to_ensembl[symbol] = ensembl
+        used_ensembl.add(ensembl)
+
+    # final pass, attempting to see if any ambiguities have been
+    # resolved by the EnsemblIDs dangling in gene symbols
+    for symbol in symbol_to_ensembl:
+        if is_ensembl(symbol_to_ensembl[symbol]):
+            continue
+        if symbol not in cellranger_6_lookup:
+            continue
+        candidates = cellranger_6_lookup[symbol]
+
+        ensembl = None
+        valid_candidates = []
+        for c in candidates:
+            if c not in used_ensembl:
+                valid_candidates.append(c)
+        if len(valid_candidates) > 1:
+            # last ditch effort; look in gene_id_lookup
+            if symbol in gene_id_lookup:
+                if gene_id_lookup[symbol] not in used_ensembl:
+                    ensembl = gene_id_lookup[symbol]
+
+            if ensembl is None:
+                error_msg += (
+                    f"Too many possible Ensembl IDs for {symbol}\n"
+                    f"    {valid_candidates}\n")
+
+        elif len(valid_candidates) == 1:
+            ensembl = valid_candidates[0]
+
+        if ensembl is None:
+            bad_symbols.append(symbol)
+        else:
+            symbol_to_ensembl[symbol] = ensembl
+            used_ensembl.add(ensembl)
+
+    if len(bad_symbols) > 0:
+        error_msg += (
+            "Could not find Ensembl IDs for\n"
+            f"{json.dumps(bad_symbols, indent=2)}\n")
+
+    if len(error_msg) > 0:
+        raise RuntimeError(error_msg)
+    return symbol_to_ensembl

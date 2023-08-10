@@ -28,7 +28,6 @@ def _get_this_cluster_stats(
     this_cluster_stats
     this_tree_as_leaves
     """
-    leaf_set = set()
     this_cluster_stats = dict()
     this_tree_as_leaves = dict()
     for idx in idx_to_pair:
@@ -37,20 +36,62 @@ def _get_this_cluster_stats(
         if level not in this_tree_as_leaves:
             this_tree_as_leaves[level] = dict()
         for node in (sibling_pair[1], sibling_pair[2]):
+            node_k = f'{level}/{node}'
+            this_cluster_stats[node_k] = cluster_stats[node_k]
             if node not in this_tree_as_leaves[level]:
                 this_tree_as_leaves[level][node] = tree_as_leaves[level][node]
-                for leaf in tree_as_leaves[level][node]:
-                    leaf_set.add(leaf)
-
-    for node in leaf_set:
-        this_cluster_stats[node] = cluster_stats[node]
 
     return this_cluster_stats, this_tree_as_leaves
 
 
 def read_precomputed_stats(
         precomputed_stats_path,
-        omit_keys=None):
+        taxonomy_tree,
+        for_marker_selection=True):
+    """
+    Read precomputed stats from precomputed stats path.
+
+    Return a dict
+    {'gene_names': [list, of, gene, names],
+     'cluster_stats': {
+         Dict mapping 'level/node_name' to 'mean', 'var', 'ge1'
+     }
+    }
+
+    If for_marker_selection = False, do not complain if you cannot
+    compute 'var', 'ge1' (which are only needed if selecting marker
+    genes)
+    """
+    raw_results = read_raw_precomputed_stats(
+            precomputed_stats_path=precomputed_stats_path,
+            for_marker_selection=for_marker_selection)
+
+    results = dict()
+    results['gene_names'] = raw_results['gene_names']
+    results['cluster_stats'] = dict()
+    as_leaves = taxonomy_tree.as_leaves
+    for level in as_leaves:
+        for node in as_leaves[level]:
+            leaf_population = as_leaves[level][node]
+            this = aggregate_stats(
+                leaf_population=leaf_population,
+                precomputed_stats=raw_results['cluster_stats'])
+
+            key_list = list(this.keys())
+            for key in key_list:
+                if key not in ('mean', 'var', 'ge1', 'n_cells'):
+                    this.pop(key)
+            if not for_marker_selection:
+                for key in ('var', 'ge1', 'n_cells'):
+                    if key in this:
+                        this.pop(key)
+            results['cluster_stats'][f'{level}/{node}'] = this
+    return results
+
+
+def read_raw_precomputed_stats(
+        precomputed_stats_path,
+        for_marker_selection=True):
     """
     Read in the precomputed stats file at
     precomputed_stats path and return a dict
@@ -64,18 +105,10 @@ def read_precomputed_stats(
             'gt0'
             'gt1'
             'ge1'
+
+    if for_marker_selection is True and 'sumsq' or 'ge1' are missing,
+    raise an error
     """
-
-    all_keys = ['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1']
-
-    if omit_keys is not None:
-        new_keys = []
-        for k in all_keys:
-            if k in omit_keys:
-                continue
-            else:
-                new_keys.append(k)
-        all_keys = new_keys
 
     precomputed_stats = dict()
     raw_data = dict()
@@ -87,13 +120,26 @@ def read_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
+        all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
+        all_keys = list(all_keys.intersection(set(in_file.keys())))
+
+        if 'n_cells' not in all_keys or 'sum' not in all_keys:
+            raise RuntimeError(
+                "'n_cells' and 'sum' must be in precomputed stats "
+                f"file. The file\n{precomputed_stats_path}\n"
+                f"contains {in_file.keys()}")
+
+        if for_marker_selection:
+            if 'sumsq' not in all_keys or 'ge1' not in all_keys:
+                raise RuntimeError(
+                    "'sumsq' and 'ge1' must be in precomputed stats "
+                    "file in order to use it for marker selection. The "
+                    f"file\n{precomputed_stats_path}\n"
+                    f"contains {in_file.keys()}")
+
         for k in all_keys:
             if k in in_file:
                 raw_data[k] = in_file[k][()]
-                if k in ('gt0', 'gt1', 'ge1'):
-                    new_dtype = choose_int_dtype(
-                        (raw_data[k].min(), raw_data[k].max()))
-                    raw_data[k] = raw_data[k].astype(new_dtype)
 
     cluster_stats = dict()
     for leaf_name in row_lookup:
@@ -112,9 +158,100 @@ def read_precomputed_stats(
     return precomputed_stats
 
 
+def aggregate_stats(
+       leaf_population,
+       precomputed_stats):
+    """
+    Parameters
+    ----------
+    leaf_population:
+        List of names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'sum' -- units of log2(CPM+1)
+            'sumsq' -- units of log2(CPM+1)
+            'gt0'
+            'gt1'
+            'ge1'
+
+    Returns
+    -------
+    Dict with
+        'mean' -- mean value of all gene expression
+        'var' -- variance of all gene expression
+        'n_cells' -- number of cells in the population
+
+    Note
+    -----
+    output mean and var are in units of log2(CPM+1)
+
+    Some historical versions of precomputed_stats files did
+    not contain the 'ge1' column. If you are reading one of those,
+    'ge1' will be returned as None.
+    """
+    n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
+
+    sum_arr = np.zeros(n_genes, dtype=float)
+    sumsq_arr = np.zeros(n_genes, dtype=float)
+
+    gt0 = np.zeros(n_genes, dtype=int)
+    gt1 = np.zeros(n_genes, dtype=int)
+    ge1 = np.zeros(n_genes, dtype=int)
+    n_cells = 0
+    has_ge1 = True
+
+    for leaf_node in leaf_population:
+        these_stats = precomputed_stats[leaf_node]
+
+        if 'n_cells' in these_stats:
+            n_cells += these_stats['n_cells']
+
+        if 'sum' in these_stats:
+            sum_arr += these_stats['sum']
+
+        if 'sumsq' in these_stats:
+            sumsq_arr += these_stats['sumsq']
+
+        if 'gt0' in these_stats:
+            gt0 += these_stats['gt0']
+
+        if 'gt1' in these_stats:
+            gt1 += these_stats['gt1']
+
+        if 'ge1' in these_stats:
+            ge1 += these_stats['ge1']
+        else:
+            has_ge1 = False
+
+    mu = sum_arr/n_cells
+    var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
+
+    if not has_ge1:
+        warnings.warn("precomputed stats file does not have 'ge1' data")
+        ge1 = None
+
+    result = {'mean': mu,
+              'var': var,
+              'n_cells': n_cells,
+              'gt0': gt0,
+              'gt1': gt1,
+              'ge1': ge1}
+
+    for k in ('gt0', 'gt1', 'ge1'):
+        if result[k] is not None:
+            new_dtype = choose_int_dtype(
+                (result[k].min(), result[k].max()))
+            result[k] = result[k].astype(new_dtype)
+
+    return result
+
+
 def score_differential_genes(
-        leaf_population_1,
-        leaf_population_2,
+        node_1,
+        node_2,
         precomputed_stats,
         p_th=0.01,
         q1_th=0.5,
@@ -128,8 +265,8 @@ def score_differential_genes(
 
     Parameters
     ----------
-    leaf_population_1/2:
-        Lists of names of the leaf nodes (e.g. clusters) of the cell
+    node_1/2:
+        Names of the leaf nodes (e.g. clusters) of the cell
         taxonomy making up the two populations to compare.
 
     precomputed_stats:
@@ -191,21 +328,8 @@ def score_differential_genes(
             (P_i1j-Pi2j)/max(P_i1j, P_i2j) > qdiff_th
     """
 
-    keep_only = [
-        'mean',
-        'var',
-        'n_cells',
-        'ge1']
-
-    stats_1 = aggregate_stats(
-                leaf_population=leaf_population_1,
-                precomputed_stats=precomputed_stats,
-                keep_only=keep_only)
-
-    stats_2 = aggregate_stats(
-                leaf_population=leaf_population_2,
-                precomputed_stats=precomputed_stats,
-                keep_only=keep_only)
+    stats_1 = precomputed_stats[node_1]
+    stats_2 = precomputed_stats[node_2]
 
     pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
@@ -387,148 +511,6 @@ def diffexp_score(
     with np.errstate(divide='ignore'):
         score = -1.0*np.log(pvalues)
     return score
-
-
-def aggregate_stats(
-       leaf_population,
-       precomputed_stats,
-       keep_only=None):
-    """
-    Parameters
-    ----------
-    leaf_population:
-        List of names of the leaf nodes (e.g. clusters) of the cell
-        taxonomy making up the two populations to compare.
-
-    precomputed_stats:
-        Dict mapping leaf node name to
-            'n_cells'
-            'sum' -- units of log2(CPM+1)
-            'sumsq' -- units of log2(CPM+1)
-            'gt0'
-            'gt1'
-            'ge1'
-
-    keep_only:
-        If specified, a list of the datasets to keep in the output
-
-    Returns
-    -------
-    Dict with
-        'mean' -- mean value of all gene expression
-        'var' -- variance of all gene expression
-        'n_cells' -- number of cells in the population
-
-    Note
-    -----
-    output mean and var are in units of log2(CPM+1)
-
-    Some historical versions of precomputed_stats files did
-    not contain the 'ge1' column. If you are reading one of those,
-    'ge1' will be returned as None.
-    """
-    if not hasattr(aggregate_stats, 'cache'):
-        aggregate_stats.cache = dict()
-    leaf_population.sort()
-    leaf_key = tuple(leaf_population)
-    if leaf_key not in aggregate_stats.cache:
-        data = _aggregate_stats(
-                   leaf_population,
-                   precomputed_stats,
-                   keep_only=keep_only)
-        aggregate_stats.cache[leaf_key] = data
-    return aggregate_stats.cache[leaf_key]
-
-
-def _aggregate_stats(
-       leaf_population,
-       precomputed_stats,
-       keep_only=None):
-    """
-    Parameters
-    ----------
-    leaf_population:
-        List of names of the leaf nodes (e.g. clusters) of the cell
-        taxonomy making up the two populations to compare.
-
-    precomputed_stats:
-        Dict mapping leaf node name to
-            'n_cells'
-            'sum' -- units of log2(CPM+1)
-            'sumsq' -- units of log2(CPM+1)
-            'gt0'
-            'gt1'
-            'ge1'
-
-    Returns
-    -------
-    Dict with
-        'mean' -- mean value of all gene expression
-        'var' -- variance of all gene expression
-        'n_cells' -- number of cells in the population
-
-    Note
-    -----
-    output mean and var are in units of log2(CPM+1)
-
-    Some historical versions of precomputed_stats files did
-    not contain the 'ge1' column. If you are reading one of those,
-    'ge1' will be returned as None.
-    """
-    n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
-
-    sum_arr = np.zeros(n_genes, dtype=float)
-    sumsq_arr = np.zeros(n_genes, dtype=float)
-    gt0 = np.zeros(n_genes, dtype=int)
-    gt1 = np.zeros(n_genes, dtype=int)
-    ge1 = np.zeros(n_genes, dtype=int)
-    n_cells = 0
-    has_ge1 = True
-
-    for leaf_node in leaf_population:
-        these_stats = precomputed_stats[leaf_node]
-
-        if 'n_cells' in these_stats:
-            n_cells += these_stats['n_cells']
-
-        if 'sum' in these_stats:
-            sum_arr += these_stats['sum']
-
-        if 'sumsq' in these_stats:
-            sumsq_arr += these_stats['sumsq']
-
-        if 'gt0' in these_stats:
-            gt0 += these_stats['gt0']
-
-        if 'gt1' in these_stats:
-            gt1 += these_stats['gt1']
-
-        if 'ge1' in these_stats:
-            ge1 += these_stats['ge1']
-        else:
-            has_ge1 = False
-
-    mu = sum_arr/n_cells
-    var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
-
-    if not has_ge1:
-        warnings.warn("precomputed stats file does not have 'ge1' data")
-        ge1 = None
-
-    result = {'mean': mu,
-              'var': var,
-              'n_cells': n_cells,
-              'gt0': gt0,
-              'gt1': gt1,
-              'ge1': ge1}
-
-    if keep_only is not None:
-        keep_only = set(keep_only)
-        key_list = list(result.keys())
-        for el in key_list:
-            if el not in keep_only:
-                result.pop(el)
-    return result
 
 
 def rank_genes(

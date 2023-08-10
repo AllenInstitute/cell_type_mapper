@@ -43,10 +43,8 @@ def create_marker_cache_from_reference_markers(
     print(f"creating marker gene cache in {output_cache_path}")
     t0 = time.time()
 
-    # create a dict mapping from parent_node to
-    # lists of marker gene names
-    marker_lookup = select_all_markers(
-        marker_cache_path=input_cache_path,
+    reformatted_lookup = create_raw_marker_gene_lookup(
+        input_cache_path=input_cache_path,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=n_per_utility,
@@ -56,27 +54,6 @@ def create_marker_cache_from_reference_markers(
     with h5py.File(input_cache_path, 'r') as in_file:
         reference_gene_names = json.loads(
             in_file['full_gene_names'][()].decode('utf-8'))
-
-    # reformat marker lookup so the keys are the
-    # 'parent/level' groups that will actually be
-    # stored in the final HDF5 file
-    created_groups = set()
-    reformatted_lookup = dict()
-    parent_list = list(marker_lookup.keys())
-    for parent in parent_list:
-        if parent is None:
-            parent_grp = 'None'
-        else:
-            parent_grp = f'{parent[0]}/{parent[1]}'
-
-        if parent_grp in created_groups:
-            raise RuntimeError(
-                "tried to create query marker group\n"
-                f"{parent_grp}\n"
-                "more than once")
-
-        created_groups.add(parent_grp)
-        reformatted_lookup[parent_grp] = marker_lookup.pop(parent)
 
     write_query_markers_to_h5(
         marker_lookup=reformatted_lookup,
@@ -176,6 +153,70 @@ def create_marker_cache_from_specified_markers(
 
     duration = (time.time()-t0)/3600.0
     print(f"created {output_cache_path} in {duration:.2e} hours")
+
+
+def create_raw_marker_gene_lookup(
+        input_cache_path,
+        query_gene_names,
+        taxonomy_tree,
+        n_per_utility,
+        n_processors,
+        behemoth_cutoff=10000000):
+    """
+    Create and return a dict mapping
+    level_name/node_name to lists of marker genes
+    referred to by their unique identifiers
+
+    Parameters
+    ----------
+    input_cache_path:
+        Path to the cache of refernce marker gene data from the
+        reference dataset
+    query_gene_names:
+        list of gene names in the query dataset
+    taxonomy_tree:
+        Dict encoding the cell type taxonomy
+    n_per_utility:
+        How many genes to select per (taxon_pair, sign)
+        combination
+    n_processors:
+        Number of independent workers to spin up.
+    behemoth_cutoff:
+        Number of leaf nodes for a parent to be considered
+        a behemoth
+    """
+
+    # create a dict mapping from parent_node to
+    # lists of marker gene names
+    marker_lookup = select_all_markers(
+        marker_cache_path=input_cache_path,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=n_per_utility,
+        n_processors=n_processors,
+        behemoth_cutoff=behemoth_cutoff)
+
+    # reformat marker lookup so the keys are the
+    # 'parent/level' groups that will actually be
+    # stored in the final HDF5 file
+    created_groups = set()
+    reformatted_lookup = dict()
+    parent_list = list(marker_lookup.keys())
+    for parent in parent_list:
+        if parent is None:
+            parent_grp = 'None'
+        else:
+            parent_grp = f'{parent[0]}/{parent[1]}'
+
+        if parent_grp in created_groups:
+            raise RuntimeError(
+                "tried to create query marker group\n"
+                f"{parent_grp}\n"
+                "more than once")
+
+        created_groups.add(parent_grp)
+        reformatted_lookup[parent_grp] = marker_lookup.pop(parent)
+    return reformatted_lookup
 
 
 def write_query_markers_to_h5(

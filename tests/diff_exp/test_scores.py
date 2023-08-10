@@ -117,15 +117,18 @@ def test_score_diff_smoke(
     score_differential_genes
     """
 
-    pop1 = ['a', 'c', 'd']
-    pop2 = ['f', 'e', 'g', 'h']
+    processed_stats = dict()
+    for k in ('a', 'g'):
+        processed_stats[k] = aggregate_stats(
+            leaf_population=[k],
+            precomputed_stats=precomputed_stats_fixture)
 
     (score,
      validity,
      up_mask) = score_differential_genes(
-                     leaf_population_1=pop1,
-                     leaf_population_2=pop2,
-                     precomputed_stats=precomputed_stats_fixture)
+                     node_1='a',
+                     node_2='g',
+                     precomputed_stats=processed_stats)
 
     assert score.shape == (n_genes,)
     assert validity.shape == (n_genes,)
