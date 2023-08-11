@@ -40,8 +40,7 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_gb=20,
-        delete_dense=True):
+        max_gb=20):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -73,10 +72,6 @@ def find_markers_for_all_taxonomy_pairs(
     max_gb:
         maximum number of GB to load at once
 
-    delete_dense:
-        If True, delete the dense representation of marker
-        arrays from the HDF5 file
-
     Returns
     --------
     None
@@ -106,7 +101,7 @@ def find_markers_for_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
-    tmp_thinned_path = create_dense_marker_file(
+    tmp_thinned_path = create_sparse_by_pair_marker_file(
         precomputed_stats_path=precomputed_stats_path,
         taxonomy_tree=taxonomy_tree,
         p_th=p_th,
@@ -120,23 +115,22 @@ def find_markers_for_all_taxonomy_pairs(
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
 
-    add_sparse_markers_to_file(
+    add_sparse_by_gene_markers_to_file(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir,
-        delete_dense=delete_dense)
+        tmp_dir=tmp_dir)
 
     shutil.move(
         src=tmp_thinned_path,
         dst=output_path)
 
-    #_clean_up(tmp_dir)
+    _clean_up(tmp_dir)
     duration = time.time()-t0
     print(f"that took {duration/3600.0:.2e} hrs")
 
 
-def create_dense_marker_file(
+def create_sparse_by_pair_marker_file(
         precomputed_stats_path,
         taxonomy_tree,
         p_th=0.01,
@@ -179,7 +173,8 @@ def create_dense_marker_file(
 
     Notes
     -----
-    This method stores the markers as dense arrays
+    This method stores the markers as sparse arrays with taxonomic
+    pairs as the indptr axis.
     """
     inner_tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_output_path = pathlib.Path(
@@ -342,11 +337,13 @@ def create_dense_marker_file(
                     src['pair_idx_values'][()].decode('utf-8'))
                 pair_idx_values.sort()
 
-                up_gene_idx = gene_idx_mapping[src['up_gene_idx'][()]]
-                down_gene_idx = gene_idx_mapping[src['down_gene_idx'][()]]
+                up_gene_idx = gene_idx_mapping[src['up_gene_idx'][()]].astype(
+                    gene_idx_dtype)
+                down_gene_idx = gene_idx_mapping[src['down_gene_idx'][()]].astype(
+                    gene_idx_dtype)
 
-                up_pair_idx = src['up_pair_idx'][()] + up_pair_offset
-                down_pair_idx = src['down_pair_idx'][()] + down_pair_offset
+                up_pair_idx = src['up_pair_idx'][()].astype(up_pair_idx_dtype) + up_pair_offset
+                down_pair_idx = src['down_pair_idx'][()].astype(down_pair_idx_dtype) + down_pair_offset
                 i0 = min(pair_idx_values)
                 i1 = i0 + len(pair_idx_values)
                 dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
@@ -367,25 +364,18 @@ def create_dense_marker_file(
         dst_grp['down_pair_idx'][-1] = n_down_indices
 
     print(f'writing sparse_by_pair took {time.time()-t_write:.2e} seconds')
-    #_clean_up(inner_tmp_dir)
     return tmp_output_path
 
 
-def add_sparse_markers_to_file(
+def add_sparse_by_gene_markers_to_file(
         h5_path,
         n_genes,
         max_gb,
-        tmp_dir,
-        delete_dense=False):
+        tmp_dir):
     """
-    Add the sparse representation of marker genes to
-    an HDF5 file containing the dense representation
-    of the marker genes.
-
-    if delete_dense is True, then delete the groups/datasets
-    that contain the dense representations of marker genes
-    from the file after the sparse representations have been
-    added.
+    Add the "sparse_by_gene" representation of markers to
+    a marker file that already contains the
+    "sparse_by_pairs" representation.
     """
 
     t0 = time.time()
@@ -421,18 +411,6 @@ def add_sparse_markers_to_file(
                     f'{direction}_pair_idx',
                     data=src['indices'],
                     chunks=src['indices'].chunks)
-
-    if delete_dense:
-        tmp_path = mkstemp_clean(
-            dir=tmp_dir,
-            suffix='.h5')
-
-        copy_h5_excluding_data(
-            src_path=h5_path,
-            dst_path=tmp_path,
-            excluded_groups=['markers', 'up_regulated'])
-
-        shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
     print(f"adding sparse markers took {time.time()-t0:.2e} seconds")
