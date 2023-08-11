@@ -15,7 +15,7 @@ def main():
     assert data_dir.is_dir()
 
     mean_path = pathlib.Path(
-        "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT21.0.root_mouse/cl.means.v9_locked.csv")
+        "/allen/programs/celltypes/workgroups/rnaseqanalysis/shiny/Taxonomies/AIT21.0_mouse/cl.means.freeze.csv")
     if not mean_path.is_file():
         raise RuntimeError(
             f"{mean_path.resolve().absolute()}\nis not a file")
@@ -53,7 +53,7 @@ def main():
         assert label not in cluster_to_row
         cluster_to_row[label] = i_col
 
-    out_path = '/allen/aibs/technology/danielsf/knowledge_base/scratch/abc_revision_230830/precomputed_stats_ABC_revision_230830.h5'
+    out_path = '/allen/aibs/technology/danielsf/knowledge_base/marker_comparison_230811/precomputed_stats_ABC_revision_230830.h5'
     with h5py.File(out_path, 'w') as dst:
         dst.create_dataset('sum', data=data)
         dst.create_dataset('n_cells', data=np.ones(data.shape[0], dtype=int))
@@ -65,7 +65,8 @@ def main():
             data=tree.to_str().encode('utf-8'))
 
         dst.create_dataset(
-            metadata=json.dumps(metadata).encode('utf-8'))
+            'metadata',
+            data=json.dumps(metadata).encode('utf-8'))
 
 if __name__ == "__main__":
     main()
