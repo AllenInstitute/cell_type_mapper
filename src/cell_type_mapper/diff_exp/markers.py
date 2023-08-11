@@ -13,9 +13,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     choose_int_dtype)
 
-from cell_type_mapper.utils.h5_utils import (
-    copy_h5_excluding_data)
-
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
@@ -337,13 +334,22 @@ def create_sparse_by_pair_marker_file(
                     src['pair_idx_values'][()].decode('utf-8'))
                 pair_idx_values.sort()
 
-                up_gene_idx = gene_idx_mapping[src['up_gene_idx'][()]].astype(
-                    gene_idx_dtype)
-                down_gene_idx = gene_idx_mapping[src['down_gene_idx'][()]].astype(
-                    gene_idx_dtype)
+                up_gene_idx = \
+                    gene_idx_mapping[src['up_gene_idx'][()]].astype(
+                        gene_idx_dtype)
 
-                up_pair_idx = src['up_pair_idx'][()].astype(up_pair_idx_dtype) + up_pair_offset
-                down_pair_idx = src['down_pair_idx'][()].astype(down_pair_idx_dtype) + down_pair_offset
+                down_gene_idx = \
+                    gene_idx_mapping[src['down_gene_idx'][()]].astype(
+                        gene_idx_dtype)
+
+                up_pair_idx = \
+                    src['up_pair_idx'][()].astype(up_pair_idx_dtype) \
+                    + up_pair_offset
+
+                down_pair_idx = \
+                    src['down_pair_idx'][()].astype(down_pair_idx_dtype) \
+                    + down_pair_offset
+
                 i0 = min(pair_idx_values)
                 i1 = i0 + len(pair_idx_values)
                 dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
