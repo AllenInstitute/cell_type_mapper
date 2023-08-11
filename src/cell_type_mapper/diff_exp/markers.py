@@ -303,50 +303,79 @@ def create_dense_marker_file(
         n_rows=n_genes,
         n_cols=n_pairs)
 
-    print("copying from temp files")
-    blank_up = np.zeros(n_genes, dtype=bool)
-    blank_marker = np.zeros(n_genes, dtype=bool)
+    print('getting list of valid genes')
+    valid_gene_idx = set()
+    n_up_indices = 0
+    n_down_indices = 0
     for col0 in tmp_path_dict:
         tmp_path = tmp_path_dict[col0]
         with h5py.File(tmp_path, 'r') as src:
-            pair_idx_values = json.loads(
-                src['pair_idx_values'][()].decode('utf-8'))
+            n_up_indices += src['n_up_indices'][()]
+            n_down_indices += src['n_down_indices'][()]
+            valid_gene_idx = valid_gene_idx.union(
+                set(src['valid_gene_idx'][()]))
+    valid_gene_idx = np.sort(np.array(list(valid_gene_idx)))
+    valid_gene_names = list(np.array(gene_names)[valid_gene_idx])
+    gene_idx_mapping = -1*np.ones(n_genes, dtype=int)
+    for ii, idx in enumerate(valid_gene_idx):
+        gene_idx_mapping[idx] = ii
 
-            for pair_idx in pair_idx_values:
-                blank_up[:] = False
-                blank_marker[:] = False
-                down = src[f'{pair_idx}/down'][()]
-                up = src[f'{pair_idx}/up'][()]
-                blank_up[up] = True
-                blank_marker[up] = True
-                blank_marker[down] = True
-                marker_flag.set_col(pair_idx, blank_marker)
-                up_regulated_flag.set_col(pair_idx, blank_up)
+    gene_idx_dtype = choose_int_dtype((0, len(valid_gene_idx)))
+    up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
+    down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
 
-        tmp_path_dict[col0].unlink()
+    t_write = time.time()
+    print('writing sparse_by_pair to disk')
+    up_indptr_val = 0
+    down_indptr_val = 0
+    print(f"writing to {tmp_output_path}")
+    with h5py.File(tmp_output_path, 'a') as dst:
+        dst.create_dataset(
+            'gene_names',
+            data=json.dumps(valid_gene_names).encode('utf-8'))
 
-    # must delete them so they get flushed to disk
-    del marker_flag
-    del up_regulated_flag
+        dst_grp = dst.create_group('sparse_by_pair')
 
-    tmp_thinned_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix='thinned_',
-            suffix='.h5'))
+        dst_grp.create_dataset(
+            'up_pair_idx',
+            shape=(n_pairs+1,),
+            dtype=up_pair_idx_dtype)
+        dst_grp.create_dataset(
+            'up_gene_idx',
+            shape=(n_up_indices,),
+            dtype=gene_idx_dtype)
+        dst_grp.create_dataset(
+            'down_pair_idx',
+            shape=(n_pairs+1,),
+            dtype=down_pair_idx_dtype)
+        dst_grp.create_dataset(
+            'down_gene_idx',
+            shape=(n_down_indices,),
+            dtype=gene_idx_dtype)
 
-    with h5py.File(tmp_output_path, 'r') as src:
-        assert src['up_regulated/data'][()].sum() > 0
-        assert src['markers/data'][()].sum() > 0
+        col0_values = list(tmp_path_dict.keys())
+        col0_values.sort()
+        for col0 in col0_values:
+            tmp_path = tmp_path_dict[col0]
+            with h5py.File(tmp_path, 'r') as src:
+                pair_idx_values = json.loads(
+                    src['pair_idx_values'][()].decode('utf-8'))
+                pair_idx_values.sort()
+                for pair_idx in pair_idx_values:
+                    up_indices = gene_idx_mapping[src[f'{pair_idx}/up'][()]]
+                    down_indices = gene_idx_mapping[src[f'{pair_idx}/down'][()]]
+                    dst_grp['up_pair_idx'][pair_idx] = up_indptr_val
+                    dst_grp['down_pair_idx'][pair_idx] = down_indptr_val
+                    dst_grp['up_gene_idx'][up_indptr_val:up_indptr_val+len(up_indices)] = up_indices
+                    dst_grp['down_gene_idx'][down_indptr_val:down_indptr_val+len(down_indices)] = down_indices
+                    up_indptr_val += len(up_indices)
+                    down_indptr_val += len(down_indices)
+        dst_grp['up_pair_idx'][-1] = n_up_indices
+        dst_grp['down_pair_idx'][-1] = n_down_indices
 
-    thin_marker_file(
-        marker_file_path=tmp_output_path,
-        thinned_marker_file_path=tmp_thinned_path,
-        max_bytes=max_bytes,
-        tmp_dir=None)
-
-    _clean_up(inner_tmp_dir)
-    return tmp_thinned_path
+    print(f'writing sparse_by_pair took {time.time()-t_write:.2e} seconds')
+    #_clean_up(inner_tmp_dir)
+    return tmp_output_path
 
 
 def add_sparse_markers_to_file(
@@ -370,7 +399,7 @@ def add_sparse_markers_to_file(
 
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
 
-    add_sparse_markers_by_pair_to_h5(h5_path)
+    # add_sparse_markers_by_pair_to_h5(h5_path)
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_group('sparse_by_gene')
@@ -494,7 +523,14 @@ def _find_markers_worker(
         out_file.create_dataset(
             'pair_idx_values',
             data=json.dumps(list(up_reg_lookup.keys())).encode('utf-8'))
+        valid_gene_idx = set()
+        n_down_indices = 0
+        n_up_indices = 0
         for idx in up_reg_lookup:
+            valid_gene_idx = valid_gene_idx.union(set(up_reg_lookup[idx]))
+            valid_gene_idx = valid_gene_idx.union(set(down_reg_lookup[idx]))
+            n_up_indices += len(up_reg_lookup[idx])
+            n_down_indices += len(down_reg_lookup[idx])
             out_file.create_dataset(
                 f'{idx}/up',
                 data=up_reg_lookup[idx],
@@ -503,6 +539,14 @@ def _find_markers_worker(
                 f'{idx}/down',
                 data=down_reg_lookup[idx],
                 dtype=idx_dtype)
+        out_file.create_dataset(
+            'valid_gene_idx',
+            data=np.array(list(valid_gene_idx)).astype(idx_dtype),
+            dtype=idx_dtype)
+        out_file.create_dataset(
+            'n_down_indices', data=n_down_indices)
+        out_file.create_dataset(
+            'n_up_indices', data=n_up_indices)
 
 
 def _prep_output_file(
@@ -559,7 +603,7 @@ def _prep_output_file(
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names).encode('utf-8'))
 
         out_file.create_dataset(
