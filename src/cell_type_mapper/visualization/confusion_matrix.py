@@ -14,6 +14,29 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
+def many_summary_plots_pdf(
+        classification_path_list,
+        ground_truth_column_list,
+        plot_path,
+        is_log10=False,
+        munge_ints=False,
+        is_flat=False,
+        confidence_key='bootstrapping_probability',
+        leaf_order=None):
+
+    with PdfPages(plot_path) as pdf_handle:
+        for classification_path in classification_path_list:
+            summary_plots_for_one_file(
+                classification_path=classification_path,
+                ground_truth_column_list=ground_truth_column_list,
+                pdf_handle=pdf_handle,
+                is_log10=is_log10,
+                munge_ints=munge_ints,
+                is_flat=is_flat,
+                confidence_key=confidence_key,
+                leaf_order=leaf_order)
+
+
 def single_summary_plot_pdf(
         classification_path,
         ground_truth_column_list,
@@ -52,7 +75,10 @@ def summary_plots_for_one_file(
 
     n_cells = len(results['results'])
     query_path = pathlib.Path(results['config']['query_path'])
-    query_path_str = f"{query_path.parent.name}/{query_path.name}"
+    query_path_str = f"{query_path.parent.name}/\n    {query_path.name}"
+    marker_path = pathlib.Path(
+        results['config']['query_markers']['serialized_lookup'])
+    marker_lookup_str = f"{marker_path.parent.name}/\n    {marker_path.name}"
 
     log = results['log']
     timing_statements = []
@@ -297,6 +323,7 @@ def summary_plots_for_one_file(
             label_y_axis=False,)
 
     msg = f"query set: {query_path_str}\n"
+    msg += f"marker genes: {marker_lookup_str}\n"
     msg += f"{n_cells} query cells\n"
     msg += "\naccuracy\n=========\n"
     for line in accuracy_statements:
