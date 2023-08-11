@@ -30,15 +30,6 @@ from cell_type_mapper.diff_exp.scores import (
 from cell_type_mapper.utils.csc_to_csr import (
     transpose_sparse_matrix_on_disk)
 
-from cell_type_mapper.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
-
-from cell_type_mapper.diff_exp.thin import (
-    thin_marker_file)
-
-from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
-    add_sparse_markers_by_pair_to_h5)
-
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -140,7 +131,7 @@ def find_markers_for_all_taxonomy_pairs(
         src=tmp_thinned_path,
         dst=output_path)
 
-    _clean_up(tmp_dir)
+    #_clean_up(tmp_dir)
     duration = time.time()-t0
     print(f"that took {duration/3600.0:.2e} hrs")
 
@@ -291,18 +282,6 @@ def create_dense_marker_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    marker_flag = BackedBinarizedBooleanArray(
-        h5_path=tmp_output_path,
-        h5_group='markers',
-        n_rows=n_genes,
-        n_cols=n_pairs)
-
-    up_regulated_flag = BackedBinarizedBooleanArray(
-        h5_path=tmp_output_path,
-        h5_group='up_regulated',
-        n_rows=n_genes,
-        n_cols=n_pairs)
-
     print('getting list of valid genes')
     valid_gene_idx = set()
     n_up_indices = 0
@@ -314,6 +293,7 @@ def create_dense_marker_file(
             n_down_indices += src['n_down_indices'][()]
             valid_gene_idx = valid_gene_idx.union(
                 set(src['valid_gene_idx'][()]))
+
     valid_gene_idx = np.sort(np.array(list(valid_gene_idx)))
     valid_gene_names = list(np.array(gene_names)[valid_gene_idx])
     gene_idx_mapping = -1*np.ones(n_genes, dtype=int)
@@ -326,8 +306,8 @@ def create_dense_marker_file(
 
     t_write = time.time()
     print('writing sparse_by_pair to disk')
-    up_indptr_val = 0
-    down_indptr_val = 0
+    up_pair_offset = 0
+    down_pair_offset = 0
     print(f"writing to {tmp_output_path}")
     with h5py.File(tmp_output_path, 'a') as dst:
         dst.create_dataset(
@@ -361,15 +341,28 @@ def create_dense_marker_file(
                 pair_idx_values = json.loads(
                     src['pair_idx_values'][()].decode('utf-8'))
                 pair_idx_values.sort()
-                for pair_idx in pair_idx_values:
-                    up_indices = gene_idx_mapping[src[f'{pair_idx}/up'][()]]
-                    down_indices = gene_idx_mapping[src[f'{pair_idx}/down'][()]]
-                    dst_grp['up_pair_idx'][pair_idx] = up_indptr_val
-                    dst_grp['down_pair_idx'][pair_idx] = down_indptr_val
-                    dst_grp['up_gene_idx'][up_indptr_val:up_indptr_val+len(up_indices)] = up_indices
-                    dst_grp['down_gene_idx'][down_indptr_val:down_indptr_val+len(down_indices)] = down_indices
-                    up_indptr_val += len(up_indices)
-                    down_indptr_val += len(down_indices)
+
+                up_gene_idx = gene_idx_mapping[src['up_gene_idx'][()]]
+                down_gene_idx = gene_idx_mapping[src['down_gene_idx'][()]]
+
+                up_pair_idx = src['up_pair_idx'][()] + up_pair_offset
+                down_pair_idx = src['down_pair_idx'][()] + down_pair_offset
+                i0 = min(pair_idx_values)
+                i1 = i0 + len(pair_idx_values)
+                dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
+                dst_grp['down_pair_idx'][i0:i1] = down_pair_idx[:-1]
+
+                i0 = up_pair_idx[0]
+                i1 = i0 + len(up_gene_idx)
+                dst_grp['up_gene_idx'][i0:i1] = up_gene_idx
+
+                i0 = down_pair_idx[0]
+                i1 = i0 + len(down_gene_idx)
+                dst_grp['down_gene_idx'][i0:i1] = down_gene_idx
+
+                up_pair_offset += len(up_gene_idx)
+                down_pair_offset += len(down_gene_idx)
+
         dst_grp['up_pair_idx'][-1] = n_up_indices
         dst_grp['down_pair_idx'][-1] = n_down_indices
 
@@ -398,8 +391,6 @@ def add_sparse_markers_to_file(
     t0 = time.time()
 
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
-
-    # add_sparse_markers_by_pair_to_h5(h5_path)
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_group('sparse_by_gene')
@@ -519,32 +510,46 @@ def _find_markers_worker(
             np.logical_and(validity_mask,
                            np.logical_not(up_mask)))[0].astype(idx_dtype)
 
+    (up_pair_idx,
+     up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
+
+    (down_pair_idx,
+     down_gene_idx) = _lookup_to_sparse(down_reg_lookup)
+
+    valid_gene_idx = set(up_gene_idx)
+    valid_gene_idx = valid_gene_idx.union(
+        set(down_gene_idx))
+
+    n_up_indices = len(up_gene_idx)
+    n_down_indices = len(down_gene_idx)
+
+    pair_idx_values = list(up_reg_lookup.keys())
+    pair_idx_values.sort()
     with h5py.File(tmp_path, 'a') as out_file:
         out_file.create_dataset(
             'pair_idx_values',
-            data=json.dumps(list(up_reg_lookup.keys())).encode('utf-8'))
-        valid_gene_idx = set()
-        n_down_indices = 0
-        n_up_indices = 0
-        for idx in up_reg_lookup:
-            valid_gene_idx = valid_gene_idx.union(set(up_reg_lookup[idx]))
-            valid_gene_idx = valid_gene_idx.union(set(down_reg_lookup[idx]))
-            n_up_indices += len(up_reg_lookup[idx])
-            n_down_indices += len(down_reg_lookup[idx])
-            out_file.create_dataset(
-                f'{idx}/up',
-                data=up_reg_lookup[idx],
-                dtype=idx_dtype)
-            out_file.create_dataset(
-                f'{idx}/down',
-                data=down_reg_lookup[idx],
-                dtype=idx_dtype)
+            data=json.dumps(pair_idx_values).encode('utf-8'))
+
+        out_file.create_dataset(
+            'up_pair_idx', data=up_pair_idx, dtype=up_pair_idx.dtype)
+
+        out_file.create_dataset(
+            'up_gene_idx', data=up_gene_idx, dtype=up_gene_idx.dtype)
+
+        out_file.create_dataset(
+            'down_pair_idx', data=down_pair_idx, dtype=down_pair_idx.dtype)
+
+        out_file.create_dataset(
+            'down_gene_idx', data=down_gene_idx, dtype=down_gene_idx.dtype)
+
         out_file.create_dataset(
             'valid_gene_idx',
             data=np.array(list(valid_gene_idx)).astype(idx_dtype),
             dtype=idx_dtype)
+
         out_file.create_dataset(
             'n_down_indices', data=n_down_indices)
+
         out_file.create_dataset(
             'n_up_indices', data=n_up_indices)
 
@@ -615,3 +620,35 @@ def _prep_output_file(
             data=len(idx_to_pair))
 
     return idx_to_pair
+
+
+def _lookup_to_sparse(
+        indptr_to_indices):
+    """
+    Map a lookup of indptr idx to indices to a sparse
+    matrix array
+    """
+    n_indices = 0
+    max_indices = 0
+    for idx in indptr_to_indices:
+        n_indices += len(indptr_to_indices[idx])
+        if len(indptr_to_indices[idx]) > 0:
+            this_max = max(indptr_to_indices[idx])
+            if this_max > max_indices:
+                max_indices = this_max
+    indptr_dtype = choose_int_dtype((0, n_indices))
+    indices_dtype = choose_int_dtype((0, max_indices))
+    indptr = np.zeros(len(indptr_to_indices)+1, dtype=indptr_dtype)
+    indices = np.zeros(n_indices, dtype=indices_dtype)
+    idx_list = list(indptr_to_indices.keys())
+    idx_list.sort()
+    indptr_val = 0
+    for local_idx, global_idx in enumerate(idx_list):
+        this_indices = indptr_to_indices[global_idx]
+        indptr[local_idx] = indptr_val
+        indices[indptr_val:indptr_val+len(this_indices)] = this_indices
+        indptr_val += len(this_indices)
+
+    indptr[-1] = n_indices
+
+    return indptr, indices
