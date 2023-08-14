@@ -4,6 +4,7 @@ import h5py
 import json
 import numpy as np
 import pathlib
+import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -12,15 +13,15 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
-
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
 from cell_type_mapper.marker_selection.selection import (
     recalculate_utility_array,
     _get_taxonomy_idx)
+
+from cell_type_mapper.diff_exp.markers import (
+    add_sparse_by_gene_markers_to_file)
 
 
 @pytest.fixture(scope='module')
@@ -122,7 +123,7 @@ def gene_names_fixture(n_genes):
     return [f"g_{ii}" for ii in range(n_genes)]
 
 @pytest.fixture
-def backed_array_fixture(
+def marker_cache_fixture(
         tmp_dir_fixture,
         is_marker_fixture,
         up_reg_fixture,
@@ -136,21 +137,15 @@ def backed_array_fixture(
             dir=tmp_dir_fixture,
             suffix='.h5'))
 
-    h5_path.unlink()
+    up_regulated = np.logical_and(
+        is_marker_fixture,
+        up_reg_fixture)
+    down_regulated = np.logical_and(
+        is_marker_fixture,
+        np.logical_not(up_reg_fixture))
 
-    marker = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_cols)
-    for i_row in range(n_genes):
-        marker.set_row(i_row, is_marker_fixture[i_row, :])
-    marker.write_to_h5(h5_path, h5_group='markers')
-
-    up_reg = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_cols)
-    for i_row in range(n_genes):
-        up_reg.set_row(i_row, up_reg_fixture[i_row, :])
-    up_reg.write_to_h5(h5_path, h5_group='up_regulated')
+    csc_up = scipy_sparse.csc_array(up_regulated)
+    csc_down = scipy_sparse.csc_array(down_regulated)
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_dataset('n_pairs', data=n_cols)
@@ -161,14 +156,34 @@ def backed_array_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx_fixture).encode('utf-8'))
 
+        grp = dst.create_group('sparse_by_pair')
+        grp.create_dataset(
+            'up_gene_idx',
+            data=csc_up.indices)
+        grp.create_dataset(
+            'up_pair_idx',
+            data=csc_up.indptr)
+        grp.create_dataset(
+            'down_gene_idx',
+            data=csc_down.indices)
+        grp.create_dataset(
+            'down_pair_idx',
+            data=csc_down.indptr)
+
+    add_sparse_by_gene_markers_to_file(
+        h5_path=h5_path,
+        n_genes=len(gene_names_fixture),
+        max_gb=3,
+        tmp_dir=tmp_dir_fixture)
+
     return h5_path
 
 
 def test_recalculate_utilty_array(
-        backed_array_fixture,
+        marker_cache_fixture,
         n_genes):
     arr = MarkerGeneArray.from_cache_path(
-        cache_path=backed_array_fixture)
+        cache_path=marker_cache_fixture)
     util = np.zeros(n_genes, dtype=int)
     util = recalculate_utility_array(
         utility_array=util,
@@ -199,13 +214,13 @@ def test_recalculate_utilty_array(
 
 def test_get_taxonomy_idx(
         taxonomy_tree_fixture,
-        backed_array_fixture):
+        marker_cache_fixture):
 
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_fixture)
 
     arr = MarkerGeneArray.from_cache_path(
-        cache_path=backed_array_fixture)
+        cache_path=marker_cache_fixture)
     np.testing.assert_array_equal(
         _get_taxonomy_idx(
             taxonomy_tree=taxonomy_tree,

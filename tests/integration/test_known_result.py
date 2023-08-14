@@ -96,13 +96,12 @@ def ref_marker_path_fixture(
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=0.006,
-        delete_dense=False)
+        max_gb=0.006)
 
     with h5py.File(ref_marker_path, 'r') as in_file:
         assert len(in_file.keys()) > 0
-        assert in_file['up_regulated/data'][()].sum() > 0
-        assert in_file['markers/data'][()].sum() > 0
+        assert in_file['sparse_by_pair/up_gene_idx'].shape[0] > 0
+        assert in_file['sparse_by_pair/down_gene_idx'].shape[0] > 0
 
     return ref_marker_path
 

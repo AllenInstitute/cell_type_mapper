@@ -10,10 +10,8 @@ import time
 from cell_type_mapper.utils.utils import (
     print_timing,
     _clean_up,
-    mkstemp_clean)
-
-from cell_type_mapper.utils.h5_utils import (
-    copy_h5_excluding_data)
+    mkstemp_clean,
+    choose_int_dtype)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
@@ -29,18 +27,6 @@ from cell_type_mapper.diff_exp.scores import (
 from cell_type_mapper.utils.csc_to_csr import (
     transpose_sparse_matrix_on_disk)
 
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
-
-from cell_type_mapper.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
-
-from cell_type_mapper.diff_exp.thin import (
-    thin_marker_file)
-
-from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
-    add_sparse_markers_by_pair_to_h5)
-
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -51,8 +37,7 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_gb=20,
-        delete_dense=True):
+        max_gb=20):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -84,10 +69,6 @@ def find_markers_for_all_taxonomy_pairs(
     max_gb:
         maximum number of GB to load at once
 
-    delete_dense:
-        If True, delete the dense representation of marker
-        arrays from the HDF5 file
-
     Returns
     --------
     None
@@ -117,7 +98,7 @@ def find_markers_for_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
-    tmp_thinned_path = create_dense_marker_file(
+    tmp_thinned_path = create_sparse_by_pair_marker_file(
         precomputed_stats_path=precomputed_stats_path,
         taxonomy_tree=taxonomy_tree,
         p_th=p_th,
@@ -131,12 +112,11 @@ def find_markers_for_all_taxonomy_pairs(
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
 
-    add_sparse_markers_to_file(
+    add_sparse_by_gene_markers_to_file(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir,
-        delete_dense=delete_dense)
+        tmp_dir=tmp_dir)
 
     shutil.move(
         src=tmp_thinned_path,
@@ -147,7 +127,7 @@ def find_markers_for_all_taxonomy_pairs(
     print(f"that took {duration/3600.0:.2e} hrs")
 
 
-def create_dense_marker_file(
+def create_sparse_by_pair_marker_file(
         precomputed_stats_path,
         taxonomy_tree,
         p_th=0.01,
@@ -190,7 +170,8 @@ def create_dense_marker_file(
 
     Notes
     -----
-    This method stores the markers as dense arrays
+    This method stores the markers as sparse arrays with taxonomic
+    pairs as the indptr axis.
     """
     inner_tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     tmp_output_path = pathlib.Path(
@@ -293,72 +274,119 @@ def create_dense_marker_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    marker_flag = BackedBinarizedBooleanArray(
-        h5_path=tmp_output_path,
-        h5_group='markers',
-        n_rows=n_genes,
-        n_cols=n_pairs)
-
-    up_regulated_flag = BackedBinarizedBooleanArray(
-        h5_path=tmp_output_path,
-        h5_group='up_regulated',
-        n_rows=n_genes,
-        n_cols=n_pairs)
-
-    print("copying from temp files")
+    print('getting list of valid genes')
+    valid_gene_idx = set()
+    n_up_indices = 0
+    n_down_indices = 0
     for col0 in tmp_path_dict:
-        markers = BinarizedBooleanArray.read_from_h5(
-            h5_path=tmp_path_dict[col0],
-            h5_group='markers')
-        up_reg = BinarizedBooleanArray.read_from_h5(
-            h5_path=tmp_path_dict[col0],
-            h5_group='up_regulated')
+        tmp_path = tmp_path_dict[col0]
+        with h5py.File(tmp_path, 'r') as src:
+            n_up_indices += src['n_up_indices'][()]
+            n_down_indices += src['n_down_indices'][()]
+            valid_gene_idx = valid_gene_idx.union(
+                set(src['valid_gene_idx'][()]))
 
-        marker_flag.copy_other_as_columns(
-            other=markers, col0=col0)
-        up_regulated_flag.copy_other_as_columns(
-            other=up_reg, col0=col0)
+    valid_gene_idx = np.sort(np.array(list(valid_gene_idx)))
+    valid_gene_names = list(np.array(gene_names)[valid_gene_idx])
+    gene_idx_mapping = -1*np.ones(n_genes, dtype=int)
+    for ii, idx in enumerate(valid_gene_idx):
+        gene_idx_mapping[idx] = ii
 
-        tmp_path_dict[col0].unlink()
+    gene_idx_dtype = choose_int_dtype((0, len(valid_gene_idx)))
+    up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
+    down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
 
-    tmp_thinned_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix='thinned_',
-            suffix='.h5'))
+    t_write = time.time()
+    print('writing sparse_by_pair to disk')
+    up_pair_offset = 0
+    down_pair_offset = 0
+    print(f"writing to {tmp_output_path}")
+    with h5py.File(tmp_output_path, 'a') as dst:
+        dst.create_dataset(
+            'gene_names',
+            data=json.dumps(valid_gene_names).encode('utf-8'))
 
-    thin_marker_file(
-        marker_file_path=tmp_output_path,
-        thinned_marker_file_path=tmp_thinned_path,
-        max_bytes=max_bytes,
-        tmp_dir=None)
+        dst_grp = dst.create_group('sparse_by_pair')
 
-    _clean_up(inner_tmp_dir)
-    return tmp_thinned_path
+        dst_grp.create_dataset(
+            'up_pair_idx',
+            shape=(n_pairs+1,),
+            dtype=up_pair_idx_dtype)
+        dst_grp.create_dataset(
+            'up_gene_idx',
+            shape=(n_up_indices,),
+            dtype=gene_idx_dtype)
+        dst_grp.create_dataset(
+            'down_pair_idx',
+            shape=(n_pairs+1,),
+            dtype=down_pair_idx_dtype)
+        dst_grp.create_dataset(
+            'down_gene_idx',
+            shape=(n_down_indices,),
+            dtype=gene_idx_dtype)
+
+        col0_values = list(tmp_path_dict.keys())
+        col0_values.sort()
+        for col0 in col0_values:
+            tmp_path = tmp_path_dict[col0]
+            with h5py.File(tmp_path, 'r') as src:
+                pair_idx_values = json.loads(
+                    src['pair_idx_values'][()].decode('utf-8'))
+                pair_idx_values.sort()
+
+                up_gene_idx = \
+                    gene_idx_mapping[src['up_gene_idx'][()]].astype(
+                        gene_idx_dtype)
+
+                down_gene_idx = \
+                    gene_idx_mapping[src['down_gene_idx'][()]].astype(
+                        gene_idx_dtype)
+
+                up_pair_idx = \
+                    src['up_pair_idx'][()].astype(up_pair_idx_dtype) \
+                    + up_pair_offset
+
+                down_pair_idx = \
+                    src['down_pair_idx'][()].astype(down_pair_idx_dtype) \
+                    + down_pair_offset
+
+                i0 = min(pair_idx_values)
+                i1 = i0 + len(pair_idx_values)
+                dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
+                dst_grp['down_pair_idx'][i0:i1] = down_pair_idx[:-1]
+
+                i0 = up_pair_idx[0]
+                i1 = i0 + len(up_gene_idx)
+                dst_grp['up_gene_idx'][i0:i1] = up_gene_idx
+
+                i0 = down_pair_idx[0]
+                i1 = i0 + len(down_gene_idx)
+                dst_grp['down_gene_idx'][i0:i1] = down_gene_idx
+
+                up_pair_offset += len(up_gene_idx)
+                down_pair_offset += len(down_gene_idx)
+
+        dst_grp['up_pair_idx'][-1] = n_up_indices
+        dst_grp['down_pair_idx'][-1] = n_down_indices
+
+    print(f'writing sparse_by_pair took {time.time()-t_write:.2e} seconds')
+    return tmp_output_path
 
 
-def add_sparse_markers_to_file(
+def add_sparse_by_gene_markers_to_file(
         h5_path,
         n_genes,
         max_gb,
-        tmp_dir,
-        delete_dense=False):
+        tmp_dir):
     """
-    Add the sparse representation of marker genes to
-    an HDF5 file containing the dense representation
-    of the marker genes.
-
-    if delete_dense is True, then delete the groups/datasets
-    that contain the dense representations of marker genes
-    from the file after the sparse representations have been
-    added.
+    Add the "sparse_by_gene" representation of markers to
+    a marker file that already contains the
+    "sparse_by_pairs" representation.
     """
 
     t0 = time.time()
 
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
-
-    add_sparse_markers_by_pair_to_h5(h5_path)
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_group('sparse_by_gene')
@@ -389,18 +417,6 @@ def add_sparse_markers_to_file(
                     f'{direction}_pair_idx',
                     data=src['indices'],
                     chunks=src['indices'].chunks)
-
-    if delete_dense:
-        tmp_path = mkstemp_clean(
-            dir=tmp_dir,
-            suffix='.h5')
-
-        copy_h5_excluding_data(
-            src_path=h5_path,
-            dst_path=tmp_path,
-            excluded_groups=['markers', 'up_regulated'])
-
-        shutil.move(src=tmp_path, dst=h5_path)
 
     _clean_up(tmp_dir)
     print(f"adding sparse markers took {time.time()-t0:.2e} seconds")
@@ -441,6 +457,9 @@ def _find_markers_worker(
         will be stored (this process creates that file)
     """
 
+    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
+    idx_dtype = choose_int_dtype((0, n_genes))
+
     boring_t = boring_t_from_p_value(p_th)
 
     idx_values = list(idx_to_pair.keys())
@@ -449,16 +468,9 @@ def _find_markers_worker(
     if col0 % 8 != 0:
         raise RuntimeError(
             f"col0 ({col0}) is not an integer multiple of 8")
-    n_sibling_pairs = len(idx_to_pair)
 
-    marker_mask = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_sibling_pairs)
-
-    up_regulated_mask = BinarizedBooleanArray(
-        n_rows=n_genes,
-        n_cols=n_sibling_pairs)
-
+    up_reg_lookup = dict()
+    down_reg_lookup = dict()
     for idx in idx_values:
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
@@ -476,24 +488,54 @@ def _find_markers_worker(
                          qdiff_th=qdiff_th,
                          boring_t=boring_t)
 
-        this_col = idx-col0
-        marker_mask.set_col(
-            this_col,
-            validity_mask)
-        up_regulated_mask.set_col(
-            this_col,
-            up_mask.astype(bool))
+        up_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask, up_mask))[0].astype(idx_dtype)
+        down_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask,
+                           np.logical_not(up_mask)))[0].astype(idx_dtype)
 
-    marker_mask.write_to_h5(
-        h5_path=tmp_path,
-        h5_group='markers')
-    up_regulated_mask.write_to_h5(
-        h5_path=tmp_path,
-        h5_group='up_regulated')
+    (up_pair_idx,
+     up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
+
+    (down_pair_idx,
+     down_gene_idx) = _lookup_to_sparse(down_reg_lookup)
+
+    valid_gene_idx = set(up_gene_idx)
+    valid_gene_idx = valid_gene_idx.union(
+        set(down_gene_idx))
+
+    n_up_indices = len(up_gene_idx)
+    n_down_indices = len(down_gene_idx)
+
+    pair_idx_values = list(up_reg_lookup.keys())
+    pair_idx_values.sort()
     with h5py.File(tmp_path, 'a') as out_file:
         out_file.create_dataset(
-            'col0',
-            data=col0)
+            'pair_idx_values',
+            data=json.dumps(pair_idx_values).encode('utf-8'))
+
+        out_file.create_dataset(
+            'up_pair_idx', data=up_pair_idx, dtype=up_pair_idx.dtype)
+
+        out_file.create_dataset(
+            'up_gene_idx', data=up_gene_idx, dtype=up_gene_idx.dtype)
+
+        out_file.create_dataset(
+            'down_pair_idx', data=down_pair_idx, dtype=down_pair_idx.dtype)
+
+        out_file.create_dataset(
+            'down_gene_idx', data=down_gene_idx, dtype=down_gene_idx.dtype)
+
+        out_file.create_dataset(
+            'valid_gene_idx',
+            data=np.array(list(valid_gene_idx)).astype(idx_dtype),
+            dtype=idx_dtype)
+
+        out_file.create_dataset(
+            'n_down_indices', data=n_down_indices)
+
+        out_file.create_dataset(
+            'n_up_indices', data=n_up_indices)
 
 
 def _prep_output_file(
@@ -550,7 +592,7 @@ def _prep_output_file(
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names).encode('utf-8'))
 
         out_file.create_dataset(
@@ -562,3 +604,35 @@ def _prep_output_file(
             data=len(idx_to_pair))
 
     return idx_to_pair
+
+
+def _lookup_to_sparse(
+        indptr_to_indices):
+    """
+    Map a lookup of indptr idx to indices to a sparse
+    matrix array
+    """
+    n_indices = 0
+    max_indices = 0
+    for idx in indptr_to_indices:
+        n_indices += len(indptr_to_indices[idx])
+        if len(indptr_to_indices[idx]) > 0:
+            this_max = max(indptr_to_indices[idx])
+            if this_max > max_indices:
+                max_indices = this_max
+    indptr_dtype = choose_int_dtype((0, n_indices))
+    indices_dtype = choose_int_dtype((0, max_indices))
+    indptr = np.zeros(len(indptr_to_indices)+1, dtype=indptr_dtype)
+    indices = np.zeros(n_indices, dtype=indices_dtype)
+    idx_list = list(indptr_to_indices.keys())
+    idx_list.sort()
+    indptr_val = 0
+    for local_idx, global_idx in enumerate(idx_list):
+        this_indices = indptr_to_indices[global_idx]
+        indptr[local_idx] = indptr_val
+        indices[indptr_val:indptr_val+len(this_indices)] = this_indices
+        indptr_val += len(this_indices)
+
+    indptr[-1] = n_indices
+
+    return indptr, indices

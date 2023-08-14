@@ -74,11 +74,15 @@ def transpose_sparse_matrix_on_disk(
                 dtype=data_dtype,
                 chunks=(min(n_non_zero, n_indptr),))
 
+        if n_non_zero > 0:
+            chunks = (min(n_non_zero, n_indptr),)
+        else:
+            chunks = None
         dst.create_dataset(
             'indices',
             shape=n_non_zero,
             dtype=col_dtype,
-            chunks=(min(n_non_zero, n_indptr),))
+            chunks=chunks)
 
     print(f"created empty csr matrix at {output_path}")
 

@@ -272,10 +272,10 @@ def score_differential_genes(
     precomputed_stats:
         Dict mapping leaf node name to
             'n_cells'
-            'sum'
-            'sumsq'
-            'gt0'
-            'gt1'
+            'mean'
+            'var'
+            'n_cells'
+            'ge1'
 
     p_th/q1_th/qdiff_th:
         Thresholds for determining if the gene is a differentially
