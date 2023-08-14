@@ -17,7 +17,8 @@ def select_marker_genes_v2(
         taxonomy_tree,
         parent_node,
         n_per_utility=15,
-        lock=None):
+        lock=None,
+        summary_log=None):
     """
     Select marker genes given a reference set and a query set.
 
@@ -61,10 +62,18 @@ def select_marker_genes_v2(
        Optional multiprocessing lock to prevent stdout prints from
        stumbling over each other (can be None)
 
+    summary_log:
+        If not None, a dict-like object (probably a
+        multiprocessing.Manager.dict) mapping parent node
+        to a message summarizing the performance of marker
+        selection on that node).
+
     Returns
     -------
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
+
+    A string summarizing how well the marker selection did.
     """
     t0 = time.time()
 
@@ -101,7 +110,8 @@ def select_marker_genes_v2(
         print(f"parent: {parent_node} -- "
               f"preparation took {duration:.2e} hours")
 
-    marker_gene_names = _run_selection(
+    (marker_gene_names,
+     summary_log_message) = _run_selection(
         marker_gene_array=marker_gene_array,
         utility_array=utility_array,
         marker_census=marker_census,
@@ -109,6 +119,13 @@ def select_marker_genes_v2(
         n_per_utility=n_per_utility,
         parent_node=parent_node,
         lock=lock)
+
+    if summary_log is not None:
+        if parent_node is None:
+            log_key = 'None'
+        else:
+            log_key = f'{parent_node[0]}/{parent_node[1]}'
+        summary_log[log_key] = summary_log_message
 
     return marker_gene_names
 
@@ -217,7 +234,8 @@ def _run_selection(
         msg += _stats_from_marker_counts(marker_counts)
         msg += "\n============"
         print(msg)
-    return marker_gene_name_list
+
+    return marker_gene_name_list, msg
 
 
 def _choose_gene(

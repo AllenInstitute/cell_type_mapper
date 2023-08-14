@@ -325,6 +325,8 @@ def test_selection_worker_smoke(
                    ('class', 'aa'),
                    ('class', 'bb')]
 
+    summary_log = dict()
+
     for parent in parent_list:
         marker_gene_array = MarkerGeneArray.from_cache_path(
             cache_path=marker_cache_fixture)
@@ -336,7 +338,13 @@ def test_selection_worker_smoke(
             parent_node=parent,
             n_per_utility=5,
             output_dict=output_dict,
-            stdout_lock=DummyLock())
+            stdout_lock=DummyLock(),
+            summary_log=summary_log)
+
+    for k in ['None', 'subclass/e', 'class/aa', 'class/bb']:
+        assert k in summary_log
+
+    assert summary_log['class/bb'] == 'Skipping; no leaf nodes to compare'
 
     for parent in parent_list:
         if parent == ('class', 'bb'):
@@ -380,7 +388,8 @@ def test_full_marker_selection_smoke(
 
     query_gene_names = gene_names_fixture
 
-    result = select_all_markers(
+    (result,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
@@ -452,7 +461,8 @@ def test_full_marker_cache_creation_smoke(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -539,7 +549,8 @@ def test_marker_serialization(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -648,7 +659,8 @@ def test_marker_serialization_roundtrip(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,

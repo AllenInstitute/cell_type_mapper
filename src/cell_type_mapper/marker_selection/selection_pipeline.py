@@ -45,6 +45,9 @@ def select_all_markers(
     -------
     A dict mapping parent node tuple to list of marker gene
     names
+
+    A dict mapping parent node names to string summarizing the
+    performance of query marker selection
     """
 
     parent_to_leaves = dict()
@@ -69,6 +72,7 @@ def select_all_markers(
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
+    summary_log = mgr.dict()
     stdout_lock = mgr.Lock()
 
     started_parents = set()
@@ -114,7 +118,8 @@ def select_all_markers(
                             'parent_node': chosen_parent,
                             'n_per_utility': n_per_utility,
                             'output_dict': output_dict,
-                            'stdout_lock': stdout_lock})
+                            'stdout_lock': stdout_lock,
+                            'summary_log': summary_log})
                 p.start()
                 process_dict[chosen_parent] = p
 
@@ -131,7 +136,10 @@ def select_all_markers(
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
 
-    return dict(output_dict)
+    output_dict = dict(output_dict)
+    summary_log = dict(summary_log)
+
+    return output_dict, summary_log
 
 
 def _marker_selection_worker(
@@ -141,7 +149,8 @@ def _marker_selection_worker(
         parent_node,
         n_per_utility,
         output_dict,
-        stdout_lock):
+        stdout_lock,
+        summary_log):
 
     leaf_pair_list = taxonomy_tree.leaves_to_compare(
         parent_node=parent_node)
@@ -149,6 +158,12 @@ def _marker_selection_worker(
     # this could happen if a parent node has only one
     # immediate descendant
     if len(leaf_pair_list) == 0:
+        if summary_log is not None:
+            if parent_node is None:
+                log_key = 'None'
+            else:
+                log_key = f'{parent_node[0]}/{parent_node[1]}'
+            summary_log[log_key] = 'Skipping; no leaf nodes to compare'
         output_dict[parent_node] = []
         return
 
@@ -158,6 +173,7 @@ def _marker_selection_worker(
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node,
         n_per_utility=n_per_utility,
-        lock=stdout_lock)
+        lock=stdout_lock,
+        summary_log=summary_log)
 
     output_dict[parent_node] = marker_genes

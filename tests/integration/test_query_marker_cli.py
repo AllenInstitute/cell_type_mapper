@@ -77,11 +77,23 @@ def test_query_marker_cli_tool(
     with open(output_path, 'rb') as src:
         actual = json.load(src)
 
+    assert 'log' in actual
+    log = actual['log']
+    for level in taxonomy_tree_dict['hierarchy'][:-1]:
+        for node in taxonomy_tree_dict[level]:
+            log_key = f'{level}/{node}'
+            if level == drop_level:
+                assert log_key not in log
+            else:
+                assert log_key in log
+
     gene_ct = 0
     levels_found = set()
     actual_genes = set()
     for k in actual:
         if k == 'metadata':
+            continue
+        if k == 'log':
             continue
         if drop_level is not None:
             assert drop_level not in k

@@ -51,6 +51,9 @@ def create_marker_cache_from_reference_markers(
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff)
 
+    if 'log' in reformatted_lookup:
+        reformatted_lookup.pop('log')
+
     with h5py.File(input_cache_path, 'r') as in_file:
         reference_gene_names = json.loads(
             in_file['full_gene_names'][()].decode('utf-8'))
@@ -190,7 +193,8 @@ def create_raw_marker_gene_lookup(
 
     # create a dict mapping from parent_node to
     # lists of marker gene names
-    marker_lookup = select_all_markers(
+    (marker_lookup,
+     summary_log) = select_all_markers(
         marker_cache_path=input_cache_path,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -218,6 +222,9 @@ def create_raw_marker_gene_lookup(
 
         created_groups.add(parent_grp)
         reformatted_lookup[parent_grp] = marker_lookup.pop(parent)
+
+    reformatted_lookup['log'] = summary_log
+
     return reformatted_lookup
 
 
