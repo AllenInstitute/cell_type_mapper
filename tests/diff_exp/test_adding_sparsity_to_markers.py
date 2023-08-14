@@ -20,8 +20,8 @@ from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
 from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
     SparseMarkersByGene)
 
-from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
-    MarkerGeneArrayPureSparse)
+from cell_type_mapper.marker_selection.marker_array import (
+    MarkerGeneArray)
 
 
 @pytest.fixture(scope='module')
@@ -140,7 +140,7 @@ def test_adding_by_gene_sparse(
         max_gb=0.6,
         tmp_dir=tmp_dir_fixture)
 
-    sparse_markers = MarkerGeneArrayPureSparse.from_cache_path(
+    sparse_markers = MarkerGeneArray.from_cache_path(
         new_path)
 
     assert sparse_markers.has_sparse
@@ -288,7 +288,7 @@ def test_sparse_marker_access_class(
         max_gb=0.6,
         tmp_dir=tmp_dir_fixture)
 
-    sparse_markers = MarkerGeneArrayPureSparse.from_cache_path(
+    sparse_markers = MarkerGeneArray.from_cache_path(
         new_path)
 
     rng = np.random.default_rng(66513)

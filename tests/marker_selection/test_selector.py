@@ -22,8 +22,8 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 from cell_type_mapper.taxonomy.utils import (
     get_all_leaf_pairs)
 
-from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
-    MarkerGeneArrayPureSparse)
+from cell_type_mapper.marker_selection.marker_array import (
+    MarkerGeneArray)
 
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
@@ -278,7 +278,7 @@ def test_selecting_from_blank_markers(
         taxonomy_tree_fixture,
         blank_marker_cache_fixture):
 
-    marker_array = MarkerGeneArrayPureSparse.from_cache_path(
+    marker_array = MarkerGeneArray.from_cache_path(
         cache_path=blank_marker_cache_fixture)
 
     marker_genes = select_marker_genes_v2(
@@ -297,7 +297,7 @@ def test_selecting_from_no_matched_genes(
     """
     Test that case where no genes match raises an error
     """
-    marker_array = MarkerGeneArrayPureSparse.from_cache_path(
+    marker_array = MarkerGeneArray.from_cache_path(
         cache_path=marker_cache_fixture)
 
     with pytest.raises(RuntimeError, match='No gene overlap'):
@@ -326,7 +326,7 @@ def test_selection_worker_smoke(
                    ('class', 'bb')]
 
     for parent in parent_list:
-        marker_gene_array = MarkerGeneArrayPureSparse.from_cache_path(
+        marker_gene_array = MarkerGeneArray.from_cache_path(
             cache_path=marker_cache_fixture)
 
         _marker_selection_worker(

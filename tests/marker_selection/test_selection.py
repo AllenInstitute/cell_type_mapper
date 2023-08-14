@@ -13,8 +13,8 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
-    MarkerGeneArrayPureSparse)
+from cell_type_mapper.marker_selection.marker_array import (
+    MarkerGeneArray)
 
 from cell_type_mapper.marker_selection.selection import (
     recalculate_utility_array,
@@ -182,7 +182,7 @@ def marker_cache_fixture(
 def test_recalculate_utilty_array(
         marker_cache_fixture,
         n_genes):
-    arr = MarkerGeneArrayPureSparse.from_cache_path(
+    arr = MarkerGeneArray.from_cache_path(
         cache_path=marker_cache_fixture)
     util = np.zeros(n_genes, dtype=int)
     util = recalculate_utility_array(
@@ -219,7 +219,7 @@ def test_get_taxonomy_idx(
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_fixture)
 
-    arr = MarkerGeneArrayPureSparse.from_cache_path(
+    arr = MarkerGeneArray.from_cache_path(
         cache_path=marker_cache_fixture)
     np.testing.assert_array_equal(
         _get_taxonomy_idx(

@@ -12,8 +12,8 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
-    MarkerGeneArrayPureSparse)
+from cell_type_mapper.marker_selection.marker_array import (
+    MarkerGeneArray)
 
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file)
@@ -127,7 +127,7 @@ def test_create_utility_array(
         gb_size,
         taxonomy_mask):
 
-    arr = MarkerGeneArrayPureSparse.from_cache_path(
+    arr = MarkerGeneArray.from_cache_path(
         cache_path=marker_with_sparse_fixture)
 
     (actual_util,

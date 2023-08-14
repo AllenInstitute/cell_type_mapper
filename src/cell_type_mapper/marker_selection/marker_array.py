@@ -15,7 +15,7 @@ from cell_type_mapper.marker_selection.marker_array_utils import (
     _idx_of_pair)
 
 
-class MarkerGeneArrayPureSparse(object):
+class MarkerGeneArray(object):
     """
     A class providing access to the marker genes for a given reference
     dataset as computed and stored by
@@ -152,7 +152,7 @@ class MarkerGeneArrayPureSparse(object):
             col_idx,
             in_place=False)
 
-        return MarkerGeneArrayPureSparse(
+        return MarkerGeneArray(
             gene_names=self.gene_names,
             taxonomy_pair_to_idx=new_taxonomy_lookup,
             n_pairs=new_n_pairs,

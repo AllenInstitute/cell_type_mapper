@@ -31,8 +31,8 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
-    MarkerGeneArrayPureSparse)
+from cell_type_mapper.marker_selection.marker_array import (
+    MarkerGeneArray)
 
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
@@ -113,7 +113,7 @@ def test_marker_finding_pipeline(
 
     raw_gene_to_idx = {gene: ii for ii, gene in enumerate(gene_names)}
 
-    marker_parent = MarkerGeneArrayPureSparse.from_cache_path(
+    marker_parent = MarkerGeneArray.from_cache_path(
         marker_path)
 
     filtered_idx_to_gene = {ii: gene
