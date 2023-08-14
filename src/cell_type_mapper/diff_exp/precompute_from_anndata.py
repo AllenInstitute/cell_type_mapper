@@ -314,6 +314,7 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             cluster_chunk = np.array([
                 cell_name_to_output_row[cell_name_list[idx]]
                 for idx in range(r0, r1)
+                if cell_name_list[idx] in cell_name_to_output_row
             ])
             for unq_cluster in np.unique(cluster_chunk):
                 valid = np.where(cluster_chunk == unq_cluster)[0]
