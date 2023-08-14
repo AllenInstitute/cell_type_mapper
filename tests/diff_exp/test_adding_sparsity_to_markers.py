@@ -11,9 +11,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
-
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file)
 
@@ -22,9 +19,6 @@ from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
 
 from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
     SparseMarkersByGene)
-
-from cell_type_mapper.marker_selection.marker_array import (
-    MarkerGeneArray)
 
 from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
     MarkerGeneArrayPureSparse)

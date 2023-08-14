@@ -85,7 +85,8 @@ def create_utility_array_dense(
     As implemented, it is assumed that the rows of the arrays in cache_path
     are genes and the columns are taxonomy pairs
     """
-
+    raise RuntimeError(
+        "create_utility_array_dense is now defunct")
     n_pairs = marker_gene_array.n_pairs
     n_genes = marker_gene_array.n_genes
 

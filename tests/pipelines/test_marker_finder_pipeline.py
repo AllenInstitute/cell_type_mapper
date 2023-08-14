@@ -31,15 +31,6 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
-
-from cell_type_mapper.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
-
-from cell_type_mapper.marker_selection.marker_array import (
-    MarkerGeneArray)
-
 from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
     MarkerGeneArrayPureSparse)
 
@@ -128,20 +119,6 @@ def test_marker_finding_pipeline(
     filtered_idx_to_gene = {ii: gene
                             for ii, gene in enumerate(marker_parent.gene_names)}
 
-    markers = BinarizedBooleanArray(
-        n_rows=len(filtered_gene_names),
-        n_cols=n_cols)
-    up_regulated = BinarizedBooleanArray(
-        n_rows=len(filtered_gene_names),
-        n_cols=n_cols)
-
-    for i_pair in range(n_cols):
-        (marker_mask,
-         up_mask) = marker_parent.marker_mask_from_pair_idx(
-                        pair_idx=i_pair)
-        markers.set_col(i_pair, marker_mask)
-        up_regulated.set_col(i_pair, up_mask)
-
     tot_markers = 0
     marker_sum = 0
     tot_up = 0
@@ -177,8 +154,8 @@ def test_marker_finding_pipeline(
                 expected_up_reg = np.array(expected_up_reg)
 
                 idx = pair_to_idx[level][node1][node2]
-                actual_markers = markers.get_col(idx)
-                actual_up_reg = up_regulated.get_col(idx)
+                (actual_markers,
+                 actual_up_reg) = marker_parent.marker_mask_from_pair_idx(idx)
 
                 if expected_markers.sum() > 0:
                     assert actual_markers.sum() > 0

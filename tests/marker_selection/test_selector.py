@@ -6,6 +6,7 @@ import h5py
 import json
 import numpy as np
 import pathlib
+import scipy.sparse as scipy_sparse
 import shutil
 
 from cell_type_mapper.utils.utils import (
@@ -21,11 +22,8 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 from cell_type_mapper.taxonomy.utils import (
     get_all_leaf_pairs)
 
-from cell_type_mapper.binary_array.binary_array import (
-    BinarizedBooleanArray)
-
-from cell_type_mapper.marker_selection.marker_array import (
-    MarkerGeneArray)
+from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
+    MarkerGeneArrayPureSparse)
 
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
@@ -41,6 +39,9 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     write_query_markers_to_h5)
 
 from cell_type_mapper.cli.cli_log import CommandLog
+
+from cell_type_mapper.diff_exp.markers import (
+    add_sparse_by_gene_markers_to_file)
 
 
 @pytest.fixture(scope='module')
@@ -153,25 +154,15 @@ def marker_cache_fixture(
     n_rows = len(gene_names_fixture)
     n_cols = pair_to_idx_fixture['n_pairs']
 
-    is_marker = BinarizedBooleanArray(
-        n_rows=n_rows,
-        n_cols=n_cols)
+    up_regulated = np.logical_and(
+        is_marker_fixture,
+        up_reg_fixture)
+    down_regulated = np.logical_and(
+        is_marker_fixture,
+        np.logical_not(up_reg_fixture))
 
-    up_reg = BinarizedBooleanArray(
-        n_rows=n_rows,
-        n_cols=n_cols)
-
-    for i_row in range(n_rows):
-        is_marker.set_row(i_row, is_marker_fixture[i_row, :])
-        up_reg.set_row(i_row, up_reg_fixture[i_row, :])
-
-    is_marker.write_to_h5(
-        h5_path=out_path,
-        h5_group='markers')
-
-    up_reg.write_to_h5(
-        h5_path=out_path,
-        h5_group='up_regulated')
+    csc_up = scipy_sparse.csc_array(up_regulated)
+    csc_down = scipy_sparse.csc_array(down_regulated)
 
     # Add some nonsense genes to full_gene_names and shuffle.
     # This is meant to simulate the case where the reference
@@ -199,6 +190,26 @@ def marker_cache_fixture(
             'n_pairs',
             data=n_cols)
 
+        grp = dst.create_group('sparse_by_pair')
+        grp.create_dataset(
+            'up_gene_idx',
+            data=csc_up.indices)
+        grp.create_dataset(
+            'up_pair_idx',
+            data=csc_up.indptr)
+        grp.create_dataset(
+            'down_gene_idx',
+            data=csc_down.indices)
+        grp.create_dataset(
+            'down_pair_idx',
+            data=csc_down.indptr)
+
+    add_sparse_by_gene_markers_to_file(
+        h5_path=out_path,
+        n_genes=len(gene_names_fixture),
+        max_gb=3,
+        tmp_dir=tmp_dir_fixture)
+
     return out_path
 
 
@@ -219,21 +230,12 @@ def blank_marker_cache_fixture(
     n_rows = len(gene_names_fixture)
     n_cols = pair_to_idx_fixture['n_pairs']
 
-    is_marker = BinarizedBooleanArray(
-        n_rows=n_rows,
-        n_cols=n_cols)
+    up_regulated = np.zeros((n_rows, n_cols), dtype=bool)
+    down_regulated = np.zeros((n_rows, n_cols), dtype=bool)
 
-    up_reg = BinarizedBooleanArray(
-        n_rows=n_rows,
-        n_cols=n_cols)
+    csc_up = scipy_sparse.csc_array(up_regulated)
+    csc_down = scipy_sparse.csc_array(down_regulated)
 
-    is_marker.write_to_h5(
-        h5_path=out_path,
-        h5_group='markers')
-
-    up_reg.write_to_h5(
-        h5_path=out_path,
-        h5_group='up_regulated')
 
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
@@ -248,6 +250,26 @@ def blank_marker_cache_fixture(
             'n_pairs',
             data=n_cols)
 
+        grp = dst.create_group('sparse_by_pair')
+        grp.create_dataset(
+            'up_gene_idx',
+            data=csc_up.indices)
+        grp.create_dataset(
+            'up_pair_idx',
+            data=csc_up.indptr)
+        grp.create_dataset(
+            'down_gene_idx',
+            data=csc_down.indices)
+        grp.create_dataset(
+            'down_pair_idx',
+            data=csc_down.indptr)
+
+    add_sparse_by_gene_markers_to_file(
+        h5_path=out_path,
+        n_genes=len(gene_names_fixture),
+        max_gb=3,
+        tmp_dir=tmp_dir_fixture)
+
     return out_path
 
 
@@ -256,7 +278,7 @@ def test_selecting_from_blank_markers(
         taxonomy_tree_fixture,
         blank_marker_cache_fixture):
 
-    marker_array = MarkerGeneArray.from_cache_path(
+    marker_array = MarkerGeneArrayPureSparse.from_cache_path(
         cache_path=blank_marker_cache_fixture)
 
     marker_genes = select_marker_genes_v2(
@@ -275,7 +297,7 @@ def test_selecting_from_no_matched_genes(
     """
     Test that case where no genes match raises an error
     """
-    marker_array = MarkerGeneArray.from_cache_path(
+    marker_array = MarkerGeneArrayPureSparse.from_cache_path(
         cache_path=marker_cache_fixture)
 
     with pytest.raises(RuntimeError, match='No gene overlap'):
@@ -304,7 +326,7 @@ def test_selection_worker_smoke(
                    ('class', 'bb')]
 
     for parent in parent_list:
-        marker_gene_array = MarkerGeneArray.from_cache_path(
+        marker_gene_array = MarkerGeneArrayPureSparse.from_cache_path(
             cache_path=marker_cache_fixture)
 
         _marker_selection_worker(

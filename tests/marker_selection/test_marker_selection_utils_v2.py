@@ -5,25 +5,21 @@ from itertools import product
 import json
 import numpy as np
 import pathlib
+import scipy.sparse as scipy_sparse
 import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.binary_array.backed_binary_array import (
-    BackedBinarizedBooleanArray)
+from cell_type_mapper.marker_selection.marker_array_purely_sparse import (
+    MarkerGeneArrayPureSparse)
 
-from cell_type_mapper.marker_selection.marker_array import (
-    MarkerGeneArray)
-
-from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
-    add_sparse_markers_by_pair_to_h5)
+from cell_type_mapper.diff_exp.markers import (
+    add_sparse_by_gene_markers_to_file)
 
 from cell_type_mapper.marker_selection.utils import (
-    create_utility_array,
-    create_utility_array_dense,
-    create_utility_array_sparse)
+    create_utility_array)
 
 
 @pytest.fixture(scope='module')
@@ -61,7 +57,7 @@ def up_regulated_fixture(
 
 
 @pytest.fixture
-def backed_array_fixture(
+def marker_with_sparse_fixture(
         mask_array_fixture,
         up_regulated_fixture,
         tmp_dir_fixture,
@@ -71,34 +67,18 @@ def backed_array_fixture(
     h5_path = pathlib.Path(
         mkstemp_clean(dir=tmp_dir_fixture,
                       suffix='.h5'))
-    h5_path.unlink()
 
-    arr = BackedBinarizedBooleanArray(
-        h5_path=h5_path,
-        h5_group='markers',
-        n_rows=n_rows,
-        n_cols=n_cols,
-        read_only=False)
+    up_regulated = np.logical_and(
+        mask_array_fixture,
+        up_regulated_fixture)
+    down_regulated = np.logical_and(
+        mask_array_fixture,
+        np.logical_not(up_regulated_fixture))
 
-    for i_col in range(n_cols):
-        arr.set_col(i_col, mask_array_fixture[:, i_col])
+    csc_up = scipy_sparse.csc_array(up_regulated)
+    csc_down = scipy_sparse.csc_array(down_regulated)
 
-    del arr
-
-    arr = BackedBinarizedBooleanArray(
-        h5_path=h5_path,
-        h5_group='up_regulated',
-        n_rows=n_rows,
-        n_cols=n_cols,
-        read_only=False)
-
-    for i_col in range(n_cols):
-        arr.set_col(i_col, up_regulated_fixture[:, i_col])
-
-    del arr
-
-
-    with h5py.File(h5_path, "a") as out_file:
+    with h5py.File(h5_path, "w") as out_file:
         out_file.create_dataset('n_pairs', data=n_cols)
         out_file.create_dataset(
             'gene_names',
@@ -108,23 +88,25 @@ def backed_array_fixture(
             'pair_to_idx',
             data=json.dumps({'a': 1, 'b':2}).encode('utf-8'))
 
-    return h5_path
+        grp = out_file.create_group('sparse_by_pair')
+        grp.create_dataset(
+            'up_gene_idx',
+            data=csc_up.indices)
+        grp.create_dataset(
+            'up_pair_idx',
+            data=csc_up.indptr)
+        grp.create_dataset(
+            'down_gene_idx',
+            data=csc_down.indices)
+        grp.create_dataset(
+            'down_pair_idx',
+            data=csc_down.indptr)
 
-
-@pytest.fixture
-def marker_with_sparse_fixture(
-        backed_array_fixture,
-        tmp_dir_fixture):
-
-    h5_path = pathlib.Path(
-        mkstemp_clean(dir=tmp_dir_fixture,
-                      suffix='.h5'))
-
-    shutil.copy(
-        src=backed_array_fixture,
-        dst=h5_path)
-
-    add_sparse_markers_by_pair_to_h5(h5_path)
+    add_sparse_by_gene_markers_to_file(
+        h5_path=h5_path,
+        n_genes=n_rows,
+        max_gb=3,
+        tmp_dir=tmp_dir_fixture)
 
     with h5py.File(h5_path, 'r') as src:
         assert 'sparse_by_pair' in src
@@ -132,50 +114,21 @@ def marker_with_sparse_fixture(
     return h5_path
 
 
-@pytest.mark.parametrize("taxonomy_mask",
-    [None, np.array([13, 22, 81, 37])])
-def test_create_utility_array_sparse(
-       marker_with_sparse_fixture,
-       taxonomy_mask):
-    """
-    Test consistency of dense and sparse utility array
-    calculation
-    """
-    arr = MarkerGeneArray.from_cache_path(
-        cache_path=marker_with_sparse_fixture)
-
-    (utility_dense,
-     census_dense) = create_utility_array_dense(
-         marker_gene_array=arr,
-         taxonomy_mask=taxonomy_mask)
-
-    (utility_sparse,
-     census_sparse) = create_utility_array_sparse(
-         marker_gene_array=arr,
-         taxonomy_mask=taxonomy_mask)
-
 @pytest.mark.parametrize(
-        "gb_size, taxonomy_mask, use_sparse",
+        "gb_size, taxonomy_mask",
         product([1, 1.0e-7],
-                [None, np.array([13, 22, 81, 37])],
-                [True, False]))
+                [None, np.array([13, 22, 81, 37])]))
 def test_create_utility_array(
         mask_array_fixture,
         up_regulated_fixture,
-        backed_array_fixture,
         marker_with_sparse_fixture,
         n_rows,
         n_cols,
         gb_size,
-        taxonomy_mask,
-        use_sparse):
+        taxonomy_mask):
 
-    if use_sparse:
-        arr = MarkerGeneArray.from_cache_path(
-            cache_path=marker_with_sparse_fixture)
-    else:
-        arr = MarkerGeneArray.from_cache_path(
-            cache_path=backed_array_fixture)
+    arr = MarkerGeneArrayPureSparse.from_cache_path(
+        cache_path=marker_with_sparse_fixture)
 
     (actual_util,
      actual_census) = create_utility_array(
