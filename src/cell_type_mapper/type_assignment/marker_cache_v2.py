@@ -103,6 +103,8 @@ def create_marker_cache_from_specified_markers(
     for parent_node in marker_lookup:
         if parent_node == 'metadata':
             continue
+        if parent_node == 'log':
+            continue
         marker_set = set(marker_lookup[parent_node])
         these_markers = list(marker_set.intersection(query_gene_set))
 

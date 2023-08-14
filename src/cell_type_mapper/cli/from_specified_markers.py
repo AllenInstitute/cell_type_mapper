@@ -130,7 +130,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
 
     drop_level = argschema.fields.String(
         required=False,
-        default="CCN20230504_SUPT",
+        default=None,
         allow_none=True,
         description="If this level exists in the taxonomy, drop "
         "it before doing type assignment (this is to accommmodate "

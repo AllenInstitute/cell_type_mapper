@@ -2,6 +2,8 @@ import pytest
 
 import anndata
 import copy
+import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -9,6 +11,18 @@ import pathlib
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
+
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
+
+from cell_type_mapper.diff_exp.markers import (
+    find_markers_for_all_taxonomy_pairs)
+
+from cell_type_mapper.type_assignment.marker_cache_v2 import (
+    create_marker_cache_from_reference_markers)
 
 
 @pytest.fixture(scope='module')
@@ -262,4 +276,114 @@ def raw_query_h5ad_fixture(
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
 
+@pytest.fixture(scope='module')
+def precomputed_path_fixture(
+        tmp_dir_fixture,
+        raw_reference_h5ad_fixture,
+        taxonomy_tree_dict):
 
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    precomputed_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_',
+        suffix='.h5')
+
+    precompute_summary_stats_from_h5ad(
+        data_path=raw_reference_h5ad_fixture,
+        column_hierarchy=None,
+        taxonomy_tree=taxonomy_tree,
+        output_path=precomputed_path,
+        rows_at_a_time=1000,
+        normalization='raw')
+
+    # make sure it is not empty
+    with h5py.File(precomputed_path, 'r') as in_file:
+        assert len(in_file.keys()) > 0
+
+    return precomputed_path
+
+
+@pytest.fixture(scope='module')
+def ref_marker_path_fixture(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        taxonomy_tree_dict):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    ref_marker_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='reference_markers_',
+        suffix='.h5')
+
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precomputed_path_fixture,
+        taxonomy_tree=taxonomy_tree,
+        output_path=ref_marker_path,
+        tmp_dir=tmp_dir_fixture,
+        max_gb=0.006)
+
+    with h5py.File(ref_marker_path, 'r') as in_file:
+        assert len(in_file.keys()) > 0
+        assert in_file['sparse_by_pair/up_gene_idx'].shape[0] > 0
+        assert in_file['sparse_by_pair/down_gene_idx'].shape[0] > 0
+
+    return ref_marker_path
+
+
+@pytest.fixture(scope='module')
+def marker_cache_path_fixture(
+        tmp_dir_fixture,
+        taxonomy_tree_dict,
+        ref_marker_path_fixture,
+        query_gene_names):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    marker_cache_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='ref_and_query_markers_',
+        suffix='.h5')
+
+    create_marker_cache_from_reference_markers(
+        output_cache_path=marker_cache_path,
+        input_cache_path=ref_marker_path_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=1000000)
+
+    with h5py.File(marker_cache_path, 'r') as in_file:
+        assert len(in_file['None']['reference'][()]) > 0
+
+    return marker_cache_path
+
+
+@pytest.fixture(scope='module')
+def full_marker_name_fixture(
+        marker_cache_path_fixture,
+        taxonomy_tree_dict):
+    """
+    Return a list of the names of all of the genes that
+    were found as query markers
+    """
+    gene_name_list = []
+    with h5py.File(marker_cache_path_fixture) as src:
+        reference_gene_names = json.loads(
+            src['reference_gene_names'][()].decode('utf-8'))
+        gene_name_list += [
+            reference_gene_names[idx]
+            for idx in src['None']['reference'][()]]
+        for level in taxonomy_tree_dict['hierarchy'][:-1]:
+            for node in taxonomy_tree_dict[level]:
+                gene_name_list += [
+                    reference_gene_names[idx]
+                    for idx in src[level][node]['reference'][()]]
+    gene_name_list = list(set(gene_name_list))
+    gene_name_list.sort()
+    return gene_name_list
