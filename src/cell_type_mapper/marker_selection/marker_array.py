@@ -75,6 +75,19 @@ class MarkerGeneArray(object):
         self.up_by_gene = up_by_gene
         self.down_by_gene = down_by_gene
 
+    def spawn_copy(self):
+        """
+        Return a copy of self
+        """
+        return MarkerGeneArray(
+            gene_names=self._gene_names,
+            n_pairs=self.n_pairs,
+            taxonomy_pair_to_idx=self.taxonomy_pair_to_idx,
+            up_by_pair=self.up_by_pair,
+            down_by_pair=self.down_by_pair,
+            up_by_gene=self.up_by_gene,
+            down_by_gene=self.down_by_gene)
+
     @classmethod
     def from_cache_path(
             cls,

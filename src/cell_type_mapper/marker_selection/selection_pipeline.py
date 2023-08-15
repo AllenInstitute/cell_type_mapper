@@ -119,7 +119,8 @@ def select_all_markers(
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
                         kwargs={
-                            'marker_gene_array': marker_gene_array,
+                            'marker_gene_array':
+                                marker_gene_array.spawn_copy(),
                             'query_gene_names': query_gene_names,
                             'taxonomy_tree': taxonomy_tree,
                             'parent_node': chosen_parent,
