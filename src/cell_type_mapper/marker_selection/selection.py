@@ -381,7 +381,8 @@ def _thin_marker_gene_array(
         return marker_gene_array
 
     reference_gene_idx = np.where(reference_gene_mask)[0]
-    marker_gene_array.downsample_genes(reference_gene_idx)
+    marker_gene_array = marker_gene_array.downsample_genes_to_other(
+            reference_gene_idx)
     return marker_gene_array
 
 
