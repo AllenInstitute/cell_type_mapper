@@ -117,14 +117,10 @@ class MarkerGeneArray(object):
 
     def downsample_pairs_to_other(
             self,
-            only_keep_pairs,
-            copy_sparse=False):
+            only_keep_pairs):
         """
         Create and return a new MarkerGeneArray, only keeping
         the specified taxonomy pairs.
-
-        copy_sparse is a no-op to preserve
-        compatibility with dense implementation
         """
         col_idx = np.array(
             [_idx_of_pair(
@@ -174,6 +170,37 @@ class MarkerGeneArray(object):
         self.up_by_pair.keep_only_genes(gene_idx_array, in_place=True)
         self.down_by_gene.keep_only_genes(gene_idx_array, in_place=True)
         self.down_by_pair.keep_only_genes(gene_idx_array, in_place=True)
+
+    def downsample_genes_to_other(self, gene_idx_array):
+        """
+        Downselect to just the specified genes
+        """
+        print("downsampling genes")
+        new_gene_names = [
+            self._gene_names[ii]
+            for ii in gene_idx_array]
+
+        new_up_by_gene = self.up_by_gene.keep_only_genes(
+                gene_idx_array,
+                in_place=False)
+        new_up_by_pair = self.up_by_pair.keep_only_genes(
+                gene_idx_array,
+                in_place=False)
+        new_down_by_gene = self.down_by_gene.keep_only_genes(
+                gene_idx_array,
+                in_place=False)
+        new_down_by_pair = self.down_by_pair.keep_only_genes(
+                gene_idx_array,
+                in_place=False)
+
+        return MarkerGeneArray(
+            gene_names=new_gene_names,
+            taxonomy_pair_to_idx=self.taxonomy_pair_to_idx,
+            n_pairs=self.n_pairs,
+            up_by_pair=new_up_by_pair,
+            down_by_pair=new_down_by_pair,
+            up_by_gene=new_up_by_gene,
+            down_by_gene=new_down_by_gene)
 
     @property
     def has_sparse(self):
