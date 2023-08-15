@@ -18,7 +18,8 @@ def select_marker_genes_v2(
         parent_node,
         n_per_utility=15,
         lock=None,
-        summary_log=None):
+        summary_log=None,
+        tmp_dir=None):
     """
     Select marker genes given a reference set and a query set.
 
@@ -68,6 +69,10 @@ def select_marker_genes_v2(
         to a summary of the performance of marker
         selection on that node).
 
+    tmp_dir:
+        Directory for storing scratch files so big matrix manipulations
+        do not happen in memory.
+
     Returns
     -------
     A list of marker gene names.
@@ -86,7 +91,8 @@ def select_marker_genes_v2(
 
     marker_gene_array = _thin_marker_gene_array(
         marker_gene_array=marker_gene_array,
-        query_gene_names=query_gene_names)
+        query_gene_names=query_gene_names,
+        tmp_dir=tmp_dir)
 
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
@@ -343,7 +349,8 @@ def _choose_desperate_markers(
 
 def _thin_marker_gene_array(
         marker_gene_array,
-        query_gene_names):
+        query_gene_names,
+        tmp_dir=None):
     """
     Remove rows that are not in the query gene set from
     marker_gene_array
@@ -355,6 +362,9 @@ def _thin_marker_gene_array(
         from the reference dataset
     query_gene_names:
         List of the names of the genes in the query dataset
+    tmp_dir:
+        Directory for storing scratch files so big matrix manipulations
+        do not happen in memory.
 
     Returns
     -------
@@ -382,7 +392,8 @@ def _thin_marker_gene_array(
 
     reference_gene_idx = np.where(reference_gene_mask)[0]
     marker_gene_array.downsample_genes(
-            reference_gene_idx)
+            reference_gene_idx,
+            tmp_dir=tmp_dir)
     return marker_gene_array
 
 

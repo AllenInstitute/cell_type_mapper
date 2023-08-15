@@ -1,6 +1,12 @@
 import h5py
 import numpy as np
+import pathlib
+import tempfile
 import time
+
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
 
 
 def csc_to_csr_on_disk(
@@ -41,6 +47,68 @@ def csc_to_csr_on_disk(
         n_indices=array_shape[0],
         max_gb=max_gb,
         output_path=csr_path)
+
+
+def transpose_by_way_of_disk(
+        indices,
+        indptr,
+        n_indices,
+        max_gb=10,
+        tmp_dir=None):
+    """
+    Transpose a sparse matrix by writing it to disk
+    in an h5ad file and then using transpose_sparse_matrix_on_disk.
+
+    Return indptr, indices for the transposed matrix.
+
+    (presently ignore 'data' since that's how we are using this tool)
+
+    (n_indices is the size of the array dimension encoded by the
+    old indices value)
+    """
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='transposing_sparse_matrix_'))
+
+    src_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix='src_',
+            suffix='.h5'))
+
+    dst_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix='dst_',
+            suffix='.h5'))
+
+    with h5py.File(src_path, 'w') as dst:
+        chunks = min(len(indices), 10000)
+        if chunks == 0:
+            chunks = None
+        dst.create_dataset(
+            'indices',
+            data=indices,
+            chunks=chunks)
+        dst.create_dataset(
+            'indptr',
+            data=indptr)
+
+    with h5py.File(src_path, 'r') as src:
+        transpose_sparse_matrix_on_disk(
+            indices_handle=src['indices'],
+            indptr_handle=src['indptr'],
+            data_handle=None,
+            n_indices=n_indices,
+            max_gb=max_gb,
+            output_path=dst_path)
+    with h5py.File(dst_path, 'r') as src:
+        indptr = src['indptr'][()]
+        indices = src['indices'][()]
+
+    _clean_up(tmp_dir)
+    return indptr, indices
 
 
 def transpose_sparse_matrix_on_disk(

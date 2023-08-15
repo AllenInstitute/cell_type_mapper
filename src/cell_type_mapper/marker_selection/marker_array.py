@@ -3,7 +3,10 @@ import h5py
 import json
 import numpy as np
 import pathlib
-import scipy.sparse as scipy_sparse
+import tempfile
+
+from cell_type_mapper.utils.csc_to_csr import (
+    transpose_by_way_of_disk)
 
 from cell_type_mapper.utils.sparse_utils import (
     downsample_indptr)
@@ -134,7 +137,8 @@ class MarkerGeneArray(object):
 
     def downsample_pairs_to_other(
             self,
-            only_keep_pairs):
+            only_keep_pairs,
+            tmp_dir=None):
         """
         Create and return a new MarkerGeneArray, only keeping
         the specified taxonomy pairs.
@@ -162,16 +166,17 @@ class MarkerGeneArray(object):
             gene_idx=new_gene_idx,
             pair_idx=new_pair_idx)
 
-        transpose = scipy_sparse.csc_array(
-            scipy_sparse.csr_array(
-                (np.ones(len(new_gene_idx), dtype=bool),
-                 new_gene_idx,
-                 new_pair_idx),
-                shape=(new_n_pairs, self.n_genes)).toarray())
+        (by_gene_gene,
+         by_gene_pair) = transpose_by_way_of_disk(
+             indices=new_gene_idx,
+             indptr=new_pair_idx,
+             n_indices=self.n_genes,
+             max_gb=10,
+             tmp_dir=tmp_dir)
 
         up_by_gene = SparseMarkersByGene(
-            gene_idx=transpose.indptr,
-            pair_idx=transpose.indices)
+            gene_idx=by_gene_gene,
+            pair_idx=by_gene_pair)
 
         (new_pair_idx,
          new_gene_idx) = downsample_indptr(
@@ -183,16 +188,17 @@ class MarkerGeneArray(object):
             gene_idx=new_gene_idx,
             pair_idx=new_pair_idx)
 
-        transpose = scipy_sparse.csc_array(
-            scipy_sparse.csr_array(
-                (np.ones(len(new_gene_idx), dtype=bool),
-                 new_gene_idx,
-                 new_pair_idx),
-                shape=(new_n_pairs, self.n_genes)).toarray())
+        (by_gene_gene,
+         by_gene_pair) = transpose_by_way_of_disk(
+             indices=new_gene_idx,
+             indptr=new_pair_idx,
+             n_indices=self.n_genes,
+             max_gb=10,
+             tmp_dir=tmp_dir)
 
         down_by_gene = SparseMarkersByGene(
-            gene_idx=transpose.indptr,
-            pair_idx=transpose.indices)
+            gene_idx=by_gene_gene,
+            pair_idx=by_gene_pair)
 
         return MarkerGeneArray(
             gene_names=self.gene_names,
@@ -203,16 +209,23 @@ class MarkerGeneArray(object):
             up_by_pair=up_by_pair,
             down_by_pair=down_by_pair)
 
-    def _downsample_genes(self, gene_idx_array, in_place=False):
+    def _downsample_genes(
+            self,
+            gene_idx_array,
+            in_place=False,
+            tmp_dir=None):
         """
         Downselect to just the specified genes
         """
+
+        tmp_dir = tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='downsampling_by_genes_')
+
         print("downsampling genes")
         new_gene_names = [
             self._gene_names[ii]
             for ii in gene_idx_array]
-
-        new_n_genes = len(new_gene_names)
 
         (new_gene_idx,
          new_pair_idx) = downsample_indptr(
@@ -224,16 +237,17 @@ class MarkerGeneArray(object):
             gene_idx=new_gene_idx,
             pair_idx=new_pair_idx)
 
-        transpose = scipy_sparse.csc_array(
-            scipy_sparse.csr_array(
-                (np.ones(len(new_pair_idx), dtype=bool),
-                 new_pair_idx,
-                 new_gene_idx),
-                shape=(new_n_genes, self.n_pairs)).toarray())
+        (by_pair_pair,
+         by_pair_gene) = transpose_by_way_of_disk(
+             indices=new_pair_idx,
+             indptr=new_gene_idx,
+             n_indices=self.n_pairs,
+             max_gb=15,
+             tmp_dir=tmp_dir)
 
         up_by_pair = SparseMarkersByPair(
-            gene_idx=transpose.indices,
-            pair_idx=transpose.indptr)
+                gene_idx=by_pair_gene,
+                pair_idx=by_pair_pair)
 
         (new_gene_idx,
          new_pair_idx) = downsample_indptr(
@@ -245,16 +259,17 @@ class MarkerGeneArray(object):
             gene_idx=new_gene_idx,
             pair_idx=new_pair_idx)
 
-        transpose = scipy_sparse.csc_array(
-            scipy_sparse.csr_array(
-                (np.ones(len(new_pair_idx), dtype=bool),
-                 new_pair_idx,
-                 new_gene_idx),
-                shape=(new_n_genes, self.n_pairs)).toarray())
+        (by_pair_pair,
+         by_pair_gene) = transpose_by_way_of_disk(
+             indices=new_pair_idx,
+             indptr=new_gene_idx,
+             n_indices=self.n_pairs,
+             max_gb=15,
+             tmp_dir=tmp_dir)
 
         down_by_pair = SparseMarkersByPair(
-            gene_idx=transpose.indices,
-            pair_idx=transpose.indptr)
+            gene_idx=by_pair_gene,
+            pair_idx=by_pair_pair)
 
         if in_place:
             self._gene_names = new_gene_names
@@ -273,17 +288,29 @@ class MarkerGeneArray(object):
             up_by_gene=up_by_gene,
             down_by_gene=down_by_gene)
 
-    def downsample_genes(self, gene_idx_array):
+    def downsample_genes(
+            self,
+            gene_idx_array,
+            tmp_dir=None):
         """
         Downselect to just the specified genes
         """
-        self._downsample_genes(gene_idx_array, in_place=True)
+        self._downsample_genes(
+            gene_idx_array,
+            in_place=True,
+            tmp_dir=tmp_dir)
 
-    def downsample_genes_to_other(self, gene_idx_array):
+    def downsample_genes_to_other(
+            self,
+            gene_idx_array,
+            tmp_dir=None):
         """
         Downselect to just the specified genes
         """
-        return self._downsample_genes(gene_idx_array, in_place=False)
+        return self._downsample_genes(
+            gene_idx_array,
+            in_place=False,
+            tmp_dir=tmp_dir)
 
     @property
     def has_sparse(self):
