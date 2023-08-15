@@ -104,6 +104,13 @@ def select_all_markers(
             started_parents.add(chosen_parent)
             leaves = parent_to_leaves[chosen_parent]
             if len(leaves) == 0:
+                if chosen_parent is None:
+                    log_key = 'None'
+                else:
+                    log_key = f'{chosen_parent[0]}/{chosen_parent[1]}'
+                summary_log[log_key] = {
+                    'n_genes': 0,
+                    'msg': 'Skipping; no leaf nodes to compare'}
                 output_dict[chosen_parent] = []
                 completed_parents.add(chosen_parent)
             else:

@@ -615,7 +615,12 @@ def recalculate_utility_array(
 
 def _stats_from_marker_counts(
         marker_counts):
+
     genes_per_pair = marker_counts.sum(axis=1)
+
+    # these stats are by pair, *not* by utility set
+    # (i.e. up_ and down_regulated markers are lumped together
+    # for the given taxon pairs)
     med_genes = np.median(genes_per_pair)
     min_genes = genes_per_pair.min()
     max_genes = genes_per_pair.max()
