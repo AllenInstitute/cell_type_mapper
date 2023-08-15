@@ -330,6 +330,8 @@ def ref_marker_path_fixture(
         assert len(in_file.keys()) > 0
         assert in_file['sparse_by_pair/up_gene_idx'].shape[0] > 0
         assert in_file['sparse_by_pair/down_gene_idx'].shape[0] > 0
+        assert in_file['sparse_by_gene/up_pair_idx'].shape[0] > 0
+        assert in_file['sparse_by_gene/down_pair_idx'].shape[0] > 0
 
     return ref_marker_path
 

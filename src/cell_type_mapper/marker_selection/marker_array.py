@@ -3,7 +3,6 @@ import h5py
 import json
 import numpy as np
 import pathlib
-import tempfile
 
 from cell_type_mapper.utils.csc_to_csr import (
     transpose_by_way_of_disk)
@@ -218,10 +217,6 @@ class MarkerGeneArray(object):
         Downselect to just the specified genes
         """
 
-        tmp_dir = tempfile.mkdtemp(
-            dir=tmp_dir,
-            prefix='downsampling_by_genes_')
-
         print("downsampling genes")
         new_gene_names = [
             self._gene_names[ii]
@@ -242,7 +237,7 @@ class MarkerGeneArray(object):
              indices=new_pair_idx,
              indptr=new_gene_idx,
              n_indices=self.n_pairs,
-             max_gb=15,
+             max_gb=10,
              tmp_dir=tmp_dir)
 
         up_by_pair = SparseMarkersByPair(
@@ -264,7 +259,7 @@ class MarkerGeneArray(object):
              indices=new_pair_idx,
              indptr=new_gene_idx,
              n_indices=self.n_pairs,
-             max_gb=15,
+             max_gb=10,
              tmp_dir=tmp_dir)
 
         down_by_pair = SparseMarkersByPair(
