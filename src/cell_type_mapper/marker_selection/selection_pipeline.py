@@ -163,7 +163,9 @@ def _marker_selection_worker(
                 log_key = 'None'
             else:
                 log_key = f'{parent_node[0]}/{parent_node[1]}'
-            summary_log[log_key] = 'Skipping; no leaf nodes to compare'
+            summary_log[log_key] = {
+                'n_genes': 0,
+                'msg': 'Skipping; no leaf nodes to compare'}
         output_dict[parent_node] = []
         return
 

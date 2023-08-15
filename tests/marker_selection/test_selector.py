@@ -344,7 +344,9 @@ def test_selection_worker_smoke(
     for k in ['None', 'subclass/e', 'class/aa', 'class/bb']:
         assert k in summary_log
 
-    assert summary_log['class/bb'] == 'Skipping; no leaf nodes to compare'
+    assert summary_log['class/bb'] == {
+        'n_genes': 0,
+        'msg': 'Skipping; no leaf nodes to compare'}
 
     for parent in parent_list:
         if parent == ('class', 'bb'):

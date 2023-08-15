@@ -65,7 +65,7 @@ def select_marker_genes_v2(
     summary_log:
         If not None, a dict-like object (probably a
         multiprocessing.Manager.dict) mapping parent node
-        to a message summarizing the performance of marker
+        to a summary of the performance of marker
         selection on that node).
 
     Returns
@@ -184,6 +184,7 @@ def _run_selection(
         n_per_utility=n_per_utility,
         n_desperate=n_per_utility)
 
+    broke_because = ''
     while True:
 
         # because the utility_array for genes that are not in the query
@@ -191,6 +192,7 @@ def _run_selection(
         # none of the genes left have any utility in the taxonomy pairs
         # we care about
         if utility_array.max() <= 0:
+            broke_because = 'utility_array.max()'
             break
 
         (been_filled,
@@ -208,6 +210,7 @@ def _run_selection(
         filled_sum = been_filled.sum()
         if filled_sum == been_filled_size:
             # we have found all the genes we need
+            broke_because = 'been_filled.sum()'
             break
 
         (marker_gene_idx_set,
@@ -227,15 +230,20 @@ def _run_selection(
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
     with lock:
+        stat_msg, stat_dict = _stats_from_marker_counts(marker_counts)
+        stat_dict['n_genes'] = len(marker_gene_name_list)
+        stat_dict['filled'] = int(been_filled.sum())
+        stat_dict['unfilled'] = int(been_filled_size)-stat_dict['filled']
         msg = f"\n======parent_node: {parent_node}======\n"
         msg += f"selected {len(marker_gene_name_list)} from "
         msg += f"{marker_gene_array.n_genes}\n"
         msg += f"filled {been_filled.sum()} of {been_filled_size}\n"
-        msg += _stats_from_marker_counts(marker_counts)
+        msg += f"broke because {broke_because}\n"
+        msg += stat_msg
         msg += "\n============"
         print(msg)
 
-    return marker_gene_name_list, msg
+    return marker_gene_name_list, stat_dict
 
 
 def _choose_gene(
@@ -619,4 +627,14 @@ def _stats_from_marker_counts(
     msg = f"genes per pair {min_genes} {med_genes} {max_genes} "
     msg += f"n_zero {n_zero:.2e} n_lt_5 {lt_5:.2e} "
     msg += f"n_lt15 {lt_15:.2e} n_lt30 {lt_30:.2e}"
-    return msg
+
+    as_dict = {
+        'min_n_genes': int(min_genes),
+        'median_n_genes': int(med_genes),
+        'max_n_genes': int(max_genes),
+        'n_zero': int(n_zero),
+        'lt_5': int(lt_5),
+        'lt_15': int(lt_15),
+        'lt_30': int(lt_30)}
+
+    return msg, as_dict
