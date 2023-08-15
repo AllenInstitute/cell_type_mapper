@@ -187,14 +187,6 @@ def _run_selection(
     broke_because = ''
     while True:
 
-        # because the utility_array for genes that are not in the query
-        # set was set to zero at the beginning, this ought to indicate that
-        # none of the genes left have any utility in the taxonomy pairs
-        # we care about
-        if utility_array.max() <= 0:
-            broke_because = 'utility_array.max()'
-            break
-
         (been_filled,
          utility_array,
          sorted_utility_idx) = _update_been_filled(
@@ -206,6 +198,14 @@ def _run_selection(
                  n_per_utility=n_per_utility,
                  marker_gene_array=marker_gene_array,
                  taxonomy_idx_array=taxonomy_idx_array)
+
+        # because the utility_array for genes that are not in the query
+        # set was set to zero at the beginning, this ought to indicate that
+        # none of the genes left have any utility in the taxonomy pairs
+        # we care about
+        if utility_array.max() <= 0:
+            broke_because = 'utility_array.max()'
+            break
 
         filled_sum = been_filled.sum()
         if filled_sum == been_filled_size:
