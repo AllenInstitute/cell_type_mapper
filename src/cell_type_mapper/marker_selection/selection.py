@@ -517,11 +517,9 @@ def _update_been_filled(
         halfway_there,
         de_facto_pair)
 
-    # n0 = newly_full_mask.sum()
     newly_full_mask = np.logical_or(
         newly_full_mask,
         np.array([de_facto_pair, de_facto_pair]).transpose())
-    # print(f"de facto added {newly_full_mask.sum()-n0}")
 
     # don't correct for pairs that were already marked
     # as "filled"
@@ -533,7 +531,7 @@ def _update_been_filled(
 
     # if so, update the utility_array so that taxonomy pairs that
     # already have their full complement of marker genes do not
-    # contribute to the utility score if genes
+    # contribute to the utility score of genes
     if len(newly_full[0]) > 0:
         for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
             sign = {0: -1, 1: 1}[raw_sign]
