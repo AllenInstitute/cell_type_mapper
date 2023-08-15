@@ -101,3 +101,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
                 json.dumps(marker_lookup, indent=2))
+
+
+if __name__ == "__main__":
+    runner = QueryMarkerRunner()
+    runner.run()
