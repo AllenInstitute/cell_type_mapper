@@ -87,11 +87,13 @@ def select_all_markers(
                 break
 
         have_chosen_parent = False
+        is_behemoth = False
         if not are_behemoths_running:
             for parent in behemoth_parents:
                 if parent not in started_parents:
                     chosen_parent = parent
                     have_chosen_parent = True
+                    is_behemoth = True
                     break
         if not have_chosen_parent:
             for parent in smaller_parents:
@@ -114,13 +116,18 @@ def select_all_markers(
                 output_dict[chosen_parent] = []
                 completed_parents.add(chosen_parent)
             else:
-                marker_gene_array = parent_marker_cache
+                if is_behemoth:
+                    marker_gene_array = parent_marker_cache.spawn_copy()
+                else:
+                    marker_gene_array = \
+                        parent_marker_cache.downsample_pairs_to_other(
+                            only_keep_pairs=leaves)
 
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
                         kwargs={
                             'marker_gene_array':
-                                marker_gene_array.spawn_copy(),
+                                marker_gene_array,
                             'query_gene_names': query_gene_names,
                             'taxonomy_tree': taxonomy_tree,
                             'parent_node': chosen_parent,
