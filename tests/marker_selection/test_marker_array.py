@@ -15,6 +15,9 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
+from cell_type_mapper.marker_selection.marker_array_utils import (
+    thin_marker_gene_array_by_gene)
+
 
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(
@@ -438,3 +441,63 @@ def test_downsampling_by_taxon_pairs_other(
                        base_array.up_by_gene):
             assert len(sparse.indptr) == n_genes+1
             assert sparse.indptr[-1] == len(sparse.indices)
+
+
+def test_thin_array_by_gene(
+        backed_array_fixture,
+        gene_names_fixture,
+        up_reg_truth,
+        down_reg_truth,
+        n_genes,
+        tmp_dir_fixture):
+
+    arr = MarkerGeneArray.from_cache_path(cache_path=backed_array_fixture)
+
+    rng = np.random.default_rng(553321)
+    valid_query_genes = rng.choice(
+        gene_names_fixture,
+        n_genes//3,
+        replace=False)
+    query_genes = list(valid_query_genes) + [f'junk_{ii}' for ii in range(15)]
+    rng.shuffle(query_genes)
+
+    arr = thin_marker_gene_array_by_gene(
+        marker_gene_array=arr,
+        query_gene_names=query_genes,
+        tmp_dir=tmp_dir_fixture)
+
+    assert arr.n_genes > 0
+    assert arr.n_genes == len(valid_query_genes)
+
+    assert set(arr.gene_names) == set(valid_query_genes)
+
+    query_idx = np.array([ii for ii, g in enumerate(gene_names_fixture)
+                          if g in valid_query_genes])
+
+    new_up = up_reg_truth[query_idx, :]
+    new_down = down_reg_truth[query_idx, :]
+
+    up_csr = scipy_sparse.csr_array(new_up)
+    np.testing.assert_array_equal(
+        arr.up_by_gene.indptr, up_csr.indptr)
+    np.testing.assert_array_equal(
+        arr.up_by_gene.indices, up_csr.indices)
+
+    up_csc = scipy_sparse.csc_array(new_up)
+    np.testing.assert_array_equal(
+        arr.up_by_pair.indptr, up_csc.indptr)
+    np.testing.assert_array_equal(
+        arr.up_by_pair.indices, up_csc.indices)
+
+
+    down_csr = scipy_sparse.csr_array(new_down)
+    np.testing.assert_array_equal(
+        arr.down_by_gene.indptr, down_csr.indptr)
+    np.testing.assert_array_equal(
+        arr.down_by_gene.indices, down_csr.indices)
+
+    down_csc = scipy_sparse.csc_array(new_down)
+    np.testing.assert_array_equal(
+        arr.down_by_pair.indptr, down_csc.indptr)
+    np.testing.assert_array_equal(
+        arr.down_by_pair.indices, down_csc.indices)

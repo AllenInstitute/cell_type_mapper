@@ -28,6 +28,10 @@ def thin_marker_gene_array_by_gene(
     marker_gene_array:
         With only the nodes that overlap with query_gene_naems
         returned.
+
+    Note
+    -----
+    This method alters marker_gene_array in place
     """
     # figure out which genes are in both the reference dataset
     # and the query dataset

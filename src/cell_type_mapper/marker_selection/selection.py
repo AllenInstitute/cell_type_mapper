@@ -4,7 +4,6 @@ import time
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
 
-
 from cell_type_mapper.marker_selection.utils import (
     create_utility_array)
 
