@@ -102,7 +102,8 @@ def transpose_by_way_of_disk(
             data_handle=None,
             n_indices=n_indices,
             max_gb=max_gb,
-            output_path=dst_path)
+            output_path=dst_path,
+            verbose=False)
     with h5py.File(dst_path, 'r') as src:
         indptr = src['indptr'][()]
         indices = src['indices'][()]
@@ -117,7 +118,8 @@ def transpose_sparse_matrix_on_disk(
         data_handle,
         n_indices,
         max_gb,
-        output_path):
+        output_path,
+        verbose=True):
 
     use_data_array = (data_handle is not None)
 
@@ -152,19 +154,22 @@ def transpose_sparse_matrix_on_disk(
             dtype=col_dtype,
             chunks=chunks)
 
-    print(f"created empty csr matrix at {output_path}")
+    if verbose:
+        print(f"created empty csr matrix at {output_path}")
 
     csr_indptr = _calculate_csr_indptr(
         indices_handle=indices_handle,
         n_indices=n_indices,
         n_non_zero=n_non_zero,
-        max_gb=max_gb)
+        max_gb=max_gb,
+        verbose=verbose)
 
     with h5py.File(output_path, 'a') as dst:
         dst.create_dataset(
             'indptr', data=csr_indptr)
 
-    print("done with indptr")
+    if verbose:
+        print("done with indptr")
 
     next_idx = np.copy(csr_indptr)
     csc_indptr = indptr_handle[()]
@@ -192,8 +197,9 @@ def transpose_sparse_matrix_on_disk(
     load_chunk_size = max(100, load_chunk_size)
     elements_at_a_time = max(100, elements_at_a_time)
 
-    print(f"load_chunk_size {load_chunk_size}")
-    print(f"elements_at_a_time {elements_at_a_time}")
+    if verbose:
+        print(f"load_chunk_size {load_chunk_size}")
+        print(f"elements_at_a_time {elements_at_a_time}")
 
     chunk_t0 = time.time()
     r0 = 0
@@ -278,37 +284,45 @@ def transpose_sparse_matrix_on_disk(
                 next_idx[unq_val] += unq_ct
 
             dur = time.time()-pass_t0
-            print(f"{i0} pass after {dur:.2e} seconds")
+            if verbose:
+                print(f"{i0} pass after {dur:.2e} seconds")
 
         with h5py.File(output_path, 'a') as dst:
             if use_data_array:
                 dst['data'][d0:d1] = data_buffer
             dst['indices'][d0:d1] = index_buffer
         r0 = r1
-        print(f"chunk took {time.time()-chunk_t0:.2e} seconds")
+        if verbose:
+            print(f"chunk took {time.time()-chunk_t0:.2e} seconds")
 
 
 def _calculate_csr_indptr(
         indices_handle,
         n_indices,
         n_non_zero,
-        max_gb):
+        max_gb,
+        verbose=True):
 
     bytes_per = _get_bytes_for_type(indices_handle.dtype)
     load_chunk_size = np.round(max_gb*1024**3).astype(int)//bytes_per
-    print("in calculate_csr")
-    print(f"bytes_per {bytes_per}")
-    print(f"load_chunk_size {load_chunk_size}")
+    if verbose:
+        print("in calculate_csr")
+        print(f"bytes_per {bytes_per}")
+        print(f"load_chunk_size {load_chunk_size}")
     load_chunk_size = load_chunk_size//2
 
     load_chunk_size = max(100, load_chunk_size)
 
     cumulative_count = np.zeros(n_indices, dtype=int)
-    print(f"cumulative_count_shape {cumulative_count.shape}")
+
+    if verbose:
+        print(f"cumulative_count_shape {cumulative_count.shape}")
+
     for i0 in range(0, n_non_zero, load_chunk_size):
         i1 = min(n_non_zero, i0+load_chunk_size)
         chunk = indices_handle[i0:i1]
-        print(f"indptr loaded {chunk.shape}")
+        if verbose:
+            print(f"indptr loaded {chunk.shape}")
         unq_val, unq_ct = np.unique(chunk, return_counts=True)
         cumulative_count[unq_val] += unq_ct
     csr_indptr = np.cumsum(cumulative_count)
