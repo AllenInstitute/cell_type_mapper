@@ -1,5 +1,6 @@
 import pytest
 
+import copy
 import h5py
 import json
 import numpy as np
@@ -503,19 +504,25 @@ def test_thin_array_by_gene(
         arr.down_by_pair.indices, down_csc.indices)
 
 
+@pytest.mark.parametrize('downsample_genes',[True, False])
 def test_thin_array_by_gene_on_load(
         backed_array_fixture,
         gene_names_fixture,
         up_reg_truth,
         down_reg_truth,
         n_genes,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        downsample_genes):
 
     rng = np.random.default_rng(553321)
-    valid_query_genes = rng.choice(
-        gene_names_fixture,
-        n_genes//3,
-        replace=False)
+
+    if downsample_genes:
+        valid_query_genes = rng.choice(
+            gene_names_fixture,
+            n_genes//3,
+            replace=False)
+    else:
+        valid_query_genes = copy.deepcopy(gene_names_fixture)
     query_genes = list(valid_query_genes) + [f'junk_{ii}' for ii in range(15)]
     rng.shuffle(query_genes)
 

@@ -171,6 +171,9 @@ class MarkerGeneArray(object):
                 gene_idx=src['sparse_by_gene/up_gene_idx'][()],
                 pair_idx=src['sparse_by_gene/up_pair_idx'][()])
 
+        if query_gene_mask.sum() == len(gene_names):
+            return cls._from_cache_path_naive(cache_path)
+
         up_by_gene.keep_only_genes(
             genes_to_keep=np.where(query_gene_mask)[0],
             in_place=True)
