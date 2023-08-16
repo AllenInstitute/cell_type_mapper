@@ -16,7 +16,8 @@ def select_all_markers(
         taxonomy_tree,
         n_per_utility=15,
         n_processors=4,
-        behemoth_cutoff=1000000):
+        behemoth_cutoff=1000000,
+        tmp_dir=None):
     """
     Select all of the markers necessary for a taxonomy.
     Save them as a JSONized dict (for now).
@@ -40,6 +41,9 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
 
     Returns
     -------
@@ -121,7 +125,8 @@ def select_all_markers(
                 else:
                     marker_gene_array = \
                         parent_marker_cache.downsample_pairs_to_other(
-                            only_keep_pairs=leaves)
+                            only_keep_pairs=leaves,
+                            tmp_dir=tmp_dir)
 
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
@@ -134,7 +139,8 @@ def select_all_markers(
                             'n_per_utility': n_per_utility,
                             'output_dict': output_dict,
                             'stdout_lock': stdout_lock,
-                            'summary_log': summary_log})
+                            'summary_log': summary_log,
+                            'tmp_dir': tmp_dir})
                 p.start()
                 process_dict[chosen_parent] = p
 
@@ -165,7 +171,8 @@ def _marker_selection_worker(
         n_per_utility,
         output_dict,
         stdout_lock,
-        summary_log):
+        summary_log,
+        tmp_dir=None):
 
     leaf_pair_list = taxonomy_tree.leaves_to_compare(
         parent_node=parent_node)
@@ -191,6 +198,7 @@ def _marker_selection_worker(
         parent_node=parent_node,
         n_per_utility=n_per_utility,
         lock=stdout_lock,
-        summary_log=summary_log)
+        summary_log=summary_log,
+        tmp_dir=tmp_dir)
 
     output_dict[parent_node] = marker_genes

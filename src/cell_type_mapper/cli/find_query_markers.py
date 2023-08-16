@@ -71,6 +71,12 @@ class QueryMarkerSchema(argschema.ArgSchema):
         description="Path to the JSON file that will contain "
         "the marker gene lookup for the query dataset.")
 
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Optional temporary directory for scratch files.")
+
 
 class QueryMarkerRunner(argschema.ArgSchemaParser):
     default_schema = QueryMarkerSchema
@@ -94,7 +100,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             taxonomy_tree=taxonomy_tree,
             n_per_utility=self.args['n_per_utility'],
             n_processors=self.args['n_processors'],
-            behemoth_cutoff=5000000)
+            behemoth_cutoff=5000000,
+            tmp_dir=self.args['tmp_dir'])
 
         marker_lookup['metadata'] = copy.deepcopy(self.args)
         marker_lookup['metadata']['timestamp'] = get_timestamp()

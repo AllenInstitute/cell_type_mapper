@@ -67,7 +67,8 @@ def test_query_marker_cli_tool(
         'n_processors': 3,
         'n_per_utility': n_per_utility,
         'drop_level': drop_level,
-        'output_path': output_path}
+        'output_path': output_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute())}
 
     runner = QueryMarkerRunner(
         args=[],
