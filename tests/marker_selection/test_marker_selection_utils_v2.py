@@ -81,7 +81,7 @@ def marker_with_sparse_fixture(
     with h5py.File(h5_path, "w") as out_file:
         out_file.create_dataset('n_pairs', data=n_cols)
         out_file.create_dataset(
-            'full_gene_names',
+            'gene_names',
             data=json.dumps(
                 [f"g_{ii}" for ii in range(n_rows)]).encode('utf-8'))
         out_file.create_dataset(

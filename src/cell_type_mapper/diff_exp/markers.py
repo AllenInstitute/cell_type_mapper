@@ -581,7 +581,7 @@ def _prep_output_file(
 
     with h5py.File(output_path, 'w') as out_file:
         out_file.create_dataset(
-            'full_gene_names',
+            'gene_names',
             data=json.dumps(gene_names).encode('utf-8'))
 
         out_file.create_dataset(

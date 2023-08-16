@@ -171,7 +171,7 @@ def marker_cache_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx).encode('utf-8'))
         dst.create_dataset(
-            'full_gene_names',
+            'gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',
@@ -231,7 +231,7 @@ def blank_marker_cache_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx).encode('utf-8'))
         dst.create_dataset(
-            'full_gene_names',
+            'gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',
@@ -468,13 +468,9 @@ def test_full_marker_cache_creation_smoke(
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
 
-    # because I added some nonsense genes to full_gene_names
-    # in the test fixture, to simulate the case where there
-    # are genes in the reference data that do not make it
-    # through reference marker cache creation
     with h5py.File(marker_cache_fixture, 'r') as src:
         full_gene_names = json.loads(
-            src['full_gene_names'][()].decode('utf-8'))
+            src['gene_names'][()].decode('utf-8'))
 
     with h5py.File(output_path, 'r') as actual:
 
@@ -699,7 +695,7 @@ def test_marker_serialization_roundtrip(
 
     with h5py.File(marker_cache_fixture, 'r') as src:
         reference_gene_names = json.loads(
-            src['full_gene_names'][()].decode('utf-8'))
+            src['gene_names'][()].decode('utf-8'))
 
     for n in extra_genes:
         reference_gene_names.append(n)

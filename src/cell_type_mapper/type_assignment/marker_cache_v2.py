@@ -56,7 +56,7 @@ def create_marker_cache_from_reference_markers(
 
     with h5py.File(input_cache_path, 'r') as in_file:
         reference_gene_names = json.loads(
-            in_file['full_gene_names'][()].decode('utf-8'))
+            in_file['gene_names'][()].decode('utf-8'))
 
     write_query_markers_to_h5(
         marker_lookup=reformatted_lookup,

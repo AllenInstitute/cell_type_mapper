@@ -92,7 +92,8 @@ def test_marker_finding_pipeline(
             tmp_dir=tmp_dir)
 
     with h5py.File(marker_path, 'r') as in_file:
-        assert 'full_gene_names' in in_file
+        assert 'gene_names' in in_file
+        assert json.loads(in_file['gene_names'][()].decode('utf-8')) == gene_names
         assert 'pair_to_idx' in in_file
         for sub_k in ("up_gene_idx", "up_pair_idx",
                       "down_gene_idx", "down_pair_idx"):
