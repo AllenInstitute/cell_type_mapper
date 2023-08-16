@@ -72,7 +72,9 @@ def select_all_markers(
             smaller_parents.append(parent)
 
     parent_marker_cache = MarkerGeneArray.from_cache_path(
-        cache_path=marker_cache_path)
+        cache_path=marker_cache_path,
+        query_gene_names=query_gene_names,
+        tmp_dir=tmp_dir)
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
