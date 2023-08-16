@@ -275,7 +275,6 @@ def create_sparse_by_pair_marker_file(
                 unit='hr')
 
     print('getting list of valid genes')
-    valid_gene_idx = set()
     n_up_indices = 0
     n_down_indices = 0
     for col0 in tmp_path_dict:
@@ -283,16 +282,8 @@ def create_sparse_by_pair_marker_file(
         with h5py.File(tmp_path, 'r') as src:
             n_up_indices += src['n_up_indices'][()]
             n_down_indices += src['n_down_indices'][()]
-            valid_gene_idx = valid_gene_idx.union(
-                set(src['valid_gene_idx'][()]))
 
-    valid_gene_idx = np.sort(np.array(list(valid_gene_idx)))
-    valid_gene_names = list(np.array(gene_names)[valid_gene_idx])
-    gene_idx_mapping = -1*np.ones(n_genes, dtype=int)
-    for ii, idx in enumerate(valid_gene_idx):
-        gene_idx_mapping[idx] = ii
-
-    gene_idx_dtype = choose_int_dtype((0, len(valid_gene_idx)))
+    gene_idx_dtype = choose_int_dtype((0, n_genes))
     up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
     down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
 
@@ -302,9 +293,6 @@ def create_sparse_by_pair_marker_file(
     down_pair_offset = 0
     print(f"writing to {tmp_output_path}")
     with h5py.File(tmp_output_path, 'a') as dst:
-        dst.create_dataset(
-            'gene_names',
-            data=json.dumps(valid_gene_names).encode('utf-8'))
 
         dst_grp = dst.create_group('sparse_by_pair')
 
@@ -335,11 +323,11 @@ def create_sparse_by_pair_marker_file(
                 pair_idx_values.sort()
 
                 up_gene_idx = \
-                    gene_idx_mapping[src['up_gene_idx'][()]].astype(
+                    src['up_gene_idx'][()].astype(
                         gene_idx_dtype)
 
                 down_gene_idx = \
-                    gene_idx_mapping[src['down_gene_idx'][()]].astype(
+                    src['down_gene_idx'][()].astype(
                         gene_idx_dtype)
 
                 up_pair_idx = \
@@ -461,6 +449,7 @@ def _find_markers_worker(
     idx_dtype = choose_int_dtype((0, n_genes))
 
     boring_t = boring_t_from_p_value(p_th)
+    print(f"boring_t {boring_t}")
 
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()

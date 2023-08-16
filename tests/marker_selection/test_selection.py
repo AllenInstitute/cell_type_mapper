@@ -150,7 +150,7 @@ def marker_cache_fixture(
     with h5py.File(h5_path, 'a') as dst:
         dst.create_dataset('n_pairs', data=n_cols)
         dst.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'pair_to_idx',

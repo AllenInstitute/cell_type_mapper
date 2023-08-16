@@ -109,7 +109,7 @@ def backed_array_fixture(
     with h5py.File(h5_path, 'a') as dst:
         dst.create_dataset('n_pairs', data=n_cols)
         dst.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'pair_to_idx',
@@ -405,7 +405,7 @@ def test_downsampling_by_taxon_pairs_other(
         expected_lookup = json.loads(
             expected['pair_to_idx'][()].decode('utf-8'))
         expected_gene_names = json.loads(
-            expected['gene_names'][()].decode('utf-8'))
+            expected['full_gene_names'][()].decode('utf-8'))
         assert base_array.taxonomy_pair_to_idx == expected_lookup
         assert base_array.gene_names == expected_gene_names
 

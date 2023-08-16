@@ -164,16 +164,6 @@ def marker_cache_fixture(
     csc_up = scipy_sparse.csc_array(up_regulated)
     csc_down = scipy_sparse.csc_array(down_regulated)
 
-    # Add some nonsense genes to full_gene_names and shuffle.
-    # This is meant to simulate the case where the reference
-    # dataset contains genes that are not markers for any
-    # taxon pairs.
-    rng = np.random.default_rng(887123)
-    full_gene_names = copy.deepcopy(gene_names_fixture)
-    for ii in range(7):
-        full_gene_names.append(f'full_{ii}')
-    rng.shuffle(full_gene_names)
-
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
         pair_to_idx.pop('n_pairs')
@@ -181,11 +171,8 @@ def marker_cache_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx).encode('utf-8'))
         dst.create_dataset(
-            'gene_names',
-            data=json.dumps(gene_names_fixture).encode('utf-8'))
-        dst.create_dataset(
             'full_gene_names',
-            data=json.dumps(full_gene_names).encode('utf-8'))
+            data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',
             data=n_cols)
@@ -244,7 +231,7 @@ def blank_marker_cache_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx).encode('utf-8'))
         dst.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',

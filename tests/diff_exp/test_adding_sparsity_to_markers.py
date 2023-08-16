@@ -96,7 +96,7 @@ def marker_file_fixture(
             data=n_pairs)
 
         dst.create_dataset(
-            'gene_names',
+            'full_gene_names',
             data=json.dumps(gene_names).encode('utf-8'))
 
         dst.create_dataset(

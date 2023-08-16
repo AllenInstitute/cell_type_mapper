@@ -194,9 +194,6 @@ def reference_marker_fixture(
             'pair_to_idx',
             data=json.dumps(pair_to_idx_fixture).encode('utf-8'))
         dst.create_dataset(
-            'gene_names',
-            data=json.dumps(gene_names).encode('utf-8'))
-        dst.create_dataset(
             'full_gene_names',
             data=json.dumps(gene_names).encode('utf-8'))
 
@@ -233,7 +230,7 @@ def test_query_marker_function(
             data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
     with h5py.File(reference_marker_fixture, 'r') as src:
-        query_gene_names = json.loads(src['gene_names'][()].decode('utf-8'))
+        query_gene_names = json.loads(src['full_gene_names'][()].decode('utf-8'))
 
     gene_to_idx = {
         n:ii for ii, n in enumerate(query_gene_names)}

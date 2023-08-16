@@ -111,7 +111,7 @@ def test_query_marker_cli_tool(
             expected_levels.add(level)
     assert expected_levels == levels_found
 
-    if not downsample_genes and n_per_utility == 7:
+    if not downsample_genes and n_per_utility == 7 and drop_level is None:
         assert actual_genes == set(full_marker_name_fixture)
     elif downsample_genes:
         assert actual_genes != set(full_marker_name_fixture)

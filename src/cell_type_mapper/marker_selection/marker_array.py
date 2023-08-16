@@ -135,7 +135,7 @@ class MarkerGeneArray(object):
 
         with h5py.File(cache_path, "r", swmr=True) as src:
             gene_names = json.loads(
-                src['gene_names'][()].decode('utf-8'))
+                src['full_gene_names'][()].decode('utf-8'))
             taxonomy_pair_to_idx = json.loads(
                 src['pair_to_idx'][()].decode('utf-8'))
 
@@ -172,7 +172,7 @@ class MarkerGeneArray(object):
 
         with h5py.File(cache_path, "r", swmr=True) as src:
             gene_names = json.loads(
-                src['gene_names'][()].decode('utf-8'))
+                src['full_gene_names'][()].decode('utf-8'))
 
             query_gene_mask = query_genes_to_mask(
                 reference_gene_names=gene_names,
