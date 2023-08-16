@@ -89,6 +89,16 @@ class MarkerGeneArray(object):
             raise RuntimeError(
                 "n_pairs does not match self.down_by_pair.indptr shape")
 
+        if len(self.up_by_gene.indices) > 0:
+            if self.up_by_gene.indices.max() >= n_pairs:
+                raise RuntimeError(
+                    "n_pairs inconsistent with up_by_gene.indices.max()")
+
+        if len(self.down_by_gene.indices) > 0:
+            if self.down_by_gene.indices.max() >= n_pairs:
+                raise RuntimeError(
+                    "n_pairs inconsistent with down_by_gene.indices.max()")
+
         n_genes = len(gene_names)
 
         if n_genes != len(self.up_by_gene.indptr)-1:
@@ -97,6 +107,16 @@ class MarkerGeneArray(object):
         if n_genes != len(self.down_by_gene.indptr)-1:
             raise RuntimeError(
                 "n_genes does not match self.down_by_gene.indptr shape")
+
+        if len(self.up_by_pair.indices) > 0:
+            if self.up_by_pair.indices.max() >= n_genes:
+                raise RuntimeError(
+                    "n_genes inconsistent with up_by_pair.indices.max()")
+
+        if len(self.down_by_pair.indices) > 0:
+            if self.down_by_pair.indices.max() >= n_genes:
+                raise RuntimeError(
+                    "n_genes inconsistent with down_by_pair.indices.max()")
 
     def spawn_copy(self):
         """
