@@ -33,18 +33,10 @@ def thin_marker_gene_array_by_gene(
     -----
     This method alters marker_gene_array in place
     """
-    # figure out which genes are in both the reference dataset
-    # and the query dataset
-    matched_genes = match_genes(
+
+    reference_gene_mask = query_genes_to_mask(
         reference_gene_names=marker_gene_array.gene_names,
         query_gene_names=query_gene_names)
-
-    if len(matched_genes['reference']) == 0:
-        raise RuntimeError(
-            "No gene overlap between reference and query set")
-
-    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
-    reference_gene_mask[matched_genes['reference']] = True
 
     if reference_gene_mask.sum() == marker_gene_array.n_genes:
         # nothing to be done; query and reference genes are
@@ -56,6 +48,28 @@ def thin_marker_gene_array_by_gene(
             reference_gene_idx,
             tmp_dir=tmp_dir)
     return marker_gene_array
+
+
+def query_genes_to_mask(
+        reference_gene_names,
+        query_gene_names):
+    """
+    Return a mask indicating which genes in reference_gene_names
+    need to be kept to align with query_gene_names
+    """
+    # figure out which genes are in both the reference dataset
+    # and the query dataset
+    matched_genes = match_genes(
+        reference_gene_names=reference_gene_names,
+        query_gene_names=query_gene_names)
+
+    if len(matched_genes['reference']) == 0:
+        raise RuntimeError(
+            "No gene overlap between reference and query set")
+
+    reference_gene_mask = np.zeros(len(reference_gene_names), dtype=bool)
+    reference_gene_mask[matched_genes['reference']] = True
+    return reference_gene_mask
 
 
 def _create_new_pair_lookup(only_keep_pairs):

@@ -17,6 +17,7 @@ from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
     SparseMarkersByGene)
 
 from cell_type_mapper.marker_selection.marker_array_utils import (
+    query_genes_to_mask,
     _create_new_pair_lookup,
     _idx_of_pair)
 
@@ -97,12 +98,24 @@ class MarkerGeneArray(object):
     @classmethod
     def from_cache_path(
             cls,
-            cache_path):
+            cache_path,
+            query_gene_names=None,
+            tmp_dir=None):
 
         cache_path = pathlib.Path(cache_path)
         if not cache_path.is_file():
             raise RuntimeError(
                 f"{cache_path} is not a file")
+
+        if query_gene_names is None:
+            return cls._from_cache_path_naive(cache_path)
+        return cls._from_cache_path_query_genes(
+            cache_path=cache_path,
+            query_gene_names=query_gene_names,
+            tmp_dir=tmp_dir)
+
+    @classmethod
+    def _from_cache_path_naive(cls, cache_path):
 
         with h5py.File(cache_path, "r", swmr=True) as src:
             gene_names = json.loads(
@@ -133,6 +146,77 @@ class MarkerGeneArray(object):
             up_by_gene=up_by_gene,
             down_by_pair=down_by_pair,
             down_by_gene=down_by_gene)
+
+    @classmethod
+    def _from_cache_path_query_genes(
+            cls,
+            cache_path,
+            query_gene_names,
+            tmp_dir=None):
+
+        with h5py.File(cache_path, "r", swmr=True) as src:
+            gene_names = json.loads(
+                src['gene_names'][()].decode('utf-8'))
+
+            query_gene_mask = query_genes_to_mask(
+                reference_gene_names=gene_names,
+                query_gene_names=query_gene_names)
+
+            taxonomy_pair_to_idx = json.loads(
+                src['pair_to_idx'][()].decode('utf-8'))
+
+            n_pairs = src['n_pairs'][()]
+
+            up_by_gene = SparseMarkersByGene(
+                gene_idx=src['sparse_by_gene/up_gene_idx'][()],
+                pair_idx=src['sparse_by_gene/up_pair_idx'][()])
+
+        up_by_gene.keep_only_genes(
+            genes_to_keep=np.where(query_gene_mask)[0],
+            in_place=True)
+
+        (by_pair_indptr,
+         by_pair_indices) = transpose_by_way_of_disk(
+             indices=up_by_gene.indices,
+             indptr=up_by_gene.indptr,
+             n_indices=n_pairs,
+             max_gb=30,
+             tmp_dir=tmp_dir)
+
+        up_by_pair = SparseMarkersByPair(
+            gene_idx=by_pair_indices,
+            pair_idx=by_pair_indptr)
+
+        with h5py.File(cache_path, "r", swmr=True) as src:
+
+            down_by_gene = SparseMarkersByGene(
+                gene_idx=src['sparse_by_gene/down_gene_idx'][()],
+                pair_idx=src['sparse_by_gene/down_pair_idx'][()])
+
+        down_by_gene.keep_only_genes(
+            genes_to_keep=np.where(query_gene_mask)[0],
+            in_place=True)
+
+        (by_pair_indptr,
+         by_pair_indices) = transpose_by_way_of_disk(
+             indices=down_by_gene.indices,
+             indptr=down_by_gene.indptr,
+             n_indices=n_pairs,
+             max_gb=30,
+             tmp_dir=tmp_dir)
+
+        down_by_pair = SparseMarkersByPair(
+            gene_idx=by_pair_indices,
+            pair_idx=by_pair_indptr)
+
+        return cls(
+            gene_names=list(np.array(gene_names)[query_gene_mask]),
+            taxonomy_pair_to_idx=taxonomy_pair_to_idx,
+            n_pairs=n_pairs,
+            up_by_gene=up_by_gene,
+            down_by_gene=down_by_gene,
+            up_by_pair=up_by_pair,
+            down_by_pair=down_by_pair)
 
     def downsample_pairs_to_other(
             self,
