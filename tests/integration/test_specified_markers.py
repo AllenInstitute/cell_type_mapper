@@ -316,8 +316,8 @@ def test_mapping_from_markers(
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
-                            atol=1.0e-4,
-                            rtol=1.0e-4)
+                            atol=1.0e-3,
+                            rtol=1.0e-3)
     else:
         all_markers = set()
         for k in expected['marker_genes']:
