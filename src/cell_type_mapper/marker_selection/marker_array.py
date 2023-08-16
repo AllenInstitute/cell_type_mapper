@@ -82,6 +82,22 @@ class MarkerGeneArray(object):
         self.up_by_gene = up_by_gene
         self.down_by_gene = down_by_gene
 
+        if n_pairs != len(self.up_by_pair.indptr)-1:
+            raise RuntimeError(
+                "n_pairs does not match self.up_by_pair.indptr shape")
+        if n_pairs != len(self.down_by_pair.indptr)-1:
+            raise RuntimeError(
+                "n_pairs does not match self.down_by_pair.indptr shape")
+
+        n_genes = len(gene_names)
+
+        if n_genes != len(self.up_by_gene.indptr)-1:
+            raise RuntimeError(
+                "n_genes does not match self.up_by_gene.indptr shape")
+        if n_genes != len(self.down_by_gene.indptr)-1:
+            raise RuntimeError(
+                "n_genes does not match self.down_by_gene.indptr shape")
+
     def spawn_copy(self):
         """
         Return a copy of self
