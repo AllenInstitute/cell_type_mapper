@@ -55,6 +55,7 @@ def test_marker_finding_pipeline(
         column_hierarchy,
         tmp_dir_fixture,
         gene_names,
+        n_genes,
         tree_fixture):
 
     tmp_dir = tmp_dir_fixture
@@ -83,6 +84,7 @@ def test_marker_finding_pipeline(
 
     n_processors = 3
     siblings = get_all_pairs(tree_fixture)
+    n_pairs = len(siblings)
 
     find_markers_for_all_taxonomy_pairs(
             precomputed_stats_path=precompute_path,
@@ -121,10 +123,17 @@ def test_marker_finding_pipeline(
     tot_up = 0
     up_sum = 0
     are_markers = set()
+
+    # will compare by-gene access with these matrices
+    # after we have looped through all pairs
+    global_marker = np.zeros((n_genes, n_pairs), dtype=bool)
+    global_up = np.zeros((n_genes, n_pairs), dtype=bool)
+
     for level in pair_to_idx:
         for node1 in pair_to_idx[level]:
             for node2 in pair_to_idx[level][node1]:
                 cluster_stats = precomputed_stats['cluster_stats']
+                idx = pair_to_idx[level][node1][node2]
 
                 (_,
                  expected_markers,
@@ -136,11 +145,17 @@ def test_marker_finding_pipeline(
                     q1_th=0.5,
                     qdiff_th=0.7)
 
+                # we won't have up=True unless
+                # a gene is also a marker
+                expected_up_reg[np.logical_not(expected_markers)] = False
+
+                global_marker[:, idx] = expected_markers
+                global_up[:, idx] = expected_up_reg
+
                 for flag, name in zip(expected_markers, gene_names):
                     if flag:
                         are_markers.add(name)
 
-                idx = pair_to_idx[level][node1][node2]
                 (actual_markers,
                  actual_up_reg) = marker_parent.marker_mask_from_pair_idx(idx)
 
@@ -150,11 +165,6 @@ def test_marker_finding_pipeline(
                 np.testing.assert_array_equal(
                     expected_markers,
                     actual_markers)
-
-                # we won't have up=True unless
-                # a gene is also a marker
-                expected_up_reg = expected_up_reg[expected_markers]
-                actual_up_reg = actual_up_reg[expected_markers]
 
                 np.testing.assert_array_equal(
                     expected_up_reg,
@@ -175,6 +185,20 @@ def test_marker_finding_pipeline(
     assert up_sum < tot_up
 
     assert len(are_markers) < len(gene_names)
+    assert global_up.sum() > 0
+    assert global_marker.sum() > 0
+
+    for i_gene in range(n_genes):
+        (actual_markers,
+         actual_up) = marker_parent.marker_mask_from_gene_idx(i_gene)
+        expected_markers = global_marker[i_gene, :]
+        expected_up = global_up[i_gene, :]
+        np.testing.assert_array_equal(
+            actual_markers,
+            expected_markers)
+        np.testing.assert_array_equal(
+            actual_up,
+            expected_up)
 
 
 @pytest.mark.parametrize(
@@ -290,11 +314,11 @@ def test_find_markers_worker(
                     qdiff_th=0.7)
 
                 idx = pair_to_idx[level][node1][node2]
- 
+
                 actual_markers = np.logical_or(
                     down_by_pair[[idx], :].toarray(),
                     up_by_pair[[idx], :].toarray())[0, :]
- 
+
                 np.testing.assert_array_equal(
                     expected_markers,
                     actual_markers)
