@@ -22,7 +22,8 @@ def many_summary_plots_pdf(
         munge_ints=False,
         is_flat=False,
         confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        leaf_order=None,
+        drop_level=None):
 
     with PdfPages(plot_path) as pdf_handle:
         for classification_path in classification_path_list:
@@ -34,7 +35,8 @@ def many_summary_plots_pdf(
                 munge_ints=munge_ints,
                 is_flat=is_flat,
                 confidence_key=confidence_key,
-                leaf_order=leaf_order)
+                leaf_order=leaf_order,
+                drop_level=drop_level)
 
 
 def single_summary_plot_pdf(
@@ -45,7 +47,8 @@ def single_summary_plot_pdf(
         munge_ints=False,
         is_flat=False,
         confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        leaf_order=None,
+        drop_level=None):
 
     with PdfPages(plot_path) as pdf_handle:
         summary_plots_for_one_file(
@@ -56,7 +59,8 @@ def single_summary_plot_pdf(
             munge_ints=munge_ints,
             is_flat=is_flat,
             confidence_key=confidence_key,
-            leaf_order=leaf_order)
+            leaf_order=leaf_order,
+            drop_level=drop_level)
 
 
 def summary_plots_for_one_file(
@@ -67,7 +71,8 @@ def summary_plots_for_one_file(
         munge_ints,
         is_flat=False,
         confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        leaf_order=None,
+        drop_level=None):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -90,6 +95,10 @@ def summary_plots_for_one_file(
     with h5py.File(precomputed_path, 'r') as src:
         taxonomy_tree = TaxonomyTree(
             data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
+
+    if drop_level is not None:
+        taxonomy_tree = taxonomy_tree.drop_level(drop_level)
+
     inverted_tree = invert_tree(taxonomy_tree)
     raw_results = results.pop('results')
 
