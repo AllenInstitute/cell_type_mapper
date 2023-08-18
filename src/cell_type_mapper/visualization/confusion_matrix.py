@@ -215,7 +215,7 @@ def summary_plots_for_one_file(
         r0 = i_row*grid_gap+i_row*grid_height
         r1 = r0 + grid_height
         assert r1 < full_height
-        for i_col in range(n_fig_cols-1):
+        for i_col in range(n_fig_cols-len(confidence_key_list)):
             c0 = msg_width+(i_col+1)*grid_gap+i_col*grid_width
             c1 = c0 + grid_width
             assert c1 < full_width
@@ -225,9 +225,9 @@ def summary_plots_for_one_file(
         sub_axis_lists.append(this_sub_list)
 
     histogram_axis_lookup = dict()
-    for i_conf, confidence_key in confidence_key_list:
+    for i_conf, confidence_key in enumerate(confidence_key_list):
 
-        c0 = msg_width+n_fig_cols*grid_gap+(3+i_conf)*grid_width
+        c0 = msg_width+(3+i_conf+1)*grid_gap+(3+i_conf)*grid_width
         c1 = c0 + grid_width
         histogram_axis_lookup[confidence_key] = fig.add_subplot(
             grid[0:grid_height, c0:c1])
@@ -240,7 +240,7 @@ def summary_plots_for_one_file(
         if level not in result_levels:
             continue
 
-        if i_level < n_levels:
+        if i_level < len(sub_axis_lists):
             this_axis_list = sub_axis_lists[i_level]
         else:
             this_axis_list = None
@@ -376,15 +376,15 @@ def summary_plots_for_one_file(
         axis='both', which='both', size=0, labelsize=0)
 
     for confidence_key in confidence_key_list:
-        good_confidence = good_confidence_lookup[confidence_key_list]
-        bad_confidence = bad_confidence_lookup[confidence_key_list]
-        histogram_axis = histogram_axis_lookup[confidence_key_list]
+        good_confidence = good_confidence_lookup[confidence_key]
+        bad_confidence = bad_confidence_lookup[confidence_key]
+        histogram_axis = histogram_axis_lookup[confidence_key]
 
         print(
-            f"good_confidence {np.mean(good_confidence)} "
+            f"good {confidence_key} {np.mean(good_confidence)} "
             f"+/- {np.std(good_confidence)}")
         print(
-            f"bad_confidence {np.mean(bad_confidence)} "
+            f"bad {confidence_key} {np.mean(bad_confidence)} "
             f"+/- {np.std(bad_confidence)}")
         histogram_axis.hist(good_confidence, bins=100, density=True,
                             zorder=0, color='b', label='correct cells')
