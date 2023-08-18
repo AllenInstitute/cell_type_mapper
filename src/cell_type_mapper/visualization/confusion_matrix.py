@@ -181,7 +181,7 @@ def summary_plots_for_one_file(
 
     obs = query_obs
 
-    n_levels = len(taxonomy_tree.hierarchy)
+    n_levels = len(taxonomy_tree.hierarchy)-1
 
     grid_gap = 5
     grid_height = 20
@@ -240,7 +240,11 @@ def summary_plots_for_one_file(
         if level not in result_levels:
             continue
 
-        this_axis_list = sub_axis_lists[i_level]
+        if i_level < n_levels:
+            this_axis_list = sub_axis_lists[i_level]
+        else:
+            this_axis_list = None
+
         if level == taxonomy_tree.leaf_level:
             label_order = leaf_order
         else:
@@ -304,44 +308,45 @@ def summary_plots_for_one_file(
         else:
             label_x_axis = False
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[0],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by='truth',
-            fontsize=20,
-            title=f"{level} normalized by true label",
-            is_log=is_log10,
-            label_x_axis=label_x_axis,
-            label_y_axis=True)
+        if this_axis_list is not None:
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[0],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='truth',
+                fontsize=20,
+                title=f"{level} normalized by true label",
+                is_log=is_log10,
+                label_x_axis=label_x_axis,
+                label_y_axis=True)
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[1],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by='experiment',
-            fontsize=20,
-            title=f"{level} normalized by mapped label",
-            is_log=is_log10,
-            label_x_axis=label_x_axis,
-            label_y_axis=False,)
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[1],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='experiment',
+                fontsize=20,
+                title=f"{level} normalized by mapped label",
+                is_log=is_log10,
+                label_x_axis=label_x_axis,
+                label_y_axis=False,)
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[2],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by=None,
-            fontsize=20,
-            title=f"{level} raw count",
-            is_log=True,
-            label_x_axis=label_x_axis,
-            label_y_axis=False,)
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[2],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by=None,
+                fontsize=20,
+                title=f"{level} raw count",
+                is_log=True,
+                label_x_axis=label_x_axis,
+                label_y_axis=False,)
 
     msg = f"query set: {query_path_str}\n"
     msg += f"marker genes: {marker_lookup_str}\n"
