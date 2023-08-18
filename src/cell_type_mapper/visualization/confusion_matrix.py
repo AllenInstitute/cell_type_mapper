@@ -191,7 +191,7 @@ def summary_plots_for_one_file(
     n_fig_cols = 3 + len(confidence_key_list)
 
     full_width = msg_width+n_fig_cols*(grid_height+grid_gap)+1
-    full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1
+    full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1+grid_gap
     grid = gridspec.GridSpec(nrows=full_height, ncols=full_width)
 
     grid.update(
@@ -212,7 +212,7 @@ def summary_plots_for_one_file(
     sub_axis_lists = []
     for i_row in range(n_levels):
         this_sub_list = []
-        r0 = i_row*grid_gap+i_row*grid_height
+        r0 = i_row*grid_gap+i_row*grid_height + grid_gap
         r1 = r0 + grid_height
         assert r1 < full_height
         for i_col in range(n_fig_cols-len(confidence_key_list)):
@@ -230,7 +230,7 @@ def summary_plots_for_one_file(
         c0 = msg_width+(3+i_conf+1)*grid_gap+(3+i_conf)*grid_width
         c1 = c0 + grid_width
         histogram_axis_lookup[confidence_key] = fig.add_subplot(
-            grid[0:grid_height, c0:c1])
+            grid[grid_gap:grid_height, c0:c1])
 
     good_confidence_lookup = {n: [] for n in confidence_key_list}
     bad_confidence_lookup = {n: [] for n in confidence_key_list}
