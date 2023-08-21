@@ -82,10 +82,13 @@ def append_to_obsm(
         obs = read_df_from_h5ad(h5ad_path, df_name='obs')
         obs_keys = list(obs.index.values)
         these_keys = list(obsm_value.index.values)
-        if not obs_keys == these_keys:
+        if not set(obs_keys) == set(these_keys):
             raise RuntimeError(
                 "Cannot write dataframe to obsm; index values "
-                "are not the same as the index values in obs")
+                "are not the same as the index values in obs.")
+
+        if obs_keys != these_keys:
+            obsm_value = obsm_value.loc[obs_keys]
 
     with h5py.File(h5ad_path, 'a') as dst:
         obsm = read_elem(dst['obsm'])
