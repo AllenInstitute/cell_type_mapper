@@ -107,6 +107,15 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="If True, allow the code to overwrite an "
         "existing element in query_path.obsm")
 
+    obsm_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="If not None, write the results to obsm in "
+        "this file, rather than the file specified by query_path. "
+        "Note: obsm_path.obs.index.values must match "
+        "query_path.obs.index.values.")
+
     csv_result_path = argschema.fields.OutputFile(
         required=False,
         default=None,
@@ -179,12 +188,42 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         if data['obsm_key'] is None:
             return data
 
-        if does_obsm_have_key(data['query_path'], data['obsm_key']):
+        if data['obsm_path'] is not None:
+            obsm_path = data['obsm_path']
+        else:
+            obsm_path = data['query_path']
+
+        if does_obsm_have_key(obsm_path, data['obsm_key']):
             if not data['obsm_clobber']:
-                msg = (f"obsm in {data['query_path']} already has key "
+                msg = (f"obsm in {obsm_path} already has key "
                        f"{data['obsm_key']}; to overwrite, set obsm_clobber "
                        "to True.")
                 raise RuntimeError(msg)
+
+        return data
+
+    @post_load
+    def check_obsm_path_alignment(self, data, **kwargs):
+        """
+        If obsm_path is not None, make sure it has the same cells
+        as query_path (in case validation and output are run at
+        different times).
+        """
+        if data['obsm_path'] is None:
+            return data
+
+        obs_dst = read_df_from_h5ad(
+            data['obsm_path'],
+            df_name='obs')
+
+        obs_src = read_df_from_h5ad(
+            data['query_path'],
+            df_name='obs')
+
+        if set(obs_dst.index.values) != set(obs_src.index.values):
+            raise ValueError(
+                f"Cannot write output to file {data['obsm_path']}; "
+                f"Its cell_ids do not match with file {data['query_path']}")
 
         return data
 
@@ -450,8 +489,13 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
         df = df.loc[obs.index.values]
 
+        if config['obsm_path'] is not None:
+            obsm_path = config['obsm_path']
+        else:
+            obsm_path = config['query_path']
+
         append_to_obsm(
-            h5ad_path=config['query_path'],
+            h5ad_path=obsm_path,
             obsm_key=config['obsm_key'],
             obsm_value=df,
             clobber=config['obsm_clobber'])
