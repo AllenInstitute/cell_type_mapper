@@ -130,7 +130,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
 
     drop_level = argschema.fields.String(
         required=False,
-        default="CCN20230504_SUPT",
+        default=None,
         allow_none=True,
         description="If this level exists in the taxonomy, drop "
         "it before doing type assignment (this is to accommmodate "
@@ -352,6 +352,12 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     marker_lookup_path = config['query_markers']['serialized_lookup']
     marker_lookup = json.load(open(marker_lookup_path, 'rb'))
+
+    if 'metadata' in marker_lookup:
+        marker_lookup.pop('metadata')
+    if 'log' in marker_lookup:
+        marker_lookup.pop('log')
+
     if config['flatten']:
 
         taxonomy_tree = taxonomy_tree.flatten()

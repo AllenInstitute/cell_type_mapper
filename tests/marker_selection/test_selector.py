@@ -164,16 +164,6 @@ def marker_cache_fixture(
     csc_up = scipy_sparse.csc_array(up_regulated)
     csc_down = scipy_sparse.csc_array(down_regulated)
 
-    # Add some nonsense genes to full_gene_names and shuffle.
-    # This is meant to simulate the case where the reference
-    # dataset contains genes that are not markers for any
-    # taxon pairs.
-    rng = np.random.default_rng(887123)
-    full_gene_names = copy.deepcopy(gene_names_fixture)
-    for ii in range(7):
-        full_gene_names.append(f'full_{ii}')
-    rng.shuffle(full_gene_names)
-
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
         pair_to_idx.pop('n_pairs')
@@ -183,9 +173,6 @@ def marker_cache_fixture(
         dst.create_dataset(
             'gene_names',
             data=json.dumps(gene_names_fixture).encode('utf-8'))
-        dst.create_dataset(
-            'full_gene_names',
-            data=json.dumps(full_gene_names).encode('utf-8'))
         dst.create_dataset(
             'n_pairs',
             data=n_cols)
@@ -325,6 +312,8 @@ def test_selection_worker_smoke(
                    ('class', 'aa'),
                    ('class', 'bb')]
 
+    summary_log = dict()
+
     for parent in parent_list:
         marker_gene_array = MarkerGeneArray.from_cache_path(
             cache_path=marker_cache_fixture)
@@ -336,7 +325,15 @@ def test_selection_worker_smoke(
             parent_node=parent,
             n_per_utility=5,
             output_dict=output_dict,
-            stdout_lock=DummyLock())
+            stdout_lock=DummyLock(),
+            summary_log=summary_log)
+
+    for k in ['None', 'subclass/e', 'class/aa', 'class/bb']:
+        assert k in summary_log
+
+    assert summary_log['class/bb'] == {
+        'n_genes': 0,
+        'msg': 'Skipping; no leaf nodes to compare'}
 
     for parent in parent_list:
         if parent == ('class', 'bb'):
@@ -380,7 +377,8 @@ def test_full_marker_selection_smoke(
 
     query_gene_names = gene_names_fixture
 
-    result = select_all_markers(
+    (result,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
@@ -452,7 +450,8 @@ def test_full_marker_cache_creation_smoke(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -469,13 +468,9 @@ def test_full_marker_cache_creation_smoke(
         n_processors=3,
         behemoth_cutoff=behemoth_cutoff)
 
-    # because I added some nonsense genes to full_gene_names
-    # in the test fixture, to simulate the case where there
-    # are genes in the reference data that do not make it
-    # through reference marker cache creation
     with h5py.File(marker_cache_fixture, 'r') as src:
         full_gene_names = json.loads(
-            src['full_gene_names'][()].decode('utf-8'))
+            src['gene_names'][()].decode('utf-8'))
 
     with h5py.File(output_path, 'r') as actual:
 
@@ -539,7 +534,8 @@ def test_marker_serialization(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -648,7 +644,8 @@ def test_marker_serialization_roundtrip(
         query_gene_names = query_gene_names[:n_clip]
 
     # these are the results that should be recorded
-    expected = select_all_markers(
+    (expected,
+     summary_log) = select_all_markers(
         marker_cache_path=marker_cache_fixture,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
@@ -698,7 +695,7 @@ def test_marker_serialization_roundtrip(
 
     with h5py.File(marker_cache_fixture, 'r') as src:
         reference_gene_names = json.loads(
-            src['full_gene_names'][()].decode('utf-8'))
+            src['gene_names'][()].decode('utf-8'))
 
     for n in extra_genes:
         reference_gene_names.append(n)

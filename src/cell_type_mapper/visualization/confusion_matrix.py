@@ -21,8 +21,9 @@ def many_summary_plots_pdf(
         is_log10=False,
         munge_ints=False,
         is_flat=False,
-        confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        confidence_key_list=['bootstrapping_probability'],
+        leaf_order=None,
+        drop_level=None):
 
     with PdfPages(plot_path) as pdf_handle:
         for classification_path in classification_path_list:
@@ -33,8 +34,9 @@ def many_summary_plots_pdf(
                 is_log10=is_log10,
                 munge_ints=munge_ints,
                 is_flat=is_flat,
-                confidence_key=confidence_key,
-                leaf_order=leaf_order)
+                confidence_key_list=confidence_key_list,
+                leaf_order=leaf_order,
+                drop_level=drop_level)
 
 
 def single_summary_plot_pdf(
@@ -44,8 +46,9 @@ def single_summary_plot_pdf(
         is_log10=False,
         munge_ints=False,
         is_flat=False,
-        confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        confidence_key_list=['bootstrapping_probability'],
+        leaf_order=None,
+        drop_level=None):
 
     with PdfPages(plot_path) as pdf_handle:
         summary_plots_for_one_file(
@@ -55,8 +58,9 @@ def single_summary_plot_pdf(
             is_log10=is_log10,
             munge_ints=munge_ints,
             is_flat=is_flat,
-            confidence_key=confidence_key,
-            leaf_order=leaf_order)
+            confidence_key_list=confidence_key_list,
+            leaf_order=leaf_order,
+            drop_level=drop_level)
 
 
 def summary_plots_for_one_file(
@@ -66,8 +70,9 @@ def summary_plots_for_one_file(
         is_log10,
         munge_ints,
         is_flat=False,
-        confidence_key='bootstrapping_probability',
-        leaf_order=None):
+        confidence_key_list=['bootstrapping_probability'],
+        leaf_order=None,
+        drop_level=None):
 
     classification_path = pathlib.Path(classification_path)
     print(classification_path.name)
@@ -90,6 +95,10 @@ def summary_plots_for_one_file(
     with h5py.File(precomputed_path, 'r') as src:
         taxonomy_tree = TaxonomyTree(
             data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
+
+    if drop_level is not None:
+        taxonomy_tree = taxonomy_tree.drop_level(drop_level)
+
     inverted_tree = invert_tree(taxonomy_tree)
     raw_results = results.pop('results')
 
@@ -119,13 +128,15 @@ def summary_plots_for_one_file(
             cell = {'cell_id': raw_cell['cell_id']}
             for level in taxonomy_tree.hierarchy:
                 if level == taxonomy_tree.leaf_level:
-                    cell[level] = {'assignment': raw_cell['assignment'],
-                                   'confidence': raw_cell[confidence_key]}
+                    cell[level] = {'assignment': raw_cell['assignment']}
+                    for confidence_key in confidence_key_list:
+                        cell[level][confidence_key] = raw_cell[confidence_key]
                 else:
                     cell[level] = {
                         'assignment':
-                        inverted_tree[level][raw_cell['assignment']],
-                        confidence_key: 1.0}
+                        inverted_tree[level][raw_cell['assignment']]}
+                    for confidence_key in confidence_key_list:
+                        cell[level][confidence_key] = 1.0
             results_lookup[raw_cell['cell_id']] = cell
 
     query_path = pathlib.Path(results['config']['query_path'])
@@ -170,17 +181,17 @@ def summary_plots_for_one_file(
 
     obs = query_obs
 
-    n_levels = len(taxonomy_tree.hierarchy)
+    n_levels = len(taxonomy_tree.hierarchy)-1
 
     grid_gap = 5
     grid_height = 20
     grid_width = 20
     msg_width = 20
 
-    n_fig_cols = 4
+    n_fig_cols = 3 + len(confidence_key_list)
 
     full_width = msg_width+n_fig_cols*(grid_height+grid_gap)+1
-    full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1
+    full_height = n_levels*grid_height + (n_levels-1)*grid_gap+1+grid_gap
     grid = gridspec.GridSpec(nrows=full_height, ncols=full_width)
 
     grid.update(
@@ -201,10 +212,10 @@ def summary_plots_for_one_file(
     sub_axis_lists = []
     for i_row in range(n_levels):
         this_sub_list = []
-        r0 = i_row*grid_gap+i_row*grid_height
+        r0 = i_row*grid_gap+i_row*grid_height + grid_gap
         r1 = r0 + grid_height
         assert r1 < full_height
-        for i_col in range(n_fig_cols-1):
+        for i_col in range(n_fig_cols-len(confidence_key_list)):
             c0 = msg_width+(i_col+1)*grid_gap+i_col*grid_width
             c1 = c0 + grid_width
             assert c1 < full_width
@@ -213,20 +224,27 @@ def summary_plots_for_one_file(
             axis_list.append(this_axis)
         sub_axis_lists.append(this_sub_list)
 
-    c0 = msg_width+n_fig_cols*grid_gap+(n_fig_cols-1)*grid_width
-    c1 = c0 + grid_width
-    histogram_axis = fig.add_subplot(
-        grid[0:grid_height, c0:c1])
+    histogram_axis_lookup = dict()
+    for i_conf, confidence_key in enumerate(confidence_key_list):
 
-    good_confidence = []
-    bad_confidence = []
+        c0 = msg_width+(3+i_conf+1)*grid_gap+(3+i_conf)*grid_width
+        c1 = c0 + grid_width
+        histogram_axis_lookup[confidence_key] = fig.add_subplot(
+            grid[grid_gap:grid_height, c0:c1])
+
+    good_confidence_lookup = {n: [] for n in confidence_key_list}
+    bad_confidence_lookup = {n: [] for n in confidence_key_list}
 
     accuracy_statements = []
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         if level not in result_levels:
             continue
 
-        this_axis_list = sub_axis_lists[i_level]
+        if i_level < len(sub_axis_lists):
+            this_axis_list = sub_axis_lists[i_level]
+        else:
+            this_axis_list = None
+
         if level == taxonomy_tree.leaf_level:
             label_order = leaf_order
         else:
@@ -256,23 +274,30 @@ def summary_plots_for_one_file(
 
         good = 0
         bad = 0
+
         for cell_id, truth, experiment in zip(these_cells,
                                               these_truth,
                                               these_experiments):
             if level == taxonomy_tree.leaf_level:
                 cell = results_lookup[cell_id]
-                confidence = 1.0
+                confidence = {n: 1.0 for n in confidence_key_list}
                 for ll in taxonomy_tree.hierarchy:
                     if ll in cell:
-                        confidence *= cell[ll][confidence_key]
+                        for confidence_key in confidence_key_list:
+                            confidence[confidence_key] *= \
+                                cell[ll][confidence_key]
             if truth == experiment:
                 good += 1
                 if level == taxonomy_tree.leaf_level:
-                    good_confidence.append(confidence)
+                    for confidence_key in confidence_key_list:
+                        good_confidence_lookup[confidence_key].append(
+                            confidence[confidence_key])
             else:
                 bad += 1
                 if level == taxonomy_tree.leaf_level:
-                    bad_confidence.append(confidence)
+                    for confidence_key in confidence_key_list:
+                        bad_confidence_lookup[confidence_key].append(
+                            confidence[confidence_key])
         print(f"{level} {good} {bad}")
         msg = f"{level} correctly mapped: {good} -- {good/float(good+bad):.3e}"
         accuracy_statements.append(f"{msg}\n")
@@ -283,44 +308,45 @@ def summary_plots_for_one_file(
         else:
             label_x_axis = False
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[0],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by='truth',
-            fontsize=20,
-            title=f"{level} normalized by true label",
-            is_log=is_log10,
-            label_x_axis=label_x_axis,
-            label_y_axis=True)
+        if this_axis_list is not None:
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[0],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='truth',
+                fontsize=20,
+                title=f"{level} normalized by true label",
+                is_log=is_log10,
+                label_x_axis=label_x_axis,
+                label_y_axis=True)
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[1],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by='experiment',
-            fontsize=20,
-            title=f"{level} normalized by mapped label",
-            is_log=is_log10,
-            label_x_axis=label_x_axis,
-            label_y_axis=False,)
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[1],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by='experiment',
+                fontsize=20,
+                title=f"{level} normalized by mapped label",
+                is_log=is_log10,
+                label_x_axis=label_x_axis,
+                label_y_axis=False,)
 
-        plot_confusion_matrix(
-            figure=fig,
-            axis=this_axis_list[2],
-            true_labels=these_truth,
-            experimental_labels=these_experiments,
-            label_order=label_order,
-            normalize_by=None,
-            fontsize=20,
-            title=f"{level} raw count",
-            is_log=True,
-            label_x_axis=label_x_axis,
-            label_y_axis=False,)
+            plot_confusion_matrix(
+                figure=fig,
+                axis=this_axis_list[2],
+                true_labels=these_truth,
+                experimental_labels=these_experiments,
+                label_order=label_order,
+                normalize_by=None,
+                fontsize=20,
+                title=f"{level} raw count",
+                is_log=True,
+                label_x_axis=label_x_axis,
+                label_y_axis=False,)
 
     msg = f"query set: {query_path_str}\n"
     msg += f"marker genes: {marker_lookup_str}\n"
@@ -349,26 +375,31 @@ def summary_plots_for_one_file(
     axis_list[0].tick_params(
         axis='both', which='both', size=0, labelsize=0)
 
-    print(
-        f"good_confidence {np.mean(good_confidence)} "
-        f"+/- {np.std(good_confidence)}")
-    print(
-        f"bad_confidence {np.mean(bad_confidence)} "
-        f"+/- {np.std(bad_confidence)}")
-    histogram_axis.hist(good_confidence, bins=100, density=True,
-                        zorder=0, color='b', label='correct cells')
-    histogram_axis.hist(
-        bad_confidence,
-        bins=100,
-        density=True,
-        zorder=1,
-        alpha=0.7,
-        color='r',
-        label='incorrect cells')
+    for confidence_key in confidence_key_list:
+        good_confidence = good_confidence_lookup[confidence_key]
+        bad_confidence = bad_confidence_lookup[confidence_key]
+        histogram_axis = histogram_axis_lookup[confidence_key]
 
-    histogram_axis.legend(loc=0, fontsize=20)
-    histogram_axis.set_xlabel('confidence', fontsize=20)
-    histogram_axis.set_ylabel('density', fontsize=20)
+        print(
+            f"good {confidence_key} {np.mean(good_confidence)} "
+            f"+/- {np.std(good_confidence)}")
+        print(
+            f"bad {confidence_key} {np.mean(bad_confidence)} "
+            f"+/- {np.std(bad_confidence)}")
+        histogram_axis.hist(good_confidence, bins=100, density=True,
+                            zorder=0, color='b', label='correct cells')
+        histogram_axis.hist(
+            bad_confidence,
+            bins=100,
+            density=True,
+            zorder=1,
+            alpha=0.7,
+            color='r',
+            label='incorrect cells')
+
+        histogram_axis.legend(loc=0, fontsize=20)
+        histogram_axis.set_xlabel(confidence_key, fontsize=20)
+        histogram_axis.set_ylabel('density', fontsize=20)
 
     pdf_handle.savefig(fig)
 

@@ -4,11 +4,11 @@ import time
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
 
-from cell_type_mapper.corr.utils import (
-    match_genes)
-
 from cell_type_mapper.marker_selection.utils import (
     create_utility_array)
+
+from cell_type_mapper.marker_selection.marker_array_utils import (
+    thin_marker_gene_array_by_gene)
 
 
 def select_marker_genes_v2(
@@ -17,7 +17,9 @@ def select_marker_genes_v2(
         taxonomy_tree,
         parent_node,
         n_per_utility=15,
-        lock=None):
+        lock=None,
+        summary_log=None,
+        tmp_dir=None):
     """
     Select marker genes given a reference set and a query set.
 
@@ -61,10 +63,22 @@ def select_marker_genes_v2(
        Optional multiprocessing lock to prevent stdout prints from
        stumbling over each other (can be None)
 
+    summary_log:
+        If not None, a dict-like object (probably a
+        multiprocessing.Manager.dict) mapping parent node
+        to a summary of the performance of marker
+        selection on that node).
+
+    tmp_dir:
+        Directory for storing scratch files so big matrix manipulations
+        do not happen in memory.
+
     Returns
     -------
     A list of marker gene names.
         (Alphabetized for lack of a better ordering scheme.)
+
+    A string summarizing how well the marker selection did.
     """
     t0 = time.time()
 
@@ -75,9 +89,10 @@ def select_marker_genes_v2(
         print("starting marker selection for "
               f"parent node {parent_node}")
 
-    marker_gene_array = _thin_marker_gene_array(
+    marker_gene_array = thin_marker_gene_array_by_gene(
         marker_gene_array=marker_gene_array,
-        query_gene_names=query_gene_names)
+        query_gene_names=query_gene_names,
+        tmp_dir=tmp_dir)
 
     # get a numpy array of indices indicating which taxonomy
     # pairs we need markers to discriminate between, given this
@@ -101,7 +116,8 @@ def select_marker_genes_v2(
         print(f"parent: {parent_node} -- "
               f"preparation took {duration:.2e} hours")
 
-    marker_gene_names = _run_selection(
+    (marker_gene_names,
+     summary_log_message) = _run_selection(
         marker_gene_array=marker_gene_array,
         utility_array=utility_array,
         marker_census=marker_census,
@@ -109,6 +125,13 @@ def select_marker_genes_v2(
         n_per_utility=n_per_utility,
         parent_node=parent_node,
         lock=lock)
+
+    if summary_log is not None:
+        if parent_node is None:
+            log_key = 'None'
+        else:
+            log_key = f'{parent_node[0]}/{parent_node[1]}'
+        summary_log[log_key] = summary_log_message
 
     return marker_gene_names
 
@@ -167,14 +190,8 @@ def _run_selection(
         n_per_utility=n_per_utility,
         n_desperate=n_per_utility)
 
+    broke_because = ''
     while True:
-
-        # because the utility_array for genes that are not in the query
-        # set was set to zero at the beginning, this ought to indicate that
-        # none of the genes left have any utility in the taxonomy pairs
-        # we care about
-        if utility_array.max() <= 0:
-            break
 
         (been_filled,
          utility_array,
@@ -188,9 +205,18 @@ def _run_selection(
                  marker_gene_array=marker_gene_array,
                  taxonomy_idx_array=taxonomy_idx_array)
 
+        # because the utility_array for genes that are not in the query
+        # set was set to zero at the beginning, this ought to indicate that
+        # none of the genes left have any utility in the taxonomy pairs
+        # we care about
+        if utility_array.max() <= 0:
+            broke_because = 'utility_array.max()'
+            break
+
         filled_sum = been_filled.sum()
         if filled_sum == been_filled_size:
             # we have found all the genes we need
+            broke_because = 'been_filled.sum()'
             break
 
         (marker_gene_idx_set,
@@ -209,15 +235,21 @@ def _run_selection(
 
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
+    stat_msg, stat_dict = _stats_from_marker_counts(marker_counts)
+    stat_dict['n_genes'] = len(marker_gene_name_list)
+    stat_dict['filled'] = int(been_filled.sum())
+    stat_dict['unfilled'] = int(been_filled_size)-stat_dict['filled']
+    msg = f"\n======parent_node: {parent_node}======\n"
+    msg += f"selected {len(marker_gene_name_list)} from "
+    msg += f"{marker_gene_array.n_genes}\n"
+    msg += f"filled {been_filled.sum()} of {been_filled_size}\n"
+    msg += f"broke because {broke_because}\n"
+    msg += stat_msg
+    msg += "\n============"
     with lock:
-        msg = f"\n======parent_node: {parent_node}======\n"
-        msg += f"selected {len(marker_gene_name_list)} from "
-        msg += f"{marker_gene_array.n_genes}\n"
-        msg += f"filled {been_filled.sum()} of {been_filled_size}\n"
-        msg += _stats_from_marker_counts(marker_counts)
-        msg += "\n============"
         print(msg)
-    return marker_gene_name_list
+
+    return marker_gene_name_list, stat_dict
 
 
 def _choose_gene(
@@ -313,50 +345,6 @@ def _choose_desperate_markers(
             utility_array,
             sorted_utility_idx,
             marker_counts)
-
-
-def _thin_marker_gene_array(
-        marker_gene_array,
-        query_gene_names):
-    """
-    Remove rows that are not in the query gene set from
-    marker_gene_array
-
-    Parameters
-    ----------
-    marker_gene_array:
-        A MarkerGeneArray containing the marker gene data
-        from the reference dataset
-    query_gene_names:
-        List of the names of the genes in the query dataset
-
-    Returns
-    -------
-    marker_gene_array:
-        With only the nodes that overlap with query_gene_naems
-        returned.
-    """
-    # figure out which genes are in both the reference dataset
-    # and the query dataset
-    matched_genes = match_genes(
-        reference_gene_names=marker_gene_array.gene_names,
-        query_gene_names=query_gene_names)
-
-    if len(matched_genes['reference']) == 0:
-        raise RuntimeError(
-            "No gene overlap between reference and query set")
-
-    reference_gene_mask = np.zeros(marker_gene_array.n_genes, dtype=bool)
-    reference_gene_mask[matched_genes['reference']] = True
-
-    if reference_gene_mask.sum() == marker_gene_array.n_genes:
-        # nothing to be done; query and reference genes are
-        # the same
-        return marker_gene_array
-
-    reference_gene_idx = np.where(reference_gene_mask)[0]
-    marker_gene_array.downsample_genes(reference_gene_idx)
-    return marker_gene_array
 
 
 def _update_marker_counts(
@@ -491,11 +479,9 @@ def _update_been_filled(
         halfway_there,
         de_facto_pair)
 
-    # n0 = newly_full_mask.sum()
     newly_full_mask = np.logical_or(
         newly_full_mask,
         np.array([de_facto_pair, de_facto_pair]).transpose())
-    # print(f"de facto added {newly_full_mask.sum()-n0}")
 
     # don't correct for pairs that were already marked
     # as "filled"
@@ -507,7 +493,7 @@ def _update_been_filled(
 
     # if so, update the utility_array so that taxonomy pairs that
     # already have their full complement of marker genes do not
-    # contribute to the utility score if genes
+    # contribute to the utility score of genes
     if len(newly_full[0]) > 0:
         for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
             sign = {0: -1, 1: 1}[raw_sign]
@@ -590,7 +576,12 @@ def recalculate_utility_array(
 
 def _stats_from_marker_counts(
         marker_counts):
+
     genes_per_pair = marker_counts.sum(axis=1)
+
+    # these stats are by pair, *not* by utility set
+    # (i.e. up_ and down_regulated markers are lumped together
+    # for the given taxon pairs)
     med_genes = np.median(genes_per_pair)
     min_genes = genes_per_pair.min()
     max_genes = genes_per_pair.max()
@@ -601,4 +592,14 @@ def _stats_from_marker_counts(
     msg = f"genes per pair {min_genes} {med_genes} {max_genes} "
     msg += f"n_zero {n_zero:.2e} n_lt_5 {lt_5:.2e} "
     msg += f"n_lt15 {lt_15:.2e} n_lt30 {lt_30:.2e}"
-    return msg
+
+    as_dict = {
+        'min_n_genes': int(min_genes),
+        'median_n_genes': int(med_genes),
+        'max_n_genes': int(max_genes),
+        'n_zero': int(n_zero),
+        'lt_5': int(lt_5),
+        'lt_15': int(lt_15),
+        'lt_30': int(lt_30)}
+
+    return msg, as_dict

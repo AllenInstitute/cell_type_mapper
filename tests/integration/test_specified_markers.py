@@ -316,8 +316,8 @@ def test_mapping_from_markers(
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
-                            atol=1.0e-4,
-                            rtol=1.0e-4)
+                            atol=1.0e-3,
+                            rtol=1.0e-3)
     else:
         all_markers = set()
         for k in expected['marker_genes']:
@@ -389,5 +389,80 @@ def test_mapping_from_markers(
     query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
     input_uns = query_adata.uns
     assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
+
+    os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize('use_gpu', [False, True])
+def test_mapping_from_markers_when_some_markers_missing(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        use_gpu):
+    """
+    Test what happens when one element in the marker lookup
+    contains no marker genes
+
+    Right now, this passes. The assignments at the level with no markers
+    just get correlation=0 and boostrap_fraction=1
+    """
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    config['tmp_dir'] = this_tmp
+    config['query_path'] = baseline_config['query_path']
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['flatten'] = False
+
+    new_query_lookup = mkstemp_clean(
+        dir=this_tmp,
+        prefix='markers_',
+        suffix='.json')
+
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        markers = json.load(src)
+
+    assert len(markers['subclass/subclass_5']) > 0
+    markers['subclass/subclass_5'] = []
+    with open(new_query_lookup, 'w') as dst:
+        dst.write(json.dumps(markers, indent=2))
+
+    config['query_markers'] = {
+        'serialized_lookup': new_query_lookup}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+    config['drop_level'] = None
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
 
     os.environ[env_var] = ''

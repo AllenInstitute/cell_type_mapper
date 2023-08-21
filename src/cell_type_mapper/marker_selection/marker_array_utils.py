@@ -1,3 +1,77 @@
+import numpy as np
+
+from cell_type_mapper.corr.utils import (
+    match_genes)
+
+
+def thin_marker_gene_array_by_gene(
+        marker_gene_array,
+        query_gene_names,
+        tmp_dir=None):
+    """
+    Remove rows that are not in the query gene set from
+    marker_gene_array
+
+    Parameters
+    ----------
+    marker_gene_array:
+        A MarkerGeneArray containing the marker gene data
+        from the reference dataset
+    query_gene_names:
+        List of the names of the genes in the query dataset
+    tmp_dir:
+        Directory for storing scratch files so big matrix manipulations
+        do not happen in memory.
+
+    Returns
+    -------
+    marker_gene_array:
+        With only the nodes that overlap with query_gene_naems
+        returned.
+
+    Note
+    -----
+    This method alters marker_gene_array in place
+    """
+
+    reference_gene_mask = query_genes_to_mask(
+        reference_gene_names=marker_gene_array.gene_names,
+        query_gene_names=query_gene_names)
+
+    if reference_gene_mask.sum() == marker_gene_array.n_genes:
+        # nothing to be done; query and reference genes are
+        # the same
+        return marker_gene_array
+
+    reference_gene_idx = np.where(reference_gene_mask)[0]
+    marker_gene_array.downsample_genes(
+            reference_gene_idx,
+            tmp_dir=tmp_dir)
+    return marker_gene_array
+
+
+def query_genes_to_mask(
+        reference_gene_names,
+        query_gene_names):
+    """
+    Return a mask indicating which genes in reference_gene_names
+    need to be kept to align with query_gene_names
+    """
+    # figure out which genes are in both the reference dataset
+    # and the query dataset
+    matched_genes = match_genes(
+        reference_gene_names=reference_gene_names,
+        query_gene_names=query_gene_names)
+
+    if len(matched_genes['reference']) == 0:
+        raise RuntimeError(
+            "No gene overlap between reference and query set")
+
+    reference_gene_mask = np.zeros(len(reference_gene_names), dtype=bool)
+    reference_gene_mask[matched_genes['reference']] = True
+    return reference_gene_mask
+
+
 def _create_new_pair_lookup(only_keep_pairs):
     """
     Create new pair-to-idx lookup for case where we

@@ -16,7 +16,8 @@ def select_all_markers(
         taxonomy_tree,
         n_per_utility=15,
         n_processors=4,
-        behemoth_cutoff=1000000):
+        behemoth_cutoff=1000000,
+        tmp_dir=None):
     """
     Select all of the markers necessary for a taxonomy.
     Save them as a JSONized dict (for now).
@@ -40,11 +41,17 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
 
     Returns
     -------
     A dict mapping parent node tuple to list of marker gene
     names
+
+    A dict mapping parent node names to string summarizing the
+    performance of query marker selection
     """
 
     parent_to_leaves = dict()
@@ -64,11 +71,16 @@ def select_all_markers(
         else:
             smaller_parents.append(parent)
 
+    print("loading parent marker cache")
     parent_marker_cache = MarkerGeneArray.from_cache_path(
-        cache_path=marker_cache_path)
+        cache_path=marker_cache_path,
+        query_gene_names=query_gene_names,
+        tmp_dir=tmp_dir)
+    print("done loading parent marker cache")
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
+    summary_log = mgr.dict()
     stdout_lock = mgr.Lock()
 
     started_parents = set()
@@ -83,11 +95,13 @@ def select_all_markers(
                 break
 
         have_chosen_parent = False
+        is_behemoth = False
         if not are_behemoths_running:
             for parent in behemoth_parents:
                 if parent not in started_parents:
                     chosen_parent = parent
                     have_chosen_parent = True
+                    is_behemoth = True
                     break
         if not have_chosen_parent:
             for parent in smaller_parents:
@@ -100,21 +114,37 @@ def select_all_markers(
             started_parents.add(chosen_parent)
             leaves = parent_to_leaves[chosen_parent]
             if len(leaves) == 0:
+                if chosen_parent is None:
+                    log_key = 'None'
+                else:
+                    log_key = f'{chosen_parent[0]}/{chosen_parent[1]}'
+                summary_log[log_key] = {
+                    'n_genes': 0,
+                    'msg': 'Skipping; no leaf nodes to compare'}
                 output_dict[chosen_parent] = []
                 completed_parents.add(chosen_parent)
             else:
-                marker_gene_array = parent_marker_cache
+                if is_behemoth:
+                    marker_gene_array = parent_marker_cache.spawn_copy()
+                else:
+                    marker_gene_array = \
+                        parent_marker_cache.downsample_pairs_to_other(
+                            only_keep_pairs=leaves,
+                            tmp_dir=tmp_dir)
 
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
                         kwargs={
-                            'marker_gene_array': marker_gene_array,
+                            'marker_gene_array':
+                                marker_gene_array,
                             'query_gene_names': query_gene_names,
                             'taxonomy_tree': taxonomy_tree,
                             'parent_node': chosen_parent,
                             'n_per_utility': n_per_utility,
                             'output_dict': output_dict,
-                            'stdout_lock': stdout_lock})
+                            'stdout_lock': stdout_lock,
+                            'summary_log': summary_log,
+                            'tmp_dir': tmp_dir})
                 p.start()
                 process_dict[chosen_parent] = p
 
@@ -131,7 +161,10 @@ def select_all_markers(
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
 
-    return dict(output_dict)
+    output_dict = dict(output_dict)
+    summary_log = dict(summary_log)
+
+    return output_dict, summary_log
 
 
 def _marker_selection_worker(
@@ -141,7 +174,9 @@ def _marker_selection_worker(
         parent_node,
         n_per_utility,
         output_dict,
-        stdout_lock):
+        stdout_lock,
+        summary_log,
+        tmp_dir=None):
 
     leaf_pair_list = taxonomy_tree.leaves_to_compare(
         parent_node=parent_node)
@@ -149,6 +184,14 @@ def _marker_selection_worker(
     # this could happen if a parent node has only one
     # immediate descendant
     if len(leaf_pair_list) == 0:
+        if summary_log is not None:
+            if parent_node is None:
+                log_key = 'None'
+            else:
+                log_key = f'{parent_node[0]}/{parent_node[1]}'
+            summary_log[log_key] = {
+                'n_genes': 0,
+                'msg': 'Skipping; no leaf nodes to compare'}
         output_dict[parent_node] = []
         return
 
@@ -158,6 +201,8 @@ def _marker_selection_worker(
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node,
         n_per_utility=n_per_utility,
-        lock=stdout_lock)
+        lock=stdout_lock,
+        summary_log=summary_log,
+        tmp_dir=tmp_dir)
 
     output_dict[parent_node] = marker_genes

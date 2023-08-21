@@ -51,9 +51,12 @@ def create_marker_cache_from_reference_markers(
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff)
 
+    if 'log' in reformatted_lookup:
+        reformatted_lookup.pop('log')
+
     with h5py.File(input_cache_path, 'r') as in_file:
         reference_gene_names = json.loads(
-            in_file['full_gene_names'][()].decode('utf-8'))
+            in_file['gene_names'][()].decode('utf-8'))
 
     write_query_markers_to_h5(
         marker_lookup=reformatted_lookup,
@@ -102,6 +105,8 @@ def create_marker_cache_from_specified_markers(
     missing_reference_markers = set()
     for parent_node in marker_lookup:
         if parent_node == 'metadata':
+            continue
+        if parent_node == 'log':
             continue
         marker_set = set(marker_lookup[parent_node])
         these_markers = list(marker_set.intersection(query_gene_set))
@@ -161,7 +166,8 @@ def create_raw_marker_gene_lookup(
         taxonomy_tree,
         n_per_utility,
         n_processors,
-        behemoth_cutoff=10000000):
+        behemoth_cutoff=10000000,
+        tmp_dir=None):
     """
     Create and return a dict mapping
     level_name/node_name to lists of marker genes
@@ -184,17 +190,22 @@ def create_raw_marker_gene_lookup(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
     """
 
     # create a dict mapping from parent_node to
     # lists of marker gene names
-    marker_lookup = select_all_markers(
+    (marker_lookup,
+     summary_log) = select_all_markers(
         marker_cache_path=input_cache_path,
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=n_per_utility,
         n_processors=n_processors,
-        behemoth_cutoff=behemoth_cutoff)
+        behemoth_cutoff=behemoth_cutoff,
+        tmp_dir=tmp_dir)
 
     # reformat marker lookup so the keys are the
     # 'parent/level' groups that will actually be
@@ -216,6 +227,9 @@ def create_raw_marker_gene_lookup(
 
         created_groups.add(parent_grp)
         reformatted_lookup[parent_grp] = marker_lookup.pop(parent)
+
+    reformatted_lookup['log'] = summary_log
+
     return reformatted_lookup
 
 
