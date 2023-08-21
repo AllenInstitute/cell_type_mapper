@@ -68,4 +68,42 @@ def test_taxonomy_reconciliation(tmp_path_factory):
     expected = "marker cache is missing parent 'b/b2'\n"
     assert msg == expected
 
+    # test case when all the parents at a given level are missing
+    parent_list = ['None', 'a/a1']
+    # should not need 'a/a2' because it only has one child
+
+    marker_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
+    with h5py.File(marker_path, 'w') as out_file:
+        for parent in parent_list:
+            out_file.create_dataset(parent, data=b'abc')
+
+    (flag, msg) = reconcile_taxonomy_and_markers(
+        taxonomy_tree=taxonomy_tree,
+        marker_cache_path=marker_path)
+
+    assert not flag
+    expected = ("marker cache is missing all parents at level 'b'; "
+                "consider running cell_type_mapper with "
+                "--drop_level 'b'")
+    assert msg == expected
+
+    # test that it can handle missing root
+    parent_list = ['a/a1', 'b/b1', 'b/b3']
+    # should not need 'a/a2' because it only has one child
+
+    marker_path = mkstemp_clean(dir=tmp_dir, suffix='.h5')
+    with h5py.File(marker_path, 'w') as out_file:
+        for parent in parent_list:
+            out_file.create_dataset(parent, data=b'abc')
+
+    (flag, msg) = reconcile_taxonomy_and_markers(
+        taxonomy_tree=taxonomy_tree,
+        marker_cache_path=marker_path)
+
+    assert not flag
+    expected = "marker cache is missing parent 'b/b2'\n"
+    assert expected in msg
+    expected = "marker cache is missing parent 'None'\n"
+    assert expected in msg
+
     _clean_up(tmp_dir)
