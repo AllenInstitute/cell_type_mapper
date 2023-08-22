@@ -1,6 +1,8 @@
 import pathlib
 import time
 
+from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
@@ -27,9 +29,18 @@ def _check_config(config_dict, config_name, key_name, log):
             log.error(f"'{config_name}' config missing key '{key_name}'")
 
 
-def _get_query_gene_names(query_gene_path):
+def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
+    """
+    If map_to_ensembl is True, automatically map the gene IDs in
+    query_gene_path.var.index to ENSEMBL IDs
+    """
     var = read_df_from_h5ad(query_gene_path, 'var')
     result = list(var.index.values)
+    if map_to_ensembl:
+        gene_id_mapper = GeneIdMapper.from_default()
+        result = gene_id_mapper.map_gene_identifiers(
+            result,
+            strict=False)
     return result
 
 
