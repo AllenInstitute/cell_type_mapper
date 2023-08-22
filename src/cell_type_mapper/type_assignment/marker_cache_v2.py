@@ -114,12 +114,11 @@ def create_marker_cache_from_specified_markers(
         if len(these_markers) == 0 and len(marker_set) > 0:
             these_markers = list(query_gene_set)
             msg = f"No markers at parent node '{parent_node}' were present "
-            msg += f"in query set. Using all {len(query_gene_set)} "
-            msg += "query genes at this node"
+            msg += "in query set."
             if log is None:
-                warnings.warn(msg)
+                raise RuntimeError(msg)
             else:
-                log.warn(msg)
+                log.error(msg)
 
         final_marker_lookup[parent_node] = these_markers
         missing_query_markers = missing_query_markers.union(
