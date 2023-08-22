@@ -162,12 +162,14 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
+@pytest.mark.parametrize('map_to_ensembl', [True, False])
 def test_ensembl_mapping_in_cli(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        map_to_ensembl):
     """
     Test for expected behavior (error/no error) when we just
     ask the from_specified_markers CLI to map gene names to
@@ -187,6 +189,7 @@ def test_ensembl_mapping_in_cli(
         },
         'query_path': str(query_h5ad_fixture),
         'extended_result_path': str(output_path),
+        'map_to_ensembl': map_to_ensembl,
         'type_assignment': {
             'normalization': 'log2CPM',
             'bootstrap_iteration': 10,
@@ -198,9 +201,14 @@ def test_ensembl_mapping_in_cli(
         }
     }
 
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
 
-    with pytest.raises(RuntimeError, match='No markers at parent node'):
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config)
+    if map_to_ensembl:
         runner.run()
+        actual = json.load(open(output_path, 'rb'))
+        assert 'RAN SUCCESSFULLY' in actual['log'][-2]
+    else:
+        with pytest.raises(RuntimeError, match='No markers at parent node'):
+            runner.run()

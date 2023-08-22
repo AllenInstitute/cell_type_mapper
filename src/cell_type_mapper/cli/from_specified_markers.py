@@ -79,6 +79,13 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to the h5ad file containing the query "
         "dataset")
 
+    map_to_ensembl = argschema.fields.Boolean(
+        reauired=False,
+        default=False,
+        allow_none=False,
+        description="If True, map the gene names in query_path to "
+        "ENSEMBL IDs before performing cell type mapping.")
+
     extended_result_dir = argschema.fields.OutputDir(
         required=False,
         default=None,
@@ -371,7 +378,9 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         all_markers.sort()
         marker_lookup = {'None': all_markers}
 
-    query_gene_names = _get_query_gene_names(query_loc)
+    query_gene_names = _get_query_gene_names(
+        query_loc,
+        map_to_ensembl=config['map_to_ensembl'])
 
     create_marker_cache_from_specified_markers(
         marker_lookup=marker_lookup,
