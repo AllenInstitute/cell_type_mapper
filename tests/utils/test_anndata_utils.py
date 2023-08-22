@@ -385,19 +385,32 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
             obsm_value=bad_obsm)
 
 
-    bad_obsm_data = [
+    reordered_obsm_data = [
         {'d': 'baz', 'z': 3},
         {'d': 'foo', 'z': 4},
         {'d': 'bar', 'z': 5}
     ]
-    bad_obsm = pd.DataFrame(bad_obsm_data).set_index('d')
-    with pytest.raises(RuntimeError, match='index values are not the same'):
-        append_to_obsm(
-            h5ad_path=h5ad_path,
-            obsm_key='test',
-            obsm_value=bad_obsm)
+    reordered_obsm = pd.DataFrame(reordered_obsm_data).set_index('d')
+    append_to_obsm(
+        h5ad_path=h5ad_path,
+        obsm_key='test',
+        obsm_value=reordered_obsm)
 
-    good_obsm = bad_obsm.loc[['foo', 'bar', 'baz']]
+    roundtrip = anndata.read_h5ad(h5ad_path)
+    assert list(roundtrip.obsm['test'].z.values) == [4, 5, 3]
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dummy_h5ad_',
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    good_obsm_data = [
+        {'d': 'foo', 'z': 13},
+        {'d': 'bar', 'z': 14},
+        {'d': 'baz', 'z': 15}
+    ]
+    good_obsm = pd.DataFrame(good_obsm_data).set_index('d')
     append_to_obsm(
         h5ad_path=h5ad_path,
         obsm_key='test',
@@ -406,4 +419,4 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
     roundtrip = anndata.read_h5ad(h5ad_path)
     roundtrip_obsm = roundtrip.obsm
     assert 'test' in roundtrip_obsm
-    assert list(roundtrip_obsm['test'].z.values) == [4, 5, 3]
+    assert list(roundtrip_obsm['test'].z.values) == [13, 14, 15]

@@ -259,6 +259,7 @@ def test_mapping_from_markers(
     runner.run()
 
     actual = json.load(open(result_path, 'rb'))
+    assert 'RAN SUCCESSFULLY' in actual['log'][-2]
 
     # make sure taxonomy tree was recorded in metadata
     expected_tree = TaxonomyTree(

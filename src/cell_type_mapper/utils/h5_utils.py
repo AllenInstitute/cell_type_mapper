@@ -47,15 +47,24 @@ def _copy_h5_element(
         current_location,
         excluded_datasets,
         excluded_groups):
+    attrs = dict(src_handle[current_location].attrs)
 
     if isinstance(src_handle[current_location], h5py.Dataset):
         if current_location not in excluded_datasets:
-            dst_handle.create_dataset(
+            dataset = dst_handle.create_dataset(
                 current_location,
                 data=src_handle[current_location],
                 chunks=src_handle[current_location].chunks)
+            if len(attrs) > 0:
+                for k in attrs:
+                    dataset.attrs.create(name=k, data=attrs[k])
+
     else:
         if current_location not in excluded_groups:
+            grp = dst_handle.create_group(current_location)
+            if len(attrs) > 0:
+                for k in attrs:
+                    grp.attrs.create(name=k, data=attrs[k])
             for next_el in src_handle[current_location].keys():
                 full_next_el = os.path.join(current_location, next_el)
                 _copy_h5_element(

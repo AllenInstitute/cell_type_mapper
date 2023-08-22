@@ -1,8 +1,11 @@
 import pytest
 
+import anndata
 import h5py
 import numpy as np
+import pandas as pd
 import pathlib
+import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -129,3 +132,155 @@ def test_h5_copy_util(
                        rtol=1.0e-6)
                else:
                    assert data_fixture[name] == src[name][()]
+
+
+
+@pytest.mark.parametrize(
+    "excluded_groups",
+    [[], ['X'], ['obsm'], ['var', 'varm'], ['varm'], ['obsm'], ['uns'],
+     ['X', 'uns'], ['obsm', 'uns'], ['X', 'obsm'], ['varm', 'uns']])
+def test_h5_copy_util_on_h5ad(
+        tmp_dir_fixture,
+        excluded_groups):
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='src_',
+        suffix='.h5ad')
+
+    rng = np.random.default_rng(87123)
+    n_cells = 151
+    n_genes = 431
+    n_tot =n_cells*n_genes
+    data = np.zeros(n_tot, dtype=np.float32)
+    chosen = rng.choice(np.arange(n_tot, dtype=int), n_tot//3, replace=False)
+    data[chosen] = rng.random(len(chosen)).astype(np.float32)
+    data = data.reshape((n_cells, n_genes))
+    x = scipy_sparse.csr_matrix(data)
+
+    obs_data = [
+        {'cell_id': f'cell_{ii}',
+         'garbage': ii,
+         'type': rng.choice(['a', 'b', 'c'])}
+        for ii in range(n_cells)
+    ]
+
+    obs = pd.DataFrame(obs_data).set_index('cell_id')
+    obs['type'] = obs['type'].astype('category')
+
+    var_data = [
+        {'gene_id': f'gene_{ii}',
+         'junk': ii**2,
+         'flavor': rng.choice(['d', 'e', 'f'])}
+        for ii in range(n_genes)
+    ]
+
+    var = pd.DataFrame(var_data).set_index('gene_id')
+    var['flavor'] = var['flavor'].astype('category')
+
+    obsm = {
+        'cell_mask': rng.integers(0, 2, n_cells).astype(bool),
+        'names': np.array([f'other_name_{ii}' for ii in range(n_cells)])
+    }
+
+    varm = {
+        'gene_mask': rng.integers(0, 2, n_genes).astype(bool),
+        'gene_df': pd.DataFrame([{'gene_id': f'gene_{ii}',
+                                  'value': f'something_{ii}',
+                                  'cube': ii**3}
+                                 for ii in range(n_genes)]).set_index('gene_id')
+    }
+
+    uns = {'date': 'today', 'author': 'me'}
+
+    src_a_data = anndata.AnnData(
+        X=x,
+        obs=obs,
+        var=var,
+        uns=uns,
+        obsm=obsm,
+        varm=varm)
+
+    src_a_data.write_h5ad(src_path)
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dst_',
+        suffix='.h5ad')
+
+    copy_h5_excluding_data(
+        src_path=src_path,
+        dst_path=dst_path,
+        tmp_dir=tmp_dir_fixture,
+        excluded_groups=excluded_groups,
+        excluded_datasets=excluded_groups)
+
+
+    dst_a_data = anndata.read_h5ad(dst_path, backed='r')
+    if 'X' not in excluded_groups:
+        dst_X = dst_a_data.X[()].toarray()
+        np.testing.assert_allclose(
+            dst_X,
+            x.toarray(),
+            atol=0.0,
+            rtol=1.0e-6)
+    else:
+        with pytest.raises(KeyError, match="object \'X\' doesn\'t exist"):
+            dst_X = dst_a_data.X[()]
+
+    dst_obs = dst_a_data.obs
+    pd.testing.assert_frame_equal(obs, dst_obs)
+
+    if 'var' not in excluded_groups:
+        dst_var = dst_a_data.var
+        pd.testing.assert_frame_equal(var, dst_var)
+    else:
+        dst_var = dst_a_data.var
+        assert not var.equals(dst_var)
+
+    if 'obsm' not in excluded_groups:
+        dst_obsm = dst_a_data.obsm
+        assert set(dst_obsm.keys()) == set(obsm.keys())
+        for k in dst_obsm:
+            actual = dst_obsm[k]
+            expected = obsm[k]
+            if isinstance(actual, pd.DataFrame):
+                pd.testing.assert_frame_equal(expected, actual)
+            elif isinstance(actual, np.ndarray):
+                np.testing.assert_array_equal(expected, actual)
+            else:
+                assert expected == actual
+    else:
+        dst_obsm = dst_a_data.obsm
+        assert dst_obsm == dict()
+
+
+    if 'varm' not in excluded_groups:
+        dst_varm = dst_a_data.varm
+        assert set(dst_varm.keys()) == set(varm.keys())
+        for k in dst_varm:
+            actual = dst_varm[k]
+            expected = varm[k]
+            if isinstance(actual, pd.DataFrame):
+                pd.testing.assert_frame_equal(expected, actual)
+            elif isinstance(actual, np.ndarray):
+                np.testing.assert_array_equal(expected, actual)
+            else:
+                assert expected == actual
+    else:
+        dst_varm = dst_a_data.varm
+        assert dst_varm == dict()
+
+    if 'uns' not in excluded_groups:
+        dst_uns = dst_a_data.uns
+        assert set(dst_uns.keys()) == set(uns.keys())
+        for k in dst_uns:
+            actual = dst_uns[k]
+            expected = uns[k]
+            if isinstance(actual, pd.DataFrame):
+                pd.testing.assert_frame_equal(expected, actual)
+            else:
+                assert expected == actual
+    else:
+        dst_uns = dst_a_data.uns
+        assert dst_uns == dict()

@@ -775,8 +775,7 @@ def test_specified_marker_empty_parent(
         tmp_dir_fixture):
     """
     Test that, when all of the markers for a given parent are missing
-    from the query set, a warning is emitted and all of the query
-    genes are used.
+    from the query set, an error is thrown.
     """
     tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
     reference_gene_names = ['a', 'b', 'c', 'd', 'e']
@@ -791,52 +790,10 @@ def test_specified_marker_empty_parent(
     else:
         log = None
 
-    with pytest.warns(UserWarning, match='No markers at parent node'):
+    with pytest.raises(RuntimeError, match='No markers at parent node'):
         create_marker_cache_from_specified_markers(
             marker_lookup=marker_lookup,
             reference_gene_names=reference_gene_names,
             query_gene_names=query_gene_names,
             output_cache_path=tmp_path,
             log=log)
-        if log is not None:
-            found_warning = False
-            for l in log._log:
-                if 'No markers at parent node' in l:
-                    found_warning = True
-            assert found_warning
-
-            # check for the final warning summarizing all the
-            # missing marker genes
-            found_warning = False
-            for l in log._log:
-                if 'marker genes were not present' in l:
-                    found_warning = True
-            assert found_warning
-
-    with h5py.File(tmp_path, 'r') as src:
-        np.testing.assert_array_equal(
-            src['pa/reference'][()],
-            np.array([0, 1]))
-
-        np.testing.assert_array_equal(
-            src['pa/query'][()],
-            np.array([1, 2]))
-
-        np.testing.assert_array_equal(
-            src['pb/reference'][()],
-            np.array([1, 4]))
-
-        np.testing.assert_array_equal(
-            src['pb/query'][()],
-            np.array([2, 0]))
-
-        # all the query genes, since the markers
-        # specified for this parent are not
-        # in the query set
-        np.testing.assert_array_equal(
-            src['pc/reference'][()],
-            np.array([0, 1, 4]))
-
-        np.testing.assert_array_equal(
-            src['pc/query'][()],
-            np.array([1, 2, 0]))
