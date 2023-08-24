@@ -36,6 +36,7 @@ def data_fixture():
     result['b'] = 'thequickbrownfox'.encode('utf-8')
     result['c/d'] = rng.random(62)
     result['c/e'] = 'jumpedoverthelazydog'.encode('utf-8')
+    result['c/x'] = rng.random((100, 721))
     result['f/g/h'] = 'youknowhatIamsaing'.encode('utf-8')
     result['f/g/i'] = rng.random(7)
     result['f/j/k'] = rng.random(19)
@@ -56,6 +57,8 @@ def h5_fixture(
         for name in data_fixture:
             if name == 'c/d':
                 chunks = (12,)
+            if name == 'c/x':
+                chunks = (25, 34)
             else:
                 chunks = None
             dst.create_dataset(

@@ -51,10 +51,21 @@ def _copy_h5_element(
 
     if isinstance(src_handle[current_location], h5py.Dataset):
         if current_location not in excluded_datasets:
-            dataset = dst_handle.create_dataset(
-                current_location,
-                data=src_handle[current_location],
-                chunks=src_handle[current_location].chunks)
+            chunks = src_handle[current_location].chunks
+            if chunks is None:
+                dataset = dst_handle.create_dataset(
+                    current_location,
+                    data=src_handle[current_location],
+                    chunks=src_handle[current_location].chunks)
+            else:
+                src_dataset = src_handle[current_location]
+                dst_dataset = dst_handle.create_dataset(
+                    current_location,
+                    dtype=src_dataset.dtype,
+                    shape=src_dataset.shape,
+                    chunks=src_dataset.chunks)
+                for this_chunk in src_dataset.iter_chunks():
+                    dst_dataset[this_chunk] = src_dataset[this_chunk]
             if len(attrs) > 0:
                 for k in attrs:
                     dataset.attrs.create(name=k, data=attrs[k])
