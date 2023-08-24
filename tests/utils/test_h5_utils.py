@@ -37,6 +37,7 @@ def data_fixture():
     result['c/d'] = rng.random(62)
     result['c/e'] = 'jumpedoverthelazydog'.encode('utf-8')
     result['c/x'] = rng.random((100, 721))
+    result['c/y'] = rng.random((131, 421, 270))
     result['f/g/h'] = 'youknowhatIamsaing'.encode('utf-8')
     result['f/g/i'] = rng.random(7)
     result['f/j/k'] = rng.random(19)
@@ -57,8 +58,10 @@ def h5_fixture(
         for name in data_fixture:
             if name == 'c/d':
                 chunks = (12,)
-            if name == 'c/x':
+            elif name == 'c/x':
                 chunks = (25, 34)
+            elif name == 'c/y':
+                chunks = (25, 37, 61)
             else:
                 chunks = None
             dst.create_dataset(
@@ -96,7 +99,8 @@ def test_h5_copy_util(
         src_path=h5_fixture,
         dst_path=dst_path,
         excluded_datasets=excluded_datasets,
-        excluded_groups=excluded_groups)
+        excluded_groups=excluded_groups,
+        max_elements=1000)
 
     # make sure src file was unchanged
     with h5py.File(h5_fixture, 'r') as src:
@@ -216,7 +220,8 @@ def test_h5_copy_util_on_h5ad(
         dst_path=dst_path,
         tmp_dir=tmp_dir_fixture,
         excluded_groups=excluded_groups,
-        excluded_datasets=excluded_groups)
+        excluded_datasets=excluded_groups,
+        max_elements=1000)
 
 
     dst_a_data = anndata.read_h5ad(dst_path, backed='r')
