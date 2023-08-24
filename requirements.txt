@@ -6,3 +6,4 @@ anndata
 matplotlib
 marshmallow==3.12.2
 argschema
+statsmodels

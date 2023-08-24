@@ -8,18 +8,18 @@ import time
 
 import numpy as np
 import pandas as pd
-import scanpy as sc
 from scipy import stats
 from scipy.special import digamma, polygamma
 from statsmodels.stats.multitest import multipletests
 
-from .diff_expression import get_qdiff, filter_gene_stats, calc_de_score
+from cell_type_mapper.de_ebayes.diff_expression import (
+    get_qdiff, filter_gene_stats, calc_de_score)
 
 logger = logging.getLogger(__name__)
 
 """
 Implements functions for calculating differential expression
-through moderated t-statistics as defined in 
+through moderated t-statistics as defined in
 Smyth, 2004 and Phipson et al., 2016
 
 This module greatly simplifies the full process of
@@ -28,7 +28,7 @@ This module greatly simplifies the full process of
 - moderate gene expression residual variances using empirical bayes
 - create a contrast and update fit for cluster pair of interest
 - perform t-test on each contrast fit
-by recognizing 
+by recognizing
 - coefficients are means of each cluster,
 - variances and degrees of freedom can be calculated directly from mean and mean squared values
 
@@ -53,12 +53,12 @@ def trigamma_inverse(x, tol=1e-08, iter_limit=50):
 def fit_f_dist(x: ArrayLike, df1: ArrayLike):
     """
     Method of moments to fit f-distribution
-    
+
     Parameters
     ----------
     x: samples
     df1: degrees of freedom
-    
+
     Returns
     -------
     df2, scale parameters for f-distribution
@@ -86,20 +86,20 @@ def moderate_variances(
         df: int,
     ):
     """
-    Moderated variances 
-    
-    - Assume each gene's variance is sampled from a 
+    Moderated variances
+
+    - Assume each gene's variance is sampled from a
       scaled inverse chi-square prior distribution
       with degrees of freedom d0 and location s_0^2 (sigma_0 squared)
     - Fit fDist to get prior variance
-    - Get posterior variance from sample variance and prior variance 
-    
-    
+    - Get posterior variance from sample variance and prior variance
+
+
     Parameters
     ----------
     variances: sample variances (index = gene)
     df: degrees of freedom
-    
+
     Returns
     -------
     pd.DataFrame moderated (posterior) variances
@@ -140,7 +140,7 @@ def de_pairs_ebayes(
         cl_vars: pd.DataFrame,
         cl_present: pd.DataFrame,
         cl_size: Dict[Any, int],
-        de_thresholds: Dict[str, Any],
+        p_th: float,
     ):
     """
     Computes moderated t-statistics for pairs of cluster
@@ -151,7 +151,7 @@ def de_pairs_ebayes(
         Compute cluster pair t-test p-val for all genes using moderated variances
         Adjust cluster pair pvals
         Filter and compute descore for pair
-    
+
     Parameters
     ----------
     pairs: list of pairs of cluster names
@@ -160,11 +160,13 @@ def de_pairs_ebayes(
     cl_vars: dataframe with index = cluster name, columns = genes,
                  values = per cluster variance of gene expression
     cl_size: dict of cluster name: number of observations in cluster
-    de_thresholds: thresholds for filter de
+    p_th: threshold on the adjusted p-value
 
     Returns
     -------
     Dict with key: cluster_pair, value: dict of de values
+
+    SFD: hacked to return a dict mapping cluster pairs to adjusted pvalues
     """
     logger.info('Fitting Variances')
     sigma_sq, df, stdev_unscaled = get_linear_fit_vals(cl_vars, cl_size)
@@ -172,63 +174,32 @@ def de_pairs_ebayes(
     sigma_sq_post, var_prior, df_prior = moderate_variances(sigma_sq, df)
 
     logger.info(f'Comparing {len(pairs)} pairs')
-    de_pairs = {}
-    for (cluster_a, cluster_b) in pairs:
+
+    p_value_lookup = dict()
+
+    for this_pair in pairs:
+
+        cluster_a = this_pair[0]
+        cluster_b = this_pair[1]
+
         # t-test with ebayes adjusted variances
         means_diff = cl_means.loc[cluster_a] - cl_means.loc[cluster_b]
         means_diff = means_diff.to_frame()
         stdev_unscaled_comb = np.sqrt(np.sum(stdev_unscaled.loc[[cluster_a, cluster_b]] ** 2))[0]
-        
+
         df_total = df + df_prior
         df_pooled = np.sum(df)
         df_total = min(df_total, df_pooled)
-        
+
         t_vals = means_diff / np.sqrt(sigma_sq_post) / stdev_unscaled_comb
-        
+
         p_adj = np.ones((len(t_vals),))
         p_vals = 2 * stats.t.sf(np.abs(t_vals[0]), df_total)
-        reject, p_adj, alphacSidak, alphacBonf= multipletests(p_vals, alpha=de_thresholds['padj_thresh'], method='holm')
-        lfc = means_diff
+        reject, p_adj, alphacSidak, alphacBonf= multipletests(
+                p_vals,
+                alpha=p_th,
+                method='holm')
 
-        # Get DE score
-        de_pair_stats = pd.DataFrame(index=cl_means.columns)
-        de_pair_stats['p_value'] = p_vals
-        de_pair_stats['p_adj'] = p_adj
-        de_pair_stats['lfc'] = lfc
-        de_pair_stats["meanA"] = cl_means.loc[cluster_a]
-        de_pair_stats["meanB"] = cl_means.loc[cluster_b]
-        de_pair_stats["q1"] = cl_present.loc[cluster_a]
-        de_pair_stats["q2"] = cl_present.loc[cluster_b]
-        de_pair_stats["qdiff"] = get_qdiff(cl_present.loc[cluster_a], cl_present.loc[cluster_b])
+        p_value_lookup[this_pair] = p_adj
 
-        de_pair_up = filter_gene_stats(
-            de_stats=de_pair_stats,
-            gene_type='up-regulated', 
-            cl1_size=cl_size[cluster_a],
-            cl2_size=cl_size[cluster_b],
-            **de_thresholds
-        )
-        up_score = calc_de_score(de_pair_up['p_adj'].values)
-
-        de_pair_down = filter_gene_stats(
-            de_stats=de_pair_stats,
-            gene_type='down-regulated',
-            cl1_size=cl_size[cluster_a],
-            cl2_size=cl_size[cluster_b],
-            **de_thresholds
-        )
-        down_score = calc_de_score(de_pair_down['p_adj'].values)
-
-        de_pairs[(cluster_a, cluster_b)] = {
-            'score': up_score + down_score,
-            'up_score': up_score,
-            'down_score': down_score,
-            'up_genes': de_pair_up.index.to_list(),
-            'down_genes': de_pair_down.index.to_list(),
-            'up_num': len(de_pair_up.index),
-            'down_num': len(de_pair_down.index),
-            'num': len(de_pair_up.index) + len(de_pair_down.index)
-        }
-
-    de_pairs = pd.DataFrame(de_pairs).T
-    return de_pairs
+    return p_value_lookup

@@ -2,7 +2,6 @@ from typing import Optional, Tuple, List, Dict, Union, Any
 
 import numpy as np
 import pandas as pd
-import scanpy as sc
 from scipy import stats
 import statsmodels.stats.multitest as multi
 import warnings
@@ -40,7 +39,7 @@ def vec_chisq_test(pair: tuple,
 
     cl1_present = cl1_ncells_per_gene
     cl1_absent = cl1_ncells - cl1_present
-        
+
     cl2_present = cl2_ncells_per_gene
     cl2_absent = cl2_ncells - cl2_present
 
@@ -55,7 +54,7 @@ def vec_chisq_test(pair: tuple,
     return p_vals
 
 
-def de_pair_chisq(pair: tuple, 
+def de_pair_chisq(pair: tuple,
                   cl_present: Union[pd.DataFrame, pd.Series],
                   cl_means: Union[pd.DataFrame, pd.Series],
                   cl_size: Dict[Any, int]) -> pd.DataFrame:
@@ -65,7 +64,7 @@ def de_pair_chisq(pair: tuple,
         Parameters
         ----------
         pair: a tuple of length 2 specifying which clusters to compare
-        cl_present: a data frame of gene detection proportions ( clusters x genes) 
+        cl_present: a data frame of gene detection proportions ( clusters x genes)
         cl_means: a data frame of normalized mean gene expression values ( clusters x genes)
         cl.size: a dict of cluster sizes
 
@@ -98,10 +97,10 @@ def de_pair_chisq(pair: tuple,
     if not len(cl_present.columns.difference(cl_means.columns)) == 0:
         raise ValueError("genes names of the cl_means and the cl_present do not match")
 
-    p_vals = vec_chisq_test(pair, 
+    p_vals = vec_chisq_test(pair,
                             cl_present_sorted,
                             cl_size)
-    
+
     reject, p_adj, alphacSidak, alphacBonf = multi.multipletests(p_vals, method="holm", is_sorted=False)
     lfc = cl_means_sorted.loc[first_cluster].to_numpy() - cl_means_sorted.loc[second_cluster].to_numpy()
 
@@ -122,7 +121,7 @@ def de_pair_chisq(pair: tuple,
             "qdiff": qdiff,
         }
     )
-    
+
     de_statistics_chisq.set_index("gene")
 
     return de_statistics_chisq
