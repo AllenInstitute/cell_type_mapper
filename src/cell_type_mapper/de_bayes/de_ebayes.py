@@ -12,7 +12,7 @@ from scipy import stats
 from scipy.special import digamma, polygamma
 from statsmodels.stats.multitest import multipletests
 
-from cell_type_mapper.de_ebayes.diff_expression import (
+from cell_type_mapper.de_bayes.diff_expression import (
     get_qdiff, filter_gene_stats, calc_de_score)
 
 logger = logging.getLogger(__name__)
@@ -138,7 +138,6 @@ def de_pairs_ebayes(
         pairs: List[Tuple[Any, Any]],
         cl_means: pd.DataFrame,
         cl_vars: pd.DataFrame,
-        cl_present: pd.DataFrame,
         cl_size: Dict[Any, int],
         p_th: float,
     ):
