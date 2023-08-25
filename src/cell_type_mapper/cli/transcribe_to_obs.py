@@ -82,6 +82,12 @@ class TranscribeToObsRunner(argschema.ArgSchemaParser):
             results_blob=mapping['results'],
             taxonomy_tree=taxonomy_tree).set_index('cell_id')
 
+        column_list = list(mapping.columns)
+        for col in column_list:
+            new_col = f'CDM_{col}'
+            mapping[new_col] = mapping[col]
+            mapping.drop(col, axis=1, inplace=True)
+
         obs = read_df_from_h5ad(
             h5ad_path=self.args['h5ad_path'],
             df_name='obs')
