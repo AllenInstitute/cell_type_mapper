@@ -57,13 +57,15 @@ def test_marker_creation_function_bad_dir(
             csv_dir=bad_marker_gene_csv_dir)
 
 
+@pytest.mark.parametrize('map_to_ensembl', [True, False])
 def test_marker_creation_cli(
         marker_gene_csv_dir,
         expected_marker_lookup_fixture,
         cluster_membership_fixture,
         cell_metadata_fixture,
         cluster_annotation_term_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        map_to_ensembl):
 
     taxonomy_tree = TaxonomyTree.from_data_release(
         cell_metadata_path=cell_metadata_fixture,
@@ -89,7 +91,8 @@ def test_marker_creation_cli(
     config = {
         'precomputed_file_path': precompute_path,
         'marker_dir': str(marker_gene_csv_dir.resolve().absolute()),
-        'output_path': output_path}
+        'output_path': output_path,
+        'map_to_ensembl': map_to_ensembl}
 
     runner = MarkerCacheRunner(args=[], input_data=config)
     runner.run()
@@ -102,8 +105,11 @@ def test_marker_creation_cli(
     for k in actual:
         if k == 'metadata':
             continue
-        expected = set([cellranger_6_lookup[s][0]
-                        for s in expected_marker_lookup_fixture[k]])
+        if map_to_ensembl:
+            expected = set([cellranger_6_lookup[s][0]
+                            for s in expected_marker_lookup_fixture[k]])
+        else:
+            expected = set(expected_marker_lookup_fixture[k])
         assert set(actual[k]) == expected
 
 
