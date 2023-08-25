@@ -33,6 +33,8 @@ def read_uns_from_h5ad(h5ad_path):
     from the h5ad file at h5ad_path
     """
     with h5py.File(h5ad_path, 'r') as src:
+        if 'uns' not in src:
+            return dict()
         return read_elem(src['uns'])
 
 

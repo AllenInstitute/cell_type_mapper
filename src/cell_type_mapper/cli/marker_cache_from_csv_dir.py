@@ -55,6 +55,13 @@ class MarkerCacheInputSchema(argschema.ArgSchema):
         "'supertype', even though that level is not used "
         "during hierarchical type assignment")
 
+    map_to_ensembl = argschema.fields.Boolean(
+        required=False,
+        default=True,
+        allow_none=False,
+        description="If True, map gene symbols to ENSEMBL IDs according "
+        "to our canonical mapping.")
+
 
 class MarkerCacheRunner(argschema.ArgSchemaParser):
 
@@ -76,7 +83,10 @@ class MarkerCacheRunner(argschema.ArgSchemaParser):
             csv_dir=self.args['marker_dir'],
             taxonomy_tree=taxonomy_tree)
 
-        result = map_aibs_marker_lookup(raw_markers)
+        if self.args['map_to_ensembl']:
+            result = map_aibs_marker_lookup(raw_markers)
+        else:
+            result = raw_markers
 
         result['metadata'] = copy.deepcopy(self.args)
         result['metadata']['generated_on'] = get_timestamp()
