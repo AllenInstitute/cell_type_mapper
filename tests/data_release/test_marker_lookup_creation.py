@@ -15,6 +15,9 @@ from cell_type_mapper.marker_lookup.marker_lookup import (
 from cell_type_mapper.cli.marker_cache_from_csv_dir import (
     MarkerCacheRunner)
 
+from cell_type_mapper.data.cellranger_6_lookup import (
+    cellranger_6_lookup)
+
 
 def test_marker_creation_function(
         marker_gene_csv_dir,
@@ -96,6 +99,12 @@ def test_marker_creation_cli(
     # the +1 is for 'metadata'
     assert len(actual) == len(expected_marker_lookup_fixture) + 1
     assert 'metadata' in actual
+    for k in actual:
+        if k == 'metadata':
+            continue
+        expected = set([cellranger_6_lookup[s][0]
+                        for s in expected_marker_lookup_fixture[k]])
+        assert set(actual[k]) == expected
 
 
 def test_marker_creation_cli_mangled_gene(
