@@ -1,4 +1,5 @@
 import argschema
+import h5py
 import json
 from marshmallow import post_load
 import pathlib
@@ -68,8 +69,14 @@ class TranscribeToObsRunner(argschema.ArgSchemaParser):
         with open(self.args['result_path'], 'rb') as src:
             mapping = json.load(src)
 
-        taxonomy_tree = TaxonomyTree(
-            data=mapping['taxonomy_tree'])
+        if 'taxonomy_tree' in mapping:
+            taxonomy_tree = TaxonomyTree(
+                data=mapping['taxonomy_tree'])
+        else:
+            precomputed = mapping['config']['precomputed_stats']['path']
+            with h5py.File(precomputed, 'r') as src:
+                taxonomy_tree = TaxonomyTree(
+                    data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
         mapping = blob_to_df(
             results_blob=mapping['results'],
