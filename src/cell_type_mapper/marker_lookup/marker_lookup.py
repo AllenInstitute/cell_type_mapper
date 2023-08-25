@@ -46,7 +46,7 @@ def marker_lookup_from_tree_and_csv(
     level_to_idx = {n: ii+2
                     for ii, n in enumerate(taxonomy_tree.hierarchy)}
 
-    int_re = re.compile('[0-9]+')
+    int_re = re.compile('^[0-9]+')
     parent_to_path = dict()
     parent_list = taxonomy_tree.all_parents
 
