@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -225,6 +226,21 @@ def test_read_write_uns_from_h5ad(tmp_dir_fixture):
 
     b_data = anndata.read_h5ad(h5ad_path, backed='r')
     assert b_data.uns == uns
+
+    other_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    shutil.copy(
+        src=h5ad_path,
+        dst=other_path)
+
+    # test case when 'uns' does not exist
+    with h5py.File(other_path, 'a') as dst:
+        del dst['uns']
+
+    actual = read_uns_from_h5ad(other_path)
+    assert actual == dict()
 
 
 def test_read_empty_uns(tmp_dir_fixture):
