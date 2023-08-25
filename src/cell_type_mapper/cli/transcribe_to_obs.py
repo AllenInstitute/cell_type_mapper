@@ -102,3 +102,8 @@ class TranscribeToObsRunner(argschema.ArgSchemaParser):
             h5ad_path=self.args['new_h5ad_path'],
             df_name='obs',
             df_value=obs)
+
+
+if __name__ == "__main__":
+    runner = TranscribeToObsRunner()
+    runner.run()
