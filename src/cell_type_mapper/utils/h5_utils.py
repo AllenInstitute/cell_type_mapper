@@ -59,6 +59,7 @@ def _copy_h5_element(
 
     if isinstance(src_handle[current_location], h5py.Dataset):
         if current_location not in excluded_datasets:
+            print(f"    copying {current_location}")
             chunks = src_handle[current_location].chunks
             if chunks is None:
                 dataset = dst_handle.create_dataset(
