@@ -1,4 +1,5 @@
 import copy
+import h5py
 import json
 import pathlib
 
@@ -57,6 +58,22 @@ class TaxonomyTree(object):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    @classmethod
+    def from_precomputed_stats(cls, stats_path):
+        """
+        Read the taxonomy tree from a precomputed stats file
+
+        Parameters
+        ----------
+        stats_path:
+            Path to an HDF5 precomputed_stats file (or any
+            HDF5 file with a 'taxonomy_tree' dataset containing
+            a JSON-serialized TaxonomyTree)
+        """
+        with h5py.File(stats_path, 'r') as src:
+            return cls(
+                data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
     @classmethod
     def from_h5ad(cls, h5ad_path, column_hierarchy):
