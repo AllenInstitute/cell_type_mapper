@@ -109,6 +109,15 @@ def expected_mapping_df_fixture(
     df = blob_to_df(
         results_blob=output_json_data_fixture,
         taxonomy_tree=taxonomy_tree)
+
+    col_name_list = list(df.columns)
+    for col in col_name_list:
+        if col == 'cell_id':
+            continue
+        new_col = f'CDM_{col}'
+        df[new_col] = df[col]
+        df.drop(col, axis=1, inplace=True)
+
     return df
 
 
