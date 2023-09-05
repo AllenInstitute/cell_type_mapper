@@ -29,11 +29,11 @@ def marker_stats(
         q1_th=0.5,
         qdiff_th=0.7,
         level=None):
-
     need_to_load = False
-    if not hasattr(marker_stats, 'path'):
+    if not hasattr(marker_stats, 'lookup'):
         need_to_load = True
-    elif marker_stats.path != stats_path:
+        marker_stats.lookup = dict()
+    elif stats_path not in marker_stats.lookup:
         need_to_load = True
 
     if need_to_load:
@@ -47,12 +47,12 @@ def marker_stats(
             precomputed_stats_path=stats_path,
             taxonomy_tree=taxonomy_tree,
             for_marker_selection=True)
-        marker_stats.path = stats_path
         marker_stats.tree = taxonomy_tree
-        marker_stats.stats = precomputed_stats
+        marker_stats.lookup[stats_path] = precomputed_stats
 
+    precomputed_stats = marker_stats.lookup[stats_path]
     taxonomy_tree = marker_stats.tree
-    precomputed_stats = marker_stats.stats
+
     if level is None:
         level = taxonomy_tree.leaf_level
 
@@ -76,7 +76,7 @@ def marker_stats(
         var2=stats2['var'],
         n2=stats2['n_cells'])
 
-    gene_names = [f'g_{ii}' for ii in range(len(stats['mean1']))]
+    gene_names = [f'g_{ii}' for ii in range(len(stats1['mean']))]
     pairs = [(cl0, cl1)]
 
     cl_mean_data = []
@@ -99,6 +99,8 @@ def marker_stats(
         cl_vars=cl_vars,
         cl_size=cl_size,
         p_th=p_th)
+
+    #de_p_vals= {pairs[0]: None}
 
     return {'p_values': p_values,
             'de_p_values': de_p_vals[pairs[0]],
