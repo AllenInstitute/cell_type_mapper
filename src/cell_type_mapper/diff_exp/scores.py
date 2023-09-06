@@ -257,6 +257,7 @@ def score_differential_genes(
         q1_th=0.5,
         qdiff_th=0.7,
         fold_change=2.0,
+        n_cells_min=2,
         boring_t=None,
         big_nu=None,
         exact_penetrance=False):
@@ -285,6 +286,10 @@ def score_differential_genes(
     fold_change:
         Genes must have a fold changes > fold_change between the
         two populations to be considered a marker gene.
+
+    n_cells_min:
+        If either node has fewer cells than this, return
+        placeholder answer in which no genes are markers.
 
     boring_t:
        If not None, values of the t-test statistic must be
@@ -336,6 +341,12 @@ def score_differential_genes(
 
     stats_1 = precomputed_stats[node_1]
     stats_2 = precomputed_stats[node_2]
+
+    n_genes = len(stats_1['mean'])
+    if stats_1['n_cells'] < n_cells_min or stats_2['n_cells'] < n_cells_min:
+        return (np.zeros(n_genes, dtype=float),
+                np.zeros(n_genes, dtype=bool),
+                np.zeros(n_genes, dtype=bool))
 
     pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
