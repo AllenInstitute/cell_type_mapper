@@ -258,7 +258,8 @@ def score_differential_genes(
         qdiff_th=0.7,
         fold_change=2.0,
         boring_t=None,
-        big_nu=None):
+        big_nu=None,
+        exact_penetrance=False):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -295,6 +296,11 @@ def score_differential_genes(
         If not None, Student t-test distributions with more degrees
         of freedom than big_nu will be approximated with the
         normal distribution.
+
+    exact_penetrance:
+        If True, hold marker genes to the exact penetrance criteria;
+        if not, use an approximation to assure there are a minimum
+        number of valid marker genes for the cluster pair.
 
     Returns
     -------
@@ -352,7 +358,7 @@ def score_differential_genes(
         pij_2=pij_2,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        exact=False)
+        exact=exact_penetrance)
 
     log2_fold = np.log2(fold_change)
     fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
@@ -541,7 +547,6 @@ def approx_penetrance_test(
     if absolutely_valid.sum() >= n_valid:
         valid = absolutely_valid
     else:
-
         # alternatively upweight the two metrics so that one
         # does not predominate
         qdiff_dex = np.argsort(1.5*qdiff_term+q1_term)
