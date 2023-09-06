@@ -226,8 +226,8 @@ def aggregate_stats(
         else:
             has_ge1 = False
 
-    mu = sum_arr/n_cells
-    var = (sumsq_arr-sum_arr**2/n_cells)/max(1, n_cells-1)
+    mu = sum_arr/max(1, n_cells)
+    var = (sumsq_arr-sum_arr**2/max(1, n_cells))/max(1, n_cells-1)
 
     if not has_ge1:
         warnings.warn("precomputed stats file does not have 'ge1' data")
