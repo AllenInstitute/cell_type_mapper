@@ -517,6 +517,8 @@ def approx_penetrance_test(
     Use an approximate cut on q1, qdiff to set genes as valid
     markers if they come close to meeting the penetrance criteria.
     """
+    n_valid = min(n_valid, len(q1_score))
+
     q1_th_min = 0.1
     while q1_th_min >= 0.5*q1_th:
         q1_th_min *= 0.5
@@ -543,22 +545,26 @@ def approx_penetrance_test(
     if absolutely_valid.sum() >= n_valid:
         valid = absolutely_valid
     else:
-        # alternatively upweight the two metrics so that one
-        # does not predominate
 
         invalid = np.logical_or(
                 q1_score < q1_th_min,
                 qdiff_score < qdiff_th_min)
 
-        qdiff_dex = np.argsort(1.5*qdiff_term+q1_term)
-        q1_dex = np.argsort(qdiff_term+1.5*q1_term)
+        # alternatively upweight the two metrics so that one
+        # does not predominate
 
-        to_use = set()
-        for ii in range(len(q1_dex)):
-            if len(to_use) >= n_valid:
-                break
-            to_use.add(q1_dex[ii])
-            to_use.add(qdiff_dex[ii])
+        qdiff_dist = 1.5*qdiff_term+q1_term
+        qdiff_dex = np.argsort(qdiff_dist)
+
+        q1_dist = qdiff_term+1.5*q1_term
+        q1_dex = np.argsort(q1_dist)
+
+        cutoff = min(q1_dist[q1_dex[n_valid-1]],
+                     qdiff_dist[qdiff_dex[n_valid-1]])
+
+        to_use = set(np.where(qdiff_dist <= cutoff)[0])
+        to_use = to_use.union(
+            np.where(q1_dist <= cutoff)[0])
 
         to_use = np.array(list(to_use))
 
