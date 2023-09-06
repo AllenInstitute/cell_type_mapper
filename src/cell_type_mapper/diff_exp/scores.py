@@ -461,14 +461,16 @@ def penetrance_tests(
     penentrance_mask:
         (n_genes,) array of booleans that pass both tests
     """
-    q1_valid = np.logical_or(
-        (pij_1 > q1_th),
-        (pij_2 > q1_th))
+
+    q1_score = np.where(pij_1 > pij_2, pij_1, pij_2)
 
     denom = np.where(pij_1 > pij_2, pij_1, pij_2)
     denom = np.where(denom > 0.0, denom, 1.0)
     qdiff_score = np.abs(pij_1-pij_2)/denom
+
+    q1_valid = (q1_score > q1_th)
     qdiff_valid = (qdiff_score > qdiff_th)
+
     return np.logical_and(qdiff_valid, q1_valid)
 
 
