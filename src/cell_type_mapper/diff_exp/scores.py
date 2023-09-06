@@ -351,7 +351,8 @@ def score_differential_genes(
         pij_1=pij_1,
         pij_2=pij_2,
         q1_th=q1_th,
-        qdiff_th=qdiff_th)
+        qdiff_th=qdiff_th,
+        exact=False)
 
     log2_fold = np.log2(fold_change)
     fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
@@ -438,7 +439,8 @@ def penetrance_tests(
         pij_1,
         pij_2,
         q1_th,
-        qdiff_th):
+        qdiff_th,
+        exact=False):
     """
     Perform penetrance test on marker genes
 
@@ -455,6 +457,11 @@ def penetrance_tests(
     qdiff_th:
         differential penetrance must be greater than
         this to pass
+    exact:
+        If True, only pass genes that exactly meet the
+        criteria defined by q1_th and qdiff_th. Otherwise,
+        use an approximation to make sure there are at least
+        30 valid marker genes.
 
     Returns
     -------
@@ -468,10 +475,92 @@ def penetrance_tests(
     denom = np.where(denom > 0.0, denom, 1.0)
     qdiff_score = np.abs(pij_1-pij_2)/denom
 
+    if exact:
+        return exact_penetrance_test(
+            q1_score=q1_score,
+            qdiff_score=qdiff_score,
+            q1_th=q1_th,
+            qdiff_th=qdiff_th)
+
+    return approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        n_valid=30)
+
+
+def exact_penetrance_test(
+        q1_score,
+        qdiff_score,
+        q1_th,
+        qdiff_th):
+
     q1_valid = (q1_score > q1_th)
     qdiff_valid = (qdiff_score > qdiff_th)
+    return np.logical_and(q1_valid, qdiff_valid)
 
-    return np.logical_and(qdiff_valid, q1_valid)
+
+def approx_penetrance_test(
+        q1_score,
+        qdiff_score,
+        q1_th,
+        qdiff_th,
+        n_valid=30):
+    """
+    Use an approximate cut on q1, qdiff to set genes as valid
+    markers if they come close to meeting the penetrance criteria.
+    """
+    q1_th_min = 0.1
+    while q1_th_min >= 0.5*q1_th:
+        q1_th_min *= 0.5
+
+    qdiff_th_min = 0.1
+    while qdiff_th_min >= 0.5*qdiff_th:
+        qdiff_th_min *= 0.5
+
+    bad_dist = 100.0
+
+    q1_term = (q1_score-q1_th)**2
+    q1_term[q1_score > q1_th] = 0.0
+    q1_term[q1_score < q1_th_min] = bad_dist
+
+    qdiff_term = (qdiff_score-qdiff_th)**2
+    qdiff_term[qdiff_score > qdiff_th] = 0.0
+    qdiff_term[qdiff_score < qdiff_th_min] = bad_dist
+
+    distance_sq = qdiff_term+q1_term
+
+    # find the genes that really do meet the criteria
+    eps = 1.0e-10
+    absolutely_valid = (distance_sq < eps)
+
+    # if not enough genes really meet the criteria, add
+    # the next best approximations (failing out any genes
+    # that are in violation of q1_th_min and qdiff_th_min
+    if absolutely_valid.sum() >= n_valid:
+        valid = absolutely_valid
+    else:
+
+        # alternatively upweight the two metrics so that one
+        # does not predominate
+        qdiff_dex = np.argsort(1.5*qdiff_term+q1_term)
+        q1_dex = np.argsort(qdiff_term+1.5*q1_term)
+
+        to_use = set()
+        for ii in range(len(q1_dex)):
+            if len(to_use) >= n_valid:
+                break
+            to_use.add(q1_dex[ii])
+            to_use.add(qdiff_dex[ii])
+
+        to_use = np.array(list(to_use))
+
+        valid = np.zeros(len(absolutely_valid), dtype=bool)
+        valid[to_use] = True
+        valid[distance_sq > (0.9*bad_dist)] = False
+
+    return valid
 
 
 def diffexp_score(
