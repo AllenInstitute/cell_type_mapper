@@ -525,15 +525,11 @@ def approx_penetrance_test(
     while qdiff_th_min >= 0.5*qdiff_th:
         qdiff_th_min *= 0.5
 
-    bad_dist = 100.0
-
     q1_term = (q1_score-q1_th)**2
     q1_term[q1_score > q1_th] = 0.0
-    q1_term[q1_score < q1_th_min] = bad_dist
 
     qdiff_term = (qdiff_score-qdiff_th)**2
     qdiff_term[qdiff_score > qdiff_th] = 0.0
-    qdiff_term[qdiff_score < qdiff_th_min] = bad_dist
 
     distance_sq = qdiff_term+q1_term
 
@@ -549,6 +545,11 @@ def approx_penetrance_test(
     else:
         # alternatively upweight the two metrics so that one
         # does not predominate
+
+        invalid = np.logical_or(
+                q1_score < q1_th_min,
+                qdiff_score < qdiff_th_min)
+
         qdiff_dex = np.argsort(1.5*qdiff_term+q1_term)
         q1_dex = np.argsort(qdiff_term+1.5*q1_term)
 
@@ -563,7 +564,7 @@ def approx_penetrance_test(
 
         valid = np.zeros(len(absolutely_valid), dtype=bool)
         valid[to_use] = True
-        valid[distance_sq > (0.9*bad_dist)] = False
+        valid[invalid] = False
 
     return valid
 
