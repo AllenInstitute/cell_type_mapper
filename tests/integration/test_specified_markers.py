@@ -405,10 +405,7 @@ def test_mapping_from_markers_when_some_markers_missing(
         use_gpu):
     """
     Test what happens when one element in the marker lookup
-    contains no marker genes
-
-    Right now, this passes. The assignments at the level with no markers
-    just get correlation=0 and boostrap_fraction=1
+    contains no marker genes. Should raise an exception.
     """
 
     if use_gpu and not is_torch_available():
@@ -464,6 +461,7 @@ def test_mapping_from_markers_when_some_markers_missing(
         args= [],
         input_data=config)
 
-    runner.run()
+    with pytest.raises(RuntimeError, match="validating marker lookup"):
+        runner.run()
 
     os.environ[env_var] = ''
