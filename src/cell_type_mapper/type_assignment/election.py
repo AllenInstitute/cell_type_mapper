@@ -775,6 +775,8 @@ def tally_votes(
     n_markers = query_gene_data.shape[1]
     marker_idx = np.arange(n_markers)
     n_bootstrap = np.round(bootstrap_factor*n_markers).astype(int)
+    if n_markers > 0:
+        n_bootstrap = max(n_bootstrap, 1)
 
     result_shape = (query_gene_data.shape[0], reference_gene_data.shape[0])
 
