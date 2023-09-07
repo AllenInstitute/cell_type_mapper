@@ -103,6 +103,15 @@ def create_marker_cache_from_specified_markers(
     """
     print(f"creating marker gene cache in {output_cache_path}")
     t0 = time.time()
+
+    # check that all non-trivial parent nodes will have more than
+    # zero marker genes assigned to them
+    if taxonomy_tree is not None:
+        validate_marker_lookup(
+            marker_lookup=marker_lookup,
+            query_gene_names=query_gene_names,
+            taxonomy_tree=taxonomy_tree)
+
     query_gene_set = set(query_gene_names)
     reference_gene_set = set(reference_gene_names)
     final_marker_lookup = dict()
