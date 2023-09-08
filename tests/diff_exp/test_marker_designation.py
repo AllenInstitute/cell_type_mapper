@@ -73,33 +73,37 @@ def test_penetrance_tests():
 
 @pytest.mark.parametrize("n_valid", [10, 30, 40, 70])
 def test_approx_penetrance_test(n_valid):
-    """
-    For this test, log2_fold requirement is trivially satisfied
-    """
     rng = np.random.default_rng(61232)
     q1_th = 0.5
     qdiff_th = 0.7
+    log2_fold_th = 1.0
+
 
     n_genes = 60
     q1_score = 0.1+0.05*rng.random(n_genes)
     qdiff_score = 0.1+0.05*rng.random(n_genes)
-
-    log2_fold = 2.0*np.ones(n_genes)
-    log2_fold_th = 1.0
+    log2_fold = 0.81+rng.random(n_genes)*0.1
 
     # designate some genes as absolutely valid
-    allowable = [ii for ii in range(n_genes) if ii not in (11, 14)]
+    allowable = [ii for ii in range(n_genes) if ii not in (11, 14, 17)]
     valid = rng.choice(allowable, 23, replace=False)
 
     # designate some genes as absolutely invalid
     q1_score[11] = 0.01
     qdiff_score[11] = 0.8
+    log2_fold[11] = 2.0
 
     qdiff_score[14] = 0.01
     q1_score[14] = 0.9
+    log2_fold[14] = 2.0
+
+    qdiff_score[17] = 0.9
+    q1_score[17] = 0.9
+    log2_fold[17] = 0.5
 
     q1_score[valid] = q1_th + rng.random(len(valid))
     qdiff_score[valid] = qdiff_th + rng.random(len(valid))
+    log2_fold[valid] = log2_fold_th + rng.random(len(valid))
 
     actual = approx_penetrance_test(
         q1_score=q1_score,
@@ -114,16 +118,17 @@ def test_approx_penetrance_test(n_valid):
     # not accepted
     assert not actual[11]
     assert not actual[14]
+    assert not actual[17]
 
     # make sure absolutely valid genes are accepted
     assert actual[valid].all()
 
     # make sure number of valid genes is as expected
-    if n_valid < n_genes-2:
+    if n_valid < n_genes-3:
         n_expected = max(len(valid), n_valid)
 
         # slop is because of the invalid genes
-        assert actual.sum() >= n_expected-2
+        assert actual.sum() >= n_expected-3
 
     # just to be sure, make sure exact_penetrance_test does
     # what it ought to
@@ -132,6 +137,9 @@ def test_approx_penetrance_test(n_valid):
         qdiff_score=qdiff_score,
         q1_th=q1_th,
         qdiff_th=qdiff_th)
+
+    log2_exact = (log2_fold > log2_fold_th)
+    actual_exact = np.logical_and(actual_exact, log2_exact)
 
     assert actual_exact[valid].all()
     assert actual_exact.sum() == len(valid)
