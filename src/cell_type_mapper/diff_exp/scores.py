@@ -364,15 +364,16 @@ def score_differential_genes(
     pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
     pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
 
+    log2_fold = np.log2(fold_change)
+    fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
+
     penetrance_mask = penetrance_tests(
         pij_1=pij_1,
         pij_2=pij_2,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        exact=exact_penetrance)
-
-    log2_fold = np.log2(fold_change)
-    fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
+        exact=exact_penetrance,
+        fold_valid=fold_valid)
 
     validity_mask = np.logical_and(
         pvalue_valid,
@@ -457,7 +458,8 @@ def penetrance_tests(
         pij_2,
         q1_th,
         qdiff_th,
-        exact=False):
+        exact=False,
+        fold_valid=None):
     """
     Perform penetrance test on marker genes
 
@@ -479,6 +481,11 @@ def penetrance_tests(
         criteria defined by q1_th and qdiff_th. Otherwise,
         use an approximation to make sure there are at least
         30 valid marker genes.
+    fold_valid:
+        If not None, a numpy array of booleans indicating which
+        genes passed the fold-change test (only used to ensure that
+        approximate penetrance test ignores genes that will fail
+        this check anyways)
 
     Returns
     -------
@@ -504,7 +511,8 @@ def penetrance_tests(
         qdiff_score=qdiff_score,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        n_valid=30)
+        n_valid=30,
+        fold_valid=fold_valid)
 
 
 def exact_penetrance_test(
@@ -523,7 +531,8 @@ def approx_penetrance_test(
         qdiff_score,
         q1_th,
         qdiff_th,
-        n_valid=30):
+        n_valid=30,
+        fold_valid=None):
     """
     Use an approximate cut on q1, qdiff to set genes as valid
     markers if they come close to meeting the penetrance criteria.
@@ -537,6 +546,24 @@ def approx_penetrance_test(
     qdiff_th_min = 0.1
     while qdiff_th_min >= 0.5*qdiff_th:
         qdiff_th_min *= 0.5
+
+    if fold_valid is not None:
+        # doctor genes that have already failed the fold
+        # check so that they are so distant from the cutoff
+        # that they should not pass (unless there really are no other
+        # options)
+
+        fold_invalid = np.logical_not(fold_valid)
+
+        new_q1 = np.copy(q1_score)
+        new_q1[fold_invalid] = -999.0
+
+        q1_score = new_q1
+
+        new_qdiff = np.copy(qdiff_score)
+        new_qdiff[fold_invalid] = -999.0
+
+        qdiff_score = new_qdiff
 
     q1_term = (q1_score-q1_th)**2
     q1_term[q1_score > q1_th] = 0.0
