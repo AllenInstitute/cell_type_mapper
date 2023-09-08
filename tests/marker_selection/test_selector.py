@@ -716,7 +716,8 @@ def test_marker_serialization_roundtrip(
                 query_gene_names=query_gene_names,
                 reference_gene_names=reference_gene_names,
                 output_cache_path=round_trip_path,
-                log=log)
+                log=log,
+                taxonomy_tree=taxonomy_tree)
         if use_log:
             found_warning = False
             for l in log._log:
@@ -728,7 +729,8 @@ def test_marker_serialization_roundtrip(
             marker_lookup=shuffled_serialization,
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
-            output_cache_path=round_trip_path)
+            output_cache_path=round_trip_path,
+            taxonomy_tree=taxonomy_tree)
 
     with h5py.File(baseline_path, 'r') as src:
         baseline_dataset_list = get_all_datasets(src)
@@ -767,6 +769,69 @@ def test_specified_marker_failure():
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
             output_cache_path='garbage')
+
+
+def test_specified_marker_parent_failure(tmp_dir_fixture):
+    """
+    Test that if a non-trivial parent node has no markers,
+    create_marker_cache_from_specified_markers will raise an
+    exception.
+    """
+    tree = TaxonomyTree(
+        data={
+            'hierarchy': ['class', 'subclass', 'cluster'],
+            'class': {
+                'A': ['b', 'd', 'c'],
+                'B': ['a'],
+                'C': ['e', 'f', 'g']
+            },
+            'subclass': {
+                'a': ['1', '2'],
+                'b': ['3'],
+                'c': ['4', '5'],
+                'd': ['6', '7'],
+                'e': ['8'],
+                'f': ['9', '10'],
+                'g': ['11', '12']
+            },
+            'cluster': { str(ii): [] for ii in range(1, 13, 1)}
+        })
+
+    reference_gene_names = [f'g_{ii}' for ii in range(22)]
+    query_gene_names = [f'g_{ii}' for ii in range(5)]
+
+    marker_lookup = {
+        'None': ['g_1', 'g_2'],
+        'class/A': ['g_3', 'g_4'],
+        'class/C': [],
+        'subclass/a': ['g_1', 'g_0', 'g_19'],
+        'subclass/c': ['g_3', 'g_0'],
+        'subclass/d': ['g_2', 'g_1', 'g_11'],
+        'subclass/f': ['g_17', 'g_20']
+    }
+    with pytest.raises(RuntimeError, match='validating marker lookup'):
+        create_marker_cache_from_specified_markers(
+             marker_lookup=marker_lookup,
+             query_gene_names=query_gene_names,
+             reference_gene_names=reference_gene_names,
+             taxonomy_tree=tree,
+             output_cache_path='garbage')
+
+    # now make sure it works if we fix the marker lookup
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    marker_lookup['class/C'] = ['g_0', 'g_2', 'g_13']
+    marker_lookup['subclass/f'].append('g_1')
+    marker_lookup['subclass/g'] = ['g_4']
+
+    create_marker_cache_from_specified_markers(
+         marker_lookup=marker_lookup,
+         query_gene_names=query_gene_names,
+         reference_gene_names=reference_gene_names,
+         taxonomy_tree=tree,
+         output_cache_path=output_path)
 
 
 @pytest.mark.parametrize('use_log', [True, False])

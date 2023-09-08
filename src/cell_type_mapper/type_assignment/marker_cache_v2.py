@@ -73,6 +73,7 @@ def create_marker_cache_from_specified_markers(
         reference_gene_names,
         query_gene_names,
         output_cache_path,
+        taxonomy_tree=None,
         log=None):
     """
     Write marker genes to HDF5 file
@@ -88,6 +89,10 @@ def create_marker_cache_from_specified_markers(
         Ordered list of genes in query dataset
     output_cache_path:
         Path to HDF5 file that will be written
+    taxonomy_tree:
+        If provided, will check that all parents with
+        more than one child have markers assigned to them,
+        throwing an error if any do not.
     log:
         Optional object to log messages/warnings for CLI
 
@@ -98,6 +103,15 @@ def create_marker_cache_from_specified_markers(
     """
     print(f"creating marker gene cache in {output_cache_path}")
     t0 = time.time()
+
+    # check that all non-trivial parent nodes will have more than
+    # zero marker genes assigned to them
+    if taxonomy_tree is not None:
+        validate_marker_lookup(
+            marker_lookup=marker_lookup,
+            query_gene_names=query_gene_names,
+            taxonomy_tree=taxonomy_tree)
+
     query_gene_set = set(query_gene_names)
     reference_gene_set = set(reference_gene_names)
     final_marker_lookup = dict()
@@ -349,3 +363,67 @@ def serialize_markers(
         marker_gene_lookup[grp_key] = [
             str(reference_gene_names[ii]) for ii in ref_idx]
     return marker_gene_lookup
+
+
+def validate_marker_lookup(
+        marker_lookup,
+        query_gene_names,
+        taxonomy_tree):
+    """
+    Verify that downselecting the specified marker lookup to include only the
+    genes in query_gene_names will produce a set of markers for
+    every non-trivial parent node in taxnomy_tree.
+
+    Parameters
+    ----------
+    marker_lookup:
+        A dict mapping '{level}/{node}' to a list of marker genes
+    query_gene_names:
+        A list of query gene names
+    taxonomy_tree:
+        A TaxonomyTree
+    log:
+        Optional logger to record failures
+
+    Returns
+    -------
+    Nothing. Just raises an exception if markers are missing from a non-trivial
+    parent node.
+    """
+
+    query_gene_names = set(query_gene_names)
+    all_parents = taxonomy_tree.all_parents
+    error_msg = ''
+    for parent in all_parents:
+
+        if parent is None:
+            parent_str = 'None'
+            children = taxonomy_tree.children(
+                level=None,
+                node=None)
+        else:
+            parent_str = f'{parent[0]}/{parent[1]}'
+            children = taxonomy_tree.children(
+                level=parent[0],
+                node=parent[1])
+
+        if not len(children) > 1:
+            continue
+
+        if parent_str in marker_lookup:
+            markers = set(marker_lookup[parent_str])
+            if len(markers) == 0:
+                error_msg += (f"'{parent_str}' has no valid markers "
+                              "in marker_lookup\n")
+                continue
+        else:
+            error_msg += f"'{parent_str}' not listed in marker lookup\n"
+            continue
+
+        if len(query_gene_names.intersection(markers)) == 0:
+            error_msg += (f"'{parent_str}' has no valid markers "
+                          "in query gene set\n")
+
+    if len(error_msg) > 0:
+        error_msg = f"validating marker lookup\n{error_msg}"
+        raise RuntimeError(error_msg)

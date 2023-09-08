@@ -210,5 +210,5 @@ def test_ensembl_mapping_in_cli(
         actual = json.load(open(output_path, 'rb'))
         assert 'RAN SUCCESSFULLY' in actual['log'][-2]
     else:
-        with pytest.raises(RuntimeError, match='No markers at parent node'):
+        with pytest.raises(RuntimeError, match="'None' has no valid markers"):
             runner.run()

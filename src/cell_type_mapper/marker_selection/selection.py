@@ -190,6 +190,8 @@ def _run_selection(
         n_per_utility=n_per_utility,
         n_desperate=n_per_utility)
 
+    n_desperate = len(marker_gene_name_list)
+
     broke_because = ''
     while True:
 
@@ -239,6 +241,7 @@ def _run_selection(
     stat_dict['n_genes'] = len(marker_gene_name_list)
     stat_dict['filled'] = int(been_filled.sum())
     stat_dict['unfilled'] = int(been_filled_size)-stat_dict['filled']
+    stat_dict['n_desperate'] = int(n_desperate)
     msg = f"\n======parent_node: {parent_node}======\n"
     msg += f"selected {len(marker_gene_name_list)} from "
     msg += f"{marker_gene_array.n_genes}\n"
