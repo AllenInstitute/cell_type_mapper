@@ -364,22 +364,20 @@ def score_differential_genes(
     pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
     pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
 
-    log2_fold = np.log2(fold_change)
-    fold_valid = (np.abs(stats_1['mean']-stats_2['mean']) > log2_fold)
+    log2_fold = np.abs(stats_1['mean']-stats_2['mean'])
 
     penetrance_mask = penetrance_tests(
         pij_1=pij_1,
         pij_2=pij_2,
+        log2_fold=log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        exact=exact_penetrance,
-        fold_valid=fold_valid)
+        log2_fold_th=np.log2(fold_change),
+        exact=exact_penetrance)
 
     validity_mask = np.logical_and(
         pvalue_valid,
-        np.logical_and(
-            penetrance_mask,
-            fold_valid))
+        penetrance_mask)
 
     up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
     up_mask[stats_2["mean"] > stats_1["mean"]] = 1
@@ -456,10 +454,11 @@ def diffexp_p_values(
 def penetrance_tests(
         pij_1,
         pij_2,
+        log2_fold,
         q1_th,
         qdiff_th,
-        exact=False,
-        fold_valid=None):
+        log2_fold_th,
+        exact=False):
     """
     Perform penetrance test on marker genes
 
@@ -470,22 +469,23 @@ def penetrance_tests(
         cells in cluster one are expressed > 1 for the gene
     pij_2:
         ditto for cluster 2
+    log2_fold:
+        (n_genes,) array of the log2(fold_change) (absolute
+        magnitude) of each gene between the two clusters
     q1_th:
         At least one cluster must have a penetrance
         greater than this to pass
     qdiff_th:
         differential penetrance must be greater than
         this to pass
+    log2_fold_th:
+        Minimum acceptable threshold of log2 fold change
     exact:
         If True, only pass genes that exactly meet the
         criteria defined by q1_th and qdiff_th. Otherwise,
         use an approximation to make sure there are at least
         30 valid marker genes.
-    fold_valid:
-        If not None, a numpy array of booleans indicating which
-        genes passed the fold-change test (only used to ensure that
-        approximate penetrance test ignores genes that will fail
-        this check anyways)
+
 
     Returns
     -------
@@ -500,19 +500,23 @@ def penetrance_tests(
     qdiff_score = np.abs(pij_1-pij_2)/denom
 
     if exact:
-        return exact_penetrance_test(
+        raw_penetrance = exact_penetrance_test(
             q1_score=q1_score,
             qdiff_score=qdiff_score,
             q1_th=q1_th,
             qdiff_th=qdiff_th)
 
+        fold_valid = (log2_fold > log2_fold_th)
+        return np.logical_and(fold_valid, raw_penetrance)
+
     return approx_penetrance_test(
         q1_score=q1_score,
         qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        n_valid=30,
-        fold_valid=fold_valid)
+        log2_fold_th=log2_fold_th,
+        n_valid=30)
 
 
 def exact_penetrance_test(
@@ -529,8 +533,10 @@ def exact_penetrance_test(
 def approx_penetrance_test(
         q1_score,
         qdiff_score,
+        log2_fold,
         q1_th,
         qdiff_th,
+        log2_fold_th,
         n_valid=30,
         fold_valid=None):
     """
@@ -547,31 +553,9 @@ def approx_penetrance_test(
     while qdiff_th_min >= 0.5*qdiff_th:
         qdiff_th_min *= 0.5
 
-    bad_val = min(q1_score.min(), qdiff_score.min())-1.0
-    new_q1 = np.copy(q1_score)
-    new_qdiff = np.copy(qdiff_score)
-
-    if fold_valid is not None:
-        # doctor genes that have already failed the fold
-        # check so that they are so distant from the cutoff
-        # that they should not pass (unless there really are no other
-        # options)
-
-        fold_invalid = np.logical_not(fold_valid)
-
-        new_q1[fold_invalid] = bad_val
-
-        q1_score = new_q1
-
-        new_qdiff[fold_invalid] = bad_val
-
-        qdiff_score = new_qdiff
-
-    new_q1[q1_score < q1_th_min] = bad_val
-    new_qdiff[qdiff_score < qdiff_th_min] = bad_val
-
-    q1_score = new_q1
-    qdiff_score = new_qdiff
+    log2_fold_th_min = 0.8
+    while log2_fold_th_min >= 0.75*log2_fold_th:
+        log2_fold_th_min *= 0.75
 
     q1_term = (q1_score-q1_th)**2
     q1_term[q1_score > q1_th] = 0.0
@@ -579,7 +563,10 @@ def approx_penetrance_test(
     qdiff_term = (qdiff_score-qdiff_th)**2
     qdiff_term[qdiff_score > qdiff_th] = 0.0
 
-    distance_sq = qdiff_term+q1_term
+    fold_term = (log2_fold-log2_fold_th)**2
+    fold_term[log2_fold > log2_fold_th] = 0.0
+
+    distance_sq = qdiff_term+q1_term+fold_term
 
     # find the genes that really do meet the criteria
     eps = 1.0e-10
@@ -594,23 +581,42 @@ def approx_penetrance_test(
 
         invalid = np.logical_or(
                 q1_score < q1_th_min,
-                qdiff_score < qdiff_th_min)
+                np.logical_or(
+                    qdiff_score < qdiff_th_min,
+                    log2_fold < log2_fold_th_min))
 
-        # alternatively upweight the two metrics so that one
+        # alternatively upweight the metrics so that one
         # does not predominate
 
-        qdiff_dist = 1.5*qdiff_term+q1_term
-        qdiff_dex = np.argsort(qdiff_dist)
+        qdiff_dist = 1.5*qdiff_term+q1_term+fold_term
+        q1_dist = qdiff_term+1.5*q1_term+fold_term
+        fold_dist = qdiff_term+q1_term+1.5*fold_term
 
-        q1_dist = qdiff_term+1.5*q1_term
+        # alter distances so that we do not choose
+        # genes that are going to be labeled automatically
+        # invalid anyway
+        bad_dist = max(
+            qdiff_dist.max(),
+            q1_dist.max(),
+            fold_dist.max()) + 100.0
+
+        qdiff_dist[invalid] = bad_dist
+        q1_dist[invalid] = bad_dist
+        fold_dist[invalid] = bad_dist
+
+        qdiff_dex = np.argsort(qdiff_dist)
         q1_dex = np.argsort(q1_dist)
+        fold_dex = np.argsort(fold_dist)
 
         cutoff = min(q1_dist[q1_dex[n_valid-1]],
-                     qdiff_dist[qdiff_dex[n_valid-1]])
+                     qdiff_dist[qdiff_dex[n_valid-1]],
+                     fold_dist[fold_dex[n_valid-1]])
 
         to_use = set(np.where(qdiff_dist <= cutoff)[0])
         to_use = to_use.union(
-            np.where(q1_dist <= cutoff)[0])
+            set(np.where(q1_dist <= cutoff)[0]))
+        to_use = to_use.union(
+            set(np.where(fold_dist <= cutoff)[0]))
 
         to_use = np.array(list(to_use))
 

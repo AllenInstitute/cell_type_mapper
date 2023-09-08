@@ -15,14 +15,18 @@ def test_penetrance_tests():
 
     pij_1 = np.array([0.1, 0.2, 0.3, 0.7, 0.04])
     pij_2 = np.array([0.001, 0.2, 0.002, 0.6, 0.1])
+    log2_fold = 2.0*np.ones(pij_1.shape[0])
 
     q1_th = 0.09
     qdiff_th = 0.7
+    log2_fold_th = 1.0
     actual = penetrance_tests(
         pij_1,
         pij_2,
+        log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
         exact=True)
     expected = np.array([True, False, True, False, False])
     np.testing.assert_array_equal(actual, expected)
@@ -32,8 +36,10 @@ def test_penetrance_tests():
     actual = penetrance_tests(
         pij_1,
         pij_2,
+        log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
         exact=True)
     expected = np.array([True, False, True, False, True])
     np.testing.assert_array_equal(actual, expected)
@@ -43,8 +49,10 @@ def test_penetrance_tests():
     actual = penetrance_tests(
         pij_1,
         pij_2,
+        log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
         exact=True)
     expected = np.array([False, False, True, False, False])
     np.testing.assert_array_equal(actual, expected)
@@ -54,8 +62,10 @@ def test_penetrance_tests():
     actual = penetrance_tests(
         pij_1,
         pij_2,
+        log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
         exact=True)
     expected = np.array([False, False, False, True, False])
     np.testing.assert_array_equal(actual, expected)
@@ -63,6 +73,9 @@ def test_penetrance_tests():
 
 @pytest.mark.parametrize("n_valid", [10, 30, 40, 70])
 def test_approx_penetrance_test(n_valid):
+    """
+    For this test, log2_fold requirement is trivially satisfied
+    """
     rng = np.random.default_rng(61232)
     q1_th = 0.5
     qdiff_th = 0.7
@@ -70,6 +83,9 @@ def test_approx_penetrance_test(n_valid):
     n_genes = 60
     q1_score = 0.1+0.05*rng.random(n_genes)
     qdiff_score = 0.1+0.05*rng.random(n_genes)
+
+    log2_fold = 2.0*np.ones(n_genes)
+    log2_fold_th = 1.0
 
     # designate some genes as absolutely valid
     allowable = [ii for ii in range(n_genes) if ii not in (11, 14)]
@@ -88,8 +104,10 @@ def test_approx_penetrance_test(n_valid):
     actual = approx_penetrance_test(
         q1_score=q1_score,
         qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
         n_valid=n_valid)
 
     # make sure absolutely invalid genes are
@@ -211,8 +229,9 @@ def test_score_differential_genes_quantitatively(
         expected_idx,
         n_genes):
 
-    def new_penetrance(*args, **kwargs):
-        return penetrance_mask_fixture
+    def new_penetrance(pij_1, pij_2, log2_fold,log2_fold_th,**kwargs):
+        valid_fold = (log2_fold>log2_fold_th)
+        return np.logical_and(penetrance_mask_fixture, valid_fold)
     def new_p_values(*args, **kwargs):
         return p_values_fixture
 
