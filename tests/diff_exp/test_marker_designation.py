@@ -126,9 +126,7 @@ def test_approx_penetrance_test(n_valid):
     # make sure number of valid genes is as expected
     if n_valid < n_genes-3:
         n_expected = max(len(valid), n_valid)
-
-        # slop is because of the invalid genes
-        assert actual.sum() >= n_expected-3
+        assert actual.sum() == n_expected
 
     # just to be sure, make sure exact_penetrance_test does
     # what it ought to
