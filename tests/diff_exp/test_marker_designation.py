@@ -229,14 +229,13 @@ def test_score_differential_genes_quantitatively(
         expected_idx,
         n_genes):
 
-    def new_penetrance(pij_1, pij_2, log2_fold,log2_fold_th,**kwargs):
-        valid_fold = (log2_fold>log2_fold_th)
-        return np.logical_and(penetrance_mask_fixture, valid_fold)
+    def new_penetrance(*args,**kwargs):
+        return penetrance_mask_fixture
     def new_p_values(*args, **kwargs):
         return p_values_fixture
 
     module_name = 'cell_type_mapper.diff_exp.scores'
-    with patch(f'{module_name}.penetrance_tests', new_penetrance):
+    with patch(f'{module_name}.exact_penetrance_test', new_penetrance):
         with patch(f'{module_name}.diffexp_p_values', new_p_values):
             (scores,
              is_marker,
@@ -247,7 +246,8 @@ def test_score_differential_genes_quantitatively(
                  p_th=p_th,
                  q1_th=0.5,
                  qdiff_th=0.7,
-                 fold_change=fold_change)
+                 fold_change=fold_change,
+                 exact_penetrance=True)
     expected = np.zeros(n_genes, dtype=bool)
     expected[np.array(expected_idx)] = True
     np.testing.assert_array_equal(is_marker, expected)
