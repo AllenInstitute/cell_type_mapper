@@ -547,6 +547,10 @@ def approx_penetrance_test(
     while qdiff_th_min >= 0.5*qdiff_th:
         qdiff_th_min *= 0.5
 
+    bad_val = min(q1_score.min(), qdiff_score.min())-1.0
+    new_q1 = np.copy(q1_score)
+    new_qdiff = np.copy(qdiff_score)
+
     if fold_valid is not None:
         # doctor genes that have already failed the fold
         # check so that they are so distant from the cutoff
@@ -555,15 +559,19 @@ def approx_penetrance_test(
 
         fold_invalid = np.logical_not(fold_valid)
 
-        new_q1 = np.copy(q1_score)
-        new_q1[fold_invalid] = -999.0
+        new_q1[fold_invalid] = bad_val
 
         q1_score = new_q1
 
-        new_qdiff = np.copy(qdiff_score)
-        new_qdiff[fold_invalid] = -999.0
+        new_qdiff[fold_invalid] = bad_val
 
         qdiff_score = new_qdiff
+
+    new_q1[q1_score < q1_th_min] = bad_val
+    new_qdiff[qdiff_score < qdiff_th_min] = bad_val
+
+    q1_score = new_q1
+    qdiff_score = new_qdiff
 
     q1_term = (q1_score-q1_th)**2
     q1_term[q1_score > q1_th] = 0.0
