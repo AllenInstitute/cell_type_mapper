@@ -5,7 +5,9 @@ from unittest.mock import patch
 
 from cell_type_mapper.diff_exp.scores import (
     score_differential_genes,
-    penetrance_tests)
+    penetrance_tests,
+    approx_penetrance_test,
+    exact_penetrance_test)
 
 
 
@@ -16,27 +18,105 @@ def test_penetrance_tests():
 
     q1_th = 0.09
     qdiff_th = 0.7
-    actual = penetrance_tests(pij_1, pij_2, q1_th=q1_th, qdiff_th=qdiff_th)
+    actual = penetrance_tests(
+        pij_1,
+        pij_2,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        exact=True)
     expected = np.array([True, False, True, False, False])
     np.testing.assert_array_equal(actual, expected)
 
     q1_th = 0.09
     qdiff_th = 0.5
-    actual = penetrance_tests(pij_1, pij_2, q1_th=q1_th, qdiff_th=qdiff_th)
+    actual = penetrance_tests(
+        pij_1,
+        pij_2,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        exact=True)
     expected = np.array([True, False, True, False, True])
     np.testing.assert_array_equal(actual, expected)
 
     q1_th = 0.2
     qdiff_th = 0.7
-    actual = penetrance_tests(pij_1, pij_2, q1_th=q1_th, qdiff_th=qdiff_th)
+    actual = penetrance_tests(
+        pij_1,
+        pij_2,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        exact=True)
     expected = np.array([False, False, True, False, False])
     np.testing.assert_array_equal(actual, expected)
 
     q1_th = 0.6
     qdiff_th = 0.1
-    actual = penetrance_tests(pij_1, pij_2, q1_th=q1_th, qdiff_th=qdiff_th)
+    actual = penetrance_tests(
+        pij_1,
+        pij_2,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        exact=True)
     expected = np.array([False, False, False, True, False])
     np.testing.assert_array_equal(actual, expected)
+
+
+@pytest.mark.parametrize("n_valid", [10, 30, 40, 70])
+def test_approx_penetrance_test(n_valid):
+    rng = np.random.default_rng(61232)
+    q1_th = 0.5
+    qdiff_th = 0.7
+
+    n_genes = 60
+    q1_score = 0.1+0.05*rng.random(n_genes)
+    qdiff_score = 0.1+0.05*rng.random(n_genes)
+
+    # designate some genes as absolutely valid
+    allowable = [ii for ii in range(n_genes) if ii not in (11, 14)]
+    valid = rng.choice(allowable, 23, replace=False)
+
+    # designate some genes as absolutely invalid
+    q1_score[11] = 0.01
+    qdiff_score[11] = 0.8
+
+    qdiff_score[14] = 0.01
+    q1_score[14] = 0.9
+
+    q1_score[valid] = q1_th + rng.random(len(valid))
+    qdiff_score[valid] = qdiff_th + rng.random(len(valid))
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        n_valid=n_valid)
+
+    # make sure absolutely invalid genes are
+    # not accepted
+    assert not actual[11]
+    assert not actual[14]
+
+    # make sure absolutely valid genes are accepted
+    assert actual[valid].all()
+
+    # make sure number of valid genes is as expected
+    if n_valid < n_genes-2:
+        n_expected = max(len(valid), n_valid)
+
+        # slop is because of the invalid genes
+        assert actual.sum() >= n_expected-2
+
+    # just to be sure, make sure exact_penetrance_test does
+    # what it ought to
+    actual_exact = exact_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th)
+
+    assert actual_exact[valid].all()
+    assert actual_exact.sum() == len(valid)
 
 
 @pytest.fixture
