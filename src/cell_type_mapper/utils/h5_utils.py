@@ -60,19 +60,23 @@ def _copy_h5_element(
     if isinstance(src_handle[current_location], h5py.Dataset):
         if current_location not in excluded_datasets:
             print(f"    copying {current_location}")
-            chunks = src_handle[current_location].chunks
+            src_dataset = src_handle[current_location]
+            chunks = src_dataset.chunks
             if chunks is None:
                 dst_dataset = dst_handle.create_dataset(
                     current_location,
-                    data=src_handle[current_location],
-                    chunks=src_handle[current_location].chunks)
+                    data=src_dataset,
+                    chunks=src_dataset.chunks,
+                    compression=src_dataset.compression,
+                    compression_opts=src_dataset.compression_opts)
             else:
-                src_dataset = src_handle[current_location]
                 dst_dataset = dst_handle.create_dataset(
                     current_location,
                     dtype=src_dataset.dtype,
                     shape=src_dataset.shape,
-                    chunks=src_dataset.chunks)
+                    chunks=src_dataset.chunks,
+                    compression=src_dataset.compression,
+                    compression_opts=src_dataset.compression_opts)
 
                 copy_slices = _get_slices_for_copy(
                     data_shape=src_dataset.shape,
