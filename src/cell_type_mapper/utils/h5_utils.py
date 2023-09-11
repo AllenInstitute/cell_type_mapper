@@ -62,7 +62,7 @@ def _copy_h5_element(
             print(f"    copying {current_location}")
             chunks = src_handle[current_location].chunks
             if chunks is None:
-                dataset = dst_handle.create_dataset(
+                dst_dataset = dst_handle.create_dataset(
                     current_location,
                     data=src_handle[current_location],
                     chunks=src_handle[current_location].chunks)
@@ -83,7 +83,7 @@ def _copy_h5_element(
 
             if len(attrs) > 0:
                 for k in attrs:
-                    dataset.attrs.create(name=k, data=attrs[k])
+                    dst_dataset.attrs.create(name=k, data=attrs[k])
 
     else:
         if current_location not in excluded_groups:
