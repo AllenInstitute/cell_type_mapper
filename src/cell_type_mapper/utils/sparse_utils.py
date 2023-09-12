@@ -1,12 +1,17 @@
 import h5py
 import numpy as np
+import tempfile
 import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
-from cell_type_mapper.utils.utils import print_timing
-from cell_type_mapper.utils.utils import merge_index_list
-from cell_type_mapper.utils.utils import choose_int_dtype
+
+from cell_type_mapper.utils.utils import (
+    print_timing,
+    merge_index_list,
+    choose_int_dtype,
+    mkstemp_clean,
+    _clean_up)
 
 
 def load_csr(
@@ -639,7 +644,8 @@ def amalgamate_sparse_array(
         src_rows,
         dst_path,
         sparse_grp=None,
-        verbose=False):
+        verbose=False,
+        tmp_dir=None):
     """
     Take rows (or columns for csc matrices) from different
     sparse arrays stored in different HDF5 files and combine
@@ -664,7 +670,32 @@ def amalgamate_sparse_array(
     verbose:
         If True, issue print statements indicating the
         status of the copy
+
+    tmp_dir:
+        Directory where temporary files will be written
     """
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+
+    try:
+        _amalgamate_sparse_array(
+            src_rows=src_rows,
+            dst_path=dst_path,
+            sparse_grp=sparse_grp,
+            verbose=verbose,
+            tmp_dir=tmp_dir)
+    finally:
+        if verbose:
+            print(f"cleaning up {tmp_dir}")
+        _clean_up(tmp_dir)
+
+
+def _amalgamate_sparse_array(
+        src_rows,
+        dst_path,
+        sparse_grp,
+        verbose,
+        tmp_dir):
     if sparse_grp is not None:
         indices_key = f'{sparse_grp}/indices'
         data_key = f'{sparse_grp}/data'
@@ -682,41 +713,72 @@ def amalgamate_sparse_array(
     data_min = None
     eps = 1.0e-20
 
-    for src_element in src_rows:
-        src_path = src_element['path']
-        if verbose:
-            print(f"    running census on {src_path}")
-        ct_rows += len(src_element['rows'])
-        with h5py.File(src_path, 'r') as src:
-            indices = src[indices_key][()]
-            indptr = src[indptr_key][()]
-            for idx in src_element['rows']:
-                i0 = indptr[idx]
-                i1 = indptr[idx+1]
-                this = indices[i0:i1]
-                ct_elements += len(this)
-                if len(this) > 0:
-                    this_max = this.max()
-                    if this_max > max_index:
-                        max_index = this_max
-            del indices
-            if data_is_int:
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='amalgamation_data_',
+        suffix='.h5')
+
+    with h5py.File(tmp_path, 'w') as tmp_dst:
+        for i_src, src_element in enumerate(src_rows):
+            full_indices = []
+            full_data = []
+            full_indptr = []
+            local_indptr_idx = 0
+            src_path = src_element['path']
+            if verbose:
+                print(f"    running census on {src_path}")
+            ct_rows += len(src_element['rows'])
+            with h5py.File(src_path, 'r') as src:
+                indices = src[indices_key][()]
+                indptr = src[indptr_key][()]
+                for idx in src_element['rows']:
+                    full_indptr.append(local_indptr_idx)
+                    i0 = indptr[idx]
+                    i1 = indptr[idx+1]
+                    this = indices[i0:i1]
+                    full_indices.append(this)
+                    ct_elements += len(this)
+                    local_indptr_idx += len(this)
+                    if len(this) > 0:
+                        this_max = this.max()
+                        if this_max > max_index:
+                            max_index = this_max
+                del indices
                 data = src[data_key][()]
                 for idx in src_element['rows']:
                     i0 = indptr[idx]
                     i1 = indptr[idx+1]
                     this = data[i0:i1]
+                    full_data.append(this)
                     if len(this) > 0:
                         delta = np.abs(np.round(this)-this)
                         if delta.max() > eps:
                             data_is_int = False
-                            break
                         this_max = this.max()
                         this_min = this.min()
                         if data_max is None or this_max > data_max:
                             data_max = this_max
                         if data_min is None or this_min < data_min:
                             data_min = this_min
+
+            if len(full_data) > 0:
+                full_data = np.concatenate(full_data)
+                full_indices = np.concatenate(full_indices)
+
+            full_indptr.append(len(full_indices))
+
+            tmp_data_key = f'src_{i_src}_data'
+            tmp_indices_key = f'src_{i_src}_indices'
+            tmp_indptr_key = f'src_{i_src}_indptr'
+            tmp_dst.create_dataset(
+                tmp_data_key,
+                data=full_data)
+            tmp_dst.create_dataset(
+                tmp_indices_key,
+                data=full_indices)
+            tmp_dst.create_dataset(
+                tmp_indptr_key,
+                data=np.array(full_indptr))
 
     if verbose:
         print(f"    done with census; {ct_elements} non-zero elements")
@@ -733,59 +795,51 @@ def amalgamate_sparse_array(
     # oppen with mode='a' so that, if we are adding an 'X' element
     # to an anndata file, we don't blow away pre-existing obs/var
     # data structures
-    with h5py.File(dst_path, 'a') as dst:
-        if sparse_grp is not None:
-            dst_handle = dst.create_group(sparse_grp)
-        else:
-            dst_handle = dst
+    with h5py.File(tmp_path, 'r') as tmp_src:
+        with h5py.File(dst_path, 'a') as dst:
+            if sparse_grp is not None:
+                dst_handle = dst.create_group(sparse_grp)
+            else:
+                dst_handle = dst
 
-        dst_handle.create_dataset(
-            'data',
-            shape=(ct_elements,),
-            dtype=data_dtype,
-            chunks=(min(ct_elements, 10000),))
-        dst_handle.create_dataset(
-            'indices',
-            shape=(ct_elements,),
-            dtype=indices_dtype,
-            chunks=(min(ct_elements, 10000),))
-        dst_handle.create_dataset(
-            'indptr',
-            shape=(ct_rows+1,),
-            dtype=indices_dtype,
-            chunks=(min(ct_rows+1, 10000),))
+            dst_handle.create_dataset(
+                'data',
+                shape=(ct_elements,),
+                dtype=data_dtype,
+                chunks=(min(ct_elements, 10000),))
+            dst_handle.create_dataset(
+                'indices',
+                shape=(ct_elements,),
+                dtype=indices_dtype,
+                chunks=(min(ct_elements, 10000),))
+            dst_handle.create_dataset(
+                'indptr',
+                shape=(ct_rows+1,),
+                dtype=indices_dtype,
+                chunks=(min(ct_rows+1, 10000),))
 
-        current_index = 0
-        current_row = 0
-        for src_element in src_rows:
-            src_path = src_element['path']
-            if verbose:
-                print(f"    copying from {src_path}")
-
-            src_idx_to_dst_idx = dict()
-            with h5py.File(src_path, 'r') as src:
-                indices = src[indices_key][()].astype(indices_dtype)
-                indptr = src[indptr_key][()]
-                for idx in src_element['rows']:
+            current_index = 0
+            current_row = 0
+            for i_src, src_element in enumerate(src_rows):
+                indices = tmp_src[
+                    f'src_{i_src}_indices'][()]
+                indptr = tmp_src[
+                   f'src_{i_src}_indptr'][()]
+                data = tmp_src[
+                    f'src_{i_src}_data'][()].astype(data_dtype)
+                for idx in range(len(src_element['rows'])):
                     i0 = indptr[idx]
                     i1 = indptr[idx+1]
-                    this = indices[i0:i1]
-                    src_idx_to_dst_idx[idx] = current_index
+                    this_indices = indices[i0:i1]
+                    this_data = data[i0:i1]
+                    n = len(this_indices)
                     dst_handle['indices'][
-                        current_index:current_index+len(this)] = this
+                        current_index:current_index+n] = this_indices
+                    dst_handle['data'][
+                        current_index:current_index+n] = this_data
                     dst_handle['indptr'][current_row] = current_index
                     current_row += 1
-                    current_index += len(this)
+                    current_index += n
                 del indices
-
-                data = src[data_key][()].astype(data_dtype)
-                for idx in src_element['rows']:
-                    i0 = indptr[idx]
-                    i1 = indptr[idx+1]
-                    this = data[i0:i1]
-                    i0 = src_idx_to_dst_idx[idx]
-                    i1 = i0 + len(this)
-                    dst_handle['data'][i0:i1] = this
                 del data
-
-        dst_handle['indptr'][-1] = current_index
+            dst_handle['indptr'][-1] = current_index

@@ -258,7 +258,8 @@ def amalgamate_h5ad(
         dst_path,
         dst_obs,
         dst_var,
-        verbose=False):
+        verbose=False,
+        tmp_dir=None):
 
     """
     Take rows (or columns for csc matrices) from different
@@ -286,6 +287,9 @@ def amalgamate_h5ad(
     verbose:
         If True, issue print statements indicating the
         status of the copy
+
+    tmp_dir:
+        Directory where temporary files will be written
     """
     # check that all files are csr matrices
     for src_element in src_rows:
@@ -303,7 +307,8 @@ def amalgamate_h5ad(
         src_rows=src_rows,
         dst_path=dst_path,
         sparse_grp='X',
-        verbose=verbose)
+        verbose=verbose,
+        tmp_dir=tmp_dir)
 
     with h5py.File(dst_path, 'a') as dst:
         x_handle = dst['X']

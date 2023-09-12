@@ -24,7 +24,7 @@ from cell_type_mapper.utils.anndata_utils import (
 
 @pytest.mark.parametrize('data_dtype,verbose',
     itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_amalgmation(tmp_dir_fixture, data_dtype, verbose):
+def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
@@ -109,7 +109,7 @@ def test_csr_amalgmation(tmp_dir_fixture, data_dtype, verbose):
 
 @pytest.mark.parametrize('data_dtype,verbose',
     itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_anndata_amalgmation(tmp_dir_fixture, data_dtype, verbose):
+def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
