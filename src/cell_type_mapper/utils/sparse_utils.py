@@ -728,7 +728,10 @@ def amalgamate_sparse_array(
     if verbose:
         print(f"    saving with dtype {data_dtype}")
 
-    with h5py.File(dst_path, 'w') as dst:
+    # oppen with mode='a' so that, if we are adding an 'X' element
+    # to an anndata file, we don't blow away pre-existing obs/var
+    # data structures
+    with h5py.File(dst_path, 'a') as dst:
         if sparse_grp is not None:
             dst_handle = dst.create_group(sparse_grp)
         else:
