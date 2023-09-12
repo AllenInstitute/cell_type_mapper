@@ -2,8 +2,12 @@ import anndata
 from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
 import h5py
+import numpy as np
 import pandas as pd
 import warnings
+
+from cell_type_mapper.utils.sparse_utils import (
+    amalgamate_sparse_array)
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -247,3 +251,65 @@ def _copy_layer_to_x_sparse(
                     for i0 in range(0, src_dataset.shape[0], chunks[0]):
                         i1 = min(src_dataset.shape[0], i0+chunks[0])
                         dst_grp[el][i0:i1] = src_dataset[i0:i1]
+
+
+def amalgamate_h5ad(
+        src_rows,
+        dst_path,
+        dst_obs,
+        dst_var,
+        verbose=False):
+
+    """
+    Take rows (or columns for csc matrices) from different
+    sparse arrays stored in different h5ad files and combine
+    them into a single sparse array in a single h5ad file.
+
+    Parameters
+    ----------
+    src_rows:
+        Ordered list of dicts. Each dict is
+        {
+            'path': /path/to/src/file
+            'rows': [ordered list of rows/columns from that file]
+        }
+
+    dst_path:
+        Path of file to be written
+
+    dst_obs:
+        The obs dataframe for the final file
+
+    dst_var:
+        The var dataframe for the final file
+
+    verbose:
+        If True, issue print statements indicating the
+        status of the copy
+    """
+    # check that all files are csr matrices
+    for src_element in src_rows:
+        src_path = src_element['path']
+        with h5py.File(src_path, 'r') as src:
+            attrs = dict(src['X'].attrs)
+        if attrs['encoding-type'] != 'csr_matrix':
+            raise RuntimeError(
+                f"{src_path} is {attrs}\nnot 'csr_matrix'")
+
+    a_data = anndata.AnnData(obs=dst_obs, var=dst_var)
+    a_data.write_h5ad(dst_path)
+
+    amalgamate_sparse_array(
+        src_rows=src_rows,
+        dst_path=dst_path,
+        sparse_grp='X',
+        verbose=verbose)
+
+    with h5py.File(dst_path, 'a') as dst:
+        x_handle = dst['X']
+        x_handle.attrs.create(
+            name='encoding-type', data='csr_matrix')
+        x_handle.attrs.create(
+            name='encoding-version', data='0.1.0')
+        x_handle.attrs.create(
+            name='shape', data=np.array([len(dst_obs), len(dst_var)]))
