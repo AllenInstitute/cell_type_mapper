@@ -815,7 +815,7 @@ def _amalgamate_sparse_array(
             dst_handle.create_dataset(
                 'indptr',
                 shape=(ct_rows+1,),
-                dtype=indices_dtype,
+                dtype=int,
                 chunks=(min(ct_rows+1, 10000),))
 
             current_index = 0
