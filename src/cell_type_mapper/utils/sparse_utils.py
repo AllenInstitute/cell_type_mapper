@@ -638,7 +638,8 @@ def mask_indptr_by_indices(
 def amalgamate_sparse_array(
         src_rows,
         dst_path,
-        sparse_grp=None):
+        sparse_grp=None,
+        verbose=False):
     """
     Take rows (or columns for csc matrices) from different
     sparse arrays stored in different HDF5 files and combine
@@ -659,6 +660,10 @@ def amalgamate_sparse_array(
     sparse_grp:
         If not None, the prefix for the sparse array datasets
         in the source HDF5 files (i.e. 'X' for h5ad files)
+
+    verbose:
+        If True, issue print statements indicating the
+        status of the copy
     """
     if sparse_grp is not None:
         indices_key = f'{sparse_grp}/indices'
@@ -711,11 +716,17 @@ def amalgamate_sparse_array(
                         if data_min is None or this_min < data_min:
                             data_min = this_min
 
+    if verbose:
+        print(f"    done with census; {ct_elements} non-zero elements")
+
     indices_dtype = choose_int_dtype((0, max_index))
     if data_is_int:
         data_dtype = choose_int_dtype((data_min, data_max))
     else:
         data_dtype = float
+
+    if verbose:
+        print(f"    saving with dtype {data_dtype}")
 
     with h5py.File(dst_path, 'w') as dst:
         if sparse_grp is not None:
@@ -743,6 +754,9 @@ def amalgamate_sparse_array(
         current_row = 0
         for src_element in src_rows:
             src_path = src_element['path']
+            if verbose:
+                print(f"    copying from {src_path}")
+
             src_idx_to_dst_idx = dict()
             with h5py.File(src_path, 'r') as src:
                 indices = src[indices_key][()].astype(indices_dtype)

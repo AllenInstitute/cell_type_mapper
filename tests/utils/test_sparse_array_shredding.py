@@ -7,6 +7,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import numpy as np
 import scipy.sparse as scipy_sparse
 
@@ -17,8 +18,9 @@ from cell_type_mapper.utils.sparse_utils import (
     amalgamate_sparse_array)
 
 
-@pytest.mark.parametrize('data_dtype', [np.uint8, np.uint16, np.int16, float])
-def test_csr_amalgmation(tmp_dir_fixture, data_dtype):
+@pytest.mark.parametrize('data_dtype,verbose',
+    itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
+def test_csr_amalgmation(tmp_dir_fixture, data_dtype, verbose):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
@@ -84,7 +86,8 @@ def test_csr_amalgmation(tmp_dir_fixture, data_dtype):
     amalgamate_sparse_array(
         src_rows=src_rows,
         dst_path=dst_path,
-        sparse_grp='X')
+        sparse_grp='X',
+        verbose=verbose)
 
     with h5py.File(dst_path, 'r') as dst:
         actual = scipy_sparse.csr_matrix(
