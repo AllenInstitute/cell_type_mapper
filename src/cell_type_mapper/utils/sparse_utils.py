@@ -684,6 +684,8 @@ def amalgamate_sparse_array(
 
     for src_element in src_rows:
         src_path = src_element['path']
+        if verbose:
+            print(f"    running census on {src_path}")
         ct_rows += len(src_element['rows'])
         with h5py.File(src_path, 'r') as src:
             indices = src[indices_key][()]
