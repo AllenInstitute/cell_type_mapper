@@ -6,6 +6,7 @@ import h5py
 import itertools
 import anndata
 import pathlib
+import os
 import json
 import scipy.sparse as scipy_sparse
 
@@ -39,6 +40,9 @@ from cell_type_mapper.marker_selection.marker_array import (
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
 
+from cell_type_mapper.cli.reference_markers import (
+   ReferenceMarkerRunner)
+
 
 @pytest.fixture
 def tree_fixture(
@@ -48,6 +52,51 @@ def tree_fixture(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
 
+def test_reference_marker_finding_cli(
+        h5ad_path_fixture,
+        column_hierarchy,
+        tmp_dir_fixture,
+        tree_fixture):
+
+    tmp_dir = tmp_dir_fixture
+
+    marker_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5'))
+
+    precompute_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5'))
+
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path_fixture,
+        column_hierarchy=column_hierarchy,
+        taxonomy_tree=None,
+        output_path=precompute_path,
+        rows_at_a_time=1000)
+
+    marker_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='reference_markers_from_cli_',
+        suffix='.h5')
+
+    config = {
+        'n_processors': 3,
+        'precomputed_path': str(precompute_path.resolve().absolute()),
+        'output_path': marker_path,
+        'drop_level': None
+    }
+
+    # because maker path was created
+    with pytest.raises(RuntimeError, match="run with 'clobber' = True"):
+        runner = ReferenceMarkerRunner(args=[], input_data=config)
+        runner.run()
+
+    os.unlink(marker_path)
+    runner = ReferenceMarkerRunner(args=[], input_data=config)
+    runner.run()
 
 
 def test_marker_finding_pipeline(
