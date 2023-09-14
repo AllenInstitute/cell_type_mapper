@@ -200,6 +200,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = HierarchicalSchemaSpecifiedMarkers
 
     def run(self):
+
+        print('=== Running Hierarchical Mapping with config ===\n'
+              f'{json.dumps(self.args, indent=2)}')
+
         run_mapping(
             config=self.args,
             output_path=self.args['extended_result_path'],
