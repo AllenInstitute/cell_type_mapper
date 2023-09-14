@@ -84,6 +84,10 @@ def summary_plots_for_one_file(
     marker_path = pathlib.Path(
         results['config']['query_markers']['serialized_lookup'])
     marker_lookup_str = f"{marker_path.parent.name}/\n    {marker_path.name}"
+    precompute_path = pathlib.Path(
+        results['config']['precomputed_stats']['path'])
+    precompute_str = (
+        f"{precompute_path.parent.name}/\n    {precompute_path.name}")
 
     log = results['log']
     timing_statements = []
@@ -349,6 +353,7 @@ def summary_plots_for_one_file(
                 label_y_axis=False,)
 
     msg = f"query set: {query_path_str}\n"
+    msg += f"precomputed stats: {precompute_str}\n"
     msg += f"marker genes: {marker_lookup_str}\n"
     msg += f"{n_cells} query cells\n"
     msg += "\naccuracy\n=========\n"
