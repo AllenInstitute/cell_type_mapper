@@ -718,6 +718,7 @@ def _amalgamate_sparse_array(
         prefix='amalgamation_data_',
         suffix='.h5')
 
+    src_dtypes = set()
     with h5py.File(tmp_path, 'w') as tmp_dst:
         for i_src, src_element in enumerate(src_rows):
             full_indices = []
@@ -745,6 +746,7 @@ def _amalgamate_sparse_array(
                             max_index = this_max
                 del indices
                 data = src[data_key][()]
+                src_dtypes.add(data.dtype)
                 for idx in src_element['rows']:
                     i0 = indptr[idx]
                     i1 = indptr[idx+1]
@@ -787,7 +789,11 @@ def _amalgamate_sparse_array(
     if data_is_int:
         data_dtype = choose_int_dtype((data_min, data_max))
     else:
-        data_dtype = float
+        if len(src_dtypes) > 1:
+            raise RuntimeError(
+                "Cannot amalgamate; disparate data types\n"
+                f"{list(src_dtypes)}")
+        data_dtype = src_dtypes.pop()
 
     if verbose:
         print(f"    saving with dtype {data_dtype}")
