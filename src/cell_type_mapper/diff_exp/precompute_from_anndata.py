@@ -294,6 +294,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         cell_name_to_output_row[cell_name] = cluster_to_output_row[
             cell_name_to_cluster_name[cell_name]]
 
+    bad_row_idx = -999
+
     for data_path in data_path_list:
 
         cell_name_list = list(
@@ -313,10 +315,13 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             r1 = chunk[2]
             cluster_chunk = np.array([
                 cell_name_to_output_row[cell_name_list[idx]]
-                for idx in range(r0, r1)
                 if cell_name_list[idx] in cell_name_to_output_row
+                else bad_row_idx
+                for idx in range(r0, r1)
             ])
             for unq_cluster in np.unique(cluster_chunk):
+                if unq_cluster == bad_row_idx:
+                    continue
                 valid = np.where(cluster_chunk == unq_cluster)[0]
                 valid = np.sort(valid)
                 this_cluster = chunk[0][valid, :]

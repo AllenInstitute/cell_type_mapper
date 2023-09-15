@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -401,7 +402,9 @@ def test_precompute_from_data(
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('use_raw', [True, False])
+@pytest.mark.parametrize(
+        'use_raw, omit_clusters',
+        itertools.product([True, False], [True, False]))
 def test_precompute_from_many_h5ad_with_lookup(
         many_h5ad_fixture,
         many_raw_h5ad_fixture,
@@ -409,12 +412,15 @@ def test_precompute_from_many_h5ad_with_lookup(
         obs_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
-        use_raw):
+        use_raw,
+        omit_clusters):
     """
     Test the generation of precomputed stats file from many
     h5ad files at once.
 
     The test checks results against known answers.
+
+    if omit_clusters, drop some clusters from the lookup table
     """
     if use_raw:
         path_list = many_raw_h5ad_fixture
@@ -438,14 +444,26 @@ def test_precompute_from_many_h5ad_with_lookup(
         obs_records=records_fixture,
         column_hierarchy=hierarchy)
 
-    cluster_to_output_row = {
-        n:ii
-        for ii, n in enumerate(expected_tree['cluster'].keys())}
+    if omit_clusters:
+        key_list = list(expected_tree['cluster'].keys())
+        to_omit = set([key_list[0], key_list[5]])
+    else:
+        to_omit = None
 
     cell_name_to_cluster_name = {
         str(cell): cluster
         for cell, cluster in zip(obs_fixture.index.values,
-                                 obs_fixture['cluster'].values)}
+                                 obs_fixture['cluster'].values)
+        if to_omit is None or cluster not in to_omit}
+
+
+    actual_cluster_names = set(cell_name_to_cluster_name.values())
+    actual_cluster_names = list(actual_cluster_names)
+    actual_cluster_names.sort()
+
+    cluster_to_output_row = {
+        n:ii
+        for ii, n in enumerate(actual_cluster_names)}
 
     gene_names = list(read_df_from_h5ad(path_list[0], 'var').index.values)
 
@@ -471,8 +489,17 @@ def test_precompute_from_many_h5ad_with_lookup(
         ge1 = in_file["ge1"][()]
 
     assert not np.array_equal(gt1, ge1)
-    assert len(cluster_to_row) == len(baseline_stats_fixture)
+
+    if to_omit is None:
+        assert len(cluster_to_row) == len(baseline_stats_fixture)
+    else:
+        assert len(cluster_to_row) == len(baseline_stats_fixture)-len(to_omit)
+
     for cluster in cluster_to_row:
+        if to_omit is not None:
+            if cluster in to_omit:
+                continue
+
         idx = cluster_to_row[cluster]
 
         assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
