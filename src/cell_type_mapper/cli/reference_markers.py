@@ -56,6 +56,14 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
         allow_none=False,
         description=("Number of independent processors to spin up."))
 
+    exact_penetrance = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=("If False, allow genes that technically fail "
+                     "penetrance and fold-change thresholds to pass "
+                     "through as reference genes."))
+
     @post_load
     def check_clobber(self, data, **kwargs):
         output_path = pathlib.Path(data['output_path'])
@@ -99,7 +107,8 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
             taxonomy_tree=taxonomy_tree,
             output_path=self.args['output_path'],
             tmp_dir=self.args['tmp_dir'],
-            n_processors=self.args['n_processors'])
+            n_processors=self.args['n_processors'],
+            exact_penetrance=self.args['exact_penetrance'])
 
         with h5py.File(self.args['output_path'], 'a') as dst:
             dst.create_dataset(

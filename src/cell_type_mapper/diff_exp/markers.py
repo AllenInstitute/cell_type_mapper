@@ -37,7 +37,8 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_gb=20):
+        max_gb=20,
+        exact_penetrance=False):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -68,6 +69,10 @@ def find_markers_for_all_taxonomy_pairs(
 
     max_gb:
         maximum number of GB to load at once
+
+    exact_penetrance:
+        If False, allow genes that technically fail penetrance
+        and fold-change thresholds to be marker genes.
 
     Returns
     --------
@@ -106,7 +111,8 @@ def find_markers_for_all_taxonomy_pairs(
         qdiff_th=qdiff_th,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
-        max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)))
+        max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)),
+        exact_penetrance=exact_penetrance)
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
@@ -135,7 +141,8 @@ def create_sparse_by_pair_marker_file(
         qdiff_th=0.7,
         n_processors=4,
         tmp_dir=None,
-        max_bytes=6*1024**3):
+        max_bytes=6*1024**3,
+        exact_penetrance=False):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -163,6 +170,10 @@ def create_sparse_by_pair_marker_file(
 
     max_bytes:
         Maximum number of bytes to load when thinning marker file
+
+    exact_penetrance:
+        If False, allow genes that technically fail penetrance
+        and fold-change thresholds to be marker genes.
 
     Returns
     --------
@@ -240,7 +251,8 @@ def create_sparse_by_pair_marker_file(
                     'p_th': p_th,
                     'q1_th': q1_th,
                     'qdiff_th': qdiff_th,
-                    'tmp_path': tmp_path})
+                    'tmp_path': tmp_path,
+                    'exact_penetrance': exact_penetrance})
         p.start()
         process_dict[col0] = p
         while len(process_dict) >= n_processors:
@@ -418,7 +430,8 @@ def _find_markers_worker(
         p_th,
         q1_th,
         qdiff_th,
-        tmp_path):
+        tmp_path,
+        exact_penetrance=False):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -443,6 +456,9 @@ def _find_markers_worker(
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates that file)
+    exact_penetrance:
+        If False, allow genes that technically fail penetrance
+        and fold-change thresholds to be marker genes.
     """
 
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
@@ -475,7 +491,8 @@ def _find_markers_worker(
                          p_th=p_th,
                          q1_th=q1_th,
                          qdiff_th=qdiff_th,
-                         boring_t=boring_t)
+                         boring_t=boring_t,
+                         exact_penetrance=exact_penetrance)
 
         up_reg_lookup[idx] = np.where(
             np.logical_and(validity_mask, up_mask))[0].astype(idx_dtype)
