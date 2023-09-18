@@ -59,8 +59,10 @@ def taxonomy_tree_dict(n_reference_cells):
 
     clusters = []
     tree['subclass'] = dict()
-    for subclass in subclasses:
+    for i_sub, subclass in enumerate(subclasses):
         n_sub = rng.integers(2, 4)
+        if i_sub == 0:
+            n_sub = 7
         tree['subclass'][subclass] = []
         for ii in range(n_sub):
             name = f"cl{ct}"
