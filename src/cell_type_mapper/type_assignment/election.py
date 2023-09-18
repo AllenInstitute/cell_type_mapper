@@ -698,6 +698,14 @@ def choose_node(
         gpu_index=gpu_index,
         timers=timers)
 
+    if len(set(reference_types)) < len(reference_types):
+        (votes,
+         corr_sum,
+         reference_types) = aggregate_votes(
+             vote_array=votes,
+             correlation_array=corr_sum,
+             reference_types=reference_types)
+
     n_assignments = min(n_assignments, votes.shape[1])
 
     update_timer("tally_votes", t, timers)
@@ -841,3 +849,57 @@ def tally_votes(
     update_timer("tally_loop", t, timers)
 
     return votes, corr_sum
+
+
+def aggregate_votes(
+        vote_array,
+        correlation_array,
+        reference_types):
+    """
+    Take the raw results of tally_votes and combine any columns
+    that point to the same reference type (i.e for cases where
+    we are matching to a non-leaf node in the taxonomy tree).
+
+    Parameters
+    ----------
+    vote_array:
+        (n_query, n_reference) array of votes
+    correlation_array:
+        (n_query, n_reference) array of correlation sums
+    reference_types:
+        (n_reference,) array of cell types associated with the
+        reference "cells" (i.e. the leaf nodes of the taxonomy)
+
+    Returns
+    -------
+    vote_array_agg:
+        vote_array with columns that point to the same reference_type
+        combined
+    correlation_array_agg:
+        correlation_array with columns that point to the same
+        reference_type combined
+    reference_types_agg:
+        array of reference types indicating which types the columns
+        of vote_array_agg and correlation_agg point to
+    """
+
+    reference_types = np.array(reference_types)
+    unq_types = list(set(reference_types))
+    unq_types.sort()
+    type_to_idx = {
+        t: np.where(reference_types == t)[0]
+        for t in unq_types}
+
+    n_query = vote_array.shape[0]
+    n_unq = len(unq_types)
+    vote_array_agg = np.zeros((n_query, n_unq), dtype=int)
+    corr_array_agg = np.zeros((n_query, n_unq), dtype=float)
+
+    for new_idx, ref_type in enumerate(unq_types):
+        col_idx = type_to_idx[ref_type]
+        vote_array_agg[:, new_idx] = vote_array[:, col_idx].sum(axis=1)
+        corr_array_agg[:, new_idx] = correlation_array[:, col_idx].sum(axis=1)
+
+    return (vote_array_agg,
+            corr_array_agg,
+            unq_types)
