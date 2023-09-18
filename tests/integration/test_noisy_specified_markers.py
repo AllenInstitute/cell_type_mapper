@@ -343,6 +343,12 @@ def test_mapping_from_markers(
                 node=this_level['assignment'])
 
             n_runners_up_actual = len(this_level['runner_up_assignment'])
+
+            # make sure runners up are unique and do not include the assigned
+            # taxon
+            assert this_level['assignment'] not in this_level['runner_up_assignment']
+            assert len(set(this_level['runner_up_assignment'])) == n_runners_up_actual
+
             if n_runners_up_actual > max_runners_up:
                 max_runners_up = n_runners_up_actual
             assert n_runners_up_actual <= n_runners_up

@@ -352,7 +352,9 @@ def summary_plots_for_one_file(
                 label_x_axis=label_x_axis,
                 label_y_axis=False,)
 
-    msg = f"query set: {query_path_str}\n"
+    output_path = pathlib.Path(results['config']['extended_result_path'])
+    msg = f"{output_path.name}\n"
+    msg += f"query set: {query_path_str}\n"
     msg += f"precomputed stats: {precompute_str}\n"
     msg += f"marker genes: {marker_lookup_str}\n"
     msg += f"{n_cells} query cells\n"

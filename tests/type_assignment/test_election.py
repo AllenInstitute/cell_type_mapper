@@ -16,7 +16,8 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.type_assignment.election import (
     tally_votes,
     choose_node,
-    run_type_assignment)
+    run_type_assignment,
+    aggregate_votes)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_specified_markers)
@@ -511,3 +512,65 @@ def test_run_type_assignment(
                     assert other_tree == family_tree
 
     assert more_than_one_runner_up > 0
+
+
+
+def test_aggregate_votes():
+
+    rng = np.random.default_rng(2213)
+
+    reference_types = ['b', 'b', 'a', 'd', 'a', 'c', 'b']
+    
+    n_query = 17
+    votes = rng.integers(2, 15, (n_query, len(reference_types)))
+    corr = rng.random((n_query, len(reference_types)))
+
+    (new_votes,
+     new_corr,
+     new_ref) = aggregate_votes(
+         vote_array=votes,
+         correlation_array=corr,
+         reference_types=reference_types)
+
+    assert set(new_ref) == set(['a', 'b', 'c', 'd'])
+    assert len(new_ref) == 4
+
+    type_to_idx = {t: ii for ii, t in enumerate(new_ref)}
+
+    expected_votes = votes[:, 0] + votes[:, 1] + votes[:, 6]
+    actual_votes = new_votes[:, type_to_idx['b']]
+    np.testing.assert_array_equal(expected_votes, actual_votes)
+
+    expected_corr = corr[:, 0] + corr[:, 1] + corr[:, 6]
+    actual_corr = new_corr[:, type_to_idx['b']]
+    np.testing.assert_allclose(
+        expected_corr, actual_corr,
+        atol=0.0, rtol=1.0e-6)
+
+    expected_votes = votes[:, 2] + votes[:, 4]
+    actual_votes = new_votes[:, type_to_idx['a']]
+    np.testing.assert_array_equal(expected_votes, actual_votes)
+
+    expected_corr = corr[:, 4] + corr[:, 2]
+    actual_corr = new_corr[:, type_to_idx['a']]
+    np.testing.assert_allclose(
+        expected_corr, actual_corr,
+        atol=0.0, rtol=1.0e-6)
+
+    np.testing.assert_array_equal(
+        new_votes[:, type_to_idx['d']],
+        votes[:, 3])
+    np.testing.assert_allclose(
+        new_corr[:, type_to_idx['d']],
+        corr[:, 3],
+        atol=0.0,
+        rtol=1.0e-6)
+
+    np.testing.assert_array_equal(
+        new_votes[:, type_to_idx['c']],
+        votes[:, 5])
+    np.testing.assert_allclose(
+        new_corr[:, type_to_idx['c']],
+        corr[:, 5],
+        atol=0.0,
+        rtol=1.0e-6)
