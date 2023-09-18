@@ -456,14 +456,9 @@ def test_precompute_from_many_h5ad_with_lookup(
                                  obs_fixture['cluster'].values)
         if to_omit is None or cluster not in to_omit}
 
-
-    actual_cluster_names = set(cell_name_to_cluster_name.values())
-    actual_cluster_names = list(actual_cluster_names)
-    actual_cluster_names.sort()
-
     cluster_to_output_row = {
         n:ii
-        for ii, n in enumerate(actual_cluster_names)}
+        for ii, n in enumerate(expected_tree['cluster'].keys())}
 
     gene_names = list(read_df_from_h5ad(path_list[0], 'var').index.values)
 
@@ -490,17 +485,40 @@ def test_precompute_from_many_h5ad_with_lookup(
 
     assert not np.array_equal(gt1, ge1)
 
-    if to_omit is None:
-        assert len(cluster_to_row) == len(baseline_stats_fixture)
-    else:
-        assert len(cluster_to_row) == len(baseline_stats_fixture)-len(to_omit)
+    assert len(cluster_to_row) == len(baseline_stats_fixture)
 
     for cluster in cluster_to_row:
-        if to_omit is not None:
-            if cluster in to_omit:
-                continue
 
         idx = cluster_to_row[cluster]
+
+        if to_omit is not None:
+            if cluster in to_omit:
+                assert n_cells[idx] == 0
+                np.testing.assert_allclose(
+                        sum_data[idx, :],
+                        np.zeros(len(gene_names)),
+                        atol=0.0, rtol=1.0e-6)
+
+                np.testing.assert_allclose(
+                        sumsq_data[idx, :],
+                        np.zeros(len(gene_names)),
+                        atol=0.0, rtol=1.0e-6)
+
+                np.testing.assert_allclose(
+                        gt0[idx, :],
+                        np.zeros(len(gene_names)),
+                        atol=0.0, rtol=1.0e-6)
+
+                np.testing.assert_allclose(
+                        gt1[idx, :],
+                        np.zeros(len(gene_names)),
+                        atol=0.0, rtol=1.0e-6)
+
+                np.testing.assert_allclose(
+                        ge1[idx, :],
+                        np.zeros(len(gene_names)),
+                        atol=0.0, rtol=1.0e-6)
+                continue
 
         assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
 
