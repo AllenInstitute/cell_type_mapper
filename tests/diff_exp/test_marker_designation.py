@@ -110,8 +110,11 @@ def test_approx_penetrance_test(n_valid):
         qdiff_score=qdiff_score,
         log2_fold=log2_fold,
         q1_th=q1_th,
+        q1_min_th=0.1,
         qdiff_th=qdiff_th,
+        qdiff_min_th=0.1,
         log2_fold_th=log2_fold_th,
+        log2_fold_min_th=0.8,
         n_valid=n_valid)
 
     # make sure absolutely invalid genes are
@@ -141,6 +144,149 @@ def test_approx_penetrance_test(n_valid):
 
     assert actual_exact[valid].all()
     assert actual_exact.sum() == len(valid)
+
+
+def test_approx_penetrance_invalidity():
+    """
+    Test that setting the absolute minimum thresholds for
+    the various penetrance statistics works as expected.
+    """
+    q1_score = np.array([
+        0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05,
+        0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1,
+        0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2, 0.2])
+
+    qdiff_score = np.array(
+        [0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.2, 0.2, 0.2,
+         0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.2, 0.2, 0.2,
+         0.05, 0.05, 0.05, 0.1, 0.1, 0.1, 0.2, 0.2, 0.2])
+
+    log2_fold = np.array(
+        [0.05, 0.1, 0.2, 0.05, 0.1, 0.2, 0.05, 0.1, 0.2,
+         0.05, 0.1, 0.2, 0.05, 0.1, 0.2, 0.05, 0.1, 0.2,
+         0.05, 0.1, 0.2, 0.05, 0.1, 0.2, 0.05, 0.1, 0.2,])
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.09,
+        qdiff_th=0.5,
+        qdiff_min_th=0.0,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.0,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[:9] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.19,
+        qdiff_th=0.5,
+        qdiff_min_th=0.0,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.0,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[:18] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.0,
+        qdiff_th=0.5,
+        qdiff_min_th=0.09,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.0,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[:3] = False
+    expected[9:12] = False
+    expected[18:21] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.0,
+        qdiff_th=0.5,
+        qdiff_min_th=0.19,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.0,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[:6] = False
+    expected[9:15] = False
+    expected[18:24] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.0,
+        qdiff_th=0.5,
+        qdiff_min_th=0.00,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.09,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[::3] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.0,
+        qdiff_th=0.5,
+        qdiff_min_th=0.00,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.19,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[::3] = False
+    expected[1::3] = False
+    np.testing.assert_array_equal(actual, expected)
+
+    actual = approx_penetrance_test(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=0.3,
+        q1_min_th=0.09,
+        qdiff_th=0.9,
+        qdiff_min_th=0.19,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.09,
+        n_valid=1000)
+
+    expected = np.ones(27, dtype=bool)
+    expected[:9] = False
+    expected[::3] = False
+    expected[:6] = False
+    expected[9:15] = False
+    expected[18:24] = False
+    assert expected.sum() > 0
+    np.testing.assert_array_equal(actual, expected)
 
 
 @pytest.fixture
@@ -252,7 +398,7 @@ def test_score_differential_genes_quantitatively(
                  p_th=p_th,
                  q1_th=0.5,
                  qdiff_th=0.7,
-                 fold_change=fold_change,
+                 log2_fold_th=np.log2(fold_change),
                  exact_penetrance=True)
     expected = np.zeros(n_genes, dtype=bool)
     expected[np.array(expected_idx)] = True

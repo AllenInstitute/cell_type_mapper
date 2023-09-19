@@ -325,7 +325,11 @@ def test_find_markers_worker(
         p_th=p_th,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        tmp_path=marker_path)
+        tmp_path=marker_path,
+        log2_fold_th=1.0,
+        q1_min_th=0.1,
+        qdiff_min_th=0.1,
+        log2_fold_min_th=0.8)
 
     # check that we get the expected result
 

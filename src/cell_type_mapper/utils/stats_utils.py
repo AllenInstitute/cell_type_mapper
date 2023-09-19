@@ -334,13 +334,21 @@ def boring_t_from_p_value(p_value):
     Return the value of boring_t that will ensure
     p_values <= p_value are calculated exactly
     """
+    if p_value >= 1.0:
+        return None
+
     if p_value < 1.0e-11:
         raise RuntimeError(
             "cannot calculate boring_t for p_value < 1.0e-11; "
             f"you gave p_value = {p_value:.2e}")
+
     gross_t = np.arange(-7, 0, 1)
     gross_cdf = scipy_stats.norm.cdf(gross_t)
     gross_idx = np.searchsorted(gross_cdf, 0.5*p_value)
+
+    if gross_idx >= len(gross_t)-1:
+        return None
+
     fine_t = np.linspace(gross_t[gross_idx-1], gross_t[gross_idx+1], 1000)
     fine_cdf = scipy_stats.norm.cdf(fine_t)
     value = np.interp(0.5*p_value, fine_cdf, fine_t)
