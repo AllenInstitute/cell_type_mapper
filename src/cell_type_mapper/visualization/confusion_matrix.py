@@ -106,11 +106,21 @@ def summary_plots_for_one_file(
     inverted_tree = invert_tree(taxonomy_tree)
     raw_results = results.pop('results')
 
+    parent_lookup = dict()
+
     result_levels = set()
     for cell in raw_results:
+        this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
+        if this_leaf not in parent_lookup:
+            parent_lookup[this_leaf] = taxonomy_tree.parents(
+                level=taxonomy_tree.leaf_level,
+                node=this_leaf)
         for level in taxonomy_tree.hierarchy:
             if level not in cell:
-                continue
+                cell[level] = {
+                    'assignment': parent_lookup[this_leaf][level]}
+                for conf_k in confidence_key_list:
+                    cell[level][conf_k] = 1.0
             result_levels.add(level)
             old = cell[level].pop('assignment')
             if level == taxonomy_tree.leaf_level:
