@@ -195,7 +195,7 @@ def summary_plots_for_one_file(
 
     obs = query_obs
 
-    n_levels = len(taxonomy_tree.hierarchy)-1
+    n_levels = 2
 
     grid_gap = 5
     grid_height = 20
