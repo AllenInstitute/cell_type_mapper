@@ -19,6 +19,9 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
+from cell_type_mapper.cli.reference_markers import (
+    ReferenceMarkerRunner)
+
 
 def test_scoring_with_min_thresholds(
         taxonomy_tree_fixture,
@@ -69,12 +72,14 @@ def test_scoring_with_min_thresholds(
                 test_case['expected'])
 
 
+@pytest.mark.parametrize('use_cli', [True, False])
 def test_find_all_markers_given_min_thresholds(
         threshold_mask_fixture_all_pairs,
         precomputed_fixture,
         taxonomy_tree_fixture,
         n_genes,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        use_cli):
     """
     Test marker gene selection in case where penetrance thresholds
     are uninteresting, such that only the min thresholds (specified in
@@ -91,22 +96,47 @@ def test_find_all_markers_given_min_thresholds(
                 prefix='reference_marker_test_',
                 suffix='.h5'))
 
-        find_markers_for_all_taxonomy_pairs(
-            precomputed_stats_path=precomputed_fixture,
-            taxonomy_tree=taxonomy_tree_fixture,
-            output_path=h5_path,
-            p_th=config['p_th'],
-            q1_th=1.0,
-            qdiff_th=1.0,
-            log2_fold_th=1.0,
-            q1_min_th=config['q1_min_th'],
-            qdiff_min_th=config['qdiff_min_th'],
-            log2_fold_min_th=config['log2_fold_min_th'],
-            n_processors=3,
-            tmp_dir=tmp_dir_fixture,
-            max_gb=1,
-            exact_penetrance=False,
-            n_valid=1000)
+        if use_cli:
+            cli_config = {
+                'precomputed_path': str(precomputed_fixture),
+                'output_path': str(h5_path),
+                'tmp_dir': str(tmp_dir_fixture),
+                'n_processors': 3,
+                'exact_penetrance': False,
+                'p_th': config['p_th'],
+                'q1_th': 1.0,
+                'q1_min_th': config['q1_min_th'],
+                'qdiff_th': 1.0,
+                'qdiff_min_th': config['qdiff_min_th'],
+                'log2_fold_th': 1.0,
+                'log2_fold_min_th': config['log2_fold_min_th'],
+                'n_valid': 1000,
+                'clobber': True,
+                'drop_level': None
+            }
+
+            runner = ReferenceMarkerRunner(
+                args=[],
+                input_data=cli_config)
+            runner.run()
+
+        else:
+            find_markers_for_all_taxonomy_pairs(
+                precomputed_stats_path=precomputed_fixture,
+                taxonomy_tree=taxonomy_tree_fixture,
+                output_path=h5_path,
+                p_th=config['p_th'],
+                q1_th=1.0,
+                qdiff_th=1.0,
+                log2_fold_th=1.0,
+                q1_min_th=config['q1_min_th'],
+                qdiff_min_th=config['qdiff_min_th'],
+                log2_fold_min_th=config['log2_fold_min_th'],
+                n_processors=3,
+                tmp_dir=tmp_dir_fixture,
+                max_gb=1,
+                exact_penetrance=False,
+                n_valid=1000)
 
         marker_array = MarkerGeneArray.from_cache_path(
             cache_path=h5_path)
@@ -146,12 +176,13 @@ def test_find_all_markers_given_min_thresholds(
 
 
 @pytest.mark.parametrize(
-    "d_q1,d_qdiff,d_log2_fold,n_valid",
+    "d_q1,d_qdiff,d_log2_fold,n_valid,use_cli",
     itertools.product(
         [0.1, 0.2, 100.0],
         [0.1, 0.2, 100.0],
         [0.1, 0.2, 100.0],
-        [30, 20]
+        [30, 20],
+        [True, False]
     ))
 def test_find_all_markers_given_thresholds(
         threshold_mask_fixture_all_pairs,
@@ -162,7 +193,8 @@ def test_find_all_markers_given_thresholds(
         d_q1,
         d_qdiff,
         d_log2_fold,
-        n_valid):
+        n_valid,
+        use_cli):
     """
     Have interesting values for q1_th, qdiff_th, and log2_fold_th.
 
@@ -182,22 +214,47 @@ def test_find_all_markers_given_thresholds(
                 prefix='reference_marker_test_',
                 suffix='.h5'))
 
-        find_markers_for_all_taxonomy_pairs(
-            precomputed_stats_path=precomputed_fixture,
-            taxonomy_tree=taxonomy_tree_fixture,
-            output_path=h5_path,
-            p_th=config['p_th'],
-            q1_th=config['q1_min_th']+d_q1,
-            qdiff_th=config['qdiff_min_th']+d_qdiff,
-            log2_fold_th=config['log2_fold_min_th']+d_log2_fold,
-            q1_min_th=config['q1_min_th'],
-            qdiff_min_th=config['qdiff_min_th'],
-            log2_fold_min_th=config['log2_fold_min_th'],
-            n_processors=3,
-            tmp_dir=tmp_dir_fixture,
-            max_gb=1,
-            exact_penetrance=False,
-            n_valid=n_valid)
+        if use_cli:
+            cli_config = {
+                'precomputed_path': str(precomputed_fixture),
+                'output_path': str(h5_path),
+                'tmp_dir': str(tmp_dir_fixture),
+                'n_processors': 3,
+                'exact_penetrance': False,
+                'p_th': config['p_th'],
+                'q1_th': config['q1_min_th']+d_q1,
+                'q1_min_th': config['q1_min_th'],
+                'qdiff_th': config['qdiff_min_th']+d_qdiff,
+                'qdiff_min_th': config['qdiff_min_th'],
+                'log2_fold_th': config['log2_fold_min_th']+d_log2_fold,
+                'log2_fold_min_th': config['log2_fold_min_th'],
+                'n_valid': n_valid,
+                'clobber': True,
+                'drop_level': None
+            }
+
+            runner = ReferenceMarkerRunner(
+                args=[],
+                input_data=cli_config)
+            runner.run()
+        else:
+
+            find_markers_for_all_taxonomy_pairs(
+                precomputed_stats_path=precomputed_fixture,
+                taxonomy_tree=taxonomy_tree_fixture,
+                output_path=h5_path,
+                p_th=config['p_th'],
+                q1_th=config['q1_min_th']+d_q1,
+                qdiff_th=config['qdiff_min_th']+d_qdiff,
+                log2_fold_th=config['log2_fold_min_th']+d_log2_fold,
+                q1_min_th=config['q1_min_th'],
+                qdiff_min_th=config['qdiff_min_th'],
+                log2_fold_min_th=config['log2_fold_min_th'],
+                n_processors=3,
+                tmp_dir=tmp_dir_fixture,
+                max_gb=1,
+                exact_penetrance=False,
+                n_valid=n_valid)
 
         marker_array = MarkerGeneArray.from_cache_path(
             cache_path=h5_path)
