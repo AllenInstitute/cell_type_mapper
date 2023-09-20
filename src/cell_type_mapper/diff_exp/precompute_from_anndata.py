@@ -195,7 +195,7 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
 
     leaf_to_cells = taxonomy_tree.leaf_to_cells
 
-    cluster_list = list(leaf_to_cells)
+    cluster_list = list(leaf_to_cells.keys())
     cluster_list.sort()
     cluster_to_output_row = {c: int(ii)
                              for ii, c in enumerate(cluster_list)}
