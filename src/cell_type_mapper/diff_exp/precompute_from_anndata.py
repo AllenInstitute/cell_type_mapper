@@ -141,12 +141,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
             cell_name = cell_name_list[cell_idx]
             cell_name_to_cluster_name[cell_name] = cluster_name
 
-    gene_names = list(
-        read_df_from_h5ad(data_path, 'var').index.values)
-
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=[data_path],
-        gene_names=gene_names,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
@@ -197,18 +193,6 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
     cells that belong to a given cluster
     """
 
-    gene_names = None
-    for pth in data_path_list:
-        these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
-        if gene_names is None:
-            gene_names = these_genes
-        else:
-            if gene_names != these_genes:
-                raise RuntimeError(
-                    f"{pth}\nhas gene_names\n{these_genes}\n"
-                    f"which does not match\n{data_path_list[0]}\n"
-                    f"genes\n{gene_names}")
-
     leaf_to_cells = taxonomy_tree.leaf_to_cells
 
     cluster_list = list(leaf_to_cells)
@@ -223,7 +207,6 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
 
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=data_path_list,
-        gene_names=gene_names,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
@@ -238,7 +221,6 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
 
 def precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list: List[Union[str, pathlib.Path]],
-        gene_names: List[str],
         cell_name_to_cluster_name: Dict[str, str],
         cluster_to_output_row: Dict[str, int],
         output_path: Union[str, pathlib.Path],
@@ -253,9 +235,6 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     data_path_list:
         List of paths to the h5ad files containing the cell x gene
         data
-
-    gene_names:
-        List of gene_names
 
     cell_name_to_cluster_name:
         dict mapping cell name to the name of the cluster it belongs
@@ -277,6 +256,18 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
     """
+
+    gene_names = None
+    for pth in data_path_list:
+        these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
+        if gene_names is None:
+            gene_names = these_genes
+        else:
+            if gene_names != these_genes:
+                raise RuntimeError(
+                    f"{pth}\nhas gene_names\n{these_genes}\n"
+                    f"which does not match\n{data_path_list[0]}\n"
+                    f"genes\n{gene_names}")
 
     n_clusters = len(cluster_to_output_row)
     n_genes = len(gene_names)

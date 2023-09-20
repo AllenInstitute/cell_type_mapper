@@ -464,7 +464,6 @@ def test_precompute_from_many_h5ad_with_lookup(
 
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=path_list,
-        gene_names=gene_names,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
         output_path=stats_file,
