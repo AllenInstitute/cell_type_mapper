@@ -410,6 +410,7 @@ def test_precompute_cli(
     n_cells
     sum
     sumsq
+    ge1
     """
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -457,10 +458,12 @@ def test_precompute_cli(
         cluster_to_n_cells = dict()
         cluster_to_sum = dict()
         cluster_to_sumsq = dict()
+        cluster_to_ge1 = dict()
         for cluster_name in cluster_to_supertype_fixture:
             cluster_to_n_cells[cluster_name] = 0
             cluster_to_sum[cluster_name] = np.zeros(n_genes, dtype=float)
             cluster_to_sumsq[cluster_name] = np.zeros(n_genes, dtype=float)
+            cluster_to_ge1[cluster_name] = np.zeros(n_genes, dtype=int)
 
         for h5ad_path in h5ad_list:
             a_data = anndata.read_h5ad(h5ad_path)
@@ -479,6 +482,8 @@ def test_precompute_cli(
                     cluster_to_n_cells[cluster_name] += 1
                     cluster_to_sum[cluster_name] += cell_by_gene.data[i_row, :]
                     cluster_to_sumsq[cluster_name] += cell_by_gene.data[i_row,:]**2
+                    ge1 = (cell_by_gene.data[i_row, :] >= 1)
+                    cluster_to_ge1[cluster_name][ge1] += 1
 
         with h5py.File(actual_output, 'r') as src:
             src_keys = src.keys()
@@ -496,6 +501,7 @@ def test_precompute_cli(
             n_cells = src['n_cells'][()]
             sum_arr = src['sum'][()]
             sumsq_arr = src['sumsq'][()]
+            ge1_arr = src['ge1'][()]
             for cluster_name in cluster_to_n_cells:
                 i_row = cluster_to_row[cluster_name]
                 assert n_cells[i_row] == cluster_to_n_cells[cluster_name]
@@ -511,3 +517,7 @@ def test_precompute_cli(
                     cluster_to_sumsq[cluster_name],
                     atol=0.0,
                     rtol=1.0e-6)
+
+                np.testing.assert_array_equal(
+                    ge1_arr[i_row, :],
+                    cluster_to_ge1[cluster_name])
