@@ -3,6 +3,7 @@ import copy
 import h5py
 import json
 from marshmallow import post_load
+import pathlib
 
 from cell_type_mapper.utils.utils import (
     get_timestamp)
@@ -63,7 +64,7 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
         description="List of term_set_labels in our cell types taxonomy "
         "ordered from most gross to most fine")
 
-    output_path = argschema.fields.OutputFile(
+    output_path = argschema.fields.String(
         required=True,
         default=None,
         allow_none=False,
@@ -71,12 +72,35 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
         "precomputed stats. The serialized taxonomy tree will also be "
         "saved here")
 
+    clobber = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=(
+            "Set to True to allow the code to overwrite an existing file."
+        ))
+
     @post_load
     def check_norm(self, data, **kwargs):
         if data['normalization'] not in ('raw', 'log2CPM'):
             raise ValueError(
                 "normalization must be either 'raw' or 'log2CPM'; "
                 f"you gave {data['nomralization']}")
+        return data
+
+    @post_load
+    def check_output(self, data, **kwargs):
+        output_path = pathlib.Path(data['output_path'])
+        if output_path.exists():
+            if not data['clobber']:
+                raise RuntimeError(
+                    f"{output_path} already exists; run with clobber=True "
+                    "to overwite")
+
+        # make sure we can write here
+        with open(output_path, 'wb') as dst:
+            dst.write(b'gar')
+
         return data
 
 

@@ -397,6 +397,7 @@ def test_precompute_cli(
 
     config = {
         'output_path': output_path,
+        'clobber': True,
         'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
         'cell_metadata_path': cell_metadata_fixture,
