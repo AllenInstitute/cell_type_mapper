@@ -160,7 +160,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         taxonomy_tree: TaxonomyTree,
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        cell_set=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -187,6 +188,11 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
 
+    cell_set:
+        Optional set of cell identifiers. If not None, only cells
+        in this set will be included in the precomputed stats
+        computation.
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
@@ -203,7 +209,9 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
     cell_name_to_cluster_name = dict()
     for cluster in leaf_to_cells:
         for cell in leaf_to_cells[cluster]:
-            cell_name_to_cluster_name[str(cell)] = cluster
+            cell_str = str(cell)
+            if cell_set is None or cell_str in cell_set:
+                cell_name_to_cluster_name[cell_str] = cluster
 
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=data_path_list,

@@ -246,6 +246,53 @@ def baseline_stats_fixture(
 
 
 @pytest.fixture
+def cell_set_fixture(records_fixture):
+    cell_id_list = [r['cell_id'] for r in records_fixture]
+    cell_id_list.sort()
+    rng = np.random.default_rng(77123)
+    return set(rng.choice(cell_id_list,
+                          len(cell_id_list)//3,
+                          replace=False))
+
+@pytest.fixture
+def baseline_stats_fixture_limited_cells(
+        records_fixture,
+        x_fixture,
+        ncols,
+        cell_set_fixture):
+    """
+    same as baseline_stats_fixture, but only using cells specified
+    in cell_set_fixture
+    """
+
+    results = dict()
+    for i_row, record in enumerate(records_fixture):
+        cluster = record["cluster"]
+        if cluster not in results:
+            results[cluster] = {
+                "n_cells": 0,
+                "sum": np.zeros(ncols, dtype=float),
+                "sumsq": np.zeros(ncols, dtype=float),
+                "gt0": np.zeros(ncols, dtype=int),
+                "gt1": np.zeros(ncols, dtype=int),
+                "ge1": np.zeros(ncols, dtype=int)}
+
+        if record['cell_id'] not in cell_set_fixture:
+            continue
+        results[cluster]["n_cells"] += 1
+        results[cluster]["sum"] += x_fixture[i_row, :]
+        results[cluster]["sumsq"] += x_fixture[i_row, :]**2
+        for i_col in range(ncols):
+            if x_fixture[i_row, i_col] > 0:
+                results[cluster]["gt0"][i_col] += 1
+                if x_fixture[i_row, i_col] > 1:
+                    results[cluster]["gt1"][i_col] += 1
+                if x_fixture[i_row, i_col] >= 1:
+                    results[cluster]["ge1"][i_col] += 1
+    return results
+
+
+@pytest.fixture
 def many_h5ad_fixture(
         obs_fixture,
         x_fixture,
@@ -546,7 +593,8 @@ def test_precompute_from_many_h5ad_with_lookup(
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('use_raw', [True, False])
+@pytest.mark.parametrize('use_raw,use_cell_set',
+        itertools.product([True, False], [True, False]))
 def test_precompute_from_many_h5ad_with_tree(
         many_h5ad_fixture,
         many_raw_h5ad_fixture,
@@ -554,7 +602,10 @@ def test_precompute_from_many_h5ad_with_tree(
         obs_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
-        use_raw):
+        baseline_stats_fixture_limited_cells,
+        cell_set_fixture,
+        use_raw,
+        use_cell_set):
     """
     Test the generation of precomputed stats file from many
     h5ad files at once.
@@ -567,6 +618,13 @@ def test_precompute_from_many_h5ad_with_tree(
     else:
         path_list = many_h5ad_fixture
         normalization = 'log2CPM'
+
+    if use_cell_set:
+        cell_set = cell_set_fixture
+        ground_truth = baseline_stats_fixture_limited_cells
+    else:
+        cell_set = None
+        ground_truth = baseline_stats_fixture
 
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
@@ -603,7 +661,8 @@ def test_precompute_from_many_h5ad_with_tree(
         taxonomy_tree=taxonomy_tree,
         output_path=stats_file,
         rows_at_a_time=13,
-        normalization=normalization)
+        normalization=normalization,
+        cell_set=cell_set)
 
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
@@ -627,32 +686,32 @@ def test_precompute_from_many_h5ad_with_tree(
         ge1 = in_file["ge1"][()]
 
     assert not np.array_equal(gt1, ge1)
-    assert len(cluster_to_row) == len(baseline_stats_fixture)
+    assert len(cluster_to_row) == len(ground_truth)
     for cluster in cluster_to_row:
         idx = cluster_to_row[cluster]
 
-        assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
+        assert n_cells[idx] == ground_truth[cluster]["n_cells"]
 
         np.testing.assert_allclose(
             sum_data[idx, :],
-            baseline_stats_fixture[cluster]["sum"],
+            ground_truth[cluster]["sum"],
             rtol=1.0e-6)
 
         np.testing.assert_allclose(
             sumsq_data[idx, :],
-            baseline_stats_fixture[cluster]["sumsq"],
+            ground_truth[cluster]["sumsq"],
             rtol=1.0e-6)
 
         np.testing.assert_array_equal(
             gt0[idx, :],
-            baseline_stats_fixture[cluster]["gt0"])
+            ground_truth[cluster]["gt0"])
 
         np.testing.assert_array_equal(
             gt1[idx, :],
-            baseline_stats_fixture[cluster]["gt1"])
+            ground_truth[cluster]["gt1"])
 
         np.testing.assert_array_equal(
             ge1[idx, :],
-            baseline_stats_fixture[cluster]["ge1"])
+            ground_truth[cluster]["ge1"])
 
     _clean_up(tmp_dir)
