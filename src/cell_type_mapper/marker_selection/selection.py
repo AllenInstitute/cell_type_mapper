@@ -111,6 +111,9 @@ def select_marker_genes_v2(
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
+    n_useful = (utility_array>0).sum()
+    print(f"{n_useful} genes of {len(utility_array)} are useful")
+
     duration = (time.time()-t0)/3600.0
     with lock:
         print(f"parent: {parent_node} -- "
@@ -206,6 +209,10 @@ def _run_selection(
                  n_per_utility=n_per_utility,
                  marker_gene_array=marker_gene_array,
                  taxonomy_idx_array=taxonomy_idx_array)
+
+        n_useful = (utility_array > 0).sum()
+        print(f'{len(marker_gene_name_list)} markers {n_useful} utility '
+              f'{been_filled.sum()} been filled')
 
         # because the utility_array for genes that are not in the query
         # set was set to zero at the beginning, this ought to indicate that
