@@ -211,8 +211,8 @@ def _run_selection(
                  taxonomy_idx_array=taxonomy_idx_array)
 
         n_useful = (utility_array > 0).sum()
-        print(f'{len(marker_gene_name_list)} markers {n_useful} utility '
-              f'{been_filled.sum()} been filled')
+        #print(f'{len(marker_gene_name_list)} markers {n_useful} utility '
+        #      f'{been_filled.sum()} been filled')
 
         # because the utility_array for genes that are not in the query
         # set was set to zero at the beginning, this ought to indicate that
@@ -258,6 +258,15 @@ def _run_selection(
     msg += "\n============"
     with lock:
         print(msg)
+
+    """
+    print('marker counts max')
+    print(marker_counts.max())
+    for n_th in range(n_per_utility):
+        fewer_up = (marker_counts[:,1]<=n_th).sum()
+        fewer_down = (marker_counts[:,0]<=n_th).sum()
+        print(f'le {n_th} down {fewer_down:.2e} up {fewer_up:.2e}')
+    """
 
     return marker_gene_name_list, stat_dict
 
@@ -456,42 +465,39 @@ def _update_been_filled(
     sorted_utility_array_idx:
         sorted idices of the utility array
     """
+    are_possible = (marker_census >= n_per_utility)
+    are_possible = are_possible.sum(axis=1)
+    are_possible = (are_possible==2)
 
-    # see if we have completed the desired complement of genes
-    # for any taxonomy pair
-    newly_full_mask = (marker_counts >= n_per_utility)
+     # see if we have completed the desired complement of genes
+     # for any taxonomy pair
+    raw_full_mask = (marker_counts >= n_per_utility)
+    newly_full_mask = np.copy(raw_full_mask)
+
+    # only allow those for which it was possible to fill it
+    newly_full_mask[:, 0] = np.logical_and(newly_full_mask[:,0], are_possible)
+    newly_full_mask[:, 1] = np.logical_and(newly_full_mask[:, 1], are_possible)
 
     # check cases where we have grabbed all the markers we can
     maxed_out = (marker_counts == marker_census)
+    tot_counts = marker_counts.sum(axis=1)
+    tot_maxed = (tot_counts>=2*n_per_utility)
+    maxed_out[:, 0] = np.logical_or(maxed_out[:,0], tot_maxed)
+    maxed_out[:, 1] = np.logical_or(maxed_out[:,1], tot_maxed)
 
     newly_full_mask = np.logical_or(
         newly_full_mask,
         maxed_out)
 
     # check hopeless cases
-    is_hopeless = (marker_census < n_per_utility)
-    filled_hopeless = np.logical_and(
-        is_hopeless,
-        marker_counts >= n_min)
+    #is_hopeless = (marker_census < n_per_utility)
+    #filled_hopeless = np.logical_and(
+    #    is_hopeless,
+    #    marker_counts >= n_min)
 
-    newly_full_mask = np.logical_or(
-        newly_full_mask,
-        filled_hopeless)
-
-    # grab taxons where there are 2*n_per_utility markers
-    # for the whole pair (+ and -) and at least a quarter
-    # are in both (+ and -)
-    de_facto_pair = (marker_counts.sum(axis=1) >= (2*n_per_utility))
-    halfway_there = (marker_counts >= (n_per_utility//2))
-    halfway_there = np.logical_and(halfway_there[:, 0],
-                                   halfway_there[:, 1])
-    de_facto_pair = np.logical_and(
-        halfway_there,
-        de_facto_pair)
-
-    newly_full_mask = np.logical_or(
-        newly_full_mask,
-        np.array([de_facto_pair, de_facto_pair]).transpose())
+    #newly_full_mask = np.logical_or(
+    #    newly_full_mask,
+    #    filled_hopeless)
 
     # don't correct for pairs that were already marked
     # as "filled"
