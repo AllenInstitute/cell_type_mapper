@@ -255,15 +255,6 @@ def _run_selection(
     with lock:
         print(msg)
 
-    """
-    print('marker counts max')
-    print(marker_counts.max())
-    for n_th in range(n_per_utility):
-        fewer_up = (marker_counts[:,1]<=n_th).sum()
-        fewer_down = (marker_counts[:,0]<=n_th).sum()
-        print(f'le {n_th} down {fewer_down:.2e} up {fewer_up:.2e}')
-    """
-
     return marker_gene_name_list, stat_dict
 
 
