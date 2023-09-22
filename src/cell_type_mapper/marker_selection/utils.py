@@ -77,11 +77,4 @@ def create_utility_array(
         marker_census[pair0:pair1, 0] += down_pairs[1:]-down_pairs[:-1]
         marker_census[pair0:pair1, 1] += up_pairs[1:]-up_pairs[:-1]
 
-    # pad utility array so that, in cases where all markers
-    # correspond to one sign, the algorithm can still choose
-    # a full complement of genes from that one sign
-    #pad = utility_sum.max()
-    #valid = np.where(utility_sum>0)
-    #utility_sum[valid] += pad
-
     return utility_sum, marker_census
