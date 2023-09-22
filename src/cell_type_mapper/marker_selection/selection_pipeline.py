@@ -17,6 +17,7 @@ def select_all_markers(
         n_per_utility=15,
         n_processors=4,
         behemoth_cutoff=1000000,
+        parent_list=None,
         tmp_dir=None):
     """
     Select all of the markers necessary for a taxonomy.
@@ -41,6 +42,14 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    parent_list:
+        If not None, a list of parent nodes (in the form of
+        (level, node) tuples) to get markers for. Ignore
+        parents that are not in this set.
+
+        If this is None, will use all the parents in
+        the taxonomy_tree.
+
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
@@ -55,7 +64,9 @@ def select_all_markers(
     """
 
     parent_to_leaves = dict()
-    parent_list = taxonomy_tree.all_parents
+
+    if parent_list is None:
+        parent_list = taxonomy_tree.all_parents
 
     # want to make sure that the memory hogs are not
     # all running at once
