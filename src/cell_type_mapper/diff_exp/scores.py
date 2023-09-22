@@ -256,11 +256,15 @@ def score_differential_genes(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
-        fold_change=2.0,
+        log2_fold_th=1.0,
+        q1_min_th=0.1,
+        qdiff_min_th=0.1,
+        log2_fold_min_th=0.8,
         n_cells_min=2,
         boring_t=None,
         big_nu=None,
-        exact_penetrance=False):
+        exact_penetrance=False,
+        n_valid=30):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -283,9 +287,15 @@ def score_differential_genes(
         Thresholds for determining if the gene is a differentially
         expressed gene (see Notes below)
 
-    fold_change:
-        Genes must have a fold changes > fold_change between the
-        two populations to be considered a marker gene.
+    log2_fold_th:
+        Genes must have a log2(fold changes) > log2_fold_th
+        between the two populations to be considered a
+        marker gene.
+
+    q1_min_th/qdiff_min_th/log2_fold_min_th:
+        Minimum thresholds on q1, qdiff, and log2_fold
+        below which genes will not be considered markers,
+        even when using the approximate penetrance tests.
 
     n_cells_min:
         If either node has fewer cells than this, return
@@ -306,6 +316,10 @@ def score_differential_genes(
         If True, hold marker genes to the exact penetrance criteria;
         if not, use an approximation to assure there are a minimum
         number of valid marker genes for the cluster pair.
+
+    n_valid:
+        Number of markers to try for when using approximate
+        penetrance test
 
     Returns
     -------
@@ -372,8 +386,12 @@ def score_differential_genes(
         log2_fold=log2_fold,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
-        log2_fold_th=np.log2(fold_change),
-        exact=exact_penetrance)
+        log2_fold_th=log2_fold_th,
+        exact=exact_penetrance,
+        q1_min_th=q1_min_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_min_th=log2_fold_min_th,
+        n_valid=n_valid)
 
     validity_mask = np.logical_and(
         pvalue_valid,
@@ -458,7 +476,11 @@ def penetrance_tests(
         q1_th,
         qdiff_th,
         log2_fold_th,
-        exact=False):
+        exact=False,
+        q1_min_th=0.1,
+        qdiff_min_th=0.1,
+        log2_fold_min_th=0.8,
+        n_valid=30):
     """
     Perform penetrance test on marker genes
 
@@ -485,7 +507,13 @@ def penetrance_tests(
         criteria defined by q1_th and qdiff_th. Otherwise,
         use an approximation to make sure there are at least
         30 valid marker genes.
-
+    q1_min_th, qdiff_min_th, log2_fold_min_th:
+        The minimum thresholds for q1, qdiff, log2 fold change
+        for which a gene will automatically be considered an
+        invalid marker in the approximate penetrance test. This
+        is not used if exact=True.
+    n_valid:
+        number of markers to try for when using approximate test
 
     Returns
     -------
@@ -516,7 +544,10 @@ def penetrance_tests(
         q1_th=q1_th,
         qdiff_th=qdiff_th,
         log2_fold_th=log2_fold_th,
-        n_valid=30)
+        q1_min_th=q1_min_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_min_th=log2_fold_min_th,
+        n_valid=n_valid)
 
 
 def exact_penetrance_test(
@@ -535,27 +566,38 @@ def approx_penetrance_test(
         qdiff_score,
         log2_fold,
         q1_th,
+        q1_min_th,
         qdiff_th,
+        qdiff_min_th,
         log2_fold_th,
-        n_valid=30,
-        fold_valid=None):
+        log2_fold_min_th,
+        n_valid=30):
     """
     Use an approximate cut on q1, qdiff to set genes as valid
     markers if they come close to meeting the penetrance criteria.
     """
     n_valid = min(n_valid, len(q1_score))
 
-    q1_th_min = 0.1
-    while q1_th_min >= 0.5*q1_th:
-        q1_th_min *= 0.5
+    if len(q1_score) != len(qdiff_score) or len(q1_score) != len(log2_fold):
+        raise RuntimeError(
+            "q1_score, qdiff_score, and log2_fold must all have same shape; "
+            f"you have {len(q1_score)}, {len(qdiff_score)}, {len(log2_fold)}")
 
-    qdiff_th_min = 0.1
-    while qdiff_th_min >= 0.5*qdiff_th:
-        qdiff_th_min *= 0.5
+    if q1_th <= q1_min_th:
+        raise RuntimeError(
+            "q1_th must be > q1_min_th; you have "
+            f"q1_th={q1_th:.2e}, q1_min_th={q1_min_th}")
 
-    log2_fold_th_min = 0.8
-    while log2_fold_th_min >= 0.75*log2_fold_th:
-        log2_fold_th_min *= 0.75
+    if qdiff_th <= qdiff_min_th:
+        raise RuntimeError(
+            "qdiff_th must be > qdiff_min_th; you have "
+            f"qdiff_th={qdiff_th:.2e}, qdiff_min_th={qdiff_min_th}")
+
+    if log2_fold_th <= log2_fold_min_th:
+        raise RuntimeError(
+            "log2_fold_th must be > log2_fold_min_th; you have "
+            f"log2_fold_th={log2_fold_th:.2e}, "
+            f"log2_fold_min_th={log2_fold_min_th}")
 
     q1_term = (q1_score-q1_th)**2
     q1_term[q1_score > q1_th] = 0.0
@@ -574,16 +616,15 @@ def approx_penetrance_test(
 
     # if not enough genes really meet the criteria, add
     # the next best approximations (failing out any genes
-    # that are in violation of q1_th_min and qdiff_th_min
+    # that are in violation of q1_min_th and qdiff_min_th
     if absolutely_valid.sum() >= n_valid:
         valid = absolutely_valid
     else:
-
         invalid = np.logical_or(
-                q1_score < q1_th_min,
+                q1_score < q1_min_th,
                 np.logical_or(
-                    qdiff_score < qdiff_th_min,
-                    log2_fold < log2_fold_th_min))
+                    qdiff_score < qdiff_min_th,
+                    log2_fold < log2_fold_min_th))
 
         # alternatively upweight the metrics so that one
         # does not predominate

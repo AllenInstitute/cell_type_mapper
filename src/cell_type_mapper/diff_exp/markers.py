@@ -35,10 +35,15 @@ def find_markers_for_all_taxonomy_pairs(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
+        log2_fold_th=1.0,
+        q1_min_th=0.1,
+        qdiff_min_th=0.1,
+        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
         max_gb=20,
-        exact_penetrance=False):
+        exact_penetrance=False,
+        n_valid=30):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -60,9 +65,14 @@ def find_markers_for_all_taxonomy_pairs(
     output_path:
         Path to the HDF5 file where results will be stored
 
-    p_th/q1_th/qdiff_th
+    p_th/q1_th/qdiff_th/log2_fold_th
         Thresholds for determining if a gene is a valid marker.
         See Notes under score_differential_genes
+
+    q1_min_th/qdiff_min_th/log2_fold_min_th
+        Minimum thresholds below which genes will not be
+        considered marker genes. See Notes under
+        score_differential_genes.
 
     n_processors:
         Number of independent worker processes to spin out
@@ -73,6 +83,10 @@ def find_markers_for_all_taxonomy_pairs(
     exact_penetrance:
         If False, allow genes that technically fail penetrance
         and fold-change thresholds to be marker genes.
+
+    n_valid:
+        The number of markers to find per pair (when using
+        approximate penetrance test)
 
     Returns
     --------
@@ -109,10 +123,15 @@ def find_markers_for_all_taxonomy_pairs(
         p_th=p_th,
         q1_th=q1_th,
         qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
+        q1_min_th=q1_min_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_min_th=log2_fold_min_th,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
         max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)),
-        exact_penetrance=exact_penetrance)
+        exact_penetrance=exact_penetrance,
+        n_valid=n_valid)
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
@@ -139,10 +158,15 @@ def create_sparse_by_pair_marker_file(
         p_th=0.01,
         q1_th=0.5,
         qdiff_th=0.7,
+        log2_fold_th=1.0,
+        q1_min_th=0.1,
+        qdiff_min_th=0.1,
+        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
         max_bytes=6*1024**3,
-        exact_penetrance=False):
+        exact_penetrance=False,
+        n_valid=30):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -174,6 +198,10 @@ def create_sparse_by_pair_marker_file(
     exact_penetrance:
         If False, allow genes that technically fail penetrance
         and fold-change thresholds to be marker genes.
+
+    n_valid:
+        The number of markers to find per pair (when using
+        approximate penetrance test)
 
     Returns
     --------
@@ -251,8 +279,13 @@ def create_sparse_by_pair_marker_file(
                     'p_th': p_th,
                     'q1_th': q1_th,
                     'qdiff_th': qdiff_th,
+                    'log2_fold_th': log2_fold_th,
+                    'q1_min_th': q1_min_th,
+                    'qdiff_min_th': qdiff_min_th,
+                    'log2_fold_min_th': log2_fold_min_th,
                     'tmp_path': tmp_path,
-                    'exact_penetrance': exact_penetrance})
+                    'exact_penetrance': exact_penetrance,
+                    'n_valid': n_valid})
         p.start()
         process_dict[col0] = p
         while len(process_dict) >= n_processors:
@@ -430,8 +463,13 @@ def _find_markers_worker(
         p_th,
         q1_th,
         qdiff_th,
+        log2_fold_th,
+        q1_min_th,
+        qdiff_min_th,
+        log2_fold_min_th,
         tmp_path,
-        exact_penetrance=False):
+        exact_penetrance=False,
+        n_valid=30):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -491,8 +529,13 @@ def _find_markers_worker(
                          p_th=p_th,
                          q1_th=q1_th,
                          qdiff_th=qdiff_th,
+                         log2_fold_th=log2_fold_th,
+                         q1_min_th=q1_min_th,
+                         qdiff_min_th=qdiff_min_th,
+                         log2_fold_min_th=log2_fold_min_th,
                          boring_t=boring_t,
-                         exact_penetrance=exact_penetrance)
+                         exact_penetrance=exact_penetrance,
+                         n_valid=n_valid)
 
         up_reg_lookup[idx] = np.where(
             np.logical_and(validity_mask, up_mask))[0].astype(idx_dtype)

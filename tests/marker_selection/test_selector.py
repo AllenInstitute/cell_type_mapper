@@ -862,3 +862,68 @@ def test_specified_marker_empty_parent(
             query_gene_names=query_gene_names,
             output_cache_path=tmp_path,
             log=log)
+
+
+def test_parent_limitation(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture):
+    """
+    test marker selection with a limited list of parents
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
+    # select a behemoth cut-off that puts several
+    # parents on either side of the divide
+    n_list = []
+    for level in taxonomy_tree_fixture['hierarchy'][:-1]:
+        for node in taxonomy_tree_fixture[level]:
+            parent = (level, node)
+            ct = len(get_all_leaf_pairs(
+                        taxonomy_tree=taxonomy_tree_fixture,
+                        parent_node=parent))
+            if ct > 0:
+                n_list.append(ct)
+    n_list.sort()
+    behemoth_cutoff = n_list[len(n_list)//2]
+    assert n_list[len(n_list)//4] < behemoth_cutoff
+    assert n_list[3*len(n_list)//4] > behemoth_cutoff
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(62234)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    # baseline markers (considering all parent)
+    (expected,
+     _) = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff)
+
+    parent_list = [
+        ('class', 'bb'),
+        ('subclass', 'd')]
+
+    (actual,
+     _) = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=behemoth_cutoff,
+        parent_list=parent_list)
+
+    assert len(actual) == 2
+    for k in actual:
+        assert set(actual[k]) == set(expected[k])

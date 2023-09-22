@@ -286,3 +286,35 @@ def test_query_marker_function(
         else:
             if len(idx_arr) > 0:
                 assert marker_raw_fixture[idx_arr, :].sum() == 0
+
+
+    # test that, when we pass in a list of parents, it creates
+    # a lookup only for those parents.
+    parent_list = [
+        ('class', 'classC'),
+        ('subclass', 'subcC'),
+        ('subclass', 'subcE'),
+        ('class', 'classB')
+    ]
+
+    limited_marker_lookup = create_raw_marker_gene_lookup(
+        input_cache_path=reference_marker_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=30,
+        n_processors=3,
+        behemoth_cutoff=10000,
+        parent_list=parent_list)
+
+    assert len(limited_marker_lookup) == 5
+
+    limited_log = limited_marker_lookup['log']
+    assert 'Skipping' in limited_log['class/classC']['msg']
+
+    ct = 0
+    for k in limited_marker_lookup:
+        if k == 'log':
+            continue
+        assert limited_marker_lookup[k] == marker_lookup[k]
+        ct += len(limited_marker_lookup[k])
+    assert ct > 0

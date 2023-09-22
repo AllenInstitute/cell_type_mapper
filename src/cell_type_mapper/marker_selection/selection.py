@@ -111,10 +111,13 @@ def select_marker_genes_v2(
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
 
+    n_useful = (utility_array > 0).sum()
+
     duration = (time.time()-t0)/3600.0
     with lock:
         print(f"parent: {parent_node} -- "
               f"preparation took {duration:.2e} hours")
+        print(f"{n_useful} genes of {len(utility_array)} are useful")
 
     (marker_gene_names,
      summary_log_message) = _run_selection(
@@ -144,6 +147,10 @@ def _run_selection(
         n_per_utility,
         parent_node,
         lock=None):
+
+    # how many total marker genes were there originally
+    # (for logging purposes)
+    n_useful_0 = (utility_array > 0).sum()
 
     if lock is None:
         lock = DummyLock()
@@ -242,6 +249,27 @@ def _run_selection(
     stat_dict['filled'] = int(been_filled.sum())
     stat_dict['unfilled'] = int(been_filled_size)-stat_dict['filled']
     stat_dict['n_desperate'] = int(n_desperate)
+    stat_dict['n_original_markers'] = int(n_useful_0)
+
+    # how many taxon pairs have fewer than n_th markers in
+    # the 'up' and 'down' regulated slots
+    marker_dist = dict()
+
+    n_th_values = list(range(5, n_per_utility, 5))
+    n_th_values = [1] + n_th_values
+    if (n_per_utility) not in n_th_values:
+        n_th_values.append(n_per_utility)
+    n_th_values.sort()
+
+    for n_th in n_th_values:
+        fewer_down = (marker_counts[:, 0] < n_th).sum()
+        fewer_up = (marker_counts[:, 1] < n_th).sum()
+        marker_dist[f'lt_{n_th}'] = {
+            'up': int(fewer_up),
+            'down': int(fewer_down)}
+
+    stat_dict['marker_distribution'] = marker_dist
+
     msg = f"\n======parent_node: {parent_node}======\n"
     msg += f"selected {len(marker_gene_name_list)} from "
     msg += f"{marker_gene_array.n_genes}\n"
@@ -450,41 +478,34 @@ def _update_been_filled(
         sorted idices of the utility array
     """
 
+    # which taxons can even hope to fill n_per_utility
+    # markers in both directions
+    are_possible = (marker_census >= n_per_utility)
+    are_possible = are_possible.sum(axis=1)
+    are_possible = (are_possible == 2)
+
     # see if we have completed the desired complement of genes
     # for any taxonomy pair
-    newly_full_mask = (marker_counts >= n_per_utility)
+    raw_full_mask = (marker_counts >= n_per_utility)
+    newly_full_mask = np.copy(raw_full_mask)
+
+    # only flag those for which it was possible to fill it
+    newly_full_mask[:, 0] = np.logical_and(newly_full_mask[:, 0], are_possible)
+    newly_full_mask[:, 1] = np.logical_and(newly_full_mask[:, 1], are_possible)
 
     # check cases where we have grabbed all the markers we can
     maxed_out = (marker_counts == marker_census)
 
+    # also cases where we have the total number of desired markers
+    # for the taxon pair, regardless of their up/down distribution
+    tot_counts = marker_counts.sum(axis=1)
+    tot_maxed = (tot_counts >= 2*n_per_utility)
+    maxed_out[:, 0] = np.logical_or(maxed_out[:, 0], tot_maxed)
+    maxed_out[:, 1] = np.logical_or(maxed_out[:, 1], tot_maxed)
+
     newly_full_mask = np.logical_or(
         newly_full_mask,
         maxed_out)
-
-    # check hopeless cases
-    is_hopeless = (marker_census < n_per_utility)
-    filled_hopeless = np.logical_and(
-        is_hopeless,
-        marker_counts >= n_min)
-
-    newly_full_mask = np.logical_or(
-        newly_full_mask,
-        filled_hopeless)
-
-    # grab taxons where there are 2*n_per_utility markers
-    # for the whole pair (+ and -) and at least a quarter
-    # are in both (+ and -)
-    de_facto_pair = (marker_counts.sum(axis=1) >= (2*n_per_utility))
-    halfway_there = (marker_counts >= (n_per_utility//2))
-    halfway_there = np.logical_and(halfway_there[:, 0],
-                                   halfway_there[:, 1])
-    de_facto_pair = np.logical_and(
-        halfway_there,
-        de_facto_pair)
-
-    newly_full_mask = np.logical_or(
-        newly_full_mask,
-        np.array([de_facto_pair, de_facto_pair]).transpose())
 
     # don't correct for pairs that were already marked
     # as "filled"

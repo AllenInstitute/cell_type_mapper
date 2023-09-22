@@ -13,7 +13,7 @@ import pandas as pd
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from cell_type_mapper.cli.find_query_markers import (
+from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
 

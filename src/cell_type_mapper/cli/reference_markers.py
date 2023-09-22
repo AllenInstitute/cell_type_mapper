@@ -64,6 +64,69 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
                      "penetrance and fold-change thresholds to pass "
                      "through as reference genes."))
 
+    p_th = argschema.fields.Float(
+        required=False,
+        default=0.01,
+        allow_none=False,
+        description=("The corrected p-value that a gene's distribution "
+                     "differs between two clusters must be less than this "
+                     "for that gene to be considered a marker gene."))
+
+    q1_th = argschema.fields.Float(
+        required=False,
+        default=0.5,
+        allow_none=False,
+        description=("Threshold on q1 (fraction of cells in at "
+                     "least one cluster of a pair that express "
+                     "a gene above 1 CPM) for a gene to be considered "
+                     "a marker"))
+
+    q1_min_th = argschema.fields.Float(
+        required=False,
+        default=0.1,
+        allow_none=False,
+        description=("If q1 less than this value, a gene "
+                     "cannot be considered a marker, even if "
+                     "exact_penetrance is False"))
+
+    qdiff_th = argschema.fields.Float(
+        required=False,
+        default=0.7,
+        allow_none=False,
+        description=("Threshold on qdiff (differential penetrance) "
+                     "above which a gene is considered a marker gene"))
+
+    qdiff_min_th = argschema.fields.Float(
+        required=False,
+        default=0.1,
+        allow_none=False,
+        description=("If qdiff less than this value, a gene "
+                     "cannot be considered a marker, even if "
+                     "exact_penetrance is False"))
+
+    log2_fold_th = argschema.fields.Float(
+        required=False,
+        default=1.0,
+        allow_none=False,
+        description=("The log2 fold change of a gene between two "
+                     "clusters should be above this for that gene "
+                     "to be considered a marker gene"))
+
+    log2_fold_min_th = argschema.fields.Float(
+        required=False,
+        default=0.8,
+        allow_none=False,
+        description=("If the log2 fold change of a gene between two "
+                     "clusters is less than this value, that gene cannot "
+                     "be a marker, even if exact_penetrance is False"))
+
+    n_valid = argschema.fields.Int(
+        required=False,
+        default=30,
+        allow_none=False,
+        description=("Try to find this many marker genes per pair. "
+                     "Used only if exact_penetrance is False."))
+
     @post_load
     def check_clobber(self, data, **kwargs):
         output_path = pathlib.Path(data['output_path'])
@@ -108,7 +171,15 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
             output_path=self.args['output_path'],
             tmp_dir=self.args['tmp_dir'],
             n_processors=self.args['n_processors'],
-            exact_penetrance=self.args['exact_penetrance'])
+            exact_penetrance=self.args['exact_penetrance'],
+            p_th=self.args['p_th'],
+            q1_th=self.args['q1_th'],
+            q1_min_th=self.args['q1_min_th'],
+            qdiff_th=self.args['qdiff_th'],
+            qdiff_min_th=self.args['qdiff_min_th'],
+            log2_fold_th=self.args['log2_fold_th'],
+            log2_fold_min_th=self.args['log2_fold_min_th'],
+            n_valid=self.args['n_valid'])
 
         with h5py.File(self.args['output_path'], 'a') as dst:
             dst.create_dataset(
