@@ -148,6 +148,10 @@ def _run_selection(
         parent_node,
         lock=None):
 
+    # how many total marker genes were there originally
+    # (for logging purposes)
+    n_useful_0 = (utility_array > 0).sum()
+
     if lock is None:
         lock = DummyLock()
 
@@ -245,6 +249,27 @@ def _run_selection(
     stat_dict['filled'] = int(been_filled.sum())
     stat_dict['unfilled'] = int(been_filled_size)-stat_dict['filled']
     stat_dict['n_desperate'] = int(n_desperate)
+    stat_dict['n_original_markers'] = int(n_useful_0)
+
+    # how many taxon pairs have fewer than n_th markers in
+    # the 'up' and 'down' regulated slots
+    marker_dist = dict()
+
+    n_th_values = list(range(5, n_per_utility, 5))
+    n_th_values = [1] + n_th_values
+    if (n_per_utility) not in n_th_values:
+        n_th_values.append(n_per_utility)
+    n_th_values.sort()
+
+    for n_th in n_th_values:
+        fewer_down = (marker_counts[:, 0] < n_th).sum()
+        fewer_up = (marker_counts[:, 1] < n_th).sum()
+        marker_dist[f'lt_{n_th}'] = {
+            'up': int(fewer_up),
+            'down': int(fewer_down)}
+
+    stat_dict['marker_distribution'] = marker_dist
+
     msg = f"\n======parent_node: {parent_node}======\n"
     msg += f"selected {len(marker_gene_name_list)} from "
     msg += f"{marker_gene_array.n_genes}\n"
