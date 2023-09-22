@@ -544,3 +544,55 @@ class TaxonomyTree(object):
             taxonomy_tree=self._data,
             parent_node=parent_node)
         return result
+
+    def backfill_assignments(self, assignments):
+        """
+        Take a list of cell type assignments and backfill
+        any levels that were dropped or flattened away
+        when the assignment was made. Data beyond the assignment
+        will be copied directly from the child node of the
+        level being backfilled.
+
+        Parameters
+        ----------
+        assignments:
+            A list of dicts representing the assignments
+            being backfilled. Each dict looks like
+            {'cell_id': 12345,
+             'level_1': {'assignment': ...},
+             'level_2': {'assignment': ...},
+             ...
+             'leaf_level': {'assignment': ...}}
+
+        Returns
+        -------
+        assignments:
+            Updated with any levels that are missing. The assignments
+            for these levels will be inferred from their child
+            levels (if present).
+
+            Other data will be copied directly from the child levels.
+
+        Notes
+        -----
+        In addition to being returned, assignments will be altered in place.
+        """
+        reverse_hierarchy = copy.deepcopy(self.hierarchy)
+        reverse_hierarchy.reverse()
+        for child_level, parent_level in zip(reverse_hierarchy[:-1],
+                                             reverse_hierarchy[1:]):
+
+            for cell in assignments:
+
+                if parent_level in cell:
+                    continue
+
+                if child_level not in cell:
+                    continue
+
+                this_child = cell[child_level]['assignment']
+                new_data = copy.deepcopy(cell[child_level])
+                this_parent = self._child_to_parent[child_level][this_child]
+                new_data['assignment'] = this_parent
+                cell[parent_level] = new_data
+        return assignments
