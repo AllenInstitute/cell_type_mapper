@@ -477,7 +477,7 @@ def test_backfill():
         },
         {'A': {'assignment': 'c', 'say': 'so'},  # pop many parents
          'B': {'assignment': 'cb', 'say': 'so'},
-         'C': {'assignment': 'cba', 'say': 'so'},
+         'C': {'assignment': 'cba', 'say': 'so', 'runner_up_garbage': 'uh huh'},
          'D': {'assignment': 'cbaa'},
          'that': 'is false'
         }

@@ -571,7 +571,8 @@ class TaxonomyTree(object):
             for these levels will be inferred from their child
             levels (if present).
 
-            Other data will be copied directly from the child levels.
+            Other data will be copied directly from the child levels,
+            unless that other data is keyed with runner_up_*
 
         Notes
         -----
@@ -592,6 +593,10 @@ class TaxonomyTree(object):
 
                 this_child = cell[child_level]['assignment']
                 new_data = copy.deepcopy(cell[child_level])
+                new_keys = list(new_data.keys())
+                for k in new_keys:
+                    if k.startswith('runner_up'):
+                        new_data.pop(k)
                 this_parent = self._child_to_parent[child_level][this_child]
                 new_data['assignment'] = this_parent
                 cell[parent_level] = new_data
