@@ -49,7 +49,6 @@ def select_all_markers(
 
         If this is None, will use all the parents in
         the taxonomy_tree.
-
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.

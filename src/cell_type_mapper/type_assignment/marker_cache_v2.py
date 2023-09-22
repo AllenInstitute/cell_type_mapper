@@ -180,6 +180,7 @@ def create_raw_marker_gene_lookup(
         n_per_utility,
         n_processors,
         behemoth_cutoff=10000000,
+        parent_list=None,
         tmp_dir=None):
     """
     Create and return a dict mapping
@@ -203,6 +204,13 @@ def create_raw_marker_gene_lookup(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    parent_list:
+        If not None, a list of parent nodes (in the form of
+        (level, node) tuples) to get markers for. Ignore
+        parents that are not in this set.
+
+        If this is None, will use all the parents in
+        the taxonomy_tree.
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
@@ -218,6 +226,7 @@ def create_raw_marker_gene_lookup(
         n_per_utility=n_per_utility,
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff,
+        parent_list=parent_list,
         tmp_dir=tmp_dir)
 
     # reformat marker lookup so the keys are the
