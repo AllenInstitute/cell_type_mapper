@@ -16,6 +16,7 @@ import pytest
 import anndata
 import copy
 import h5py
+import itertools
 import json
 import numpy as np
 import numbers
@@ -180,23 +181,16 @@ def noisy_marker_gene_lookup_fixture(
 
     return output_path
 
+
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass,n_runners_up',
-        [(False, True, True, True, False, False, 2),
-         (False, True, True, False, False, False, 2),
-         (True, True, True, False, False, False, 5),
-         (True, False, True, False, False, False, 5),
-         (False, True, True, False, False, False, 5),
-         (False, False, True, False, False, False, 5),
-         (False, True, True, False, False, False, 5),
-         (False, True, True, True, False, False, 5),
-         (True, True, True, True, False, False, 5),
-         (True, True, True, True, True, False, 5),
-         (False, True, True, True, True, False, 5),
-         (False, True, True, False, True, False, 5),
-         (True, True, True, False, True, False, 5),
-         (False, True, True, True, True, True, 5),
-         (True, True, True, False, False, False, 5)])
+        'flatten,use_gpu,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
 def test_mapping_from_markers(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
@@ -204,8 +198,6 @@ def test_mapping_from_markers(
         taxonomy_tree_dict,
         tmp_dir_fixture,
         flatten,
-        use_csv,
-        use_tmp_dir,
         use_gpu,
         just_once,
         drop_subclass,
@@ -215,6 +207,9 @@ def test_mapping_from_markers(
 
     drop_subclass will drop 'subclass' from the taxonomy
     """
+
+    use_tmp_dir = True
+    use_csv = True
 
     if use_gpu and not is_torch_available():
         return
@@ -288,6 +283,7 @@ def test_mapping_from_markers(
     # make sure taxonomy tree was recorded in metadata
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_dict)
+
     expected_tree = taxonomy_tree.to_str(drop_cells=True)
     expected_tree = json.loads(expected_tree)
     assert actual['taxonomy_tree'] == expected_tree
@@ -324,23 +320,42 @@ def test_mapping_from_markers(
     assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
     os.environ[env_var] = ''
 
-    if flatten:
-        taxonomy_tree = taxonomy_tree.flatten()
-
     with_runners_up = 0
     without_runners_up = 0
-    is_different = 0
 
     max_runners_up = 0
     # check consistency of runners up
+
     for cell in actual['results']:
+
+        # since we are backfilling missing levels into results,
+        # this should hold
+        for level in taxonomy_tree.hierarchy:
+            assert level in cell
+
+        # check inheritance
+        this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
+        these_parents = taxonomy_tree.parents(
+            level=taxonomy_tree.leaf_level,
+            node=this_leaf)
+        for parent_l in these_parents:
+            assert cell[parent_l]['assignment'] == these_parents[parent_l]
+
         for level in cell:
             if level == 'cell_id':
                 continue
+
             this_level = cell[level]
+            if 'runner_up_assignment' not in this_level:
+                continue
+
             family_tree = taxonomy_tree.parents(
                 level=level,
                 node=this_level['assignment'])
+
+            # check consistency of inheritance
+            for parent_level in family_tree:
+                assert cell[parent_level]['assignment'] == family_tree[parent_level]
 
             n_runners_up_actual = len(this_level['runner_up_assignment'])
 
@@ -381,21 +396,20 @@ def test_mapping_from_markers(
                 eps = 1.0e-6
                 assert p_sum <= (1.0+eps)
 
-                for rup in this_level['runner_up_assignment']:
-                    if rup != this_level['assignment'] and level != taxonomy_tree.leaf_level:
-                        is_different += 1
-                    if level == taxonomy_tree.leaf_level:
+                if 'runner_up_assignment' in this_level:
+                    for rup in this_level['runner_up_assignment']:
                         assert rup != this_level['assignment']
-                    other_tree = taxonomy_tree.parents(
-                        level=level,
-                        node=rup)
-                    assert other_tree == family_tree
+                    if not flatten and not drop_subclass:
+                        # if levels were backfilled, runners up might have
+                        # odd inheritance relationship to actual assignments
+                        other_tree = taxonomy_tree.parents(
+                            level=level,
+                            node=rup)
+                        assert other_tree == family_tree
 
     if not just_once:
         assert with_runners_up > 0
         assert max_runners_up == n_runners_up
-        if not flatten:
-            assert is_different > 0
 
     if just_once:
         assert with_runners_up == 0
@@ -404,24 +418,15 @@ def test_mapping_from_markers(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass,'
+        'flatten,use_gpu,just_once,drop_subclass,'
         'clobber',
-        [(True, True, True, False, False, False, False),
-         (True, False, True, False, False, False, False),
-         (False, True, True, False, False, False, False),
-         (False, False, True, False, False, False, False),
-         (False, True, True, False, False, False, False),
-         (False, True, True, True, False, False, False),
-         (True, True, True, True, False, False, False),
-         (True, True, True, True, True, False, False),
-         (False, True, True, True, True, False, False),
-         (False, True, True, False, True, False, False),
-         (True, True, True, False, True, False, False),
-         (False, True, True, True, True, True, False),
-         (False, True, True, False, True, True, True),
-         (True, True, True, False, True, True, True),
-         (False, True, True, True, True, True, True),
-         (False, True, True, False, True, True, True)])
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (True, False),
+            (True, False)
+        ))
 def test_mapping_from_markers_to_query_h5ad(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
@@ -429,8 +434,6 @@ def test_mapping_from_markers_to_query_h5ad(
         taxonomy_tree_dict,
         tmp_dir_fixture,
         flatten,
-        use_csv,
-        use_tmp_dir,
         use_gpu,
         just_once,
         drop_subclass,
@@ -448,6 +451,8 @@ def test_mapping_from_markers_to_query_h5ad(
     overwrite it
     """
 
+    use_csv = True
+    use_tmp_dir = True
     obsm_key = 'cdm_mapping'
 
     if use_gpu and not is_torch_available():

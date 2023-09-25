@@ -418,6 +418,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         max_gb=config['max_gb'],
         results_output_path=tmp_result_dir)
 
+    result = tree_for_metadata.backfill_assignments(result)
+
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 
@@ -428,7 +430,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         taxonomy_tree=taxonomy_tree)
 
     csv_result = dict()
-    csv_result["taxonomy_tree"] = taxonomy_tree
+    csv_result["taxonomy_tree"] = tree_for_metadata
     csv_result["assignments"] = result
 
     if config['csv_result_path'] is not None:
@@ -452,7 +454,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
         df = blob_to_df(
             results_blob=result,
-            taxonomy_tree=taxonomy_tree).set_index('cell_id')
+            taxonomy_tree=tree_for_metadata).set_index('cell_id')
 
         # need to make sure that the rows are written in
         # the same order that they occur in the obs

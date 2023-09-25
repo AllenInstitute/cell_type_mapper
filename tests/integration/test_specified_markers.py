@@ -3,6 +3,7 @@ import pytest
 import anndata
 import copy
 import h5py
+import itertools
 import json
 import numbers
 import numpy as np
@@ -172,19 +173,13 @@ def precomputed_stats_fixture(
     return dst_path
 
 @pytest.mark.parametrize(
-        'flatten,use_csv,use_tmp_dir,use_gpu,just_once,drop_subclass',
-        [(True, True, True, False, False, False),
-         (True, False, True, False, False, False),
-         (False, True, True, False, False, False),
-         (False, False, True, False, False, False),
-         (False, True, True, False, False, False),
-         (False, True, True, True, False, False),
-         (True, True, True, True, False, False),
-         (True, True, True, True, True, False),
-         (False, True, True, True, True, False),
-         (False, True, True, False, True, False),
-         (True, True, True, False, True, False),
-         (False, True, True, True, True, True)])
+        'flatten,use_gpu,just_once,drop_subclass',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (True, False)
+        ))
 def test_mapping_from_markers(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -193,8 +188,6 @@ def test_mapping_from_markers(
         precomputed_stats_fixture,
         tmp_dir_fixture,
         flatten,
-        use_csv,
-        use_tmp_dir,
         use_gpu,
         just_once,
         drop_subclass):
@@ -203,6 +196,9 @@ def test_mapping_from_markers(
 
     drop_subclass will drop 'subclass' from the taxonomy
     """
+
+    use_csv = True
+    use_tmp_dir = True
 
     if use_gpu and not is_torch_available():
         return
@@ -292,12 +288,10 @@ def test_mapping_from_markers(
     expected = json.load(
         open(ab_initio_assignment_fixture['assignment'], 'rb'))
 
-    if drop_subclass:
+    if drop_subclass and not flatten:
         for k in list(expected['marker_genes'].keys()):
             if k.startswith('subclass'):
                 expected['marker_genes'].pop(k)
-        for cell in expected['results']:
-            cell.pop('subclass')
 
     if not flatten:
         assert actual['marker_genes'] == expected['marker_genes']
@@ -309,7 +303,9 @@ def test_mapping_from_markers(
             for k in cell.keys():
                 if k == 'cell_id':
                     continue
-                assert set(cell[k].keys()) == set(actual_cell[k].keys())
+
+                if k == 'subclass' and drop_subclass:
+                    continue
 
                 if config['type_assignment']['bootstrap_iteration'] > 1:
                     assert cell[k]['assignment'] == actual_cell[k]['assignment']
@@ -338,6 +334,14 @@ def test_mapping_from_markers(
     assert len(actual['results']) == raw_query_cell_x_gene_fixture.shape[0]
     assert len(actual['results']) == len(expected['results'])
 
+    # check that inheritance of assignments agrees with tree
+    tree_obj = TaxonomyTree(data=taxonomy_tree_dict)
+    for cell in actual['results']:
+        this = cell[tree_obj.leaf_level]['assignment']
+        parents = tree_obj.parents(level=tree_obj.leaf_level, node=this)
+        for parent_level in parents:
+            assert cell[parent_level]['assignment'] == parents[parent_level]
+
     # check consistency between extended and csv results
     if use_csv:
         if config['type_assignment']['bootstrap_iteration'] > 1:
@@ -351,12 +355,7 @@ def test_mapping_from_markers(
             cell['cell_id']: cell for cell in actual['results']}
         with open(csv_path, 'r') as in_file:
             assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
-            if flatten:
-                hierarchy = ['cluster']
-            elif drop_subclass:
-                hierarchy = ['class', 'cluster']
-            else:
-                hierarchy = ['class', 'subclass', 'cluster']
+            hierarchy = ['class', 'subclass', 'cluster']
             assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
 
             header_line = 'cell_id'

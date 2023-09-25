@@ -404,3 +404,92 @@ def test_tree_to_str(drop_cells):
     # try re-instantiating tree without cells
     new_tree = TaxonomyTree(data=json.loads(tree_str))
     assert set(new_tree.all_leaves) == set(taxonomy_tree.all_leaves)
+
+
+def test_backfill():
+    """
+    Test the method to backfill assignments
+    """
+
+    data = {
+        "hierarchy": ["A", "B", "C", "D"],
+        "A": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in ('a', 'b', 'c')
+        },
+        "B": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in ('aa', 'ab', 'ba', 'bb', 'ca', 'cb')
+        },
+        "C": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in (
+                'aaa', 'aab', 'aba', 'abb', 'baa', 'bab',
+                'bba', 'bbb', 'caa', 'cab', 'cba', 'cbb')
+        },
+        "D":{
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in (
+               'aaaa', 'aaab', 'aaba', 'aabb',
+               'abaa', 'abab', 'abba', 'abbb',
+               'baaa', 'baab', 'baba', 'babb',
+               'bbaa', 'bbab', 'bbba', 'bbbb',
+               'caaa', 'caab', 'caba', 'cabb',
+               'cbaa', 'cbab', 'cbba', 'cbbb')
+        }
+    }
+
+    tree = TaxonomyTree(data=data)
+
+    expected_assignment = [
+        {'A': {'assignment': 'b', 'data': 2},
+         'B': {'assignment': 'bb', 'other': 'sure'},
+         'C': {'assignment': 'bba', 'other': 'sure'},
+         'D': {'assignment': 'bbaa', 'this': 'is'},
+         'id': 'alice'
+        },
+        {'A': {'assignment': 'c', 'junk': 'garbage'},
+         'B': {'assignment': 'ca', 'junk': 'garbage'},
+         'C': {'assignment': 'cab', 'silly': 'walk'},
+         'D': {'assignment': 'caba'},
+         'something': 'else'
+        },
+        {'A': {'assignment': 'a'},
+         'B': {'assignment': 'ab'},
+         'C': {'assignment': 'aba', 'to': 'be'},
+         'D': {'assignment': 'abab', 'to': 'be'},
+         'why': 'not'
+        },
+        {'A': {'assignment': 'a'},   # backfill should not fix if child missing
+         'B': {'assignment': 'aa'},
+         'because': 'so'
+        },
+        {'A': {'assignment': 'b'},
+         'B': {'assignment': 'bb'},
+         'C': {'assignment': 'bba'},  # backfill should not fix if child missing
+         'that': 'is true'
+        },
+        {'A': {'assignment': 'b'},
+         'B': {'assignment': 'ba'},
+         'C': {'assignment': 'baa'},
+         'D': {'assignment': 'baaa'},
+         'that': 'is false'
+        },
+        {'A': {'assignment': 'c', 'say': 'so'},  # pop many parents
+         'B': {'assignment': 'cb', 'say': 'so'},
+         'C': {'assignment': 'cba', 'say': 'so', 'runner_up_garbage': 'uh huh'},
+         'D': {'assignment': 'cbaa'},
+         'that': 'is false'
+        }
+    ]
+
+    noisy = copy.deepcopy(expected_assignment)
+    noisy[0].pop('B')
+    noisy[1].pop('A')
+    noisy[2].pop('C')
+    noisy[6].pop('A')
+    noisy[6].pop('B')
+
+    assert noisy != expected_assignment
+    noisy = tree.backfill_assignments(noisy)
+    assert noisy == expected_assignment
