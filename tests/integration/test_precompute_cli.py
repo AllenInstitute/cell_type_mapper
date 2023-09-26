@@ -521,3 +521,10 @@ def test_precompute_cli(
                 np.testing.assert_array_equal(
                     ge1_arr[i_row, :],
                     cluster_to_ge1[cluster_name])
+
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            assert 'timestamp' in metadata
+            assert 'dataset' in metadata
+            assert 'config' in metadata
+            for k in config:
+                assert metadata['config'][k] == config[k]
