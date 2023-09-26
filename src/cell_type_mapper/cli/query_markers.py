@@ -103,7 +103,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             behemoth_cutoff=5000000,
             tmp_dir=self.args['tmp_dir'])
 
-        marker_lookup['metadata'] = copy.deepcopy(self.args)
+        marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
         marker_lookup['metadata']['timestamp'] = get_timestamp()
         with open(self.args['output_path'], 'w') as dst:
             dst.write(

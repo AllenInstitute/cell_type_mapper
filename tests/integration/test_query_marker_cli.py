@@ -115,3 +115,10 @@ def test_query_marker_cli_tool(
         assert actual_genes == set(full_marker_name_fixture)
     elif downsample_genes:
         assert actual_genes != set(full_marker_name_fixture)
+
+    assert 'metadata' in actual
+    assert 'timestamp' in actual['metadata']
+    assert 'config' in actual['metadata']
+    for k in config:
+        assert k in actual['metadata']['config']
+        assert actual['metadata']['config'][k] == config[k]
