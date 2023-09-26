@@ -328,6 +328,17 @@ def ref_marker_path_fixture(
         tmp_dir=tmp_dir_fixture,
         max_gb=0.006)
 
+    metadata = {
+        'config': {
+            'precomputed_path': str(precomputed_path_fixture)
+        }
+    }
+
+    with h5py.File(ref_marker_path, 'a') as dst:
+        dst.create_dataset(
+            'metadata',
+            data = json.dumps(metadata).encode('utf-8'))
+
     with h5py.File(ref_marker_path, 'r') as in_file:
         assert len(in_file.keys()) > 0
         assert in_file['sparse_by_pair/up_gene_idx'].shape[0] > 0

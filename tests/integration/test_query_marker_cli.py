@@ -62,8 +62,7 @@ def test_query_marker_cli_tool(
 
     config = {
         'query_path': h5ad_path,
-        'precomputed_path': precomputed_path_fixture,
-        'reference_marker_path': ref_marker_path_fixture,
+        'reference_marker_path_list': [ref_marker_path_fixture],
         'n_processors': 3,
         'n_per_utility': n_per_utility,
         'drop_level': drop_level,
