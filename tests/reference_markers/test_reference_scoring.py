@@ -171,6 +171,15 @@ def test_find_all_markers_given_min_thresholds(
                 actual[leaf_pairs],
                 expected_array[i_gene, leaf_pairs])
 
+        if use_cli:
+            with h5py.File(h5_path, 'r') as src:
+                metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            assert 'timestamp' in metadata
+            assert 'config' in metadata
+            for k in config:
+                assert k in metadata['config']
+                assert metadata['config'][k] == config[k]
+
         if h5_path.exists():
             h5_path.unlink()
 
@@ -296,6 +305,15 @@ def test_find_all_markers_given_thresholds(
             np.testing.assert_array_equal(
                 actual[expected_not],
                 np.zeros(len(expected_not), dtype=bool))
+
+        if use_cli:
+            with h5py.File(h5_path, 'r') as src:
+                metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            assert 'timestamp' in metadata
+            assert 'config' in metadata
+            for k in config:
+                assert k in metadata['config']
+                assert metadata['config'][k] == config[k]
 
         if h5_path.exists():
             h5_path.unlink()
