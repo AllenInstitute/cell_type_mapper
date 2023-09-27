@@ -135,7 +135,7 @@ def validate_h5ad(
 
         if expected_max is not None and x_minmax[1] < expected_max:
             msg = "VALIDATION: CDM expects raw counts data. The maximum value "
-            msg += f"of the X matrix in {original_h5ad_path} is "
+            msg += f"of the X matrix in ../{original_h5ad_path.name} is "
             msg += f"{x_minmax[1]}, indicating that this may be "
             msg += "log normalized data. CDM will proceed, but results "
             msg += "may be suspect."

@@ -31,17 +31,19 @@ class FileTracker(object):
 
     def __del__(self):
         for dst_path in self._to_write_out:
-            src_path = self._path_to_location[dst_path]
+            src_path = pathlib.Path(self._path_to_location[dst_path])
+            dst_path = pathlib.Path(dst_path)
             shutil.copy(
                 src=src_path,
                 dst=dst_path)
             if self.log is not None:
-                msg = f"FILE TRACKER: copied {src_path} to {dst_path}"
+                msg = (f"FILE TRACKER: copied ../{src_path.name} "
+                       f"to ../{dst_path.name}")
                 self.log.info(msg)
 
         if self.tmp_dir is not None:
             if self.log is not None:
-                msg = f"FILE TRACKER: cleaning up {self.tmp_dir}"
+                msg = f"FILE TRACKER: cleaning up ../{self.tmp_dir.name}"
                 self.log.info(msg)
             _clean_up(self.tmp_dir)
 
@@ -57,18 +59,19 @@ class FileTracker(object):
         it will not be written out again
         """
         file_path = pathlib.Path(file_path)
+        file_str = f'{file_path.parent.name}/{file_path.name}'
         if not file_path.is_file():
             if file_path.exists():
                 raise RuntimeError(
-                    f"{file_path}\nexists but is not a file")
+                    f"../{file_str}\nexists but is not a file")
             elif input_only:
                 raise RuntimeError(
-                    f"{file_path}\nis not a file")
+                    f"../{file_str}\nis not a file")
             else:
                 if not file_path.parent.is_dir():
                     raise RuntimeError(
-                        f"will not be able to write to {file_path}\n"
-                        f"{file_path.parent} is not a dir")
+                        f"will not be able to write to ../{file_str}\n"
+                        f"../{file_path.parent.name} is not a dir")
 
         path_str = str(file_path.resolve().absolute())
 
@@ -96,7 +99,8 @@ class FileTracker(object):
                 src=file_path,
                 dst=tmp_path)
             if self.log is not None:
-                msg = f"FILE TRACKER: copied {file_path} to {tmp_path}"
+                msg = (f"FILE TRACKER: copied ../{file_path.name} "
+                       f"to ../{tmp_path.name}")
                 self.log.info(msg)
 
         tmp_path = str(tmp_path.resolve().absolute())
@@ -111,19 +115,19 @@ class FileTracker(object):
         file pointed to by file_path
         """
         file_path = pathlib.Path(file_path)
-        file_path = str(file_path.resolve().absolute())
-        if file_path not in self._path_to_location:
+        file_path_str = str(file_path.resolve().absolute())
+        if file_path_str not in self._path_to_location:
             raise RuntimeError(
-                f"{file_path}\nnot listed in this FileTracker")
-        return pathlib.Path(self._path_to_location[file_path])
+                f"../{file_path.name}\nnot listed in this FileTracker")
+        return pathlib.Path(self._path_to_location[file_path_str])
 
     def file_exists(self, file_path):
         """
         Did the tracked file exist before we created it?
         """
         file_path = pathlib.Path(file_path)
-        file_path = str(file_path.resolve().absolute())
-        if file_path not in self._file_pre_exists:
+        file_path_str = str(file_path.resolve().absolute())
+        if file_path_str not in self._file_pre_exists:
             raise RuntimeError(
-                f"{file_path}\nnot listed in this FileTracker")
-        return self._file_pre_exists[file_path]
+                f"../{file_path.name}\nnot listed in this FileTracker")
+        return self._file_pre_exists[file_path_str]

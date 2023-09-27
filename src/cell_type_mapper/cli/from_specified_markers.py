@@ -1,4 +1,5 @@
 import argschema
+import copy
 import h5py
 import json
 from marshmallow import post_load
@@ -164,6 +165,12 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="If true, flatten the taxonomy so that we are "
         "mapping directly to the leaf node")
 
+    cloud_safe = argschema.fields.Boolean(
+        required=False,
+        default=True,
+        allow_nonw=False,
+        description="If True, full file paths not recorded in log")
+
     @post_load
     def check_result_dst(self, data, **kwargs):
         """
@@ -201,9 +208,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        print('=== Running Hierarchical Mapping with config ===\n'
-              f'{json.dumps(self.args, indent=2)}')
-
         run_mapping(
             config=self.args,
             output_path=self.args['extended_result_path'],
@@ -211,6 +215,19 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 
 def run_mapping(config, output_path, log_path=None):
+
+    safe_config = copy.deepcopy(config)
+    if config['cloud_safe']:
+        safe_config['precomputed_stats']['path'] = pathlib.Path(
+             config['precomputed_stats']['path']).name
+        safe_config['query_markers']['serialized_lookup'] = pathlib.Path(
+            config['query_markers']['serialized_lookup']).name
+        safe_config['query_path'] = pathlib.Path(
+            config['query_path']).name
+        safe_config.pop('tmp_dir')
+
+    print('=== Running Hierarchical Mapping with config ===\n'
+          f'{json.dumps(safe_config, indent=2)}')
 
     log = CommandLog()
 
@@ -277,7 +294,7 @@ def run_mapping(config, output_path, log_path=None):
         log.info("CLEANING UP")
         if log_path is not None:
             log.write_log(log_path)
-        output["config"] = config
+        output["config"] = safe_config
         output["log"] = log.log
 
         uns = read_uns_from_h5ad(config["query_path"])
@@ -327,7 +344,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         precomputed_config['path'])
     precomputed_path = precomputed_config['path']
     if file_tracker.file_exists(precomputed_path):
-        log.info(f"using {precomputed_loc} for precomputed_stats")
+        log.info(f"using ../{precomputed_loc.name} for precomputed_stats")
     else:
         create_precomputed_stats_file(
             precomputed_config=precomputed_config,
@@ -335,7 +352,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             log=log,
             tmp_dir=tmp_dir)
 
-    log.info(f"reading taxonomy_tree from {precomputed_loc}")
+    log.info(f"reading taxonomy_tree from ../{precomputed_loc.name}")
     with h5py.File(precomputed_loc, "r") as in_file:
         taxonomy_tree = TaxonomyTree.from_str(
             serialized_dict=in_file["taxonomy_tree"][()].decode("utf-8"))
