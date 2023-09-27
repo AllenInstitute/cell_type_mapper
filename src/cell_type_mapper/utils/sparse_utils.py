@@ -485,9 +485,6 @@ def remap_csr_matrix(
                 i_chunk=row_ct,
                 unit='hr',
                 nametag=process_name)
-            msg = f"spent {t_load/3600.0:.2e} hrs loading "
-            msg += f"{t_write/3600.0:.2e} hrs writing"
-            print(msg)
 
     _update_buffers(
           data_buffer=data_buffer,
@@ -545,9 +542,6 @@ def _update_buffers(
         return (output_0,
                 buffer_1)
 
-    print("flushing")
-    t0 = time.time()
-
     if output_lock is None:
         output_lock = DummyLock()
 
@@ -575,8 +569,6 @@ def _update_buffers(
 
             output_0 = output_1
 
-    duration = (time.time()-t0)/3600.0
-    print(f"flushing took {duration:.2e} hrs\n")
     return (output_0,
             buffer_1)
 
@@ -685,8 +677,6 @@ def amalgamate_sparse_array(
             verbose=verbose,
             tmp_dir=tmp_dir)
     finally:
-        if verbose:
-            print(f"cleaning up {tmp_dir}")
         _clean_up(tmp_dir)
 
 
@@ -726,8 +716,6 @@ def _amalgamate_sparse_array(
             full_indptr = []
             local_indptr_idx = 0
             src_path = src_element['path']
-            if verbose:
-                print(f"    running census on {src_path}")
             ct_rows += len(src_element['rows'])
             with h5py.File(src_path, 'r') as src:
                 indices = src[indices_key][()]
@@ -782,9 +770,6 @@ def _amalgamate_sparse_array(
                 tmp_indptr_key,
                 data=np.array(full_indptr))
 
-    if verbose:
-        print(f"    done with census; {ct_elements} non-zero elements")
-
     indices_dtype = choose_int_dtype((0, max_index))
     if data_is_int:
         data_dtype = choose_int_dtype((data_min, data_max))
@@ -794,9 +779,6 @@ def _amalgamate_sparse_array(
                 "Cannot amalgamate; disparate data types\n"
                 f"{list(src_dtypes)}")
         data_dtype = src_dtypes.pop()
-
-    if verbose:
-        print(f"    saving with dtype {data_dtype}")
 
     # oppen with mode='a' so that, if we are adding an 'X' element
     # to an anndata file, we don't blow away pre-existing obs/var

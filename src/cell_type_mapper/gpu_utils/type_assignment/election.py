@@ -205,7 +205,6 @@ def run_type_assignment_on_h5ad_gpu(
     config["gpu_index"] = gpu_index
     config["n_assignments"] = n_assignments
 
-    print("starting type assignment")
     print_freq = 1
 
     batch_time = AverageMeter('Time', ':6.3f')

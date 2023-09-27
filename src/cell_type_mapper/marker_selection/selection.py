@@ -1,5 +1,4 @@
 import numpy as np
-import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
@@ -80,14 +79,9 @@ def select_marker_genes_v2(
 
     A string summarizing how well the marker selection did.
     """
-    t0 = time.time()
 
     if lock is None:
         lock = DummyLock()
-
-    with lock:
-        print("starting marker selection for "
-              f"parent node {parent_node}")
 
     marker_gene_array = thin_marker_gene_array_by_gene(
         marker_gene_array=marker_gene_array,
@@ -110,14 +104,6 @@ def select_marker_genes_v2(
             marker_gene_array=marker_gene_array,
             gb_size=10,
             taxonomy_mask=taxonomy_idx_array)
-
-    n_useful = (utility_array > 0).sum()
-
-    duration = (time.time()-t0)/3600.0
-    with lock:
-        print(f"parent: {parent_node} -- "
-              f"preparation took {duration:.2e} hours")
-        print(f"{n_useful} genes of {len(utility_array)} are useful")
 
     (marker_gene_names,
      summary_log_message) = _run_selection(

@@ -113,7 +113,6 @@ def find_markers_for_all_taxonomy_pairs(
         discriminator
     """
 
-    t0 = time.time()
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
@@ -148,8 +147,6 @@ def find_markers_for_all_taxonomy_pairs(
         dst=output_path)
 
     _clean_up(tmp_dir)
-    duration = time.time()-t0
-    print(f"that took {duration/3600.0:.2e} hrs")
 
 
 def create_sparse_by_pair_marker_file(
@@ -319,7 +316,6 @@ def create_sparse_by_pair_marker_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    print('getting list of valid genes')
     n_up_indices = 0
     n_down_indices = 0
     for col0 in tmp_path_dict:
@@ -332,11 +328,8 @@ def create_sparse_by_pair_marker_file(
     up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
     down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
 
-    t_write = time.time()
-    print('writing sparse_by_pair to disk')
     up_pair_offset = 0
     down_pair_offset = 0
-    print(f"writing to {tmp_output_path}")
     with h5py.File(tmp_output_path, 'a') as dst:
 
         dst_grp = dst.create_group('sparse_by_pair')
@@ -402,7 +395,6 @@ def create_sparse_by_pair_marker_file(
         dst_grp['up_pair_idx'][-1] = n_up_indices
         dst_grp['down_pair_idx'][-1] = n_down_indices
 
-    print(f'writing sparse_by_pair took {time.time()-t_write:.2e} seconds')
     return tmp_output_path
 
 
@@ -416,8 +408,6 @@ def add_sparse_by_gene_markers_to_file(
     a marker file that already contains the
     "sparse_by_pairs" representation.
     """
-
-    t0 = time.time()
 
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
 
@@ -452,7 +442,6 @@ def add_sparse_by_gene_markers_to_file(
                     chunks=src['indices'].chunks)
 
     _clean_up(tmp_dir)
-    print(f"adding sparse markers took {time.time()-t0:.2e} seconds")
 
 
 def _find_markers_worker(
@@ -503,7 +492,6 @@ def _find_markers_worker(
     idx_dtype = choose_int_dtype((0, n_genes))
 
     boring_t = boring_t_from_p_value(p_th)
-    print(f"boring_t {boring_t}")
 
     idx_values = list(idx_to_pair.keys())
     idx_values.sort()
@@ -619,8 +607,6 @@ def _prep_output_file(
     empty datasets for the stats that need to be saved.
     """
     siblings = taxonomy_tree.siblings
-    n_sibling_pairs = len(siblings)
-    print(f"{n_sibling_pairs:.2e} sibling pairs")
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()
