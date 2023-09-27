@@ -40,24 +40,43 @@ class TaxonomyTree(object):
         """
         Ignore keys 'metadata' and 'alias_mapping'
         """
-        these_keys = set(self._data.keys())
-        other_keys = set(other._data.keys())
-
-        bad_keys = {'metadata',
-                    'name_mapper',
-                    'hierarchy_mapper'}
-
-        these_keys -= bad_keys
-        other_keys -= bad_keys
-        if these_keys != other_keys:
+        ignore_cells = self.is_equal_to(other)
+        if not ignore_cells:
             return False
-        for k in these_keys:
-            if self._data[k] != other._data[k]:
+        for node in self.nodes_at_level(self.leaf_level):
+            this_children = self.children(level=self.leaf_level, node=node)
+            other_children = other.children(level=self.leaf_level, node=node)
+            if set(this_children) != set(other_children):
                 return False
         return True
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def is_equal_to(self, other):
+        """
+        Compare to another taxonomy tree, only looking
+        at the fields in 'hierarchy' and ignoring the
+        specific cell-to-leaf assignments.
+
+        Return True if the two taxonomies are equal;
+        False otherwise.
+        """
+        if self.hierarchy != other.hierarchy:
+            return False
+        for level in self.hierarchy:
+            if set(self._data[level].keys()) != set(other._data[level].keys()):
+                return False
+
+            if level == self.leaf_level:
+                continue
+
+            for node in self.nodes_at_level(level):
+                this_children = self.children(level=level, node=node)
+                other_children = other.children(level=level, node=node)
+                if set(this_children) != set(other_children):
+                    return False
+        return True
 
     @classmethod
     def from_precomputed_stats(cls, stats_path):

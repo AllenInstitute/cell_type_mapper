@@ -207,7 +207,6 @@ def run_type_assignment_on_h5ad_cpu(
         precompute_path=precomputed_stats_path,
         for_marker_selection=False)
 
-    print("starting type assignment")
     chunk_index = -1
     for chunk in chunk_iterator:
         chunk_index += 1
@@ -259,7 +258,7 @@ def run_type_assignment_on_h5ad_cpu(
                     i_chunk=row_ct,
                     tot_chunks=tot_rows,
                     unit='hr')
-    print("final join of worker processes")
+
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 

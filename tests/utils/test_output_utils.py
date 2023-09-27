@@ -144,11 +144,11 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
 
     if with_metadata:
         metadata_path = 'path/to/my/cool_file.txt'
-        n_expected = 5
+        n_expected = 6
         n_offset = 1
     else:
         metadata_path = None
-        n_expected = 4
+        n_expected = 5
         n_offset = 0
 
     blob_to_csv(
@@ -171,13 +171,13 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
     header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
                    'level3_label,level3_name,level3_confidence,level7_label,'
                    'level7_name,level7_alias,level7_confidence\n')
-    assert actual_lines[1+n_offset] == header_line
+    assert actual_lines[2+n_offset] == header_line
 
     cell0 = 'a,alice,alice,0.0123,bob,bob,0.2000,cheryl,cheryl,cheryl,0.2450\n'
-    assert actual_lines[2+n_offset] == cell0
+    assert actual_lines[3+n_offset] == cell0
 
     cell1 = 'b,roger,roger,0.1112,dodger,dodger,0.3000,brooklyn,brooklyn,brooklyn,0.5000\n'
-    assert actual_lines[3+n_offset] == cell1
+    assert actual_lines[4+n_offset] == cell1
 
     # test again using a different confidence stat
 
@@ -203,13 +203,13 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
     header_line = ('cell_id,level1_label,level1_name,level1_number,'
                    'level3_label,level3_name,level3_number,level7_label,'
                    'level7_name,level7_alias,level7_number\n')
-    assert actual_lines[1+n_offset] == header_line
+    assert actual_lines[2+n_offset] == header_line
 
     cell0 = 'a,alice,alice,0.1123,bob,bob,0.4000,cheryl,cheryl,cheryl,0.3333\n'
-    assert actual_lines[2+n_offset] == cell0
+    assert actual_lines[3+n_offset] == cell0
 
     cell1 = 'b,roger,roger,0.1000,dodger,dodger,0.9000,brooklyn,brooklyn,brooklyn,0.1172\n'
-    assert actual_lines[3+n_offset] == cell1
+    assert actual_lines[4+n_offset] == cell1
 
 
 
@@ -264,11 +264,11 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
 
     if with_metadata:
         metadata_path = 'path/to/my/cool_file.txt'
-        n_expected = 5
+        n_expected = 6
         n_offset = 1
     else:
         metadata_path = None
-        n_expected = 4
+        n_expected = 5
         n_offset = 0
 
     blob_to_csv(
@@ -291,13 +291,13 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
     header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
                    'level3_label,level3_name,level3_confidence,level7_label,'
                    'level7_name,level7_alias,level7_confidence\n')
-    assert actual_lines[1+n_offset] == header_line
+    assert actual_lines[2+n_offset] == header_line
 
     cell0 = 'a,alice,beverly,0.0123,bob,X,0.2000,cheryl,tom,77,0.2450\n'
-    assert actual_lines[2+n_offset] == cell0
+    assert actual_lines[3+n_offset] == cell0
 
     cell1 = 'b,roger,jane,0.1112,dodger,Y,0.3000,brooklyn,cleveland,88,0.5000\n'
-    assert actual_lines[3+n_offset] == cell1
+    assert actual_lines[4+n_offset] == cell1
 
     # test again using a different confidence stat
 
@@ -323,13 +323,13 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
     header_line = ('cell_id,level1_label,level1_name,level1_number,'
                    'level3_label,level3_name,level3_number,level7_label,'
                    'level7_name,level7_alias,level7_number\n')
-    assert actual_lines[1+n_offset] == header_line
+    assert actual_lines[2+n_offset] == header_line
 
     cell0 = 'a,alice,beverly,0.1123,bob,X,0.4000,cheryl,tom,77,0.3333\n'
-    assert actual_lines[2+n_offset] == cell0
+    assert actual_lines[3+n_offset] == cell0
 
     cell1 = 'b,roger,jane,0.1000,dodger,Y,0.9000,brooklyn,cleveland,88,0.1172\n'
-    assert actual_lines[3+n_offset] == cell1
+    assert actual_lines[4+n_offset] == cell1
 
 
 @pytest.mark.parametrize('with_metadata', [True, False])
@@ -353,11 +353,11 @@ def test_blob_to_csv_level_map(tmp_dir_fixture, with_metadata, results_fixture):
 
     if with_metadata:
         metadata_path = 'path/to/my/cool_file.txt'
-        n_expected = 6
+        n_expected = 7
         n_offset = 1
     else:
         metadata_path = None
-        n_expected = 5
+        n_expected = 6
         n_offset = 0
 
     blob_to_csv(
@@ -388,4 +388,5 @@ def test_blob_to_csv_level_map(tmp_dir_fixture, with_metadata, results_fixture):
                    'salted_9_label,salted_9_name,salted_9_confidence,'
                    'salted_49_label,salted_49_name,salted_49_alias,'
                    'salted_49_confidence\n')
-    assert actual_lines[2+n_offset] == header_line
+    # version line is at 2+n_offset
+    assert actual_lines[3+n_offset] == header_line

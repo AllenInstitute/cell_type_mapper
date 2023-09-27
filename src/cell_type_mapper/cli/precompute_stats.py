@@ -102,8 +102,17 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
 
     @post_load
     def check_output(self, data, **kwargs):
+        """
+        Construct a dict mapping dataset to output path.
+
+        If split_by_dataset is False, this will just map 'None' to the
+        specified output path. Otherwise, it will map all of the distinct
+        datasets in the taxonomy metadata files to forms of the specified
+        output path with the dataset specified as a suffix.
+        """
         final_output_lookup = dict()
         run_default = False
+        output_file_set = set()
         if data['split_by_dataset']:
             df = pd.read_csv(data['cell_metadata_path'])
             if 'dataset_label' in df.columns:
@@ -113,9 +122,17 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
                 baseline_suffix = baseline_path.suffix
                 baseline_stem = baseline_path.stem
                 for dataset in dataset_values:
-                    new_suffix = f'{dataset}{baseline_suffix}'
+                    sanitized = dataset.replace(" ", "_").replace("/", ".")
+                    new_suffix = f'{sanitized}{baseline_suffix}'
                     new_name = f'{baseline_stem}.{new_suffix}'
-                    final_output_lookup[dataset] = str(output_parent/new_name)
+                    new_path = (output_parent/new_name).resolve().absolute()
+                    new_path = str(new_path)
+                    if new_path in output_file_set:
+                        raise RuntimeError(
+                            f"Dataset labels {dataset_values} require that "
+                            f"output path {new_path} occur more than once")
+                    output_file_set.add(new_path)
+                    final_output_lookup[dataset] = new_path
             else:
                 run_default = True
         else:
@@ -147,7 +164,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        metadata = copy.deepcopy(self.args)
+        metadata = {'config': copy.deepcopy(self.args)}
         assert 'timestamp' not in metadata
 
         taxonomy_tree = TaxonomyTree.from_data_release(
@@ -181,6 +198,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                 cell_set=cell_set)
 
             metadata['timestamp'] = get_timestamp()
+            metadata['dataset'] = dataset
 
             with h5py.File(output_path, 'a') as out_file:
                 out_file.create_dataset(

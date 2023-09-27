@@ -307,7 +307,6 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             row_chunk_size=rows_at_a_time)
 
         t0 = time.time()
-        print(f"chunking through {data_path}")
         processed_cells = 0
         for chunk in chunk_iterator:
             r0 = chunk[1]

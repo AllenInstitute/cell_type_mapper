@@ -2,6 +2,8 @@ import json
 import pandas as pd
 import pathlib
 
+import cell_type_mapper
+
 
 def blob_to_csv(
         results_blob,
@@ -9,7 +11,8 @@ def blob_to_csv(
         output_path,
         confidence_key='confidence',
         confidence_label='confidence',
-        metadata_path=None):
+        metadata_path=None,
+        config=None):
     """
     Write a set of results originally formatted for a JSON blob
     out to the CSV our users will expect.
@@ -38,6 +41,9 @@ def blob_to_csv(
         Path to the metadta path going with this output (if any;
         file name will be recorded as a comment at the top of
         the file)
+    config:
+        Optional dict containing the parameters with which the code
+        was run.
     """
     str_hierarchy = json.dumps(taxonomy_tree.hierarchy)
 
@@ -53,6 +59,16 @@ def blob_to_csv(
             str_readable_hierarchy = json.dumps(readable_hierarchy)
             dst.write(f'# readable taxonomy hierarchy = '
                       f'{str_readable_hierarchy}\n')
+
+        version_str = '#'
+        if config is not None:
+            if config['flatten']:
+                version_str += " algorithm: 'correlation';"
+            else:
+                version_str += " algorithm: 'hierarchical';"
+        version_str += f" codebase: {cell_type_mapper.__repository__};"
+        version_str += f" version: {cell_type_mapper.__version__}\n"
+        dst.write(version_str)
 
         csv_df = blob_to_df(
             results_blob=results_blob,

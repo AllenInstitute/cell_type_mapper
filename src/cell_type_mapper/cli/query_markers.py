@@ -25,20 +25,16 @@ class QueryMarkerSchema(argschema.ArgSchema):
         description="Path to the h5ad file containing the query "
         "dataset (used to read the list of available genes).")
 
-    precomputed_path = argschema.fields.InputFile(
+    reference_marker_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
         required=True,
         default=None,
         allow_none=False,
-        description="Path to the precomputed stats file "
-        "(used to read in the taxonomy tree).")
-
-    reference_marker_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to the HDF5 file containing the "
-        "marker genes for the (reference dataset, taxonomy) "
-        "pair.")
+        cli_as_single_argument=True,
+        description=(
+            "List of reference marker files to use "
+            "when creating this query marker file.")
+        )
 
     n_processors = argschema.fields.Int(
         required=False,
@@ -83,19 +79,57 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
+        # check consistency of taxonomies
+        error_msg = ""
+        taxonomy_tree = None
+        tree_src = None
+        ref_to_precompute = dict()
+        for ref_path in self.args['reference_marker_path_list']:
+            with h5py.File(ref_path, 'r') as src:
+                metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            if 'config' not in metadata:
+                error_msg += (
+                    "===\n"
+                    f"{ref_path} has no 'config' in metadata\n===\n"
+                )
+                continue
+            config = metadata['config']
+            if 'precomputed_path' not in config:
+                error_msg += (
+                    "===\n"
+                    f"{ref_path} does not point to a "
+                    "precomputed stats file\n===\n")
+                continue
+            stats_path = config['precomputed_path']
+            ref_to_precompute[ref_path] = stats_path
+            this_tree = TaxonomyTree.from_precomputed_stats(
+                stats_path=stats_path)
+            if taxonomy_tree is None:
+                taxonomy_tree = this_tree
+                tree_src = stats_path
+            else:
+                if this_tree != taxonomy_tree:
+                    error_msg += (
+                        "===\n"
+                        f"{stats_path}\nrefererence in\n"
+                        f"{ref_path}\nhas different taxonomy tree from\n"
+                        f"{tree_src}\n===\n")
+
+        if len(error_msg) > 0:
+            raise RuntimeError(error_msg)
+
         var = read_df_from_h5ad(
             self.args['query_path'],
             df_name='var')
         query_gene_names = list(var.index.values)
 
-        with h5py.File(self.args['precomputed_path'], 'r') as src:
-            taxonomy_tree = TaxonomyTree(
-                data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
         if self.args['drop_level'] is not None:
             taxonomy_tree = taxonomy_tree.drop_level(self.args['drop_level'])
 
+        reference_marker_path = self.args['reference_marker_path_list'][0]
+
         marker_lookup = create_raw_marker_gene_lookup(
-            input_cache_path=self.args['reference_marker_path'],
+            input_cache_path=reference_marker_path,
             query_gene_names=query_gene_names,
             taxonomy_tree=taxonomy_tree,
             n_per_utility=self.args['n_per_utility'],
@@ -103,7 +137,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             behemoth_cutoff=5000000,
             tmp_dir=self.args['tmp_dir'])
 
-        marker_lookup['metadata'] = copy.deepcopy(self.args)
+        marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
         marker_lookup['metadata']['timestamp'] = get_timestamp()
         with open(self.args['output_path'], 'w') as dst:
             dst.write(

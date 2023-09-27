@@ -340,7 +340,6 @@ class MarkerGeneArray(object):
         Downselect to just the specified genes
         """
 
-        print("downsampling genes")
         new_gene_names = [
             self._gene_names[ii]
             for ii in gene_idx_array]

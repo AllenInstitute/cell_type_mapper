@@ -357,6 +357,13 @@ def test_mapping_from_markers(
             assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
             hierarchy = ['class', 'subclass', 'cluster']
             assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+            version_line = in_file.readline()
+            if flatten:
+                assert "algorithm: 'correlation'" in version_line
+            else:
+                assert "algorithm: 'hierarchical'" in version_line
+            assert 'codebase' in version_line
+            assert 'version' in version_line
 
             header_line = 'cell_id'
             for level in hierarchy:

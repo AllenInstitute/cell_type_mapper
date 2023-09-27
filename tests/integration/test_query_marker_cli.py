@@ -62,8 +62,7 @@ def test_query_marker_cli_tool(
 
     config = {
         'query_path': h5ad_path,
-        'precomputed_path': precomputed_path_fixture,
-        'reference_marker_path': ref_marker_path_fixture,
+        'reference_marker_path_list': [ref_marker_path_fixture],
         'n_processors': 3,
         'n_per_utility': n_per_utility,
         'drop_level': drop_level,
@@ -115,3 +114,10 @@ def test_query_marker_cli_tool(
         assert actual_genes == set(full_marker_name_fixture)
     elif downsample_genes:
         assert actual_genes != set(full_marker_name_fixture)
+
+    assert 'metadata' in actual
+    assert 'timestamp' in actual['metadata']
+    assert 'config' in actual['metadata']
+    for k in config:
+        assert k in actual['metadata']['config']
+        assert actual['metadata']['config'][k] == config[k]

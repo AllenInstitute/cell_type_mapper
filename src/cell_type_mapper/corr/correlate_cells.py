@@ -170,7 +170,6 @@ def correlate_cells(
     output_path is the path to the HDF5 file that will be written
     correlating cells with clusters
     """
-    global_t0 = time.time()
     output_key = 'correlation'
 
     (reference_profiles,
@@ -199,7 +198,6 @@ def correlate_cells(
             chunks=(min(1000, n_query_rows),
                     min(1000, n_clusters)))
 
-    print("starting correlation")
     t0 = time.time()
     row_ct = 0
     process_list = []
@@ -239,9 +237,6 @@ def correlate_cells(
 
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
-
-    duration = (time.time()-global_t0)/3600.0
-    print(f"all done -- correlation took {duration:.2e} hrs")
 
 
 def _correlate_chunk(

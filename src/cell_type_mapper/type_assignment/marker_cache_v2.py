@@ -1,7 +1,6 @@
 import h5py
 import json
 import numpy as np
-import time
 import warnings
 
 from cell_type_mapper.marker_selection.selection_pipeline import (
@@ -40,8 +39,6 @@ def create_marker_cache_from_reference_markers(
         Number of leaf nodes for a parent to be considered
         a behemoth
     """
-    print(f"creating marker gene cache in {output_cache_path}")
-    t0 = time.time()
 
     reformatted_lookup = create_raw_marker_gene_lookup(
         input_cache_path=input_cache_path,
@@ -63,9 +60,6 @@ def create_marker_cache_from_reference_markers(
         reference_gene_names=reference_gene_names,
         query_gene_names=query_gene_names,
         output_cache_path=output_cache_path)
-
-    duration = (time.time()-t0)/3600.0
-    print(f"created {output_cache_path} in {duration:.2e} hours")
 
 
 def create_marker_cache_from_specified_markers(
@@ -101,8 +95,6 @@ def create_marker_cache_from_specified_markers(
     If there are marker genes missing from query_gene_names,
     those markers will just be dropped and a warning issued
     """
-    print(f"creating marker gene cache in {output_cache_path}")
-    t0 = time.time()
 
     # check that all non-trivial parent nodes will have more than
     # zero marker genes assigned to them
@@ -168,9 +160,6 @@ def create_marker_cache_from_specified_markers(
             warnings.warn(msg)
         else:
             log.warn(msg)
-
-    duration = (time.time()-t0)/3600.0
-    print(f"created {output_cache_path} in {duration:.2e} hours")
 
 
 def create_raw_marker_gene_lookup(
