@@ -448,7 +448,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             output_path=config['csv_result_path'],
             metadata_path=config['extended_result_path'],
             confidence_key=confidence_key,
-            confidence_label=confidence_label)
+            confidence_label=confidence_label,
+            config=config)
 
     if config['obsm_key']:
 
