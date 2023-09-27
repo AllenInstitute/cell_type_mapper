@@ -76,6 +76,8 @@ def validate_h5ad(
     Both valid_h5ad_path and output_dir cannot be non-None
     """
 
+    h5ad_path = pathlib.Path(h5ad_path)
+
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
             "Cannot specify both valid_h5ad_path and output_dir; "
@@ -157,13 +159,14 @@ def validate_h5ad(
 
     if output_path is not None:
         if log is not None:
-            msg = f"VALIDATION: copyied {h5ad_path} to {new_h5ad_path}"
+            msg = (f"VALIDATION: copied ../{h5ad_path.name} "
+                   f"to ../{new_h5ad_path.name}")
             log.info(msg)
 
     if mapped_var is not None:
         if log is not None:
             msg = "VALIDATION: modifying var dataframe of "
-            msg += f"{original_h5ad_path} to include "
+            msg += f"../{original_h5ad_path.name} to include "
             msg += "proper gene identifiers"
             log.info(msg)
 
@@ -186,7 +189,7 @@ def validate_h5ad(
         output_dtype = choose_int_dtype(x_minmax)
 
         msg = "VALIDATION: rounding X matrix of "
-        msg += f"{original_h5ad_path} to integer values"
+        msg += f"{original_h5ad_path.name} to integer values"
         if log is not None:
             log.warn(msg)
         else:
@@ -198,9 +201,9 @@ def validate_h5ad(
         has_warnings = True
 
     if log is not None:
-        msg = f"DONE VALIDATING {h5ad_path}; "
+        msg = f"DONE VALIDATING ../{h5ad_path.name}; "
         if output_path is not None:
-            msg += f"reformatted file written to {output_path}\n"
+            msg += f"reformatted file written to ../{output_path.name}\n"
         else:
             msg += "no changes required"
         log.info(msg)

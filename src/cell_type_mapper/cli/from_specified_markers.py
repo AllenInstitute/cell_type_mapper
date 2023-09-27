@@ -224,6 +224,10 @@ def run_mapping(config, output_path, log_path=None):
             config['query_markers']['serialized_lookup']).name
         safe_config['query_path'] = pathlib.Path(
             config['query_path']).name
+        for k in ('extended_result_path', 'csv_result_path'):
+            if safe_config[k] is not None:
+                safe_config[k] = pathlib.Path(config[k]).name
+        safe_config.pop('extended_result_dir')
         safe_config.pop('tmp_dir')
 
     print('=== Running Hierarchical Mapping with config ===\n'
