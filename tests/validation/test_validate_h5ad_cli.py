@@ -264,13 +264,15 @@ def test_validation_cli_of_h5ad(
 
 
 @pytest.mark.parametrize(
-        "density", ("csr", "csc", "array"))
+        "density,specify_path",
+        itertools.product(("csr", "csc", "array"),(True, False)))
 def test_validation_cli_of_good_h5ad(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        specify_path):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -298,11 +300,19 @@ def test_validation_cli_of_good_h5ad(
         prefix=f"good_input_{density}_",
         suffix=".json")
 
+    if specify_path:
+        output_dir = None
+        valid_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    else:
+        output_dir = str(tmp_dir_fixture.resolve().absolute())
+        valid_path = None
+
     config = {
         'h5ad_path': orig_path,
-        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_dir': output_dir,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
-        'output_json': output_json
+        'output_json': output_json,
+        'valid_h5ad_path': valid_path
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
@@ -311,11 +321,19 @@ def test_validation_cli_of_good_h5ad(
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
 
-    assert result_path == orig_path
+    if specify_path:
+        assert result_path == valid_path
+    else:
+        assert result_path == orig_path
 
     # make sure input file did not change
     md51 = hashlib.md5()
     with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
+    md51 = hashlib.md5()
+    with open(result_path, 'rb') as src:
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
