@@ -6,7 +6,6 @@ import argschema
 import traceback
 import pathlib
 from marshmallow import post_load
-import shutil
 
 from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
@@ -85,13 +84,6 @@ class ValidationInputSchema(argschema.ArgSchema):
         "products will be written where ever tempfile.mkdtemp "
         "defaults to.")
 
-    force_write = argschema.fields.Boolean(
-        required=False,
-        default=True,
-        allow_none=False,
-        description="If True, write out validate file, regardless "
-        "of whether or not any changes were made")
-
     @post_load
     def check_for_output_json(self, data, **kwargs):
         is_valid = True
@@ -113,9 +105,6 @@ class ValidationInputSchema(argschema.ArgSchema):
         """
         output_dir = data['output_dir']
         valid_path = data['valid_h5ad_path']
-        if data['force_write'] and valid_path is None:
-            raise RuntimeError(
-                "Must specify valid_path if force_write is True")
         if output_dir is None and valid_path is None:
             raise RuntimeError(
                 "Must specify one of either output_dir or valid_h5ad_path")
@@ -182,14 +171,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
             output_manifest = dict()
             if result_path is None:
-                if self.args['force_write']:
-                    new_path = self.args['valid_h5ad_path']
-                    shutil.copy(
-                        src=self.args['h5ad_path'],
-                        dst=new_path)
-                    output_manifest['valid_h5ad_path'] = new_path
-                else:
-                    output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
+                output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
             else:
                 result_path = str(result_path.resolve().absolute())
                 output_manifest['valid_h5ad_path'] = result_path
