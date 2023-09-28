@@ -5,6 +5,7 @@ normalization and gene_id requirements
 import argschema
 import traceback
 import pathlib
+import shutil
 from marshmallow import post_load
 
 from cell_type_mapper.gene_id.gene_id_mapper import (
@@ -32,7 +33,9 @@ class ValidationInputSchema(argschema.ArgSchema):
         "written by this tool. If this is not specified, the tool "
         "will write the file to the location specified by the "
         "output_dir config parameter, appending "
-        "_VALIDATED_{timestamp} to the name of the input file.")
+        "_VALIDATED_{timestamp} to the name of the input file. "
+        "If it is specified, this file will be written, "
+        "even if it is just a straight copy of the input file.")
 
     log_path = argschema.fields.String(
         required=False,
@@ -171,7 +174,14 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
             output_manifest = dict()
             if result_path is None:
-                output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
+                if self.args['valid_h5ad_path'] is not None:
+                    new_path = self.args['valid_h5ad_path']
+                    shutil.copy(
+                        src=self.args['h5ad_path'],
+                        dst=new_path)
+                    output_manifest['valid_h5ad_path'] = new_path
+                else:
+                    output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
             else:
                 result_path = str(result_path.resolve().absolute())
                 output_manifest['valid_h5ad_path'] = result_path
