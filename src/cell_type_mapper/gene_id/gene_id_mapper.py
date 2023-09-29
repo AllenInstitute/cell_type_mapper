@@ -56,10 +56,12 @@ class GeneIdMapper(object):
 
         mapped_genes = 0
         unmappable_genes = 0
+        already_fine = 0
         output = []
         for input_gene in gene_id_list:
             if is_ensembl(input_gene):
                 output.append(input_gene)
+                already_fine += 1
             else:
                 if input_gene in self._lookup:
                     output.append(self._lookup[input_gene])
@@ -74,6 +76,9 @@ class GeneIdMapper(object):
             msg = "Not all of your gene identifiers were "
             msg += f"{self.preferred_type}; "
             msg += f"{mapped_genes} were mapped to {self.preferred_type}"
+            if already_fine > 0:
+                msg += f"; {already_fine} "
+                msg += f"were already {self.preferred_type}"
             if unmappable_genes > 0:
                 msg += f"; {unmappable_genes} "
                 msg += f"could not be mapped to {self.preferred_type}"
