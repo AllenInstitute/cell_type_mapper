@@ -1,3 +1,4 @@
+import numpy as np
 import pathlib
 import warnings
 
@@ -121,6 +122,28 @@ def validate_h5ad(
     var_original = read_df_from_h5ad(
             h5ad_path=current_h5ad_path,
             df_name='var')
+
+    # check gene name contents
+    error_msg = ''
+    unq_genes, unq_gene_count = np.unique(
+        var_original.index.values,
+        return_counts=True)
+    repeated = np.where(unq_gene_count > 1)[0]
+    for idx in repeated:
+        error_msg += (
+            f"gene name '{unq_genes[idx]}' "
+            f"occurs {unq_gene_count[idx]} times; "
+            "gene names must be unique\n")
+
+    gene_names = set(var_original.index.values)
+    for bad_val in ('',):
+        if bad_val in gene_names:
+            error_msg += (f"gene name '{bad_val}' is invalid\n")
+    if len(error_msg) > 0:
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
 
     mapped_var = map_gene_ids_in_var(
         var_df=var_original,
