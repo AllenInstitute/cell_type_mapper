@@ -24,7 +24,7 @@ something like this
 # metadata = hier.json
 # taxonomy hierarchy = ["CCN20230504_CLAS", "CCN20230504_SUBC", "CCN20230504_CLUS"]
 # readable taxonomy hierarchy = ["class", "subclass", "cluster"]
-# # algorithm: 'hierarchical'; codebase: http://github.com/AllenInstitute/cell_type_mapper; version: 0.0.1
+# algorithm: 'hierarchical'; codebase: http://github.com/AllenInstitute/cell_type_mapper; version: 0.0.1
 ```
 
 The next line defines the column headers for the CSV. Subsequent lines contain
