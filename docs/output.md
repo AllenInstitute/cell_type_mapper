@@ -203,3 +203,9 @@ The cell is identified by the `cell_id` key in the dict, e.g.
   "cell_id": "1015221640100510476"
 }
 ```
+
+At each level, there will also be optional fields `runner_up_assignment`,
+`runner_up_correlation`, and `runner_up_probability`. These will map
+to lists of the N (if requested) next most likely assignments as
+ranked according to `bootstrapping_probability`. If there were no
+runners up, these will be empty lists.
