@@ -557,3 +557,27 @@ def test_gene_name_errors(tmp_dir_fixture):
             h5ad_path=h5ad_path,
             valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
             gene_id_mapper=None)
+
+    # test that an error is raised if, after clipping the
+    # suffix from the Ensembl ID, the list of genes is not
+    # unique
+    var = pd.DataFrame(
+        [{'gene_id': 'ENSG778.3'},
+         {'gene_id': 'ENSF5'},
+         {'gene_id': 'ENSG778.9'}]).set_index('gene_id')
+
+    a = anndata.AnnData(
+        X=np.random.random_sample((n_cells, len(var))),
+        var=var,
+        obs=obs)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a.write_h5ad(h5ad_path)
+    with pytest.raises(RuntimeError, match="'ENSG778' occurs more than once"):
+        validate_h5ad(
+            h5ad_path=h5ad_path,
+            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+            gene_id_mapper=GeneIdMapper.from_default())
