@@ -86,8 +86,11 @@ def test_is_ens():
     """
     assert is_ensembl('ENSF6')
     assert is_ensembl('ENSFBBD883346')
+    assert is_ensembl('ENSR00182311.9')
+    assert is_ensembl('ENSG00812312.22732')
     assert not is_ensembl('ENS7')
     assert not is_ensembl('ENSGabc8899')
     assert not is_ensembl('XYENSG8812')
     assert not is_ensembl('ENS781abcd')
     assert not is_ensembl('ENSG')
+    assert not is_ensembl('ENSG889123.2262a')
