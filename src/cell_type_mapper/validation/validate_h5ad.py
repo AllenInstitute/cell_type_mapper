@@ -138,7 +138,10 @@ def validate_h5ad(
     gene_names = set(var_original.index.values)
     for bad_val in ('',):
         if bad_val in gene_names:
-            error_msg += (f"gene name '{bad_val}' is invalid\n")
+            error_msg += (f"gene name '{bad_val}' is invalid; "
+                          "if you cannot remove this column, just "
+                          "change the gene name to a (unique) "
+                          "nonsense string.")
     if len(error_msg) > 0:
         if log is not None:
             log.error(error_msg)
