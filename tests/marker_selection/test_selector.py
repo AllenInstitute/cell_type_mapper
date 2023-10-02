@@ -927,3 +927,68 @@ def test_parent_limitation(
     assert len(actual) == 2
     for k in actual:
         assert set(actual[k]) == set(expected[k])
+
+
+
+def test_n_per_override(
+         marker_cache_fixture,
+         gene_names_fixture,
+         taxonomy_tree_fixture,
+         tmp_dir_fixture):
+    """
+    test overriding of n_per_utility
+    """
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='marker_cache_',
+        suffix='.h5')
+
+    rng = np.random.default_rng(62234)
+    query_gene_names = copy.deepcopy(gene_names_fixture)
+    rng.shuffle(query_gene_names)
+
+    (expected_n_7,
+     _) = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_processors=3,
+        behemoth_cutoff=1000)
+
+    (expected_n_3,
+     _) = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=3,
+        n_processors=3,
+        behemoth_cutoff=1000)
+
+    n_per_utility_override = {
+        None: 3,
+        ('class', 'aa'): 3,
+        ('subclass', 'd'): 3,
+    }
+
+    (actual,
+     _) = select_all_markers(
+        marker_cache_path=marker_cache_fixture,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        n_per_utility=7,
+        n_per_utility_override=n_per_utility_override,
+        n_processors=3,
+        behemoth_cutoff=1000)
+
+    for k in (None, ('class', 'aa'), ('subclass', 'd')):
+        assert set(expected_n_3[k]) != set(expected_n_7[k])
+        assert set(actual[k]) == set(expected_n_3[k])
+
+    for k in actual:
+        if k in (None, ('class', 'aa'), ('subclass', 'd')):
+            continue
+        assert set(actual[k]) == set(expected_n_7[k])
