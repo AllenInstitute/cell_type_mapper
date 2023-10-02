@@ -158,17 +158,9 @@ def validate_h5ad(
         if not is_int:
             cast_to_int = True
 
-    x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
-    if x_minmax[0] < 0:
-        error_msg = (
-            f"minimum expression value is {x_minmax[0]}; must be >= 0"
-        )
-        if log is not None:
-            log.error(error_msg)
-        else:
-            raise RuntimeError(error_msg)
-
     if expected_max is not None or cast_to_int:
+        x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
+
         if expected_max is not None and x_minmax[1] < expected_max:
             msg = "VALIDATION: CDM expects raw counts data. The maximum value "
             msg += f"of the X matrix in ../{original_h5ad_path.name} is "
