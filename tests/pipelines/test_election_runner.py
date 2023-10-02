@@ -51,6 +51,9 @@ from cell_type_mapper.type_assignment.election import (
 from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
 
+from cell_type_mapper.type_assignment.election_runner import (
+    run_type_assignment_on_h5ad)
+
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
@@ -893,3 +896,97 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
                  baseline[level]['avg_correlation']),
                 (test[level]['bootstrapping_probability'],
                  test[level]['avg_correlation']))
+
+@pytest.fixture(scope='function')
+def query_h5ad_fixture_negative(
+        tmp_dir_fixture,
+        query_data_fixture,
+        query_gene_fixture):
+
+    query_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_h5ad_',
+        suffix='.h5ad')
+
+    if isinstance(query_data_fixture, np.ndarray):
+        query_data = np.copy(query_data_fixture)
+        data_median = np.median(query_data)
+        query_data[query_data<data_median] -= data_median
+    else:
+        data_median = np.median(query_data_fixture.data)
+        new_data = np.copy(query_data_fixture.data)
+        new_data[new_data<data_median] -= data_median
+        query_data = scipy_sparse.csr_matrix(
+            (new_data,
+             query_data_fixture.indices,
+             query_data_fixture.indptr),
+            shape=query_data_fixture.shape)
+
+    query_genes = query_gene_fixture
+    n_query_cells = query_data.shape[0]
+
+    query_cell_names = [f'q{ii}' for ii in range(n_query_cells)]
+
+    obs_data = [{'name': q, 'junk': 'nonsense'}
+                for q in query_cell_names]
+    obs = pd.DataFrame(obs_data)
+    obs = obs.set_index('name')
+
+    a_data = anndata.AnnData(X=query_data,
+                             obs=obs,
+                             dtype=float)
+    a_data.write_h5ad(query_h5ad_path)
+
+    return query_h5ad_path
+
+
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, False],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election_negative_expression(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture_negative):
+    """
+    Test that an error is raised if normalization == 'raw'
+    and the minimum expression value in the query set is negative
+    """
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+    taxonomy_tree_dict = taxonomy_tree_fixture[1]
+
+    n_processors = 3
+    chunk_size = 21
+
+    bootstrap_factor = 0.8
+    bootstrap_iteration = 23
+
+    with pytest.raises(RuntimeError, match="must be >= 0"):
+        run_type_assignment_on_h5ad(
+            query_h5ad_path=query_h5ad_fixture_negative,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor=bootstrap_factor,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=rng,
+            normalization='raw')
+
+    # make sure it runs if normalization is 'log2CPM'
+    run_type_assignment_on_h5ad(
+        query_h5ad_path=query_h5ad_fixture_negative,
+        precomputed_stats_path=precompute_stats_path_fixture,
+        marker_gene_cache_path=query_marker_cache_fixture,
+        taxonomy_tree=taxonomy_tree,
+        n_processors=n_processors,
+        chunk_size=chunk_size,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng,
+        normalization='log2CPM')

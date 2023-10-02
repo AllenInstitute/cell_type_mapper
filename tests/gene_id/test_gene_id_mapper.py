@@ -86,8 +86,27 @@ def test_is_ens():
     """
     assert is_ensembl('ENSF6')
     assert is_ensembl('ENSFBBD883346')
+    assert is_ensembl('ENSR00182311.9')
+    assert is_ensembl('ENSG00812312.22732')
     assert not is_ensembl('ENS7')
     assert not is_ensembl('ENSGabc8899')
     assert not is_ensembl('XYENSG8812')
     assert not is_ensembl('ENS781abcd')
     assert not is_ensembl('ENSG')
+    assert not is_ensembl('ENSG889123.2262a')
+
+
+def test_suffix_clipping():
+    data = {
+        "alice": "ENSG0",
+        "allie": "ENSG0",
+        "robert": "ENSG1",
+        "hammer": "ENSG2",
+        "charlie": "ENSG3",
+        "chuck": "ENSG3"
+    }
+    mapper = GeneIdMapper(data=data)
+    input_arr = ['hammer', 'chuck', 'allie', 'ENSG555.7', 'robert']
+    expected = ['ENSG2', 'ENSG3', 'ENSG0', 'ENSG555', 'ENSG1']
+    actual = mapper.map_gene_identifiers(input_arr)
+    assert actual == expected

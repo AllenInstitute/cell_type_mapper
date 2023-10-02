@@ -7,7 +7,7 @@ def is_ensembl(gene_id):
     gene_id is an Ensembl identifier
     """
     if not hasattr(is_ensembl, 'pattern'):
-        is_ensembl.pattern = re.compile('ENS[A-Z]+[0-9]+')
+        is_ensembl.pattern = re.compile('ENS[A-Z]+[0-9]+(\.[0-9]+)?')   # noqa W605
     match = is_ensembl.pattern.fullmatch(gene_id)
     if match is None:
         return False

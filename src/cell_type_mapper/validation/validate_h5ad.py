@@ -1,3 +1,4 @@
+import numpy as np
 import pathlib
 import warnings
 
@@ -122,6 +123,31 @@ def validate_h5ad(
             h5ad_path=current_h5ad_path,
             df_name='var')
 
+    # check gene name contents
+    error_msg = ''
+    unq_genes, unq_gene_count = np.unique(
+        var_original.index.values,
+        return_counts=True)
+    repeated = np.where(unq_gene_count > 1)[0]
+    for idx in repeated:
+        error_msg += (
+            f"gene name '{unq_genes[idx]}' "
+            f"occurs {unq_gene_count[idx]} times; "
+            "gene names must be unique\n")
+
+    gene_names = set(var_original.index.values)
+    for bad_val in ('',):
+        if bad_val in gene_names:
+            error_msg += (f"gene name '{bad_val}' is invalid; "
+                          "if you cannot remove this column, just "
+                          "change the gene name to a (unique) "
+                          "nonsense string.")
+    if len(error_msg) > 0:
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
+
     mapped_var = map_gene_ids_in_var(
         var_df=var_original,
         gene_id_mapper=gene_id_mapper)
@@ -178,7 +204,29 @@ def validate_h5ad(
         gene_mapping = {
             orig: new
             for orig, new in zip(var_original.index.values,
-                                 mapped_var.index.values)}
+                                 mapped_var.index.values)
+            if orig != new}
+
+        inverse_mapping = dict()
+        for orig in gene_mapping:
+            new = gene_mapping[orig]
+            if new not in inverse_mapping:
+                inverse_mapping[new] = []
+            inverse_mapping[new].append(orig)
+
+        # check uniqueness of output gene names
+        error_msg = ""
+        for new in inverse_mapping:
+            if len(inverse_mapping[new]) > 1:
+                error_msg += (
+                    f"gene '{new}' occurs more than once "
+                    "in validated h5ad file; originally "
+                    f"mapped from '{inverse_mapping[new]}'\n")
+        if len(error_msg) > 0:
+            if log:
+                log.error(error_msg)
+            else:
+                raise RuntimeError(error_msg)
 
         uns = read_uns_from_h5ad(new_h5ad_path)
         uns['AIBS_CDM_gene_mapping'] = gene_mapping

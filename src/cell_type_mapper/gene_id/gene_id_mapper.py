@@ -34,6 +34,20 @@ class GeneIdMapper(object):
     def preferred_type(self):
         return self._preferred_type
 
+    def _is_valid(self, gene_id):
+        """
+        Return True if the gene_id is already valid;
+        False otherwise
+        """
+        return is_ensembl(gene_id)
+
+    def _post_process(self, gene_id_array):
+        """
+        Appply any post processing steps to the gene ID array.
+        In the case of Ensembl IDs, clip the suffix, if present
+        """
+        return [n.split('.')[0] for n in gene_id_array]
+
     def map_gene_identifiers(
             self,
             gene_id_list,
@@ -56,10 +70,12 @@ class GeneIdMapper(object):
 
         mapped_genes = 0
         unmappable_genes = 0
+        already_fine = 0
         output = []
         for input_gene in gene_id_list:
-            if is_ensembl(input_gene):
+            if self._is_valid(input_gene):
                 output.append(input_gene)
+                already_fine += 1
             else:
                 if input_gene in self._lookup:
                     output.append(self._lookup[input_gene])
@@ -74,6 +90,9 @@ class GeneIdMapper(object):
             msg = "Not all of your gene identifiers were "
             msg += f"{self.preferred_type}; "
             msg += f"{mapped_genes} were mapped to {self.preferred_type}"
+            if already_fine > 0:
+                msg += f"; {already_fine} "
+                msg += f"were already {self.preferred_type}"
             if unmappable_genes > 0:
                 msg += f"; {unmappable_genes} "
                 msg += f"could not be mapped to {self.preferred_type}"
@@ -89,6 +108,9 @@ class GeneIdMapper(object):
                     self.log.warn(msg)
                 else:
                     warnings.warn(msg)
+
+        output = self._post_process(output)
+
         return output
 
 

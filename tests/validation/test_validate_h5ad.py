@@ -501,3 +501,83 @@ def test_validation_of_h5ad_errors():
             tmp_dir=None,
             output_dir=None,
             valid_h5ad_path=None)
+
+
+def test_gene_name_errors(tmp_dir_fixture):
+    """
+    Test that an error is raised if a gene name is repeated or if a gene
+    name is empty (that last one causes an inscrutable error in anndata
+    when writing uns to the validated file, if you are not careful)
+    """
+    n_cells = 5
+    obs = pd.DataFrame(
+        [{'cell_id': f'c_{ii}'}
+         for ii in range(n_cells)]).set_index('cell_id')
+
+    # case of null gene name
+    var = pd.DataFrame(
+        [{'gene_id': 'a'},
+         {'gene_id': ''},
+         {'gene_id': 'b'}]).set_index('gene_id')
+
+    a = anndata.AnnData(
+        X=np.random.random_sample((n_cells, len(var))),
+        var=var,
+        obs=obs)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a.write_h5ad(h5ad_path)
+    with pytest.raises(RuntimeError, match="gene name '' is invalid"):
+        validate_h5ad(
+            h5ad_path=h5ad_path,
+            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+            gene_id_mapper=None)
+
+    # case of repeated gene name
+    var = pd.DataFrame(
+        [{'gene_id': 'a'},
+         {'gene_id': 'b'},
+         {'gene_id': 'b'}]).set_index('gene_id')
+
+    a = anndata.AnnData(
+        X=np.random.random_sample((n_cells, len(var))),
+        var=var,
+        obs=obs)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a.write_h5ad(h5ad_path)
+    with pytest.raises(RuntimeError, match="gene names must be unique"):
+        validate_h5ad(
+            h5ad_path=h5ad_path,
+            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+            gene_id_mapper=None)
+
+    # test that an error is raised if, after clipping the
+    # suffix from the Ensembl ID, the list of genes is not
+    # unique
+    var = pd.DataFrame(
+        [{'gene_id': 'ENSG778.3'},
+         {'gene_id': 'ENSF5'},
+         {'gene_id': 'ENSG778.9'}]).set_index('gene_id')
+
+    a = anndata.AnnData(
+        X=np.random.random_sample((n_cells, len(var))),
+        var=var,
+        obs=obs)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    a.write_h5ad(h5ad_path)
+    with pytest.raises(RuntimeError, match="'ENSG778' occurs more than once"):
+        validate_h5ad(
+            h5ad_path=h5ad_path,
+            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+            gene_id_mapper=GeneIdMapper.from_default())
