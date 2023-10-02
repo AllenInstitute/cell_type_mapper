@@ -9,19 +9,22 @@ metadata from the mapping run. Below, we document the contents of each file.
 ## CSV output file
 
 If the `csv_result_path` config parameter is specified, then a CSV file
-will be written with some basic mapping results. The first two (or three,
+will be written with some basic mapping results. The first three (or four,
 depending) lines contain metadata about the mapping run. These lines are
 prefixed with a `#`. The first line indicates the name of the extended
 JSON output file associated with this CSV file. The second line denotes
 the hierarchy of taxonomy levels to which the data was mapped. The third
 line denotes the human-readable hierarchy of taxonomy levels to which the
 data was mapped (assuming that differs from the machine-readable hierarchy).
-An example of these three lines would be something like this
+The final line contains metadata describing the version of the software
+used to generate these results. An example of these three lines would be
+something like this
 
 ```
 # metadata = hier.json
 # taxonomy hierarchy = ["CCN20230504_CLAS", "CCN20230504_SUBC", "CCN20230504_CLUS"]
 # readable taxonomy hierarchy = ["class", "subclass", "cluster"]
+# # algorithm: 'hierarchical'; codebase: http://github.com/AllenInstitute/cell_type_mapper; version: 0.0.1
 ```
 
 The next line defines the column headers for the CSV. Subsequent lines contain
