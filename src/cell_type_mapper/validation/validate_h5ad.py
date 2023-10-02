@@ -201,7 +201,8 @@ def validate_h5ad(
         gene_mapping = {
             orig: new
             for orig, new in zip(var_original.index.values,
-                                 mapped_var.index.values)}
+                                 mapped_var.index.values)
+            if orig != new}
 
         uns = read_uns_from_h5ad(new_h5ad_path)
         uns['AIBS_CDM_gene_mapping'] = gene_mapping
