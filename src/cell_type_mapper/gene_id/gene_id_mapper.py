@@ -34,6 +34,20 @@ class GeneIdMapper(object):
     def preferred_type(self):
         return self._preferred_type
 
+    def _is_valid(self, gene_id):
+        """
+        Return True if the gene_id is already valid;
+        False otherwise
+        """
+        return is_ensembl(gene_id)
+
+    def _post_process(self, gene_id_array):
+        """
+        Appply any post processing steps to the gene ID array.
+        In the case of Ensembl IDs, clip the suffix, if present
+        """
+        return [n.split('.')[0] for n in gene_id_array]
+
     def map_gene_identifiers(
             self,
             gene_id_list,
@@ -59,7 +73,7 @@ class GeneIdMapper(object):
         already_fine = 0
         output = []
         for input_gene in gene_id_list:
-            if is_ensembl(input_gene):
+            if self._is_valid(input_gene):
                 output.append(input_gene)
                 already_fine += 1
             else:
@@ -94,6 +108,9 @@ class GeneIdMapper(object):
                     self.log.warn(msg)
                 else:
                     warnings.warn(msg)
+
+        output = self._post_process(output)
+
         return output
 
 
