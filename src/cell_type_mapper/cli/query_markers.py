@@ -9,8 +9,8 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.anndata_utils import (
      read_df_from_h5ad)
 
-from cell_type_mapper.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
+from cell_type_mapper.diff_exp.precompute_utils import (
+    run_leaf_census)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_raw_marker_gene_lookup)
@@ -50,6 +50,21 @@ class QueryMarkerSchema(argschema.ArgSchema):
         description="Number of marker genes to find per "
         "(taxonomy_node_A, taxonomy_node_B, up/down) combination.")
 
+    n_per_utility_override = argschema.fields.List(
+        argschema.fields.Tuple(
+            (argschema.fields.String,
+             argschema.fields.Integer)
+        ),
+        required=False,
+        default=None,
+        allow_none=True,
+        cli_as_single_argument=True,
+        description=(
+            "Optional override for n_per_utilty at specific "
+            "parent nodes in the taxonomy tree. Encoded as a "
+            "list of ('parent_node', n_per_utility) tuples."
+        ))
+
     drop_level = argschema.fields.String(
         required=False,
         default=None,
@@ -79,10 +94,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        # check consistency of taxonomies
         error_msg = ""
-        taxonomy_tree = None
-        tree_src = None
         ref_to_precompute = dict()
         for ref_path in self.args['reference_marker_path_list']:
             with h5py.File(ref_path, 'r') as src:
@@ -102,21 +114,13 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
                 continue
             stats_path = config['precomputed_path']
             ref_to_precompute[ref_path] = stats_path
-            this_tree = TaxonomyTree.from_precomputed_stats(
-                stats_path=stats_path)
-            if taxonomy_tree is None:
-                taxonomy_tree = this_tree
-                tree_src = stats_path
-            else:
-                if this_tree != taxonomy_tree:
-                    error_msg += (
-                        "===\n"
-                        f"{stats_path}\nrefererence in\n"
-                        f"{ref_path}\nhas different taxonomy tree from\n"
-                        f"{tree_src}\n===\n")
 
         if len(error_msg) > 0:
             raise RuntimeError(error_msg)
+
+        (leaf_census,
+         taxonomy_tree) = run_leaf_census(
+             list(ref_to_precompute.values()))
 
         var = read_df_from_h5ad(
             self.args['query_path'],
@@ -125,6 +129,16 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
         if self.args['drop_level'] is not None:
             taxonomy_tree = taxonomy_tree.drop_level(self.args['drop_level'])
+
+        n_per_utility_override = None
+        if self.args['n_per_utility_override'] is not None:
+            n_per_utility_override = dict()
+            for pair in self.args['n_per_utility_override']:
+                if pair[0].lower() == 'none':
+                    k = None
+                else:
+                    k = pair[0]
+                n_per_utility_override[k] = pair[1]
 
         reference_marker_path = self.args['reference_marker_path_list'][0]
 

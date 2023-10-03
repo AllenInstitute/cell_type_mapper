@@ -3,6 +3,9 @@ import json
 import numpy as np
 import warnings
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    run_leaf_census)
+
 from cell_type_mapper.marker_selection.selection_pipeline import (
     select_all_markers)
 
@@ -162,6 +165,131 @@ def create_marker_cache_from_specified_markers(
             log.warn(msg)
 
 
+def create_marker_gene_lookup_from_ref_list(
+        reference_marker_path_list,
+        query_gene_names,
+        n_per_utility,
+        n_per_utility_override,
+        n_processors,
+        behemoth_cutoff,
+        tmp_dir=None):
+    """
+    Parameters
+    ----------
+    reference_marker_path_list:
+        List of paths to reference_marker
+    query_gene_names:
+        list of gene names in the query dataset
+    taxonomy_tree:
+        Dict encoding the cell type taxonomy
+    n_per_utility:
+        How many genes to select per (taxon_pair, sign)
+        combination
+    n_per_utility:
+        Dict mapping (level, node) pairs denoting parent
+        nodes to override values of n_per_utility
+    n_processors:
+        Number of independent workers to spin up.
+    behemoth_cutoff:
+        Number of leaf nodes for a parent to be considered
+        a behemoth
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
+    """
+
+    # assemble dict mapping precomputed stats path to reference
+    # marker path
+    error_msg = ""
+    precompute_to_ref = dict()
+    for ref_path in reference_marker_path_list:
+        with h5py.File(ref_path, 'r') as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        if 'config' not in metadata:
+            error_msg += (
+                "===\n"
+                f"{ref_path} has no 'config' in metadata\n===\n"
+            )
+            continue
+        config = metadata['config']
+        if 'precomputed_path' not in config:
+            error_msg += (
+                "===\n"
+                f"{ref_path} does not point to a "
+                "precomputed stats file\n===\n")
+            continue
+        stats_path = config['precomputed_path']
+        if stats_path in precompute_to_ref:
+            error_msg += (
+                f"stats_path\n{stats_path}\noccurs for\n"
+                f"{ref_path}\nand\n"
+                f"{precompute_to_ref[stats_path]}\n===\n"
+            )
+        precompute_to_ref[stats_path] = ref_path
+
+    if len(error_msg) > 0:
+        raise RuntimeError(error_msg)
+
+    (leaf_census,
+     taxonomy_tree) = run_leaf_census(
+         list(precompute_to_ref.keys()))
+
+    # assemble dict mapping reference marker path to the a
+    # list of parent nodes valid for that reference marker file
+    marker_config = dict()
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            children = taxonomy_tree.all_leaves
+        else:
+            children = taxonomy_tree.as_leaves[parent[0]][parent[1]]
+
+        this_census = dict()
+        for child in children:
+            for pth in leaf_census[child]:
+                if pth not in this_census:
+                    this_census[pth] = 0
+                this_census[pth] += leaf_census[child][pth]
+        n_max = 0
+        pth_max = None
+        for pth in this_census:
+            if pth_max is None or this_census[pth] > n_max:
+                n_max = this_census[pth]
+                pth_max = pth
+        ref_path = precompute_to_ref[pth_max]
+        if ref_path not in marker_config:
+            marker_config[ref_path] = {
+                'parent_list': []
+            }
+        marker_config[ref_path]['parent_list'].append(parent)
+
+    marker_lookup = None
+    for reference_path in marker_config:
+
+        parent_list = marker_config[reference_path]['parent_list']
+
+        this_lookup = create_raw_marker_gene_lookup(
+                input_cache_path=reference_path,
+                query_gene_names=query_gene_names,
+                taxonomy_tree=taxonomy_tree,
+                parent_list=parent_list,
+                n_per_utility=n_per_utility,
+                n_per_utility_override=n_per_utility_override,
+                n_processors=n_processors,
+                behemoth_cutoff=behemoth_cutoff,
+                tmp_dir=tmp_dir)
+
+        if marker_lookup is None:
+            marker_lookup = this_lookup
+        else:
+            marker_lookup['log'].update(this_lookup['log'])
+            for k in this_lookup:
+                if k == 'log':
+                    continue
+                marker_lookup[k] = this_lookup[k]
+
+    return marker_lookup
+
+
 def create_raw_marker_gene_lookup(
         input_cache_path,
         query_gene_names,
@@ -170,6 +298,7 @@ def create_raw_marker_gene_lookup(
         n_processors,
         behemoth_cutoff=10000000,
         parent_list=None,
+        n_per_utility_override=None,
         tmp_dir=None):
     """
     Create and return a dict mapping
@@ -200,6 +329,9 @@ def create_raw_marker_gene_lookup(
 
         If this is None, will use all the parents in
         the taxonomy_tree.
+    n_per_utility_override:
+        Optional dict mapping parent nodes (encoded as (level, node)
+        tuples) to an override value for n_per_utility.
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
@@ -213,6 +345,7 @@ def create_raw_marker_gene_lookup(
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=n_per_utility,
+        n_per_utility_override=n_per_utility_override,
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff,
         parent_list=parent_list,
