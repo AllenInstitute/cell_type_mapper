@@ -1,6 +1,5 @@
 import argschema
 import copy
-import h5py
 import json
 
 from cell_type_mapper.utils.utils import (
@@ -9,11 +8,8 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.anndata_utils import (
      read_df_from_h5ad)
 
-from cell_type_mapper.diff_exp.precompute_utils import (
-    run_leaf_census)
-
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
-    create_raw_marker_gene_lookup)
+    create_marker_gene_lookup_from_ref_list)
 
 
 class QueryMarkerSchema(argschema.ArgSchema):
@@ -94,41 +90,10 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        error_msg = ""
-        ref_to_precompute = dict()
-        for ref_path in self.args['reference_marker_path_list']:
-            with h5py.File(ref_path, 'r') as src:
-                metadata = json.loads(src['metadata'][()].decode('utf-8'))
-            if 'config' not in metadata:
-                error_msg += (
-                    "===\n"
-                    f"{ref_path} has no 'config' in metadata\n===\n"
-                )
-                continue
-            config = metadata['config']
-            if 'precomputed_path' not in config:
-                error_msg += (
-                    "===\n"
-                    f"{ref_path} does not point to a "
-                    "precomputed stats file\n===\n")
-                continue
-            stats_path = config['precomputed_path']
-            ref_to_precompute[ref_path] = stats_path
-
-        if len(error_msg) > 0:
-            raise RuntimeError(error_msg)
-
-        (leaf_census,
-         taxonomy_tree) = run_leaf_census(
-             list(ref_to_precompute.values()))
-
         var = read_df_from_h5ad(
             self.args['query_path'],
             df_name='var')
         query_gene_names = list(var.index.values)
-
-        if self.args['drop_level'] is not None:
-            taxonomy_tree = taxonomy_tree.drop_level(self.args['drop_level'])
 
         n_per_utility_override = None
         if self.args['n_per_utility_override'] is not None:
@@ -140,16 +105,15 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
                     k = pair[0]
                 n_per_utility_override[k] = pair[1]
 
-        reference_marker_path = self.args['reference_marker_path_list'][0]
-
-        marker_lookup = create_raw_marker_gene_lookup(
-            input_cache_path=reference_marker_path,
+        marker_lookup = create_marker_gene_lookup_from_ref_list(
+            reference_marker_path_list=self.args['reference_marker_path_list'],
             query_gene_names=query_gene_names,
-            taxonomy_tree=taxonomy_tree,
             n_per_utility=self.args['n_per_utility'],
+            n_per_utility_override=n_per_utility_override,
             n_processors=self.args['n_processors'],
             behemoth_cutoff=5000000,
-            tmp_dir=self.args['tmp_dir'])
+            tmp_dir=self.args['tmp_dir'],
+            drop_level=self.args['drop_level'])
 
         marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
         marker_lookup['metadata']['timestamp'] = get_timestamp()

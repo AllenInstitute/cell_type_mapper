@@ -172,7 +172,8 @@ def create_marker_gene_lookup_from_ref_list(
         n_per_utility_override,
         n_processors,
         behemoth_cutoff,
-        tmp_dir=None):
+        tmp_dir=None,
+        drop_level=None):
     """
     Parameters
     ----------
@@ -196,6 +197,8 @@ def create_marker_gene_lookup_from_ref_list(
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
+    drop_level:
+        Optional level to drop from taxonomy tree
     """
 
     # assemble dict mapping precomputed stats path to reference
@@ -233,6 +236,10 @@ def create_marker_gene_lookup_from_ref_list(
     (leaf_census,
      taxonomy_tree) = run_leaf_census(
          list(precompute_to_ref.keys()))
+
+    if drop_level is not None:
+        if drop_level in taxonomy_tree.hierarchy:
+            taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
     # assemble dict mapping reference marker path to the a
     # list of parent nodes valid for that reference marker file
