@@ -5,6 +5,7 @@ import json
 from marshmallow import post_load
 import pandas as pd
 import pathlib
+import time
 
 from cell_type_mapper.utils.utils import (
     get_timestamp)
@@ -143,8 +144,8 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
             final_output_lookup['None'] = str(output_path.resolve().absolute())
 
         # make sure we can write here
-        for output_path in final_output_lookup:
-            output_path = pathlib.Path(output_path)
+        for dataset in final_output_lookup:
+            output_path = pathlib.Path(final_output_lookup[dataset])
             if output_path.exists():
                 if not data['clobber']:
                     raise RuntimeError(
@@ -163,6 +164,8 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
     default_schema = PrecomputedStatsSchema
 
     def run(self):
+
+        t0 = time.time()
 
         metadata = {'config': copy.deepcopy(self.args)}
         assert 'timestamp' not in metadata
@@ -185,6 +188,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
         for dataset in self.args['final_output_path'].keys():
             output_path = self.args['final_output_path'][dataset]
+            print(f'writing {output_path} from dataset {dataset}')
             if dataset in dataset_to_cell_set:
                 cell_set = dataset_to_cell_set[dataset]
             else:
@@ -204,6 +208,8 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                 out_file.create_dataset(
                     'metadata',
                     data=json.dumps(metadata).encode('utf-8'))
+            dur = time.time()-t0
+            print(f'completed {dataset} after {dur:.2e} seconds')
 
 
 def main():
