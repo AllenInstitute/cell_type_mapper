@@ -24,6 +24,9 @@ from cell_type_mapper.cell_by_gene.cell_by_gene import (
 from cell_type_mapper.cli.precompute_stats import (
     PrecomputationRunner)
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    merge_precompute_files)
+
 
 def _create_word(rng):
     alphabet=[
@@ -449,7 +452,12 @@ def test_precompute_cli(
             dataset_to_output[dataset] = new_path
     else:
         dataset_to_output['None'] = output_path
+    combined_path = pathlib.Path(output_path[:-2] + 'combined.h5')
 
+    if split_by_dataset:
+        assert combined_path.is_file()
+    else:
+        assert not combined_path.is_file()
 
     for dataset in dataset_to_output:
         actual_output = dataset_to_output[dataset]
@@ -528,3 +536,19 @@ def test_precompute_cli(
             assert 'config' in metadata
             for k in config:
                 assert metadata['config'][k] == config[k]
+
+    if split_by_dataset:
+        # check contents of merged files
+        expected_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+        path_list = list(dataset_to_output.values())
+        merge_precompute_files(
+            precompute_path_list=path_list,
+            output_path=expected_path)
+        with h5py.File(expected_path, 'r') as expected:
+            with h5py.File(combined_path, 'r') as actual:
+                for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                    np.testing.assert_allclose(
+                        expected[k][()],
+                        actual[k][()],
+                        atol=0.0,
+                        rtol=1.0e-6)

@@ -99,8 +99,8 @@ def merge_precompute_files(
     copy_h5_excluding_data(
         src_path=most_path,
         dst_path=output_path,
-        excluded_groups=None,
-        excluded_datasets=None)
+        excluded_groups=['metadata'],
+        excluded_datasets=['metadata'])
 
     keys_to_skip = set(
         ['taxonomy_tree',
@@ -132,7 +132,6 @@ def merge_precompute_files(
                 for key in dst.keys():
                     if key in keys_to_skip:
                         continue
-                    print(f'key is {key}')
                     for idx in to_replace:
                         dst[key][idx, :] = src[key][idx, :]
             dst.flush()
