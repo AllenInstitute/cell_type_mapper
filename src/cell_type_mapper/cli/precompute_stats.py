@@ -16,6 +16,9 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad_list_and_tree)
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    merge_precompute_files)
+
 
 class PrecomputedStatsSchema(argschema.ArgSchema):
 
@@ -111,6 +114,11 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
         datasets in the taxonomy metadata files to forms of the specified
         output path with the dataset specified as a suffix.
         """
+        baseline_path = pathlib.Path(data['output_path'])
+        baseline_suffix = baseline_path.suffix
+        baseline_stem = baseline_path.stem
+        output_parent = baseline_path.absolute().resolve().parent
+
         final_output_lookup = dict()
         run_default = False
         output_file_set = set()
@@ -118,10 +126,7 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
             df = pd.read_csv(data['cell_metadata_path'])
             if 'dataset_label' in df.columns:
                 dataset_values = set(df.dataset_label.values)
-                baseline_path = pathlib.Path(data['output_path'])
-                output_parent = baseline_path.absolute().resolve().parent
-                baseline_suffix = baseline_path.suffix
-                baseline_stem = baseline_path.stem
+
                 for dataset in dataset_values:
                     sanitized = dataset.replace(" ", "_").replace("/", ".")
                     new_suffix = f'{sanitized}{baseline_suffix}'
@@ -140,8 +145,24 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
             run_default = True
 
         if run_default:
+            final_output_lookup = dict()
             output_path = pathlib.Path(data['output_path'])
             final_output_lookup['None'] = str(output_path.resolve().absolute())
+        else:
+            if 'combined' in final_output_lookup:
+                raise RuntimeError(
+                    "'combined' is the name of a dataset; unclear how "
+                    "to proceed")
+            new_suffix = f'combined{baseline_suffix}'
+            new_name = f'{baseline_stem}.{new_suffix}'
+            new_path = (output_parent/new_name).resolve().absolute()
+            final_output_lookup['combined'] = str(new_path)
+
+        output_path_list = list(final_output_lookup.values())
+        output_path_set = set(output_path_list)
+        if len(output_path_list) != len(output_path_set):
+            raise RuntimeError(
+                f"output path names\n{output_path_list}\nare degenerate")
 
         # make sure we can write here
         for dataset in final_output_lookup:
@@ -186,8 +207,13 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                     dataset_to_cell_set[dataset_label] = set()
                 dataset_to_cell_set[dataset_label].add(cell_id)
 
+        files_to_merge = []
         for dataset in self.args['final_output_path'].keys():
+            if dataset == 'combined':
+                continue
+
             output_path = self.args['final_output_path'][dataset]
+            files_to_merge.append(output_path)
             print(f'writing {output_path} from dataset {dataset}')
             if dataset in dataset_to_cell_set:
                 cell_set = dataset_to_cell_set[dataset]
@@ -210,6 +236,24 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                     data=json.dumps(metadata).encode('utf-8'))
             dur = time.time()-t0
             print(f'completed {dataset} after {dur:.2e} seconds')
+
+        if 'combined' in self.args['final_output_path']:
+            print('merging')
+            merged_path = pathlib.Path(
+                self.args['final_output_path']['combined'])
+            merge_precompute_files(
+                precompute_path_list=files_to_merge,
+                output_path=merged_path)
+            metadata.pop('dataset')
+            metadata['timestamp'] = get_timestamp()
+
+            with h5py.File(merged_path, 'a') as dst:
+                dst.create_dataset(
+                    'metadata',
+                    data=json.dumps(metadata).encode('utf-8'))
+
+            dur = time.time()-t0
+            print(f'wrote {merged_path} after {dur:.2e} seconds')
 
 
 def main():
