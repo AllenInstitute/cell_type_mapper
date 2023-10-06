@@ -1,4 +1,5 @@
 import argschema
+import copy
 import h5py
 import json
 from marshmallow import post_load
@@ -16,26 +17,30 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 class ReferenceMarkerSchema(argschema.ArgSchema):
 
-    precomputed_path = argschema.fields.InputFile(
+    precomputed_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
         required=True,
         default=None,
         allow_none=False,
-        description=("Precomputed stats file to be used "
-                     "to find markers"))
+        description=(
+            "List of paths to precomputed stats files "
+            "for which reference markers will be computed"))
 
-    output_path = argschema.fields.String(
+    output_dir = argschema.fields.String(
         required=True,
         default=None,
         allow_none=False,
-        description=("Path to HDF5 file with reference markers to "
-                     "be written"))
+        description=(
+            "Path to directory where refernce marker files "
+            "will be written. Specific file names will be inferred "
+            "from precomputed stats files."))
 
     clobber = argschema.fields.Boolean(
         required=False,
         default=False,
         allow_none=False,
         description=("If False, do not allow overwrite of existing "
-                     "output path"))
+                     "output files."))
 
     drop_level = argschema.fields.String(
         required=False,
@@ -129,16 +134,74 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
 
     @post_load
     def check_clobber(self, data, **kwargs):
-        output_path = pathlib.Path(data['output_path'])
-        if output_path.exists() and not data['clobber']:
+
+        output_dir = pathlib.Path(data['output_dir'])
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
+
+        if not output_dir.is_dir():
             raise RuntimeError(
-                f"{output_path} already exists; run with 'clobber' = True "
-                "to overwrite")
-        elif not output_path.exists():
-            # check that we can write to the file.
-            with open(output_path, "w") as dst:
-                dst.write("junk")
-            output_path.unlink()
+                f"output_dir: {output_dir} is not a dir")
+
+        input_to_output = dict()
+        files_to_write = set()
+        salt = None
+        for input_path in data['precomputed_path_list']:
+            input_path = pathlib.Path(input_path)
+            input_name = input_path.name
+            name_params = input_name.split('.')
+            old_stem = name_params[0]
+            new_path = None
+            while True:
+                if new_path is not None:
+                    if salt is None:
+                        salt = 0
+                    else:
+                        salt += 1
+                new_stem = 'reference_markers'
+                if salt is not None:
+                    new_stem = f'{new_stem}.{salt}'
+                new_name = input_name.replace(old_stem, new_stem, 1)
+                new_path = str(output_dir/new_name)
+                if new_path not in files_to_write:
+                    files_to_write.add(new_path)
+                    break
+            input_to_output[str(input_path)] = new_path
+
+        # check that none of the output files exist (or, if they do, that
+        # clobber is True)
+        error_msg = ""
+        for pth in input_to_output.values():
+            pth = pathlib.Path(pth)
+            if pth.exists():
+                if not pth.is_file():
+                    error_msg += f"{pth} exists and is not a file\n"
+                elif not self.data['clobber']:
+                    error_msg += (
+                        f"{pth} already exists; to overwrite, run with "
+                        "clobber=True\n")
+
+        if len(error_msg) == 0:
+            # make sure we can write to these files
+            for pth in input_to_output.values():
+                pth = pathlib.Path(pth)
+                try:
+                    with open(pth, 'wb') as dst:
+                        dst.write(b'junk')
+                    pth.unlink()
+                except FileNotFoundError:
+                    error_msg += (
+                        f"cannot write to {pth}\n"
+                    )
+
+        if len(error_msg) > 0:
+            error_msg += (
+                 "These file names are automatically generated. "
+                 "The quickest solution is to specify a new output_dir.")
+            raise RuntimeError(error_msg)
+
+        data['input_to_output_map'] = input_to_output
+
         return data
 
 
@@ -148,43 +211,49 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        metadata = {
+        parent_metadata = {
             'config': self.args,
             'timestamp': get_timestamp()
         }
-        metadata_str = json.dumps(metadata)
 
-        precomputed_path = pathlib.Path(
-            self.args['precomputed_path'])
+        taxonomy_tree = None
 
         t0 = time.time()
 
-        taxonomy_tree = TaxonomyTree.from_precomputed_stats(
-            stats_path=precomputed_path)
+        for precomputed_path in self.args['input_to_output_map']:
+            output_path = self.args['input_to_output_map'][precomputed_path]
+            print(f'writing {output_path}')
+            taxonomy_tree = TaxonomyTree.from_precomputed_stats(
+                stats_path=precomputed_path)
 
-        if self.args['drop_level'] is not None:
-            taxonomy_tree = taxonomy_tree.drop_level(self.args['drop_level'])
+            if self.args['drop_level'] is not None:
+                taxonomy_tree = taxonomy_tree.drop_level(
+                    self.args['drop_level'])
 
-        find_markers_for_all_taxonomy_pairs(
-            precomputed_stats_path=precomputed_path,
-            taxonomy_tree=taxonomy_tree,
-            output_path=self.args['output_path'],
-            tmp_dir=self.args['tmp_dir'],
-            n_processors=self.args['n_processors'],
-            exact_penetrance=self.args['exact_penetrance'],
-            p_th=self.args['p_th'],
-            q1_th=self.args['q1_th'],
-            q1_min_th=self.args['q1_min_th'],
-            qdiff_th=self.args['qdiff_th'],
-            qdiff_min_th=self.args['qdiff_min_th'],
-            log2_fold_th=self.args['log2_fold_th'],
-            log2_fold_min_th=self.args['log2_fold_min_th'],
-            n_valid=self.args['n_valid'])
+            find_markers_for_all_taxonomy_pairs(
+                precomputed_stats_path=precomputed_path,
+                taxonomy_tree=taxonomy_tree,
+                output_path=output_path,
+                tmp_dir=self.args['tmp_dir'],
+                n_processors=self.args['n_processors'],
+                exact_penetrance=self.args['exact_penetrance'],
+                p_th=self.args['p_th'],
+                q1_th=self.args['q1_th'],
+                q1_min_th=self.args['q1_min_th'],
+                qdiff_th=self.args['qdiff_th'],
+                qdiff_min_th=self.args['qdiff_min_th'],
+                log2_fold_th=self.args['log2_fold_th'],
+                log2_fold_min_th=self.args['log2_fold_min_th'],
+                n_valid=self.args['n_valid'])
 
-        with h5py.File(self.args['output_path'], 'a') as dst:
-            dst.create_dataset(
-                'metadata',
-                data=metadata_str.encode('utf-8'))
+            metadata = copy.deepcopy(parent_metadata)
+            metadata['precomputed_path'] = precomputed_path
+
+            metadata_str = json.dumps(metadata)
+            with h5py.File(output_path, 'a') as dst:
+                dst.create_dataset(
+                    'metadata',
+                    data=metadata_str.encode('utf-8'))
 
         dur = time.time()-t0
         print(f"completed in {dur:.2e} seconds")

@@ -11,6 +11,7 @@ import itertools
 import json
 import numpy as np
 import pathlib
+import tempfile
 
 from cell_type_mapper.utils.utils import(
     mkstemp_clean,
@@ -63,17 +64,17 @@ def precompute_path_to_n_cluster(
 
     pth0 = mkstemp_clean(
         dir=tmp_dir_fixture,
-        prefix='precomputedAA_',
+        prefix='precomputedAA_.AAA',
         suffix='.0.h5')
 
     pth1 = mkstemp_clean(
         dir=tmp_dir_fixture,
-        prefix='precomputedBB_',
+        prefix='precomputedBB_.BBB',
         suffix='.1.h5')
 
     pth2 = mkstemp_clean(
         dir=tmp_dir_fixture,
-        prefix='precomputedCC_',
+        prefix='precomputedCC_.CCC',
         suffix='.2.h5')
 
     result = {
@@ -193,6 +194,8 @@ def reference_marker_fixture(
 
     n_genes = len(gene_fixture)
 
+    output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
     path_list = []
     for precompute_path in precomputed_stats_files:
         output_path = mkstemp_clean(
@@ -200,14 +203,19 @@ def reference_marker_fixture(
             prefix=pathlib.Path(precompute_path).stem,
             suffix='.reference.h5')
 
+        precompute_name = pathlib.Path(precompute_path).name
+        old_str = precompute_name.split('.')[0]
+        new_str = precompute_name.replace(old_str, 'reference_markers', 1)
+        expected_path = f'{output_dir}/{new_str}'
+
         # p_th is set to a nonsense value below
         # because we are actually testing that
         # markers get pulled from the correct
         # reference file based on the number of
         # cells represented by each
         config = {
-            'precomputed_path': precompute_path,
-            'output_path': output_path,
+            'precomputed_path_list': [precompute_path],
+            'output_dir': output_dir,
             'clobber': True,
             'drop_level': None,
             'tmp_dir': str(tmp_dir_fixture),
@@ -226,9 +234,9 @@ def reference_marker_fixture(
         runner = ReferenceMarkerRunner(
             args=[], input_data=config)
         runner.run()
-        path_list.append(output_path)
+        path_list.append(expected_path)
 
-        with h5py.File(output_path, 'r') as src:
+        with h5py.File(expected_path, 'r') as src:
             diff = np.diff(
                 src['sparse_by_pair/up_pair_idx'][()])
             diff += np.diff(

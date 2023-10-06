@@ -5,6 +5,7 @@ import itertools
 import json
 import numpy as np
 import pathlib
+import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
@@ -90,16 +91,14 @@ def test_find_all_markers_given_min_thresholds(
 
     for test_case in threshold_mask_fixture_all_pairs:
         config = test_case['config']
-        h5_path = pathlib.Path(
-            mkstemp_clean(
-                dir=tmp_dir_fixture,
-                prefix='reference_marker_test_',
-                suffix='.h5'))
 
         if use_cli:
+
+            output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
             cli_config = {
-                'precomputed_path': str(precomputed_fixture),
-                'output_path': str(h5_path),
+                'precomputed_path_list': [str(precomputed_fixture)],
+                'output_dir': output_dir,
                 'tmp_dir': str(tmp_dir_fixture),
                 'n_processors': 3,
                 'exact_penetrance': False,
@@ -120,7 +119,18 @@ def test_find_all_markers_given_min_thresholds(
                 input_data=cli_config)
             runner.run()
 
+            output_dir = pathlib.Path(output_dir)
+            h5_path = [n for n in output_dir.iterdir()]
+            assert len(h5_path) == 1
+            h5_path = h5_path[0]
+
         else:
+            h5_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    prefix='reference_marker_test_',
+                    suffix='.h5'))
+
             find_markers_for_all_taxonomy_pairs(
                 precomputed_stats_path=precomputed_fixture,
                 taxonomy_tree=taxonomy_tree_fixture,
@@ -217,16 +227,12 @@ def test_find_all_markers_given_thresholds(
 
     for test_case in threshold_mask_fixture_all_pairs:
         config = test_case['config']
-        h5_path = pathlib.Path(
-            mkstemp_clean(
-                dir=tmp_dir_fixture,
-                prefix='reference_marker_test_',
-                suffix='.h5'))
 
         if use_cli:
+            output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
             cli_config = {
-                'precomputed_path': str(precomputed_fixture),
-                'output_path': str(h5_path),
+                'precomputed_path_list': [str(precomputed_fixture)],
+                'output_dir': output_dir,
                 'tmp_dir': str(tmp_dir_fixture),
                 'n_processors': 3,
                 'exact_penetrance': False,
@@ -246,8 +252,17 @@ def test_find_all_markers_given_thresholds(
                 args=[],
                 input_data=cli_config)
             runner.run()
-        else:
 
+            h5_path = [n for n in pathlib.Path(output_dir).iterdir()]
+            assert len(h5_path) == 1
+            h5_path = h5_path[0]
+
+        else:
+            h5_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    prefix='reference_marker_test_',
+                    suffix='.h5'))
             find_markers_for_all_taxonomy_pairs(
                 precomputed_stats_path=precomputed_fixture,
                 taxonomy_tree=taxonomy_tree_fixture,

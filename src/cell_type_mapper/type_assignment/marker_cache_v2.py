@@ -208,20 +208,13 @@ def create_marker_gene_lookup_from_ref_list(
     for ref_path in reference_marker_path_list:
         with h5py.File(ref_path, 'r') as src:
             metadata = json.loads(src['metadata'][()].decode('utf-8'))
-        if 'config' not in metadata:
-            error_msg += (
-                "===\n"
-                f"{ref_path} has no 'config' in metadata\n===\n"
-            )
-            continue
-        config = metadata['config']
-        if 'precomputed_path' not in config:
+        if 'precomputed_path' not in metadata:
             error_msg += (
                 "===\n"
                 f"{ref_path} does not point to a "
                 "precomputed stats file\n===\n")
             continue
-        stats_path = config['precomputed_path']
+        stats_path = metadata['precomputed_path']
         if stats_path in precompute_to_ref:
             error_msg += (
                 f"stats_path\n{stats_path}\noccurs for\n"
