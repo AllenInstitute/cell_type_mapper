@@ -7,6 +7,7 @@ import itertools
 import anndata
 import pathlib
 import os
+import tempfile
 import json
 import scipy.sparse as scipy_sparse
 
@@ -57,17 +58,13 @@ def test_reference_marker_finding_cli(
         column_hierarchy,
         tmp_dir_fixture,
         tree_fixture):
-
-    tmp_dir = tmp_dir_fixture
-
-    marker_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            suffix='.h5'))
+    """
+    Just a smoke test
+    """
 
     precompute_path = pathlib.Path(
         mkstemp_clean(
-            dir=tmp_dir,
+            dir=tmp_dir_fixture,
             suffix='.h5'))
 
     precompute_summary_stats_from_h5ad(
@@ -77,24 +74,13 @@ def test_reference_marker_finding_cli(
         output_path=precompute_path,
         rows_at_a_time=1000)
 
-    marker_path = mkstemp_clean(
-        dir=tmp_dir,
-        prefix='reference_markers_from_cli_',
-        suffix='.h5')
-
     config = {
         'n_processors': 3,
-        'precomputed_path': str(precompute_path.resolve().absolute()),
-        'output_path': marker_path,
+        'precomputed_path_list': [str(precompute_path.resolve().absolute())],
+        'output_dir': tempfile.mkdtemp(dir=tmp_dir_fixture),
         'drop_level': None
     }
 
-    # because maker path was created
-    with pytest.raises(RuntimeError, match="run with 'clobber' = True"):
-        runner = ReferenceMarkerRunner(args=[], input_data=config)
-        runner.run()
-
-    os.unlink(marker_path)
     runner = ReferenceMarkerRunner(args=[], input_data=config)
     runner.run()
 

@@ -329,9 +329,7 @@ def ref_marker_path_fixture(
         max_gb=0.006)
 
     metadata = {
-        'config': {
-            'precomputed_path': str(precomputed_path_fixture)
-        }
+        'precomputed_path': str(precomputed_path_fixture)
     }
 
     with h5py.File(ref_marker_path, 'a') as dst:
