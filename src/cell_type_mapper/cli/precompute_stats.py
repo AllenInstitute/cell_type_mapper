@@ -104,81 +104,6 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
                 f"you gave {data['nomralization']}")
         return data
 
-    @post_load
-    def check_output(self, data, **kwargs):
-        """
-        Construct a dict mapping dataset to output path.
-
-        If split_by_dataset is False, this will just map 'None' to the
-        specified output path. Otherwise, it will map all of the distinct
-        datasets in the taxonomy metadata files to forms of the specified
-        output path with the dataset specified as a suffix.
-        """
-        baseline_path = pathlib.Path(data['output_path'])
-        baseline_suffix = baseline_path.suffix
-        baseline_stem = baseline_path.stem
-        output_parent = baseline_path.absolute().resolve().parent
-
-        final_output_lookup = dict()
-        run_default = False
-        output_file_set = set()
-        if data['split_by_dataset']:
-            df = pd.read_csv(data['cell_metadata_path'])
-            if 'dataset_label' in df.columns:
-                dataset_values = set(df.dataset_label.values)
-
-                for dataset in dataset_values:
-                    sanitized = dataset.replace(" ", "_").replace("/", ".")
-                    new_suffix = f'{sanitized}{baseline_suffix}'
-                    new_name = f'{baseline_stem}.{new_suffix}'
-                    new_path = (output_parent/new_name).resolve().absolute()
-                    new_path = str(new_path)
-                    if new_path in output_file_set:
-                        raise RuntimeError(
-                            f"Dataset labels {dataset_values} require that "
-                            f"output path {new_path} occur more than once")
-                    output_file_set.add(new_path)
-                    final_output_lookup[dataset] = new_path
-            else:
-                run_default = True
-        else:
-            run_default = True
-
-        if run_default:
-            final_output_lookup = dict()
-            output_path = pathlib.Path(data['output_path'])
-            final_output_lookup['None'] = str(output_path.resolve().absolute())
-        else:
-            if 'combined' in final_output_lookup:
-                raise RuntimeError(
-                    "'combined' is the name of a dataset; unclear how "
-                    "to proceed")
-            new_suffix = f'combined{baseline_suffix}'
-            new_name = f'{baseline_stem}.{new_suffix}'
-            new_path = (output_parent/new_name).resolve().absolute()
-            final_output_lookup['combined'] = str(new_path)
-
-        output_path_list = list(final_output_lookup.values())
-        output_path_set = set(output_path_list)
-        if len(output_path_list) != len(output_path_set):
-            raise RuntimeError(
-                f"output path names\n{output_path_list}\nare degenerate")
-
-        # make sure we can write here
-        for dataset in final_output_lookup:
-            output_path = pathlib.Path(final_output_lookup[dataset])
-            if output_path.exists():
-                if not data['clobber']:
-                    raise RuntimeError(
-                        f"{output_path} already exists; run with clobber=True "
-                        "to overwite")
-
-            with open(output_path, 'wb') as dst:
-                dst.write(b'gar')
-
-        data['final_output_path'] = final_output_lookup
-        return data
-
 
 class PrecomputationRunner(argschema.ArgSchemaParser):
 
@@ -188,7 +113,12 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
         t0 = time.time()
 
-        metadata = {'config': copy.deepcopy(self.args)}
+        dataset_to_output = self.create_dataset_to_output_map()
+
+        metadata = {
+            'config': copy.deepcopy(self.args),
+            'dataset_to_output_map': dataset_to_output
+        }
         assert 'timestamp' not in metadata
 
         taxonomy_tree = TaxonomyTree.from_data_release(
@@ -208,11 +138,11 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                 dataset_to_cell_set[dataset_label].add(cell_id)
 
         files_to_merge = []
-        for dataset in self.args['final_output_path'].keys():
+        for dataset in dataset_to_output.keys():
             if dataset == 'combined':
                 continue
 
-            output_path = self.args['final_output_path'][dataset]
+            output_path = dataset_to_output[dataset]
             files_to_merge.append(output_path)
             print(f'writing {output_path} from dataset {dataset}')
             if dataset in dataset_to_cell_set:
@@ -237,10 +167,10 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
             dur = time.time()-t0
             print(f'completed {dataset} after {dur:.2e} seconds')
 
-        if 'combined' in self.args['final_output_path']:
+        if 'combined' in dataset_to_output:
             print('merging')
             merged_path = pathlib.Path(
-                self.args['final_output_path']['combined'])
+                dataset_to_output['combined'])
             merge_precompute_files(
                 precompute_path_list=files_to_merge,
                 output_path=merged_path)
@@ -254,6 +184,74 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
             dur = time.time()-t0
             print(f'wrote {merged_path} after {dur:.2e} seconds')
+
+    def create_dataset_to_output_map(self):
+        """
+        Return dict mapping dataset name to output paths
+        """
+        baseline_path = pathlib.Path(self.args['output_path'])
+        baseline_suffix = baseline_path.suffix
+        baseline_stem = baseline_path.stem
+        output_parent = baseline_path.absolute().resolve().parent
+
+        final_output_lookup = dict()
+        run_default = False
+        output_file_set = set()
+        if self.args['split_by_dataset']:
+            df = pd.read_csv(self.args['cell_metadata_path'])
+            if 'dataset_label' in df.columns:
+                dataset_values = set(df.dataset_label.values)
+
+                for dataset in dataset_values:
+                    sanitized = dataset.replace(" ", "_").replace("/", ".")
+                    new_suffix = f'{sanitized}{baseline_suffix}'
+                    new_name = f'{baseline_stem}.{new_suffix}'
+                    new_path = (output_parent/new_name).resolve().absolute()
+                    new_path = str(new_path)
+                    if new_path in output_file_set:
+                        raise RuntimeError(
+                            f"Dataset labels {dataset_values} require that "
+                            f"output path {new_path} occur more than once")
+                    output_file_set.add(new_path)
+                    final_output_lookup[dataset] = new_path
+            else:
+                run_default = True
+        else:
+            run_default = True
+
+        if run_default:
+            final_output_lookup = dict()
+            output_path = pathlib.Path(self.args['output_path'])
+            final_output_lookup['None'] = str(output_path.resolve().absolute())
+        else:
+            if 'combined' in final_output_lookup:
+                raise RuntimeError(
+                    "'combined' is the name of a dataset; unclear how "
+                    "to proceed")
+            new_suffix = f'combined{baseline_suffix}'
+            new_name = f'{baseline_stem}.{new_suffix}'
+            new_path = (output_parent/new_name).resolve().absolute()
+            final_output_lookup['combined'] = str(new_path)
+
+        output_path_list = list(final_output_lookup.values())
+        output_path_set = set(output_path_list)
+        if len(output_path_list) != len(output_path_set):
+            raise RuntimeError(
+                f"output path names\n{output_path_list}\nare degenerate")
+
+        # make sure we can write here
+        for dataset in final_output_lookup:
+            output_path = pathlib.Path(final_output_lookup[dataset])
+            if output_path.exists():
+                if not self.args['clobber']:
+                    raise RuntimeError(
+                        f"{output_path} already exists; run with clobber=True "
+                        "to overwite")
+
+            with open(output_path, 'wb') as dst:
+                dst.write(b'gar')
+
+        return final_output_lookup
 
 
 def main():
