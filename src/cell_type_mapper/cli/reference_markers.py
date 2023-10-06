@@ -25,7 +25,7 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
             "List of paths to precomputed stats files "
             "for which reference markers will be computed"))
 
-    output_dir = argschema.fields.String(
+    output_dir = argschema.fields.OutputDir(
         required=True,
         default=None,
         allow_none=False,
@@ -194,15 +194,13 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
         """
 
         output_dir = pathlib.Path(self.args['output_dir'])
-        if not output_dir.exists():
-            output_dir.mkdir(parents=True)
-
-        if not output_dir.is_dir():
-            raise RuntimeError(
-                f"output_dir: {output_dir} is not a dir")
 
         input_to_output = dict()
         files_to_write = set()
+
+        # salting of output file names is done in the case where
+        # multiple precomputed files would result in the same
+        # refrence marker path name
         salt = None
         for input_path in self.args['precomputed_path_list']:
             input_path = pathlib.Path(input_path)
