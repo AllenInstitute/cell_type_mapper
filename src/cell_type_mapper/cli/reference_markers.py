@@ -2,7 +2,6 @@ import argschema
 import copy
 import h5py
 import json
-from marshmallow import post_load
 import pathlib
 import time
 
@@ -132,78 +131,6 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
         description=("Try to find this many marker genes per pair. "
                      "Used only if exact_penetrance is False."))
 
-    @post_load
-    def check_clobber(self, data, **kwargs):
-
-        output_dir = pathlib.Path(data['output_dir'])
-        if not output_dir.exists():
-            output_dir.mkdir(parents=True)
-
-        if not output_dir.is_dir():
-            raise RuntimeError(
-                f"output_dir: {output_dir} is not a dir")
-
-        input_to_output = dict()
-        files_to_write = set()
-        salt = None
-        for input_path in data['precomputed_path_list']:
-            input_path = pathlib.Path(input_path)
-            input_name = input_path.name
-            name_params = input_name.split('.')
-            old_stem = name_params[0]
-            new_path = None
-            while True:
-                if new_path is not None:
-                    if salt is None:
-                        salt = 0
-                    else:
-                        salt += 1
-                new_stem = 'reference_markers'
-                if salt is not None:
-                    new_stem = f'{new_stem}.{salt}'
-                new_name = input_name.replace(old_stem, new_stem, 1)
-                new_path = str(output_dir/new_name)
-                if new_path not in files_to_write:
-                    files_to_write.add(new_path)
-                    break
-            input_to_output[str(input_path)] = new_path
-
-        # check that none of the output files exist (or, if they do, that
-        # clobber is True)
-        error_msg = ""
-        for pth in input_to_output.values():
-            pth = pathlib.Path(pth)
-            if pth.exists():
-                if not pth.is_file():
-                    error_msg += f"{pth} exists and is not a file\n"
-                elif not self.data['clobber']:
-                    error_msg += (
-                        f"{pth} already exists; to overwrite, run with "
-                        "clobber=True\n")
-
-        if len(error_msg) == 0:
-            # make sure we can write to these files
-            for pth in input_to_output.values():
-                pth = pathlib.Path(pth)
-                try:
-                    with open(pth, 'wb') as dst:
-                        dst.write(b'junk')
-                    pth.unlink()
-                except FileNotFoundError:
-                    error_msg += (
-                        f"cannot write to {pth}\n"
-                    )
-
-        if len(error_msg) > 0:
-            error_msg += (
-                 "These file names are automatically generated. "
-                 "The quickest solution is to specify a new output_dir.")
-            raise RuntimeError(error_msg)
-
-        data['input_to_output_map'] = input_to_output
-
-        return data
-
 
 class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
@@ -211,17 +138,20 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
+        input_to_output = self.create_input_to_output_map()
+
         parent_metadata = {
             'config': self.args,
-            'timestamp': get_timestamp()
+            'timestamp': get_timestamp(),
+            'input_to_output_map': input_to_output
         }
 
         taxonomy_tree = None
 
         t0 = time.time()
 
-        for precomputed_path in self.args['input_to_output_map']:
-            output_path = self.args['input_to_output_map'][precomputed_path]
+        for precomputed_path in input_to_output:
+            output_path = input_to_output[precomputed_path]
             print(f'writing {output_path}')
             taxonomy_tree = TaxonomyTree.from_precomputed_stats(
                 stats_path=precomputed_path)
@@ -257,6 +187,78 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
         dur = time.time()-t0
         print(f"completed in {dur:.2e} seconds")
+
+    def create_input_to_output_map(self):
+        """
+        Return dict mapping input paths to output paths
+        """
+
+        output_dir = pathlib.Path(self.args['output_dir'])
+        if not output_dir.exists():
+            output_dir.mkdir(parents=True)
+
+        if not output_dir.is_dir():
+            raise RuntimeError(
+                f"output_dir: {output_dir} is not a dir")
+
+        input_to_output = dict()
+        files_to_write = set()
+        salt = None
+        for input_path in self.args['precomputed_path_list']:
+            input_path = pathlib.Path(input_path)
+            input_name = input_path.name
+            name_params = input_name.split('.')
+            old_stem = name_params[0]
+            new_path = None
+            while True:
+                if new_path is not None:
+                    if salt is None:
+                        salt = 0
+                    else:
+                        salt += 1
+                new_stem = 'reference_markers'
+                if salt is not None:
+                    new_stem = f'{new_stem}.{salt}'
+                new_name = input_name.replace(old_stem, new_stem, 1)
+                new_path = str(output_dir/new_name)
+                if new_path not in files_to_write:
+                    files_to_write.add(new_path)
+                    break
+            input_to_output[str(input_path)] = new_path
+
+        # check that none of the output files exist (or, if they do, that
+        # clobber is True)
+        error_msg = ""
+        for pth in input_to_output.values():
+            pth = pathlib.Path(pth)
+            if pth.exists():
+                if not pth.is_file():
+                    error_msg += f"{pth} exists and is not a file\n"
+                elif not self.args['clobber']:
+                    error_msg += (
+                        f"{pth} already exists; to overwrite, run with "
+                        "clobber=True\n")
+
+        if len(error_msg) == 0:
+            # make sure we can write to these files
+            for pth in input_to_output.values():
+                pth = pathlib.Path(pth)
+                try:
+                    with open(pth, 'wb') as dst:
+                        dst.write(b'junk')
+                    pth.unlink()
+                except FileNotFoundError:
+                    error_msg += (
+                        f"cannot write to {pth}\n"
+                    )
+
+        if len(error_msg) > 0:
+            error_msg += (
+                 "These file names are automatically generated. "
+                 "The quickest solution is to specify a new output_dir.")
+            raise RuntimeError(error_msg)
+
+        return input_to_output
 
 
 if __name__ == "__main__":
