@@ -5,7 +5,7 @@ import pathlib
 
 class SpecifiedPrecomputedStatsSchema(argschema.ArgSchema):
 
-    path = argschema.fields.String(
+    path = argschema.fields.InputFile(
                 required=True,
                 default=None,
                 allow_none=False,
