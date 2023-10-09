@@ -1,3 +1,4 @@
+import copy
 import h5py
 import json
 import numpy as np
@@ -552,8 +553,28 @@ def validate_marker_lookup(
             continue
 
         if len(query_gene_names.intersection(markers)) == 0:
-            error_msg += (f"'{parent_str}' has no valid markers "
-                          "in query gene set\n")
+
+            # try patching with markers from levels above this level
+
+            if parent_str != 'None':
+                ancestors = taxonomy_tree.parents(
+                    level=parent[0],
+                    node=parent[1])
+                reverse_hier = copy.deepcopy(taxonomy_tree.hierarchy)
+                reverse_hier.reverse()
+                for ancestor_level in reverse_hier:
+                    if ancestor_level in ancestors:
+                        ancestor_str = f'{ancestor_level}/{ancestors[ancestor_level]}'
+                        new_markers = marker_lookup[ancestor_str]
+                        if len(query_gene_names.intersection(set(new_markers))) > 0:
+                            marker_lookup[parent_str] = new_markers
+                            break
+
+                if len(query_gene_names.intersection(set(marker_lookup[parent_str]))) == 0:
+                    marker_lookup[parent_str] = marker_lookup['None']
+                if len(query_gene_names.intersection(set(marker_lookup[parent_str]))) == 0:
+                    error_msg += (f"'{parent_str}' has no valid markers "
+                                  "in query gene set\n")
 
     if len(error_msg) > 0:
         error_msg = f"validating marker lookup\n{error_msg}"
