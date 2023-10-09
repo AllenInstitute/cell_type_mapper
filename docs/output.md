@@ -211,4 +211,6 @@ At each level, there will also be optional fields `runner_up_assignment`,
 `runner_up_correlation`, and `runner_up_probability`. These will map
 to lists of the N (if requested) next most likely assignments as
 ranked according to `bootstrapping_probability`. If there were no
-runners up, these will be empty lists.
+runners up, these will be empty lists. **Note:** the default value of
+`n_runners_up`, the configuration parameter telling the code how many
+runners up to report, is zero, so these lists will be empty by default.
