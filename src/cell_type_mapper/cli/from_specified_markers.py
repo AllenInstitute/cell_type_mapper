@@ -49,10 +49,6 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from cell_type_mapper.utils.cli_utils import (
-    create_precomputed_stats_file)
-
-
 from cell_type_mapper.cli.schemas import (
     SpecifiedMarkerSchema,
     HierarchicalTypeAssignmentSchema,
@@ -330,13 +326,11 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         input_only=True)
 
     precomputed_config = config["precomputed_stats"]
-
     file_tracker.add_file(
         precomputed_config['path'],
         input_only=False)
 
     query_loc = file_tracker.real_location(config['query_path'])
-    precomputed_config = config["precomputed_stats"]
     type_assignment_config = config["type_assignment"]
 
     log.benchmark(msg="validating config and copying data",
@@ -346,15 +340,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     precomputed_loc = file_tracker.real_location(
         precomputed_config['path'])
-    precomputed_path = precomputed_config['path']
-    if file_tracker.file_exists(precomputed_path):
-        log.info(f"using ../{precomputed_loc.name} for precomputed_stats")
-    else:
-        create_precomputed_stats_file(
-            precomputed_config=precomputed_config,
-            file_tracker=file_tracker,
-            log=log,
-            tmp_dir=tmp_dir)
+    log.info(f"using ../{precomputed_loc.name} for precomputed_stats")
 
     log.info(f"reading taxonomy_tree from ../{precomputed_loc.name}")
     with h5py.File(precomputed_loc, "r") as in_file:
