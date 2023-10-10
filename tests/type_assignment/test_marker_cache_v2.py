@@ -5,6 +5,8 @@ import numpy as np
 
 from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
 
+from cell_type_mapper.cli.cli_log import CommandLog
+
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     validate_marker_lookup)
 
@@ -111,30 +113,56 @@ def test_validate_marker_lookup(
         lookup = copy.deepcopy(complete_lookup_fixture)
         lookup.pop(to_drop)
         lookup[to_drop] = [f'j_{ii}' for ii in range(3)]
+        log = CommandLog()
         new_lookup = validate_marker_lookup(
                 marker_lookup=lookup,
                 taxonomy_tree=taxonomy_tree_fixture,
-                query_gene_names=query_gene_fixture)
+                query_gene_names=query_gene_fixture,
+                log=log)
 
         if to_drop == 'class/A':
             assert new_lookup['class/A'] == lookup['None']
         else:
             assert new_lookup['subclass/f'] == lookup['class/C']
+        expected = f"'{to_drop}' had no markers in query set; replacing"
+        found = False
+        for msg in log.log:
+            print(msg)
+            if expected in msg:
+                found = True
+                break
+        assert found
 
     # test case where we have to skip two levels to get markers
     lookup = copy.deepcopy(complete_lookup_fixture)
     nonsense = [f'j_{ii}' for ii in range(4)]
     lookup['class/C'] = nonsense
     lookup['subclass/f'] = nonsense
+    log = CommandLog()
 
     new_lookup = validate_marker_lookup(
                 marker_lookup=lookup,
                 taxonomy_tree=taxonomy_tree_fixture,
-                query_gene_names=query_gene_fixture)
+                query_gene_names=query_gene_fixture,
+                log=log)
 
     assert new_lookup['class/C'] == lookup['None']
     assert new_lookup['subclass/f'] == lookup['None']
     assert new_lookup['subclass/e'] != lookup['None']
+
+    for to_drop in ('class/C', 'subclass/f'):
+        if to_drop == 'class/C':
+            the_patch = 'None'
+        else:
+            the_patch = 'class/C'
+        expected = (f"'{to_drop}' had no markers in query set; "
+                    f"replacing with markers from '{the_patch}'")
+        found = False
+        for msg in log.log:
+            if expected in msg:
+                found = True
+                break
+        assert found
 
     # test case where a parent has entry in lookup, but is blank
     for to_drop in ('None', 'class/A', 'subclass/d'):

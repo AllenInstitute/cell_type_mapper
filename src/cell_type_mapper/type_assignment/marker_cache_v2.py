@@ -106,7 +106,8 @@ def create_marker_cache_from_specified_markers(
         marker_lookup = validate_marker_lookup(
             marker_lookup=marker_lookup,
             query_gene_names=query_gene_names,
-            taxonomy_tree=taxonomy_tree)
+            taxonomy_tree=taxonomy_tree,
+            log=log)
 
     query_gene_set = set(query_gene_names)
     reference_gene_set = set(reference_gene_names)
@@ -500,7 +501,8 @@ def serialize_markers(
 def validate_marker_lookup(
         marker_lookup,
         query_gene_names,
-        taxonomy_tree):
+        taxonomy_tree,
+        log=None):
     """
     Verify that downselecting the specified marker lookup to include only the
     genes in query_gene_names will produce a set of markers for
@@ -517,7 +519,7 @@ def validate_marker_lookup(
     taxonomy_tree:
         A TaxonomyTree
     log:
-        Optional logger to record failures
+        Optional object to log messages/warnings for CLI
 
     Returns
     -------
@@ -566,6 +568,7 @@ def validate_marker_lookup(
                     node=parent[1])
                 reverse_hier = copy.deepcopy(taxonomy_tree.hierarchy)
                 reverse_hier.reverse()
+                patched_with = None
                 for ancestor_level in reverse_hier:
                     if ancestor_level in ancestors:
                         ancestor_str = (
@@ -574,11 +577,22 @@ def validate_marker_lookup(
                         if len(query_gene_names.intersection(
                                     set(new_markers))) > 0:
                             marker_lookup[parent_str] = new_markers
+                            patched_with = ancestor_str
                             break
 
                 if len(query_gene_names.intersection(
                             set(marker_lookup[parent_str]))) == 0:
                     marker_lookup[parent_str] = marker_lookup['None']
+                    patched_with = 'None'
+
+                warning_msg = (
+                     f"'{parent_str}' had no markers in "
+                     "query set; replacing with markers from "
+                     f"'{patched_with}'")
+                if log is not None:
+                    log.warn(warning_msg)
+                else:
+                    warnings.warn(warning_msg)
 
             if len(query_gene_names.intersection(
                         set(marker_lookup[parent_str]))) == 0:
