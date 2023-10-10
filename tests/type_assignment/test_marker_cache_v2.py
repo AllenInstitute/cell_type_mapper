@@ -66,20 +66,24 @@ def test_validate_marker_lookup(
     """
 
     # test that valid case passes
-    validate_marker_lookup(
+    new_lookup = validate_marker_lookup(
         marker_lookup=complete_lookup_fixture,
         taxonomy_tree=taxonomy_tree_fixture,
         query_gene_names=query_gene_fixture)
+
+    new_lookup == complete_lookup_fixture
 
     # test that it is okay to miss trivial parents
     lookup = copy.deepcopy(complete_lookup_fixture)
     lookup.pop('class/B')
     lookup['subclass/e'] = []
     lookup['subclass/b'] = ['x', 'y', 'z']
-    validate_marker_lookup(
+    new_lookup = validate_marker_lookup(
         marker_lookup=lookup,
         taxonomy_tree=taxonomy_tree_fixture,
         query_gene_names=query_gene_fixture)
+
+    new_lookup == lookup
 
     # test case where a parent is not listed in the lookup
     for to_drop in ('None', 'class/A', 'subclass/d'):
@@ -107,15 +111,15 @@ def test_validate_marker_lookup(
         lookup = copy.deepcopy(complete_lookup_fixture)
         lookup.pop(to_drop)
         lookup[to_drop] = [f'j_{ii}' for ii in range(3)]
-        validate_marker_lookup(
+        new_lookup = validate_marker_lookup(
                 marker_lookup=lookup,
                 taxonomy_tree=taxonomy_tree_fixture,
                 query_gene_names=query_gene_fixture)
 
         if to_drop == 'class/A':
-            assert lookup['class/A'] == lookup['None']
+            assert new_lookup['class/A'] == lookup['None']
         else:
-            assert lookup['subclass/f'] == lookup['class/C']
+            assert new_lookup['subclass/f'] == lookup['class/C']
 
     # test case where we have to skip two levels to get markers
     lookup = copy.deepcopy(complete_lookup_fixture)
@@ -123,14 +127,14 @@ def test_validate_marker_lookup(
     lookup['class/C'] = nonsense
     lookup['subclass/f'] = nonsense
 
-    validate_marker_lookup(
+    new_lookup = validate_marker_lookup(
                 marker_lookup=lookup,
                 taxonomy_tree=taxonomy_tree_fixture,
                 query_gene_names=query_gene_fixture)
 
-    assert lookup['class/C'] == lookup['None']
-    assert lookup['subclass/f'] == lookup['None']
-    assert lookup['subclass/e'] != lookup['None']
+    assert new_lookup['class/C'] == lookup['None']
+    assert new_lookup['subclass/f'] == lookup['None']
+    assert new_lookup['subclass/e'] != lookup['None']
 
     # test case where a parent has entry in lookup, but is blank
     for to_drop in ('None', 'class/A', 'subclass/d'):

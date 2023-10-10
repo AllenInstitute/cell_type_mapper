@@ -103,7 +103,7 @@ def create_marker_cache_from_specified_markers(
     # check that all non-trivial parent nodes will have more than
     # zero marker genes assigned to them
     if taxonomy_tree is not None:
-        validate_marker_lookup(
+        marker_lookup = validate_marker_lookup(
             marker_lookup=marker_lookup,
             query_gene_names=query_gene_names,
             taxonomy_tree=taxonomy_tree)
@@ -521,11 +521,11 @@ def validate_marker_lookup(
 
     Returns
     -------
-    Nothing. Just raises an exception if markers are missing from a non-trivial
-    parent node.
-
-    Alters marker_lookup in place in case where query set is missing markers.
+    marker_lookup:
+        Altered in cases where query set was missing markers.
     """
+
+    marker_lookup = copy.deepcopy(marker_lookup)
 
     query_gene_names = set(query_gene_names)
     all_parents = taxonomy_tree.all_parents
@@ -579,6 +579,7 @@ def validate_marker_lookup(
                 if len(query_gene_names.intersection(
                             set(marker_lookup[parent_str]))) == 0:
                     marker_lookup[parent_str] = marker_lookup['None']
+
             if len(query_gene_names.intersection(
                         set(marker_lookup[parent_str]))) == 0:
                 error_msg += (f"'{parent_str}' has no valid markers "
@@ -587,3 +588,5 @@ def validate_marker_lookup(
     if len(error_msg) > 0:
         error_msg = f"validating marker lookup\n{error_msg}"
         raise RuntimeError(error_msg)
+
+    return marker_lookup
