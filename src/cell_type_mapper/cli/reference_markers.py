@@ -21,6 +21,7 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
+        cli_as_single_argument=True,
         description=(
             "List of paths to precomputed stats files "
             "for which reference markers will be computed"))
