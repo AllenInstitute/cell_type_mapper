@@ -504,7 +504,9 @@ def validate_marker_lookup(
     """
     Verify that downselecting the specified marker lookup to include only the
     genes in query_gene_names will produce a set of markers for
-    every non-trivial parent node in taxnomy_tree.
+    every non-trivial parent node in taxnomy_tree. If any non-trivial parent
+    would have zero markers, reassign the markers from higher up in
+    the taxonomy tree to that marker.
 
     Parameters
     ----------
@@ -521,6 +523,8 @@ def validate_marker_lookup(
     -------
     Nothing. Just raises an exception if markers are missing from a non-trivial
     parent node.
+
+    Alters marker_lookup in place in case where query set is missing markers.
     """
 
     query_gene_names = set(query_gene_names)
@@ -564,17 +568,21 @@ def validate_marker_lookup(
                 reverse_hier.reverse()
                 for ancestor_level in reverse_hier:
                     if ancestor_level in ancestors:
-                        ancestor_str = f'{ancestor_level}/{ancestors[ancestor_level]}'
+                        ancestor_str = (
+                            f'{ancestor_level}/{ancestors[ancestor_level]}')
                         new_markers = marker_lookup[ancestor_str]
-                        if len(query_gene_names.intersection(set(new_markers))) > 0:
+                        if len(query_gene_names.intersection(
+                                    set(new_markers))) > 0:
                             marker_lookup[parent_str] = new_markers
                             break
 
-                if len(query_gene_names.intersection(set(marker_lookup[parent_str]))) == 0:
+                if len(query_gene_names.intersection(
+                            set(marker_lookup[parent_str]))) == 0:
                     marker_lookup[parent_str] = marker_lookup['None']
-                if len(query_gene_names.intersection(set(marker_lookup[parent_str]))) == 0:
-                    error_msg += (f"'{parent_str}' has no valid markers "
-                                  "in query gene set\n")
+            if len(query_gene_names.intersection(
+                        set(marker_lookup[parent_str]))) == 0:
+                error_msg += (f"'{parent_str}' has no valid markers "
+                              "in query gene set\n")
 
     if len(error_msg) > 0:
         error_msg = f"validating marker lookup\n{error_msg}"
