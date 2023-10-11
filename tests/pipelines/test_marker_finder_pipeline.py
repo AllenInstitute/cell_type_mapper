@@ -85,13 +85,37 @@ def test_reference_marker_finding_cli(
     runner.run()
 
 
+@pytest.mark.parametrize(
+        "limit_genes", [True, False])
 def test_marker_finding_pipeline(
         h5ad_path_fixture,
         column_hierarchy,
         tmp_dir_fixture,
         gene_names,
         n_genes,
-        tree_fixture):
+        tree_fixture,
+        limit_genes):
+    """
+    if limit_genes, pass a gene_list thrugh to
+    find_markers_for_all_taxonomy_pairs, limiting the list
+    of genes that are valid markers
+    """
+
+    if limit_genes:
+        rng = np.random.default_rng(22131)
+        chosen_genes = list(rng.choice(
+                gene_names, n_genes//2, replace=False))
+
+        invalid_gene_idx = np.array([
+            ii for ii in range(len(gene_names))
+            if gene_names[ii] not in chosen_genes])
+
+        valid_gene_idx = np.array([
+            ii for ii in range(len(gene_names))
+            if gene_names[ii] in chosen_genes])
+    else:
+        chosen_genes = None
+        valid_gene_idx = None
 
     tmp_dir = tmp_dir_fixture
 
@@ -126,11 +150,13 @@ def test_marker_finding_pipeline(
             taxonomy_tree=taxonomy_tree,
             output_path=marker_path,
             n_processors=n_processors,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            gene_list=chosen_genes)
 
     with h5py.File(marker_path, 'r') as in_file:
         assert 'gene_names' in in_file
-        assert json.loads(in_file['gene_names'][()].decode('utf-8')) == gene_names
+        assert json.loads(
+                in_file['gene_names'][()].decode('utf-8')) == gene_names
         assert 'pair_to_idx' in in_file
         for sub_k in ("up_gene_idx", "up_pair_idx",
                       "down_gene_idx", "down_pair_idx"):
@@ -164,6 +190,8 @@ def test_marker_finding_pipeline(
     global_marker = np.zeros((n_genes, n_pairs), dtype=bool)
     global_up = np.zeros((n_genes, n_pairs), dtype=bool)
 
+    n_changes = 0
+
     for level in pair_to_idx:
         for node1 in pair_to_idx[level]:
             for node2 in pair_to_idx[level][node1]:
@@ -178,7 +206,23 @@ def test_marker_finding_pipeline(
                     precomputed_stats=cluster_stats,
                     p_th=0.01,
                     q1_th=0.5,
-                    qdiff_th=0.7)
+                    qdiff_th=0.7,
+                    valid_gene_idx=valid_gene_idx)
+
+                if limit_genes:
+                    # check if limiting the genes made a difference
+                    (_,
+                     unlimited_markers,
+                     _) = score_differential_genes(
+                        node_1=f'{level}/{node1}',
+                        node_2=f'{level}/{node2}',
+                        precomputed_stats=cluster_stats,
+                        p_th=0.01,
+                        q1_th=0.5,
+                        qdiff_th=0.7,
+                        valid_gene_idx=None)
+                    if not np.array_equal(unlimited_markers, expected_markers):
+                        n_changes += 1
 
                 # we won't have up=True unless
                 # a gene is also a marker
@@ -209,6 +253,9 @@ def test_marker_finding_pipeline(
                 marker_sum += expected_markers.sum()
                 tot_up += len(expected_up_reg)
                 up_sum += expected_up_reg.sum()
+
+    if limit_genes:
+        assert n_changes > 0
 
     # make sure that not all up_regulated/marker flags were trivial
     # (where "trivial" means all True or all False)
