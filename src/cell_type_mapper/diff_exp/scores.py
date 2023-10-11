@@ -264,7 +264,8 @@ def score_differential_genes(
         boring_t=None,
         big_nu=None,
         exact_penetrance=False,
-        n_valid=30):
+        n_valid=30,
+        valid_gene_idx=None):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -320,6 +321,12 @@ def score_differential_genes(
     n_valid:
         Number of markers to try for when using approximate
         penetrance test
+
+    valid_gene_idx:
+        Optional numpy array of indexes of genes that can be considered
+        markers. If not None, genes outside of this set will have their
+        p_ij values set arbitrarily to zero so that they will fail the
+        penetrance test.
 
     Returns
     -------
@@ -377,8 +384,15 @@ def score_differential_genes(
 
     pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
     pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
-
     log2_fold = np.abs(stats_1['mean']-stats_2['mean'])
+
+    if valid_gene_idx is not None:
+        invalid_mask = np.zeros(pij_1.shape, dtype=bool)
+        invalid_mask[valid_gene_idx] = True
+        invalid_mask = np.logical_not(invalid_mask)
+        pij_1[invalid_mask] = -1.0
+        pij_2[invalid_mask] = -1.0
+        log2_fold[invalid_mask] = -1.0
 
     penetrance_mask = penetrance_tests(
         pij_1=pij_1,
