@@ -1,9 +1,11 @@
 import pytest
 
+import anndata
 import h5py
 import itertools
 import json
 import numpy as np
+import pandas as pd
 import pathlib
 import tempfile
 
@@ -332,3 +334,118 @@ def test_find_all_markers_given_thresholds(
 
         if h5_path.exists():
             h5_path.unlink()
+
+
+
+def test_find_all_markers_limit_genes(
+        threshold_mask_fixture_all_pairs,
+        precomputed_fixture,
+        taxonomy_tree_fixture,
+        n_genes,
+        tmp_dir_fixture):
+    """
+    Test that, when we limit genes in the CLI, we get the expected
+    results
+    """
+
+    with h5py.File(precomputed_fixture, 'r') as src:
+        gene_list = json.loads(
+            src['col_names'][()].decode('utf-8'))
+
+    rng = np.random.default_rng(77123)
+    gene_list = rng.choice(gene_list, n_genes//2, replace=False)
+
+    query_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    var = pd.DataFrame(
+        [{'gene_id': g} for g in gene_list]).set_index('gene_id')
+    query_data = anndata.AnnData(var=var)
+    query_data.write_h5ad(query_path)
+
+    test_case = threshold_mask_fixture_all_pairs[0]
+    config = test_case['config']
+
+    output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    cli_config = {
+        'precomputed_path_list': [str(precomputed_fixture)],
+        'output_dir': output_dir,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 3,
+        'exact_penetrance': False,
+        'p_th': config['p_th'],
+        'q1_th': 1.0,
+        'q1_min_th': config['q1_min_th'],
+        'qdiff_th': 1.0,
+        'qdiff_min_th': config['qdiff_min_th'],
+        'log2_fold_th': 1.0,
+        'log2_fold_min_th': config['log2_fold_min_th'],
+        'n_valid': 1000,
+        'clobber': True,
+        'drop_level': None,
+        'query_path': query_path
+    }
+
+    runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=cli_config)
+    runner.run()
+
+    actual_path = [n for n in pathlib.Path(output_dir).iterdir()
+                   if n.name.endswith('h5')]
+    assert len(actual_path) == 1
+    actual_path = actual_path[0]
+
+    baseline_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    prefix='baseline_reference_markers_',
+                    suffix='.h5'))
+
+
+    unlimited_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    prefix='unlimited_reference_markers_',
+                    suffix='.h5'))
+
+    for pth, glist in zip((baseline_path, unlimited_path),
+                          (gene_list, None)):
+
+        find_markers_for_all_taxonomy_pairs(
+            precomputed_stats_path=precomputed_fixture,
+            taxonomy_tree=taxonomy_tree_fixture,
+            output_path=pth,
+            p_th=config['p_th'],
+            q1_th=1.0,
+            qdiff_th=1.0,
+            log2_fold_th=1.0,
+            q1_min_th=config['q1_min_th'],
+            qdiff_min_th=config['qdiff_min_th'],
+            log2_fold_min_th=config['log2_fold_min_th'],
+            n_processors=3,
+            tmp_dir=tmp_dir_fixture,
+            max_gb=1,
+            exact_penetrance=False,
+            n_valid=1000,
+            gene_list=glist)
+
+    with h5py.File(unlimited_path, 'r') as unlimited:
+        with h5py.File(baseline_path, 'r') as baseline:
+            ntot = np.diff(baseline['sparse_by_pair/up_pair_idx'][()])
+            ntot += np.diff(baseline['sparse_by_pair/down_pair_idx'][()])
+            ntot = ntot.sum()
+            assert ntot > 0
+            with h5py.File(actual_path, 'r') as actual:
+                assert set(actual.keys())-set(baseline.keys()) == {'metadata'}
+                for k in baseline.keys():
+                    if k in ('sparse_by_gene', 'sparse_by_pair'):
+                        continue
+                    assert baseline[k][()] == actual[k][()]
+                    for k in ('sparse_by_pair', 'sparse_by_gene'):
+                        for d in baseline[k]:
+                            np.testing.assert_array_equal(
+                                actual[k][d][()],
+                                baseline[k][d][()])
+                            assert not np.array_equal(
+                                baseline[k][d][()],
+                                unlimited[k][d][()])
