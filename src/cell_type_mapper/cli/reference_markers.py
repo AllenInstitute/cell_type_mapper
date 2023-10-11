@@ -7,6 +7,9 @@ import time
 
 from cell_type_mapper.utils.utils import get_timestamp
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad)
+
 from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
@@ -25,6 +28,16 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
         description=(
             "List of paths to precomputed stats files "
             "for which reference markers will be computed"))
+
+    query_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Optional path to h5ad file containing query data. Used "
+            "to assemble list of genes that are acceptable "
+            "as markers."
+        ))
 
     output_dir = argschema.fields.OutputDir(
         required=True,
@@ -151,6 +164,14 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
         t0 = time.time()
 
+        if self.args['query_path'] is not None:
+            gene_list = list(
+                read_df_from_h5ad(
+                    self.args['query_path'],
+                    df_name='var').index.values)
+        else:
+            gene_list = None
+
         for precomputed_path in input_to_output:
             output_path = input_to_output[precomputed_path]
             print(f'writing {output_path}')
@@ -175,7 +196,8 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 qdiff_min_th=self.args['qdiff_min_th'],
                 log2_fold_th=self.args['log2_fold_th'],
                 log2_fold_min_th=self.args['log2_fold_min_th'],
-                n_valid=self.args['n_valid'])
+                n_valid=self.args['n_valid'],
+                gene_list=gene_list)
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path
