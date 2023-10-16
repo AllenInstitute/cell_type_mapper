@@ -264,7 +264,8 @@ def score_differential_genes(
         boring_t=None,
         big_nu=None,
         exact_penetrance=False,
-        n_valid=30):
+        n_valid=30,
+        valid_gene_idx=None):
     """
     Rank genes according to their ability to differentiate between
     two populations of cells.
@@ -321,6 +322,12 @@ def score_differential_genes(
         Number of markers to try for when using approximate
         penetrance test
 
+    valid_gene_idx:
+        Optional numpy array of indexes of genes that can be considered
+        markers. If not None, genes outside of this set will have their
+        p_ij values set arbitrarily to zero so that they will fail the
+        penetrance test.
+
     Returns
     -------
     score:
@@ -362,6 +369,84 @@ def score_differential_genes(
                 np.zeros(n_genes, dtype=bool),
                 np.zeros(n_genes, dtype=bool))
 
+    pvalues = diffexp_p_values_from_stats(
+            node_1=node_1,
+            node_2=node_2,
+            precomputed_stats=precomputed_stats,
+            p_th=p_th,
+            big_nu=big_nu,
+            boring_t=boring_t)
+
+    pvalue_valid = (pvalues < p_th)
+
+    penetrance_mask = penetrance_from_stats(
+        node_1=node_1,
+        node_2=node_2,
+        precomputed_stats=precomputed_stats,
+        q1_th=q1_th,
+        q1_min_th=q1_min_th,
+        qdiff_th=qdiff_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_th=log2_fold_th,
+        log2_fold_min_th=log2_fold_min_th,
+        valid_gene_idx=valid_gene_idx,
+        exact_penetrance=exact_penetrance,
+        n_valid=n_valid)
+
+    validity_mask = np.logical_and(
+        pvalue_valid,
+        penetrance_mask)
+
+    up_mask = np.zeros(stats_1["mean"].shape, dtype=np.uint8)
+    up_mask[stats_2["mean"] > stats_1["mean"]] = 1
+
+    return -1.0*np.log(pvalues), validity_mask, up_mask
+
+
+def diffexp_p_values_from_stats(
+        node_1,
+        node_2,
+        precomputed_stats,
+        p_th,
+        big_nu=None,
+        boring_t=None):
+    """
+    Parameters
+    ----------
+    node_1/2:
+        Names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'mean'
+            'var'
+            'n_cells'
+            'ge1'
+
+    p_th:
+        Threshold on acceptable p-values
+
+    big_nu:
+        If not None, Student t-test distributions with more degrees
+        of freedom than big_nu will be approximated with the
+        normal distribution.
+
+    boring_t:
+       If not None, values of the t-test statistic must be
+       outisde the range (-boring_t, boring_t) to be considered
+       "interesting." "Uninteresting" values will be given a CDF
+       value of 0.5
+
+    Returns
+    -------
+    A np.ndarray of shape (n_genes,) representing
+    the corrected p_values of the genes as markers
+    """
+    stats_1 = precomputed_stats[node_1]
+    stats_2 = precomputed_stats[node_2]
+
     pvalues = diffexp_p_values(
                 mean1=stats_1['mean'],
                 var1=stats_1['var'],
@@ -373,34 +458,7 @@ def score_differential_genes(
                 big_nu=big_nu,
                 p_th=p_th)
 
-    pvalue_valid = (pvalues < p_th)
-
-    pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
-    pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
-
-    log2_fold = np.abs(stats_1['mean']-stats_2['mean'])
-
-    penetrance_mask = penetrance_tests(
-        pij_1=pij_1,
-        pij_2=pij_2,
-        log2_fold=log2_fold,
-        q1_th=q1_th,
-        qdiff_th=qdiff_th,
-        log2_fold_th=log2_fold_th,
-        exact=exact_penetrance,
-        q1_min_th=q1_min_th,
-        qdiff_min_th=qdiff_min_th,
-        log2_fold_min_th=log2_fold_min_th,
-        n_valid=n_valid)
-
-    validity_mask = np.logical_and(
-        pvalue_valid,
-        penetrance_mask)
-
-    up_mask = np.zeros(pij_1.shape, dtype=np.uint8)
-    up_mask[stats_2["mean"] > stats_1["mean"]] = 1
-
-    return -1.0*np.log(pvalues), validity_mask, up_mask
+    return pvalues
 
 
 def diffexp_p_values(
@@ -467,6 +525,101 @@ def diffexp_p_values(
         pvalues = approx_correct_ttest(pvalues, p_th=p_th)
 
     return pvalues
+
+
+def penetrance_from_stats(
+        node_1,
+        node_2,
+        precomputed_stats,
+        q1_th,
+        q1_min_th,
+        qdiff_th,
+        qdiff_min_th,
+        log2_fold_th,
+        log2_fold_min_th,
+        valid_gene_idx,
+        exact_penetrance,
+        n_valid):
+    """
+    Return an (n_genes,) mask of genes that pass the penetrance
+    tests.
+
+    Parameters
+    ----------
+    node_1/2:
+        Names of the leaf nodes (e.g. clusters) of the cell
+        taxonomy making up the two populations to compare.
+
+    precomputed_stats:
+        Dict mapping leaf node name to
+            'n_cells'
+            'mean'
+            'var'
+            'n_cells'
+            'ge1'
+
+    p_th/q1_th/qdiff_th:
+        Thresholds for determining if the gene is a differentially
+        expressed gene (see Notes below)
+
+    log2_fold_th:
+        Genes must have a log2(fold changes) > log2_fold_th
+        between the two populations to be considered a
+        marker gene.
+
+    q1_min_th/qdiff_min_th/log2_fold_min_th:
+        Minimum thresholds on q1, qdiff, and log2_fold
+        below which genes will not be considered markers,
+        even when using the approximate penetrance tests.
+
+    exact_penetrance:
+        If True, hold marker genes to the exact penetrance criteria;
+        if not, use an approximation to assure there are a minimum
+        number of valid marker genes for the cluster pair.
+
+    n_valid:
+        Number of markers to try for when using approximate
+        penetrance test
+
+    valid_gene_idx:
+        Optional numpy array of indexes of genes that can be considered
+        markers. If not None, genes outside of this set will have their
+        p_ij values set arbitrarily to zero so that they will fail the
+        penetrance test.
+
+    Returns
+    -------
+    An (n_genes,) array of booleans indicating which genes
+    passed the penetrance tests.
+    """
+    stats_1 = precomputed_stats[node_1]
+    stats_2 = precomputed_stats[node_2]
+
+    pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
+    pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
+    log2_fold = np.abs(stats_1['mean']-stats_2['mean'])
+
+    if valid_gene_idx is not None:
+        invalid_mask = np.zeros(pij_1.shape, dtype=bool)
+        invalid_mask[valid_gene_idx] = True
+        invalid_mask = np.logical_not(invalid_mask)
+        pij_1[invalid_mask] = -1.0
+        pij_2[invalid_mask] = -1.0
+        log2_fold[invalid_mask] = -1.0
+
+    penetrance_mask = penetrance_tests(
+        pij_1=pij_1,
+        pij_2=pij_2,
+        log2_fold=log2_fold,
+        q1_th=q1_th,
+        qdiff_th=qdiff_th,
+        log2_fold_th=log2_fold_th,
+        exact=exact_penetrance,
+        q1_min_th=q1_min_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_min_th=log2_fold_min_th,
+        n_valid=n_valid)
+    return penetrance_mask
 
 
 def penetrance_tests(

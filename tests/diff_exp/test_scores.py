@@ -156,7 +156,7 @@ def test_diffexp_score():
 
     assert scores[1] > scores[0]
 
-    # gene 0 is the bet discriminator
+    # gene 0 is the best discriminator
     scores = diffexp_score(
         mean1=np.array([1.0, 0.0]),
         var1=np.array([0.1, 0.05]),

@@ -43,7 +43,8 @@ def find_markers_for_all_taxonomy_pairs(
         tmp_dir=None,
         max_gb=20,
         exact_penetrance=False,
-        n_valid=30):
+        n_valid=30,
+        gene_list=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -88,6 +89,10 @@ def find_markers_for_all_taxonomy_pairs(
         The number of markers to find per pair (when using
         approximate penetrance test)
 
+    gene_list:
+        Optional list limiting the genes that can be considered
+        as markers.
+
     Returns
     --------
     None
@@ -130,7 +135,8 @@ def find_markers_for_all_taxonomy_pairs(
         tmp_dir=tmp_dir,
         max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)),
         exact_penetrance=exact_penetrance,
-        n_valid=n_valid)
+        n_valid=n_valid,
+        gene_list=gene_list)
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
@@ -163,7 +169,8 @@ def create_sparse_by_pair_marker_file(
         tmp_dir=None,
         max_bytes=6*1024**3,
         exact_penetrance=False,
-        n_valid=30):
+        n_valid=30,
+        gene_list=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -200,6 +207,10 @@ def create_sparse_by_pair_marker_file(
         The number of markers to find per pair (when using
         approximate penetrance test)
 
+    gene_list:
+        Optional list limiting the genes that can be considered
+        as markers.
+
     Returns
     --------
     Path to a file in tmp_dir where the data is stored
@@ -225,6 +236,15 @@ def create_sparse_by_pair_marker_file(
     cluster_stats = precomputed_stats['cluster_stats']
     gene_names = precomputed_stats['gene_names']
     del precomputed_stats
+
+    if gene_list is not None:
+        gene_set = set(gene_list)
+        valid_gene_idx = np.array([
+            idx for idx, g in enumerate(gene_names)
+            if g in gene_set
+        ])
+    else:
+        valid_gene_idx = None
 
     n_genes = len(gene_names)
 
@@ -282,7 +302,8 @@ def create_sparse_by_pair_marker_file(
                     'log2_fold_min_th': log2_fold_min_th,
                     'tmp_path': tmp_path,
                     'exact_penetrance': exact_penetrance,
-                    'n_valid': n_valid})
+                    'n_valid': n_valid,
+                    'valid_gene_idx': valid_gene_idx})
         p.start()
         process_dict[col0] = p
         while len(process_dict) >= n_processors:
@@ -458,7 +479,8 @@ def _find_markers_worker(
         log2_fold_min_th,
         tmp_path,
         exact_penetrance=False,
-        n_valid=30):
+        n_valid=30,
+        valid_gene_idx=None):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -486,6 +508,9 @@ def _find_markers_worker(
     exact_penetrance:
         If False, allow genes that technically fail penetrance
         and fold-change thresholds to be marker genes.
+    valid_gene_idx:
+        Optional array of gene indices indicating which genes
+        can be considered valid markers
     """
 
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
@@ -523,7 +548,8 @@ def _find_markers_worker(
                          log2_fold_min_th=log2_fold_min_th,
                          boring_t=boring_t,
                          exact_penetrance=exact_penetrance,
-                         n_valid=n_valid)
+                         n_valid=n_valid,
+                         valid_gene_idx=valid_gene_idx)
 
         up_reg_lookup[idx] = np.where(
             np.logical_and(validity_mask, up_mask))[0].astype(idx_dtype)
