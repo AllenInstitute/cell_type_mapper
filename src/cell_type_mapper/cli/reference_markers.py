@@ -57,7 +57,7 @@ class ReferenceMarkerSchema(argschema.ArgSchema):
 
     drop_level = argschema.fields.String(
         required=False,
-        default='CCN20230722_SUPT',
+        default=None,
         allow_none=True,
         description=("Optional level to drop from taxonomy"))
 
