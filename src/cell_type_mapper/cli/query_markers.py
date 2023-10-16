@@ -1,6 +1,7 @@
 import argschema
 import copy
 import json
+import time
 
 from cell_type_mapper.utils.utils import (
     get_timestamp)
@@ -90,6 +91,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
+        t0 = time.time()
+
         var = read_df_from_h5ad(
             self.args['query_path'],
             df_name='var')
@@ -120,6 +123,9 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
                 json.dumps(marker_lookup, indent=2))
+
+        dur = time.time()-t0
+        print(f"RAN SUCCESSFULLY in {dur:.2e} seconds")
 
 
 if __name__ == "__main__":
