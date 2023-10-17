@@ -205,10 +205,14 @@ def test_ensembl_mapping_in_cli(
         args=[],
         input_data=config)
 
+    runner.run()
+    actual = json.load(open(output_path, 'rb'))
+
     if map_to_ensembl:
         runner.run()
-        actual = json.load(open(output_path, 'rb'))
         assert 'RAN SUCCESSFULLY' in actual['log'][-2]
     else:
-        with pytest.raises(RuntimeError, match="'None' has no valid markers"):
-            runner.run()
+        assert 'an ERROR occurred' in actual['log'][-2]
+        assert "'None' has no valid markers" in actual['log'][-2]
+        for l in actual['log']:
+            assert 'RAN SUCCESSFULLY' not in l

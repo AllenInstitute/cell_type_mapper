@@ -467,7 +467,19 @@ def test_mapping_from_markers_when_some_markers_missing(
         args= [],
         input_data=config)
 
-    with pytest.raises(RuntimeError, match="validating marker lookup"):
-        runner.run()
+    runner.run()
+
+    result = json.load(open(result_path, 'rb'))
+    was_successful = False
+    for l in result['log']:
+        if 'RAN SUCCESSFULLY' in l:
+            was_successful = True
+    assert not was_successful
+    was_error = False
+    for l in result['log']:
+        if 'an ERROR occurred' in l:
+            was_error = True
+            assert 'validating marker lookup' in l
+    assert was_error
 
     os.environ[env_var] = ''
