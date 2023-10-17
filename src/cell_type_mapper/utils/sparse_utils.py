@@ -719,7 +719,7 @@ def _amalgamate_sparse_array(
             ct_rows += len(src_element['rows'])
             with h5py.File(src_path, 'r') as src:
                 n_indices = src[indices_key].shape[0]
-                indices_chunk = min(n_indices//4, 100000000)
+                indices_chunk = min(n_indices//4, 50000000)
                 if indices_chunk == 0:
                     indices_chunk = n_indices
 
@@ -745,7 +745,7 @@ def _amalgamate_sparse_array(
                         raise RuntimeError(
                             "Failure while chunking through indices")
 
-                    this = indices[i0:i1]
+                    this = np.copy(indices[i0:i1])
                     full_indices.append(this)
                     ct_elements += len(this)
                     local_indptr_idx += len(this)
@@ -775,7 +775,7 @@ def _amalgamate_sparse_array(
                         raise RuntimeError(
                             "Failure while chunking through data")
 
-                    this = data[i0:i1]
+                    this = np.copy(data[i0:i1])
                     full_data.append(this)
                     if len(this) > 0:
                         delta = np.abs(np.round(this)-this)
