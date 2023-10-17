@@ -719,7 +719,7 @@ def _amalgamate_sparse_array(
             ct_rows += len(src_element['rows'])
             with h5py.File(src_path, 'r') as src:
                 n_indices = src[indices_key].shape[0]
-                indices_chunk = min(n_indices//4, 50000000)
+                indices_chunk = min(n_indices//4, 100000000)
                 if indices_chunk == 0:
                     indices_chunk = n_indices
 
@@ -728,7 +728,6 @@ def _amalgamate_sparse_array(
                 indices1 = indices_chunk
                 indices = src[indices_key][indices0:indices1]
 
-                n_kept = 0
                 indptr = src[indptr_key][()]
                 for idx in src_element['rows']:
                     full_indptr.append(local_indptr_idx)
@@ -738,7 +737,6 @@ def _amalgamate_sparse_array(
                     if raw_i1 >= indices1:
                         indices0 = raw_i0
                         indices1 = max(raw_i0+indices_chunk, raw_i1)
-                        print(f'loading indices {indices0:.2e}, {indices1:.2e} of {n_indices:.2e} -- kept {n_kept:.2e}')
                         indices = src[indices_key][indices0:indices1]
 
                     i0 = raw_i0-indices0
@@ -747,8 +745,7 @@ def _amalgamate_sparse_array(
                         raise RuntimeError(
                             "Failure while chunking through indices")
 
-                    this = np.copy(indices[i0:i1])
-                    n_kept += len(this)
+                    this = indices[i0:i1]
                     full_indices.append(this)
                     ct_elements += len(this)
                     local_indptr_idx += len(this)
@@ -770,7 +767,6 @@ def _amalgamate_sparse_array(
                     if raw_i1 >= data1:
                         data0 = raw_i0
                         data1 = max(raw_i0+indices_chunk, raw_i1)
-                        print(f'loading data {data0:.2e}, {data1:2e} of {n_indices:.2e}')
                         data = src[data_key][data0:data1]
 
                     i0 = raw_i0-data0
@@ -779,7 +775,8 @@ def _amalgamate_sparse_array(
                         raise RuntimeError(
                             "Failure while chunking through data")
 
-                    full_data.append(np.copy(data[i0:i1]))
+                    this = data[i0:i1]
+                    full_data.append(this)
                     if len(this) > 0:
                         delta = np.abs(np.round(this)-this)
                         if delta.max() > eps:
