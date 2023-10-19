@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pathlib
+import traceback
 import warnings
 
 from cell_type_mapper.utils.utils import (
@@ -96,6 +97,22 @@ def validate_h5ad(
     # the actual input file
     original_h5ad_path = pathlib.Path(h5ad_path)
 
+    # check that file can even be open
+    try:
+        with h5py.File(original_h5ad_path, 'r') as src:
+            pass
+    except Exception:
+        error_msg = f"\n{traceback.format_exc()}\n"
+        error_msg += (
+            "This h5ad file is corrupted such that it could not "
+            "even be opened with h5py. See above for the specific "
+            "error message raised by h5py."
+        )
+        if log is None:
+            raise RuntimeError(error_msg)
+        else:
+            log.error(error_msg)
+
     # check that anndata metadata fields are present
     if layer == 'X':
         to_check = 'X'
@@ -112,7 +129,10 @@ def validate_h5ad(
             "anndata specification here\n"
             "https://anndata.readthedocs.io/en/latest/fileformat-prose.html"
         )
-        raise RuntimeError(msg)
+        if log is None:
+            raise RuntimeError(msg)
+        else:
+            log.error(msg)
 
     # where data should be taken from at each step of the
     # validation (if layer != 'X', a new file will be created
