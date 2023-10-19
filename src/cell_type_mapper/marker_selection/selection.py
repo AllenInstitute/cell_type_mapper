@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
@@ -80,6 +81,8 @@ def select_marker_genes_v2(
     A string summarizing how well the marker selection did.
     """
 
+    t0 = time.time()
+
     if lock is None:
         lock = DummyLock()
 
@@ -116,6 +119,8 @@ def select_marker_genes_v2(
         lock=lock)
 
     if summary_log is not None:
+        duration = time.time()-t0
+        summary_log_message['duration'] = duration
         if parent_node is None:
             log_key = 'None'
         else:
