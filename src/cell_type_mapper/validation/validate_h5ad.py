@@ -88,15 +88,17 @@ def validate_h5ad(
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
 
-    # somewhere in here, check to see if we are working on a layer;
-    # if that happens, just go ahead and copy and set current_h5ad_path
-    # to new_h5ad_path
-
     has_warnings = False
 
     output_path = None
 
+    # the actual input file
     original_h5ad_path = pathlib.Path(h5ad_path)
+
+    # where data should be taken from at each step of the
+    # validation (if layer != 'X', a new file will be created
+    # early on and all subsequent processing happens on that
+    # file)
     current_h5ad_path = original_h5ad_path
 
     h5ad_name = original_h5ad_path.name.replace(
