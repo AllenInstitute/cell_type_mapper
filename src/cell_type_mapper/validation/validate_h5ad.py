@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 import pathlib
 import warnings
@@ -94,6 +95,24 @@ def validate_h5ad(
 
     # the actual input file
     original_h5ad_path = pathlib.Path(h5ad_path)
+
+    # check that anndata metadata fields are present
+    if layer == 'X':
+        to_check = 'X'
+    else:
+        to_check = f'layers/{layer}'
+    with h5py.File(original_h5ad_path, 'r') as src:
+        attrs = dict(src[to_check].attrs)
+    if 'encoding-type' not in attrs:
+        msg = (
+            f"The '{to_check}' field in this h5ad file lacks the "
+            "'encoding-type' metadata field. "
+            "That field is necessary for this software to determine if this "
+            "data is stored as a sparse or dense matrix. Please see the "
+            "anndata specification here\n"
+            "https://anndata.readthedocs.io/en/latest/fileformat-prose.html"
+        )
+        raise RuntimeError(msg)
 
     # where data should be taken from at each step of the
     # validation (if layer != 'X', a new file will be created

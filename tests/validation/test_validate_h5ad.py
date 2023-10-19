@@ -100,6 +100,59 @@ def good_x_fixture(var_fixture, obs_fixture):
     return data
 
 
+@pytest.mark.parametrize('as_layer', [True, False])
+def test_validation_of_h5ad_without_encoding(
+        var_fixture,
+        obs_fixture,
+        x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        as_layer):
+    """
+    Test that the correct failure message is emitted when the h5ad file
+    is missing 'encoding' type fro its layer
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    data = x_fixture
+
+    a_data = anndata.AnnData(
+        var=var_fixture,
+        obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+
+    if as_layer:
+        layer = 'garbage'
+        to_write = f'layers/{layer}'
+    else:
+        to_write = 'X'
+        layer = 'X'
+
+    with h5py.File(orig_path, 'a') as dst:
+        dst.create_dataset(to_write, data=x_fixture)
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    valid_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    with pytest.raises(RuntimeError, match="lacks the 'encoding-type'"):
+        validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=None,
+            valid_h5ad_path=valid_h5ad_path,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            layer=layer,
+            round_to_int=True)
+
+
 @pytest.mark.parametrize(
         "density,as_layer,round_to_int,specify_path",
         itertools.product(
