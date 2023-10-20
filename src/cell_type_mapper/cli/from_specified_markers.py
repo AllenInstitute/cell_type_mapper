@@ -122,7 +122,7 @@ class HierarchicalSchemaSpecifiedMarkers(argschema.ArgSchema):
         description="Path to CSV file where output file will be "
         "written (if None, no CSV will be produced).")
 
-    log_path = argschema.fields.OutputFile(
+    log_path = argschema.fields.String(
         required=False,
         default=None,
         allow_none=True,
@@ -216,46 +216,61 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 def run_mapping(config, output_path, log_path=None):
 
+    safe_config = copy.deepcopy(config)
+    if config['cloud_safe']:
+        safe_config['precomputed_stats']['path'] = pathlib.Path(
+             config['precomputed_stats']['path']).name
+        safe_config['query_markers']['serialized_lookup'] = pathlib.Path(
+            config['query_markers']['serialized_lookup']).name
+        safe_config['query_path'] = pathlib.Path(
+            config['query_path']).name
+        for k in ('extended_result_path', 'csv_result_path'):
+            if safe_config[k] is not None:
+                safe_config[k] = pathlib.Path(config[k]).name
+        safe_config.pop('extended_result_dir')
+        safe_config.pop('tmp_dir')
+
+    print('=== Running Hierarchical Mapping with config ===\n'
+          f'{json.dumps(safe_config, indent=2)}')
+
+    log = CommandLog()
+
+    # create this now in case _run_mapping errors
+    # before creating the output dict (the finally
+    # block will add some logging info to output)
+    output = dict()
+
+    if 'tmp_dir' not in config:
+        raise RuntimeError("did not specify tmp_dir")
+
+    if config['tmp_dir'] is not None:
+        timestamp = get_timestamp().replace('-', '')
+        tmp_dir = tempfile.mkdtemp(
+            dir=config['tmp_dir'],
+            prefix=f'cell_type_mapper_{timestamp}_')
+    else:
+        tmp_dir = None
+
     if output_path is not None:
         output_path = pathlib.Path(output_path)
 
     if log_path is not None:
         log_path = pathlib.Path(log_path)
 
-    log = CommandLog()
+    # check validity of output_path and log_path
+    for pth in (output_path, log_path):
+        if pth is not None:
+            if not pth.exists():
+                try:
+                    with open(pth, 'w') as out_file:
+                        out_file.write('junk')
+                    pth.unlink()
+                except FileNotFoundError:
+                    raise RuntimeError(
+                        "unable to write to "
+                        f"{pth.resolve().absolute()}")
 
     try:
-
-        safe_config = copy.deepcopy(config)
-        if config['cloud_safe']:
-            safe_config['precomputed_stats']['path'] = pathlib.Path(
-                 config['precomputed_stats']['path']).name
-            safe_config['query_markers']['serialized_lookup'] = pathlib.Path(
-                config['query_markers']['serialized_lookup']).name
-            safe_config['query_path'] = pathlib.Path(
-                config['query_path']).name
-            for k in ('extended_result_path', 'csv_result_path'):
-                if safe_config[k] is not None:
-                    safe_config[k] = pathlib.Path(config[k]).name
-            safe_config.pop('extended_result_dir')
-            safe_config.pop('tmp_dir')
-
-        print('=== Running Hierarchical Mapping with config ===\n'
-              f'{json.dumps(safe_config, indent=2)}')
-
-        # create this now in case _run_mapping errors
-        # before creating the output dict (the finally
-        # block will add some logging info to output)
-        output = dict()
-
-        if config['tmp_dir'] is not None:
-            timestamp = get_timestamp().replace('-', '')
-            tmp_dir = tempfile.mkdtemp(
-                dir=config['tmp_dir'],
-                prefix=f'cell_type_mapper_{timestamp}_')
-        else:
-            tmp_dir = None
-
         if config['tmp_dir'] is not None:
             tmp_result_dir = tempfile.mkdtemp(
                 dir=config['tmp_dir'],
@@ -273,12 +288,11 @@ def run_mapping(config, output_path, log_path=None):
 
         _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
-
     except Exception:
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"
         log.add_msg(traceback_msg)
-
+        raise
     finally:
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
