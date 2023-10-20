@@ -37,7 +37,7 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
     var = read_df_from_h5ad(query_gene_path, 'var')
     result = list(var.index.values)
     if map_to_ensembl:
-        gene_id_mapper = GeneIdMapper.from_default()
+        gene_id_mapper = GeneIdMapper.from_mouse()
         result = gene_id_mapper.map_gene_identifiers(
             result,
             strict=False)

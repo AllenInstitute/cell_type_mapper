@@ -580,4 +580,4 @@ def test_gene_name_errors(tmp_dir_fixture):
         validate_h5ad(
             h5ad_path=h5ad_path,
             valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=GeneIdMapper.from_default())
+            gene_id_mapper=GeneIdMapper.from_mouse())

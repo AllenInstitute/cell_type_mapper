@@ -155,7 +155,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
             log_path = pathlib.Path(log_path)
 
         try:
-            gene_id_mapper = GeneIdMapper.from_default(log=command_log)
+            gene_id_mapper = GeneIdMapper.from_mouse(log=command_log)
             if self.args['check_max']:
                 expected_max = 20
             else:

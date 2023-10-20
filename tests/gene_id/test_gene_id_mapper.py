@@ -71,11 +71,13 @@ def test_gene_id_mapper_strict(map_data_fixture):
     with pytest.raises(RuntimeError, match="could not be mapped"):
         mapper.map_gene_identifiers(names, strict=True)
 
-def test_from_default():
+def test_class_methods():
     """
     Just a smoke test to make sure that default gene mapping can load
     """
-    mapper = GeneIdMapper.from_default()
+    mapper = GeneIdMapper.from_mouse()
+    assert isinstance(mapper, GeneIdMapper)
+    mapper = GeneIdMapper.from_human()
     assert isinstance(mapper, GeneIdMapper)
 
 

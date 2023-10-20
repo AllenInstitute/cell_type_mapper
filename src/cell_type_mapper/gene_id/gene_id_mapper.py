@@ -9,6 +9,9 @@ from cell_type_mapper.gene_id.utils import (
 from cell_type_mapper.data.mouse_gene_id_lookup import (
     mouse_gene_id_lookup)
 
+from cell_type_mapper.data.human_gene_id_lookup import (
+    human_gene_id_lookup)
+
 
 class GeneIdMapper(object):
 
@@ -27,8 +30,12 @@ class GeneIdMapper(object):
         self._preferred_type = "EnsemblID"
 
     @classmethod
-    def from_default(cls, log=None):
+    def from_mouse(cls, log=None):
         return cls(data=mouse_gene_id_lookup, log=log)
+
+    @classmethod
+    def from_human(cls, log=None):
+        return cls(data=human_gene_id_lookup, log=log)
 
     @property
     def preferred_type(self):
