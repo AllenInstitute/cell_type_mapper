@@ -10,6 +10,11 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.gene_id.utils import detect_species
+
+from cell_type_mapper.gene_id.gene_id_mapper import (
+    GeneIdMapper)
+
 
 def is_x_integers(
         h5ad_path,
@@ -116,7 +121,8 @@ def get_minmax_x_from_h5ad(
 
 def map_gene_ids_in_var(
         var_df,
-        gene_id_mapper):
+        gene_id_mapper=None,
+        log=None):
     """
     Fix the index of the var dataframe to use the preferred gene identifiers
     specified in a GeneIdMapper
@@ -127,8 +133,10 @@ def map_gene_ids_in_var(
         original var dataframe
     gene_id_mapper:
         GeneIdMapper containing data needed to map between gene identification
-        schemes
-
+        schemes. If None, infer the mapper based on the species implied by
+        the input gene IDs.
+    log:
+        Optional logger for recording messages.
     Returns
     -------
     If the var dataframe needs to be updated, return the updated
@@ -138,6 +146,15 @@ def map_gene_ids_in_var(
     """
 
     gene_id_list = list(var_df.index.values)
+
+    if gene_id_mapper is None:
+        species = detect_species(gene_id_list)
+        if log is not None:
+            log.info(f"Mapping genes to {species} genes")
+        gene_id_mapper = GeneIdMapper.from_species(
+            species=species,
+            log=log)
+
     new_gene_id_list = gene_id_mapper.map_gene_identifiers(gene_id_list)
     if new_gene_id_list == gene_id_list:
         return None

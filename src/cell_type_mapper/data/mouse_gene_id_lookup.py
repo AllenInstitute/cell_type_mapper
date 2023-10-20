@@ -2,7 +2,7 @@
 # from /allen/aibs/informatics/lydian/abc_kb_ingest/knowledge_base/20230830_revision/extracted/extracted_ensembl_ncbi_matched_genes_merged.csv
 # accessed on 2023-08-21-13-38-07
 # md5 checksum: 2af1a100f5308406bbbbfcfe4bd65dbc
-gene_id_lookup = {
+mouse_gene_id_lookup = {
   "Xkr4": "ENSMUSG00000051951",
   "Rp1": "ENSMUSG00000025900",
   "Sox17": "ENSMUSG00000025902",

@@ -150,7 +150,8 @@ def validate_h5ad(
 
     mapped_var = map_gene_ids_in_var(
         var_df=var_original,
-        gene_id_mapper=gene_id_mapper)
+        gene_id_mapper=gene_id_mapper,
+        log=log)
 
     cast_to_int = False
     if round_to_int:

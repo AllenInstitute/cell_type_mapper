@@ -6,8 +6,11 @@ import cell_type_mapper.utils.utils as utils
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.mouse_gene_id_lookup import (
+    mouse_gene_id_lookup)
+
+from cell_type_mapper.data.human_gene_id_lookup import (
+    human_gene_id_lookup)
 
 
 class GeneIdMapper(object):
@@ -27,8 +30,27 @@ class GeneIdMapper(object):
         self._preferred_type = "EnsemblID"
 
     @classmethod
-    def from_default(cls, log=None):
-        return cls(data=gene_id_lookup, log=log)
+    def from_species(cls, species, log=None):
+        if species == 'mouse':
+            return cls.from_mouse(log=log)
+        elif species == 'human':
+            return cls.from_human(log=log)
+        else:
+            error_msg = (
+                f"No mapper for species '{species}'"
+            )
+            if log is not None:
+                log.error(error_msg)
+            else:
+                raise RuntimeError(error_msg)
+
+    @classmethod
+    def from_mouse(cls, log=None):
+        return cls(data=mouse_gene_id_lookup, log=log)
+
+    @classmethod
+    def from_human(cls, log=None):
+        return cls(data=human_gene_id_lookup, log=log)
 
     @property
     def preferred_type(self):
