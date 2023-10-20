@@ -8,8 +8,8 @@ from cell_type_mapper.gene_id.utils import (
 from cell_type_mapper.data.cellranger_6_lookup import (
     cellranger_6_lookup)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.mouse_gene_id_lookup import (
+    mouse_gene_id_lookup)
 
 
 def marker_lookup_from_tree_and_csv(
@@ -194,10 +194,10 @@ def map_aibs_gene_names(raw_gene_names):
             if c not in used_ensembl:
                 valid_candidates.append(c)
         if len(valid_candidates) > 1:
-            # last ditch effort; look in gene_id_lookup
-            if symbol in gene_id_lookup:
-                if gene_id_lookup[symbol] not in used_ensembl:
-                    ensembl = gene_id_lookup[symbol]
+            # last ditch effort; look in mouse_gene_id_lookup
+            if symbol in mouse_gene_id_lookup:
+                if mouse_gene_id_lookup[symbol] not in used_ensembl:
+                    ensembl = mouse_gene_id_lookup[symbol]
 
             if ensembl is None:
                 error_msg += (

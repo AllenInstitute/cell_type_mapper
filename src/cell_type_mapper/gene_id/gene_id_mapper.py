@@ -6,8 +6,8 @@ import cell_type_mapper.utils.utils as utils
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.mouse_gene_id_lookup import (
+    mouse_gene_id_lookup)
 
 
 class GeneIdMapper(object):
@@ -28,7 +28,7 @@ class GeneIdMapper(object):
 
     @classmethod
     def from_default(cls, log=None):
-        return cls(data=gene_id_lookup, log=log)
+        return cls(data=mouse_gene_id_lookup, log=log)
 
     @property
     def preferred_type(self):

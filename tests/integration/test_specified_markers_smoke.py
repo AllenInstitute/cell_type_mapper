@@ -16,8 +16,8 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.data.gene_id_lookup import (
-    gene_id_lookup)
+from cell_type_mapper.data.mouse_gene_id_lookup import (
+    mouse_gene_id_lookup)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -58,14 +58,14 @@ def taxonomy_tree_fixture():
 @pytest.fixture(scope='module')
 def gene_name_fixture():
     rng = np.random.default_rng(2213)
-    result = [k for k in gene_id_lookup.keys() if 'NCBI' not in k]
+    result = [k for k in mouse_gene_id_lookup.keys() if 'NCBI' not in k]
     result = rng.choice(result, 432, replace=False)
     return list(result)
 
 
 @pytest.fixture(scope='module')
 def gene_id_fixture(gene_name_fixture):
-    return [gene_id_lookup[g] for g in gene_name_fixture]
+    return [mouse_gene_id_lookup[g] for g in gene_name_fixture]
 
 
 @pytest.fixture(scope='module')
