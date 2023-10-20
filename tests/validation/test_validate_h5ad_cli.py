@@ -28,7 +28,7 @@ def tmp_dir_fixture(tmp_path_factory):
 
 
 @pytest.fixture
-def var_fixture():
+def mouse_var_fixture():
     records = [
         {'gene_id': 'Clec10a', 'val': 'ab'},
         {'gene_id': 'Alox12', 'val': 'cd'},
@@ -36,6 +36,17 @@ def var_fixture():
         {'gene_id': 'hammer', 'val': 'uw'}]
 
     return pd.DataFrame(records).set_index('gene_id')
+
+@pytest.fixture
+def human_var_fixture():
+    records = [
+        {'gene_id': 'A2ML1', 'val': 'ab'},
+        {'gene_id': 'ZYG11A', 'val': 'cd'},
+        {'gene_id': 'hsa-mir-1253', 'val': 'xy'},
+        {'gene_id': 'silly', 'val': 'uw'}]
+
+    return pd.DataFrame(records).set_index('gene_id')
+
 
 @pytest.fixture
 def good_var_fixture():
@@ -57,9 +68,9 @@ def obs_fixture():
 
 
 @pytest.fixture
-def x_fixture(var_fixture, obs_fixture):
+def x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
-    n_cols = len(var_fixture)
+    n_cols = len(mouse_var_fixture)
     n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
@@ -70,9 +81,9 @@ def x_fixture(var_fixture, obs_fixture):
     return data
 
 @pytest.fixture
-def good_x_fixture(var_fixture, obs_fixture):
+def good_x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
-    n_cols = len(var_fixture)
+    n_cols = len(mouse_var_fixture)
     n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
@@ -84,21 +95,32 @@ def good_x_fixture(var_fixture, obs_fixture):
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int,specify_path",
+        "density,as_layer,round_to_int,specify_path,species",
         itertools.product(
         ("csr", "csc", "array"),
         (True, False),
         (True, False),
-        (True, False)))
+        (True, False),
+        ('human', 'mouse')))
 def test_validation_cli_of_h5ad(
-        var_fixture,
+        mouse_var_fixture,
+        human_var_fixture,
         obs_fixture,
         x_fixture,
         tmp_dir_fixture,
         density,
         as_layer,
         round_to_int,
-        specify_path):
+        specify_path,
+        species):
+
+    if species == 'human':
+        var_fixture = human_var_fixture
+    elif species == 'mouse':
+        var_fixture = mouse_var_fixture
+    else:
+        raise RuntimeError(
+            f"Unknown species '{species}'")
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -139,6 +161,11 @@ def test_validation_cli_of_h5ad(
         prefix=f"bad_input_{density}_",
         suffix=".json")
 
+    log_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validation_log_',
+        suffix='.txt')
+
     if specify_path:
         output_dir = None
         valid_path = mkstemp_clean(
@@ -155,11 +182,20 @@ def test_validation_cli_of_h5ad(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': layer,
-        'round_to_int': round_to_int
+        'round_to_int': round_to_int,
+        'log_path': log_path
     }
 
     runner = ValidateH5adRunner(args=[], input_data=config)
     runner.run()
+
+    # check that log contains line about mapping to mouse genes
+    found_it = False
+    with open(log_path, 'r') as src:
+        for line in src:
+            if f'Mapping genes to {species} genes' in line:
+                found_it = True
+    assert found_it
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -245,9 +281,14 @@ def test_validation_cli_of_h5ad(
     assert list(actual_var['val'].values) == list(var_fixture.val.values)
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
-    assert actual_idx[0] == "ENSMUSG00000000318"
-    assert actual_idx[1] == "ENSMUSG00000000320"
-    assert actual_idx[2] == "ENSMUSG00000000326"
+    if species == 'mouse':
+        assert actual_idx[0] == "ENSMUSG00000000318"
+        assert actual_idx[1] == "ENSMUSG00000000320"
+        assert actual_idx[2] == "ENSMUSG00000000326"
+    else:
+        assert actual_idx[0] == "ENSG00000166535"
+        assert actual_idx[1] == "ENSG00000203995"
+        assert actual_idx[2] == "ENSG00000272920"
     assert "unmapped" in actual_idx[3]
 
     # make sure input file did not change
@@ -399,7 +440,7 @@ def test_validation_cli_of_h5ad_preserve_norm(
 
 
 def test_validation_cli_of_h5ad_missing_output(
-        var_fixture,
+        mouse_var_fixture,
         obs_fixture,
         x_fixture,
         tmp_dir_fixture):

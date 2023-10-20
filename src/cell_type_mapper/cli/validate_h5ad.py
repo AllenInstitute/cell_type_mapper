@@ -8,9 +8,6 @@ import pathlib
 import shutil
 from marshmallow import post_load
 
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
-
 from cell_type_mapper.cli.cli_log import CommandLog
 
 from cell_type_mapper.validation.validate_h5ad import (
@@ -155,7 +152,6 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
             log_path = pathlib.Path(log_path)
 
         try:
-            gene_id_mapper = GeneIdMapper.from_mouse(log=command_log)
             if self.args['check_max']:
                 expected_max = 20
             else:
@@ -165,7 +161,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 h5ad_path=self.args['h5ad_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
-                gene_id_mapper=gene_id_mapper,
+                gene_id_mapper=None,
                 log=command_log,
                 expected_max=expected_max,
                 tmp_dir=self.args['tmp_dir'],

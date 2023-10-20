@@ -30,6 +30,21 @@ class GeneIdMapper(object):
         self._preferred_type = "EnsemblID"
 
     @classmethod
+    def from_species(cls, species, log=None):
+        if species == 'mouse':
+            return cls.from_mouse(log=log)
+        elif species == 'human':
+            return cls.from_human(log=log)
+        else:
+            error_msg = (
+                f"No mapper for species '{species}'"
+            )
+            if log is not None:
+                log.error(error_msg)
+            else:
+                raise RuntimeError(error_msg)
+
+    @classmethod
     def from_mouse(cls, log=None):
         return cls(data=mouse_gene_id_lookup, log=log)
 
