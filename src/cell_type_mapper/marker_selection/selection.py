@@ -99,24 +99,41 @@ def select_marker_genes_v2(
         parent_node=parent_node,
         marker_gene_array=marker_gene_array)
 
-    (marker_gene_names,
-     summary_log_message) = _run_selection(
-        marker_gene_array=marker_gene_array,
-        taxonomy_idx_array=taxonomy_idx_array,
-        n_per_utility=n_per_utility,
-        parent_node=parent_node,
-        lock=lock)
+    # hard code for now
+    min_markers = 500
+    marker_genes = None
+
+    n_iter = 0
+    while True:
+        n_iter += 1
+
+        (candidate,
+         summary_log_message) = _run_selection(
+            marker_gene_array=marker_gene_array,
+            taxonomy_idx_array=taxonomy_idx_array,
+            n_per_utility=n_per_utility,
+            parent_node=parent_node,
+            lock=lock)
+
+        if marker_genes is None or len(candidate) > len(marker_genes):
+            marker_genes = candidate
+        elif len(marker_genes) == len(candidate):
+            break
+
+        if len(marker_genes) >= min_markers:
+            break
 
     if summary_log is not None:
         duration = time.time()-t0
         summary_log_message['duration'] = duration
+        summary_log_message['iterations'] = n_iter
         if parent_node is None:
             log_key = 'None'
         else:
             log_key = f'{parent_node[0]}/{parent_node[1]}'
         summary_log[log_key] = summary_log_message
 
-    return marker_gene_names
+    return marker_genes
 
 
 def _run_selection(
