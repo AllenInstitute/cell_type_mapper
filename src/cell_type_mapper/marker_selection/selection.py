@@ -99,20 +99,9 @@ def select_marker_genes_v2(
         parent_node=parent_node,
         marker_gene_array=marker_gene_array)
 
-    # calculate the initial array indicating how useful each gene
-    # (*all* reference genes at this point) is at discriminating
-    # between the taxonomy pairs that we cair about
-    (utility_array,
-     marker_census) = create_utility_array(
-            marker_gene_array=marker_gene_array,
-            gb_size=10,
-            taxonomy_mask=taxonomy_idx_array)
-
     (marker_gene_names,
      summary_log_message) = _run_selection(
         marker_gene_array=marker_gene_array,
-        utility_array=utility_array,
-        marker_census=marker_census,
         taxonomy_idx_array=taxonomy_idx_array,
         n_per_utility=n_per_utility,
         parent_node=parent_node,
@@ -132,12 +121,19 @@ def select_marker_genes_v2(
 
 def _run_selection(
         marker_gene_array,
-        utility_array,
-        marker_census,
         taxonomy_idx_array,
         n_per_utility,
         parent_node,
         lock=None):
+
+    # calculate the initial array indicating how useful each gene
+    # (*all* reference genes at this point) is at discriminating
+    # between the taxonomy pairs that we cair about
+    (utility_array,
+     marker_census) = create_utility_array(
+            marker_gene_array=marker_gene_array,
+            gb_size=10,
+            taxonomy_mask=taxonomy_idx_array)
 
     # how many total marker genes were there originally
     # (for logging purposes)
