@@ -123,6 +123,8 @@ def select_marker_genes_v2(
         if len(marker_genes) >= min_markers:
             break
 
+        n_per_utility += 5
+
     if summary_log is not None:
         duration = time.time()-t0
         summary_log_message['duration'] = duration
