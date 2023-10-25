@@ -121,6 +121,8 @@ def find_markers_for_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
+    t0 = time.time()
+
     tmp_thinned_path = create_sparse_by_pair_marker_file(
         precomputed_stats_path=precomputed_stats_path,
         taxonomy_tree=taxonomy_tree,
@@ -138,9 +140,13 @@ def find_markers_for_all_taxonomy_pairs(
         n_valid=n_valid,
         gene_list=gene_list)
 
+    print(f"initial marker took {time.time()-t0:.2e} seconds")
+
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
+
+    t0 = time.time()
 
     add_sparse_by_gene_markers_to_file(
         h5_path=tmp_thinned_path,
@@ -148,9 +154,15 @@ def find_markers_for_all_taxonomy_pairs(
         max_gb=max_gb,
         tmp_dir=tmp_dir)
 
+    print(f"transposition took {time.time()-t0:.2e} seconds")
+
+    t0 = time.time()
+
     shutil.move(
         src=tmp_thinned_path,
         dst=output_path)
+
+    print(f"copying took {time.time()-t0:.2e} seconds")
 
     _clean_up(tmp_dir)
 
