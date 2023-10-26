@@ -364,6 +364,10 @@ def test_run_type_assignment(
     test that the runners up are, in fact, descendants
     of the parents they are supposed to descend from,
     and that NULL runners up are handled correctly.
+
+    At the end, it also tests that avg_correlation is properly
+    backfilled in cases where there is only one descendant
+    in the taxonomy tree.
     """
 
     rng = np.random.default_rng(865211)
@@ -378,8 +382,8 @@ def test_run_type_assignment(
         },
         'l2': {
             'l2a': ['c0'],
-            'l2b': ['c1', 'c3', 'c4', 'c12'],
-            'l2c': ['c5', 'c7', 'c10', 'c11'],
+            'l2b': ['c1'],
+            'l2c': ['c5', 'c7', 'c10', 'c11', 'c3', 'c4', 'c12'],
             'l2d': ['c6'],
             'l2e': ['c8', 'c9', 'c2', 'c13', 'c14']
         },
@@ -429,7 +433,7 @@ def test_run_type_assignment(
         i_cluster = i_cell % n_clusters
         signal = cluster_to_gene[i_cluster, :]
         signal = signal * (rng.random(len(reference_gene_names))*0.3+0.8)
-        noise = rng.random(len(reference_gene_names))*0.1
+        noise = (0.5-rng.random(len(reference_gene_names)))*2.0
         query_data[i_cell, :] = signal + noise
 
     query_data = CellByGeneMatrix(
@@ -513,7 +517,51 @@ def test_run_type_assignment(
 
     assert more_than_one_runner_up > 0
 
+    # look for cases where there was only one valid descendant
+    # in the taxonomy tree
+    n_l1b = 0
+    n_l2d = 0
+    for cell in results:
+        if cell['l1']['assignment'] == 'l1b':
+            np.testing.assert_allclose(
+                cell['l2']['avg_correlation'],
+                cell['l1']['avg_correlation'],
+                atol=0.0,
+                rtol=1.0e-6)
+            np.testing.assert_allclose(
+                cell['l2']['bootstrapping_probability'],
+                1.0,
+                atol=0.0,
+                rtol=1.0e-6)
+            assert cell['l2']['assignment'] == 'l2b'
+            np.testing.assert_allclose(
+                cell['cluster']['avg_correlation'],
+                cell['l1']['avg_correlation'],
+                atol=0.0,
+                rtol=1.0e-6)
+            np.testing.assert_allclose(
+                cell['cluster']['bootstrapping_probability'],
+                1.0,
+                atol=0.0,
+                rtol=1.0e-6)
+            assert cell['cluster']['assignment'] == 'c1'
+            n_l1b += 1
+        if cell['l2']['assignment'] == 'l2d':
+            np.testing.assert_allclose(
+                cell['cluster']['avg_correlation'],
+                cell['l2']['avg_correlation'],
+                atol=0.0,
+                rtol=1.0e-6)
+            np.testing.assert_allclose(
+                cell['cluster']['bootstrapping_probability'],
+                1.0,
+                atol=0.0,
+                rtol=1.0e-6)
+            assert cell['cluster']['assignment'] == 'c6'
+            n_l2d += 1
 
+    assert n_l1b > 2
+    assert n_l2d > 2
 
 def test_aggregate_votes():
 

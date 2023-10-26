@@ -474,7 +474,7 @@ def run_type_assignment(
             elif len(possible_children) == 1:
                 assignment = [possible_children[0]]*chosen_query_data.n_cells
                 bootstrapping_probability = [1.0]*chosen_query_data.n_cells
-                avg_corr = [1.0]*chosen_query_data.n_cells
+                avg_corr = [None]*chosen_query_data.n_cells
                 runners_up = [None]*chosen_query_data.n_cells
             else:
                 raise RuntimeError(
@@ -526,6 +526,14 @@ def run_type_assignment(
                     'runner_up_assignment': runner_up_assignments,
                     'runner_up_correlation': runner_up_correlation,
                     'runner_up_probability': runner_up_probability}
+
+    # Backfill all cells/levels with avg_correlation == None
+    # using the parent's avg_correlation value.
+    for cell in result:
+        for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
+            if cell[child_level]['avg_correlation'] is None:
+                cell[child_level]['avg_correlation'] = \
+                    cell[parent_level]['avg_correlation']
 
     return result
 
