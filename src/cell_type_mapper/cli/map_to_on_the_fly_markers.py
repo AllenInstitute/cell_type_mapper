@@ -144,6 +144,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         query_marker_runner = QueryMarkerRunner(
             args=[], input_data=query_marker_config)
         query_marker_runner.run()
+        log.info("found query markers")
 
         type_assignment = copy.deepcopy(self.args['type_assignment'])
         type_assignment['n_processors'] = self.args['n_processors']
@@ -170,6 +171,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             input_data=mapping_config)
 
         mapping_runner.run()
+        log.info("RAN SUCCESSFULLY")
 
 
 def main():
