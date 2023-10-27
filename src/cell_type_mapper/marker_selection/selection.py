@@ -190,7 +190,6 @@ def _run_selection(
 
     n_desperate = len(marker_gene_name_list)
 
-    broke_because = ''
     while True:
 
         (been_filled,
@@ -210,13 +209,11 @@ def _run_selection(
         # none of the genes left have any utility in the taxonomy pairs
         # we care about
         if utility_array.max() <= 0:
-            broke_because = 'utility_array.max()'
             break
 
         filled_sum = been_filled.sum()
         if filled_sum == been_filled_size:
             # we have found all the genes we need
-            broke_because = 'been_filled.sum()'
             break
 
         (marker_gene_idx_set,
@@ -260,16 +257,6 @@ def _run_selection(
             'down': int(fewer_down)}
 
     stat_dict['marker_distribution'] = marker_dist
-
-    msg = f"\n======parent_node: {parent_node}======\n"
-    msg += f"selected {len(marker_gene_name_list)} from "
-    msg += f"{marker_gene_array.n_genes}\n"
-    msg += f"filled {been_filled.sum()} of {been_filled_size}\n"
-    msg += f"broke because {broke_because}\n"
-    msg += stat_msg
-    msg += "\n============"
-    with lock:
-        print(msg)
 
     return marker_gene_name_list, stat_dict
 
