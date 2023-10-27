@@ -16,7 +16,7 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.cli.schemas import (
+from cell_type_mapper.schemas.schemas import (
     ReferenceMarkerFinderSchema)
 
 

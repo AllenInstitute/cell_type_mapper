@@ -12,7 +12,7 @@ from cell_type_mapper.utils.anndata_utils import (
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_gene_lookup_from_ref_list)
 
-from cell_type_mapper.cli.schemas import (
+from cell_type_mapper.schemas.schemas import (
     QueryMarkerFinderSchema)
 
 
