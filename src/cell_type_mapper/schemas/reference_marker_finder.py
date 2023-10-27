@@ -1,56 +1,7 @@
 import argschema
 
 
-class ReferenceMarkerFinderSchema(argschema.ArgSchema):
-
-    precomputed_path_list = argschema.fields.List(
-        argschema.fields.InputFile,
-        required=True,
-        default=None,
-        allow_none=False,
-        cli_as_single_argument=True,
-        description=(
-            "List of paths to precomputed stats files "
-            "for which reference markers will be computed"))
-
-    query_path = argschema.fields.InputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "Optional path to h5ad file containing query data. Used "
-            "to assemble list of genes that are acceptable "
-            "as markers."
-        ))
-
-    output_dir = argschema.fields.OutputDir(
-        required=True,
-        default=None,
-        allow_none=False,
-        description=(
-            "Path to directory where refernce marker files "
-            "will be written. Specific file names will be inferred "
-            "from precomputed stats files."))
-
-    clobber = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=("If False, do not allow overwrite of existing "
-                     "output files."))
-
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Optional level to drop from taxonomy"))
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Temporary directory for writing out "
-                     "scratch files"))
+class ReferenceFinderConfigMixin(object):
 
     n_processors = argschema.fields.Int(
         required=False,
@@ -128,3 +79,57 @@ class ReferenceMarkerFinderSchema(argschema.ArgSchema):
         allow_none=False,
         description=("Try to find this many marker genes per pair. "
                      "Used only if exact_penetrance is False."))
+
+
+class ReferenceMarkerFinderSchema(
+        argschema.ArgSchema,
+        ReferenceFinderConfigMixin):
+
+    precomputed_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
+        required=True,
+        default=None,
+        allow_none=False,
+        cli_as_single_argument=True,
+        description=(
+            "List of paths to precomputed stats files "
+            "for which reference markers will be computed"))
+
+    query_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Optional path to h5ad file containing query data. Used "
+            "to assemble list of genes that are acceptable "
+            "as markers."
+        ))
+
+    output_dir = argschema.fields.OutputDir(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to directory where refernce marker files "
+            "will be written. Specific file names will be inferred "
+            "from precomputed stats files."))
+
+    clobber = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=("If False, do not allow overwrite of existing "
+                     "output files."))
+
+    drop_level = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=("Optional level to drop from taxonomy"))
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=("Temporary directory for writing out "
+                     "scratch files"))

@@ -1,7 +1,34 @@
 import argschema
 
 
-class QueryMarkerFinderSchema(argschema.ArgSchema):
+class QueryFinderConfigMixin(object):
+
+    n_per_utility = argschema.fields.Int(
+        required=False,
+        default=30,
+        allow_none=False,
+        description="Number of marker genes to find per "
+        "(taxonomy_node_A, taxonomy_node_B, up/down) combination.")
+
+    n_per_utility_override = argschema.fields.List(
+        argschema.fields.Tuple(
+            (argschema.fields.String,
+             argschema.fields.Integer)
+        ),
+        required=False,
+        default=None,
+        allow_none=True,
+        cli_as_single_argument=True,
+        description=(
+            "Optional override for n_per_utilty at specific "
+            "parent nodes in the taxonomy tree. Encoded as a "
+            "list of ('parent_node', n_per_utility) tuples."
+        ))
+
+
+class QueryMarkerFinderSchema(
+        argschema.ArgSchema,
+        QueryFinderConfigMixin):
 
     query_path = argschema.fields.InputFile(
         required=True,
@@ -27,28 +54,6 @@ class QueryMarkerFinderSchema(argschema.ArgSchema):
         allow_none=False,
         description="Number of independendent processes to use when "
         "parallelizing work for mapping job")
-
-    n_per_utility = argschema.fields.Int(
-        required=False,
-        default=30,
-        allow_none=False,
-        description="Number of marker genes to find per "
-        "(taxonomy_node_A, taxonomy_node_B, up/down) combination.")
-
-    n_per_utility_override = argschema.fields.List(
-        argschema.fields.Tuple(
-            (argschema.fields.String,
-             argschema.fields.Integer)
-        ),
-        required=False,
-        default=None,
-        allow_none=True,
-        cli_as_single_argument=True,
-        description=(
-            "Optional override for n_per_utilty at specific "
-            "parent nodes in the taxonomy tree. Encoded as a "
-            "list of ('parent_node', n_per_utility) tuples."
-        ))
 
     drop_level = argschema.fields.String(
         required=False,
