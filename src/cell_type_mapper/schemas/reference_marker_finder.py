@@ -3,12 +3,6 @@ import argschema
 
 class ReferenceFinderConfigMixin(object):
 
-    n_processors = argschema.fields.Int(
-        required=False,
-        default=32,
-        allow_none=False,
-        description=("Number of independent processors to spin up."))
-
     exact_penetrance = argschema.fields.Boolean(
         required=False,
         default=False,
@@ -133,3 +127,9 @@ class ReferenceMarkerFinderSchema(
         allow_none=True,
         description=("Temporary directory for writing out "
                      "scratch files"))
+
+    n_processors = argschema.fields.Int(
+        required=False,
+        default=32,
+        allow_none=False,
+        description=("Number of independent processors to spin up."))

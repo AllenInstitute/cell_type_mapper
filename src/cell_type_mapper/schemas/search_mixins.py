@@ -1,5 +1,4 @@
 import argschema
-from marshmallow import post_load
 
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
@@ -84,16 +83,3 @@ class SearchSchemaMixin(object):
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsInputSchema,
         required=True)
-
-    @post_load
-    def check_result_dst(self, data, **kwargs):
-        """
-        Make sure that there is somewhere, either extended_result_path
-        or obsm_key, where we can store the extended results.
-        """
-        if data['extended_result_path'] is None:
-            if data['obsm_key'] is None:
-                msg = ("You must specify at least one of extended_result_path "
-                       "and/or obsm_key")
-                raise RuntimeError(msg)
-        return data

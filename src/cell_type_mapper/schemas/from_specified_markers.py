@@ -63,3 +63,16 @@ class FromSpecifiedMarkersSchema(
                 raise RuntimeError(msg)
 
         return data
+
+    @post_load
+    def check_result_dst(self, data, **kwargs):
+        """
+        Make sure that there is somewhere, either extended_result_path
+        or obsm_key, where we can store the extended results.
+        """
+        if data['extended_result_path'] is None:
+            if data['obsm_key'] is None:
+                msg = ("You must specify at least one of extended_result_path "
+                       "and/or obsm_key")
+                raise RuntimeError(msg)
+        return data
