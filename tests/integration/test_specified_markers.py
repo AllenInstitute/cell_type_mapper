@@ -35,7 +35,7 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from cell_type_mapper.cli.hierarchical_mapping import (
+from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
