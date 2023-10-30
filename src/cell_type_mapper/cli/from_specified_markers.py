@@ -184,7 +184,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     precomputed_config = config["precomputed_stats"]
     file_tracker.add_file(
         precomputed_config['path'],
-        input_only=False)
+        input_only=True)
 
     query_loc = file_tracker.real_location(config['query_path'])
     type_assignment_config = config["type_assignment"]
