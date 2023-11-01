@@ -228,7 +228,15 @@ def _get_minmax_from_dense(x_dataset):
         return (x.min(), x.max())
     min_val = None
     max_val = None
-    chunk_size = x_dataset.chunks
+    raw_chunk_size = x_dataset.chunks
+    x_shape = x_dataset.shape
+    ntot = x_shape[0]*x_shape[1]
+    nchunk = raw_chunk_size[0]*raw_chunk_size[1]
+    chunk_size = (raw_chunk_size[0], raw_chunk_size[1])
+    while nchunk < 1000000000 and nchunk < ntot//2:
+        chunk_size = (chunk_size[0]*2, chunk_size[1]*2)
+        nchunk = chunk_size[0]*chunk_size[1]
+
     for r0 in range(0, x_dataset.shape[0], chunk_size[0]):
         r1 = min(x_dataset.shape[0], r0+chunk_size[0])
         for c0 in range(0, x_dataset.shape[1], chunk_size[1]):
@@ -264,7 +272,12 @@ def _get_minmax_from_sparse(x_grp):
     min_val = None
     max_val = None
 
+    ntot = data_dataset.shape[0]
+
     chunk_size = data_dataset.chunks
+    while chunk_size[0] < 1000000000 and chunk_size[0] < ntot//2:
+        chunk_size = (chunk_size[0]*2,)
+
     n_el = data_dataset.shape[0]
 
     for i0 in range(0, n_el, chunk_size[0]):
