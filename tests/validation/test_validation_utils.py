@@ -15,7 +15,8 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.validation.utils import (
     get_minmax_x_from_h5ad,
     round_x_to_integers,
-    is_x_integers)
+    is_x_integers,
+    is_data_ge_zero)
 
 
 # add function to create various flavors of h5ad file
@@ -427,3 +428,61 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
         (min_val, max_val),
         atol=0.0,
         rtol=1.0e-6)
+
+
+@pytest.mark.parametrize('density,layer',
+        itertools.product(['dense', 'csr', 'csc'], ['X', 'garbage']))
+def test_is_data_ge_zero(tmp_dir_fixture, density, layer):
+
+    rng = np.random.default_rng(2231)
+
+    # when dtype is an unsigned int, should return (True, 0)
+    # regardless of actual minimum value
+    x = rng.integers(5, 2000, (34, 76)).astype(np.uint32)
+    if density == 'csr':
+        x = scipy_sparse.csr_matrix(x)
+    elif density == 'csc':
+        x = scipy_sparse.csc_matrix(x)
+    a = anndata.AnnData(X=x, layers={'garbage': x})
+    data_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    a.write_h5ad(data_path)
+
+    result = is_data_ge_zero(
+        h5ad_path=data_path,
+        layer='X')
+    assert result[0]
+    assert result[1] == 0
+
+    # when datatype is not an unsigned int, should return
+    # (True, actual_min)
+    x = rng.integers(5, 2000, (34, 76)).astype(float)
+    if density == 'csr':
+        x = scipy_sparse.csr_matrix(x)
+    elif density == 'csc':
+        x = scipy_sparse.csc_matrix(x)
+    a = anndata.AnnData(X=x, layers={'garbage': x})
+    data_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    a.write_h5ad(data_path)
+
+    result = is_data_ge_zero(
+        h5ad_path=data_path,
+        layer='X')
+    assert result[0]
+    np.testing.assert_allclose(result[1], x.min(), atol=0.0, rtol=1.0e-6)
+
+    # check case when data is not ge zero
+    x = rng.integers(5, 2000, (34, 76)).astype(float)
+    x[10, 11] = -25.0
+    if density == 'csr':
+        x = scipy_sparse.csr_matrix(x)
+    elif density == 'csc':
+        x = scipy_sparse.csc_matrix(x)
+    a = anndata.AnnData(X=x, layers={'garbage': x})
+    data_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    a.write_h5ad(data_path)
+
+    result = is_data_ge_zero(
+        h5ad_path=data_path,
+        layer='X')
+    assert not result[0]
+    np.testing.assert_allclose(result[1], x.min(), atol=0.0, rtol=1.0e-6)

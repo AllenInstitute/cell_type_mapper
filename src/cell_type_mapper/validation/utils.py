@@ -95,6 +95,45 @@ def round_x_to_integers(
     _clean_up(tmp_dir)
 
 
+def is_data_ge_zero(
+        h5ad_path,
+        layer='X'):
+    """
+    Is the specified layer greater than or equal to zero.
+
+    Return a boolean and the minimum value of the data.
+
+    Note: if the data is a uint, the minimum value returned
+    will be zero, regardless of what the actual minimum value
+    of the data is.
+    """
+    layer_key = _layer_to_layer_key(layer)
+    with h5py.File(h5ad_path, 'r') as in_file:
+        attrs = dict(in_file[layer_key].attrs)
+        if 'encoding-type' not in attrs:
+            dtype = None
+        elif attrs['encoding-type'] == 'array':
+            dtype = in_file[layer_key].dtype
+        elif 'csr' in attrs['encoding-type'] \
+                or 'csc' in attrs['encoding-type']:
+            dtype = in_file[f'{layer_key}/data'].dtype
+
+        if dtype is not None:
+            if np.issubdtype(dtype, np.integer):
+                iinfo = np.iinfo(dtype)
+                if iinfo.min >= 0:
+                    return True, 0
+
+    minmax = get_minmax_x_from_h5ad(
+        h5ad_path=h5ad_path,
+        layer=layer)
+
+    if minmax[0] < 0.0:
+        return False, minmax[0]
+
+    return True, minmax[0]
+
+
 def get_minmax_x_from_h5ad(
         h5ad_path,
         layer='X'):
