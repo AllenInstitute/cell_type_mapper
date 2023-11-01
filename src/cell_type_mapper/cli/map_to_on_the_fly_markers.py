@@ -105,7 +105,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             'output_dir': reference_marker_dir,
             'query_path': self.args['query_path'],
             'n_processors': self.args['n_processors'],
-            'drop_level': self.args['drop_level']
+            'drop_level': self.args['drop_level'],
+            'cloud_safe': self.args['cloud_safe']
         }
 
         reference_marker_config.update(reference_marker_update)

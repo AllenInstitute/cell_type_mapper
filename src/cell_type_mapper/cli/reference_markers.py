@@ -48,7 +48,10 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
         for precomputed_path in input_to_output:
             output_path = input_to_output[precomputed_path]
-            print(f'writing {output_path}')
+            to_write = output_path
+            if self.args['cloud_safe']:
+                to_write = '../' + pathlib.Path(to_write).name
+            print(f'writing {to_write}')
             taxonomy_tree = TaxonomyTree.from_precomputed_stats(
                 stats_path=precomputed_path)
 

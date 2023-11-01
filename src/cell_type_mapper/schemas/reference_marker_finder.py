@@ -74,6 +74,12 @@ class ReferenceFinderConfigMixin(object):
         description=("Try to find this many marker genes per pair. "
                      "Used only if exact_penetrance is False."))
 
+    cloud_safe = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_nonw=False,
+        description="If True, full file paths not recorded in log")
+
 
 class ReferenceMarkerFinderSchema(
         argschema.ArgSchema,
