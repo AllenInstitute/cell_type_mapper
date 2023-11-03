@@ -112,3 +112,19 @@ def test_suffix_clipping():
     expected = ['ENSG2', 'ENSG3', 'ENSG0', 'ENSG555', 'ENSG1']
     actual = mapper.map_gene_identifiers(input_arr)
     assert actual == expected
+
+
+@pytest.mark.parametrize('strict', [True, False])
+def test_when_all_bad(strict):
+    """
+    Make sure an error is raised when no genes can be mapped
+    """
+    mapper = GeneIdMapper.from_mouse()
+    gene_id_list = ['garbage_a', 'garbage_b', 'garbage_c']
+    msg = (
+        "Could not map any of your genes to EnsemblID\n"
+        "First five gene identifiers are:\n"
+        "\['garbage_a', 'garbage_b', 'garbage_c'\]"
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        mapper.map_gene_identifiers(gene_id_list, strict=strict)
