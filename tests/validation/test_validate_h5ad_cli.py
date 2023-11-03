@@ -60,6 +60,17 @@ def good_var_fixture():
 
 
 @pytest.fixture
+def bad_var_fixture():
+    records = [
+        {'gene_id': "alice", 'val': 'ab'},
+        {'gene_id': "bob", 'val': 'cd'},
+        {'gene_id': "charlie", 'val': 'xy'},
+        {'gene_id': "danielle", 'val': 'uw'}]
+
+    return pd.DataFrame(records).set_index('gene_id')
+
+
+@pytest.fixture
 def obs_fixture():
     records = [
         {'cell_id': f'cell_{ii}', 'sq': ii**2}
@@ -92,6 +103,58 @@ def good_x_fixture(mouse_var_fixture, obs_fixture):
         for i_col in chosen:
             data[i_row, i_col] = np.round(rng.random()*10.0+1.4)
     return data
+
+
+def test_validation_cli_on_bad_genes(
+        bad_var_fixture,
+        obs_fixture,
+        x_fixture,
+        tmp_dir_fixture):
+    """
+    Test that an error is raised if no genes can be
+    mapped to Ensembl ID
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    a_data = anndata.AnnData(
+        X=x_fixture,
+        var=bad_var_fixture,
+        obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix="bad_input_",
+        suffix=".json")
+
+    log_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validation_log_',
+        suffix='.txt')
+
+    output_dir = str(tmp_dir_fixture.resolve().absolute())
+    valid_path = None
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': output_dir,
+        'valid_h5ad_path': valid_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_json': output_json,
+        'layer': 'X',
+        'round_to_int': True,
+        'log_path': log_path
+    }
+
+    runner = ValidateH5adRunner(args=[], input_data=config)
+
+    with pytest.raises(RuntimeError, match="Could not find a species"):
+        runner.run()
+
 
 
 @pytest.mark.parametrize(

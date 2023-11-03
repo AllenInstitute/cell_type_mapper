@@ -188,8 +188,20 @@ def map_gene_ids_in_var(
 
     if gene_id_mapper is None:
         species = detect_species(gene_id_list)
+
+        if species is None:
+            msg = (
+                "Could not find a species for the genes you gave:\n"
+                f"First five genes:\n{gene_id_list[:5]}"
+            )
+            if log is not None:
+                log.error(msg)
+            else:
+                raise RuntimeError(msg)
+
         if log is not None:
             log.info(f"Mapping genes to {species} genes")
+
         gene_id_mapper = GeneIdMapper.from_species(
             species=species,
             log=log)
