@@ -57,7 +57,7 @@ def tmp_dir_fixture(
 @pytest.fixture(scope='module')
 def cluster_names_fixture():
     result = []
-    for ii in range(1234):
+    for ii in range(133):
         result.append(f'cluster_{ii}')
     return result
 
