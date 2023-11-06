@@ -374,7 +374,7 @@ class TaxonomyTree(object):
         if this_level not in self._data:
             raise RuntimeError(
                 f"{this_level} is not a valid level in this taxonomy;\n"
-                f"valid levels are:\n {self.valid_levels}")
+                f"valid levels are:\n {self.hierarchy}")
         return list(self._data[this_level].keys())
 
     def parents(self, level, node):
@@ -406,7 +406,7 @@ class TaxonomyTree(object):
             return list(self._data[self.hierarchy[0]].keys())
         if level not in self._data.keys():
             raise RuntimeError(
-                f"{level} is not a valid level\ntry {self.valid_levels}")
+                f"{level} is not a valid level\ntry {self.hierarchy}")
         if node not in self._data[level]:
             raise RuntimeError(f"{node} not a valid node at level {level}")
         return list(self._data[level][node])
