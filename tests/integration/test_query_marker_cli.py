@@ -78,6 +78,8 @@ def test_query_marker_cli_tool(
         actual = json.load(src)
 
     assert 'log' in actual
+    n_skipped = 0
+    n_dur = 0
     log = actual['log']
     for level in taxonomy_tree_dict['hierarchy'][:-1]:
         for node in taxonomy_tree_dict[level]:
@@ -86,6 +88,17 @@ def test_query_marker_cli_tool(
                 assert log_key not in log
             else:
                 assert log_key in log
+                is_skipped = False
+                if 'msg' in log[log_key]:
+                    if 'Skipping; no leaf' in log[log_key]['msg']:
+                        is_skipped = True
+                if is_skipped:
+                    n_skip += 1
+                else:
+                    assert 'duration' in log[log_key]
+                    n_dur += 1
+
+    assert n_dur > 0
 
     gene_ct = 0
     levels_found = set()

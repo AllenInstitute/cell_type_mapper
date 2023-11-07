@@ -1,5 +1,9 @@
 import h5py
 import json
+import numpy as np
+
+from cell_type_mapper.utils.h5_utils import (
+    copy_h5_excluding_data)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -60,3 +64,74 @@ def run_leaf_census(
             leaf_to_census[node][pth] = n_cells[idx]
 
     return leaf_to_census, taxonomy_tree
+
+
+def merge_precompute_files(
+        precompute_path_list,
+        output_path):
+    """
+    Take a set of precomputed_stats files that describe different
+    datasets in the same taxonomy. Create a single precomputed
+    stats file in which each cluster only contains the row from the
+    original file in which it had the most cells.
+
+    Parameters
+    ----------
+    precompute_path_list:
+        List of paths to the original precomputed stats files
+    output_path:
+        Where to write the merged precomputed stats file.
+    """
+    precompute_path_list.sort()
+
+    (census,
+     taxonomy_tree) = run_leaf_census(precompute_path_list)
+
+    most_cells = 0
+    most_path = None
+    for pth in precompute_path_list:
+        with h5py.File(pth, 'r') as src:
+            ntot = src['n_cells'][()].sum()
+            if ntot > most_cells or most_path is None:
+                most_path = pth
+                most_cells = ntot
+
+    copy_h5_excluding_data(
+        src_path=most_path,
+        dst_path=output_path,
+        excluded_groups=['metadata'],
+        excluded_datasets=['metadata'])
+
+    keys_to_skip = set(
+        ['taxonomy_tree',
+         'n_cells',
+         'col_names',
+         'cluster_to_row',
+         'metadata']
+    )
+
+    with h5py.File(output_path, 'a') as dst:
+        dst_cluster_lookup = dst['cluster_to_row'][()]
+        dst_col_names = dst['col_names'][()]
+        for pth in precompute_path_list:
+            if pth == most_path:
+                continue
+            with h5py.File(pth, 'r') as src:
+                if src['cluster_to_row'][()] != dst_cluster_lookup:
+                    raise RuntimeError(
+                        "provided files have different "
+                        "cluster_to_row mappings")
+                if src['col_names'][()] != dst_col_names:
+                    raise RuntimeError(
+                        "provided files have different col_names")
+                src_n_cells = src['n_cells'][()]
+                dst_n_cells = dst['n_cells'][()]
+                to_replace = np.where(src_n_cells > dst_n_cells)[0]
+
+                dst['n_cells'][to_replace] = src['n_cells'][to_replace]
+                for key in dst.keys():
+                    if key in keys_to_skip:
+                        continue
+                    for idx in to_replace:
+                        dst[key][idx, :] = src[key][idx, :]
+            dst.flush()

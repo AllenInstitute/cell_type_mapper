@@ -90,6 +90,7 @@ class GeneIdMapper(object):
         if strict:
             bad_genes = []
 
+        n_genes = len(gene_id_list)
         mapped_genes = 0
         unmappable_genes = 0
         already_fine = 0
@@ -109,15 +110,27 @@ class GeneIdMapper(object):
                         bad_genes.append(input_gene)
 
         if mapped_genes + unmappable_genes > 0:
+            if unmappable_genes == n_genes:
+                msg = (
+                    "Could not map any of your genes to "
+                    f"{self.preferred_type}\n"
+                    "First five gene identifiers are:\n"
+                    f"{gene_id_list[:5]}"
+                )
+                raise RuntimeError(msg)
+
             msg = "Not all of your gene identifiers were "
             msg += f"{self.preferred_type}; "
             msg += f"{mapped_genes} were mapped to {self.preferred_type}"
+
             if already_fine > 0:
                 msg += f"; {already_fine} "
                 msg += f"were already {self.preferred_type}"
+
             if unmappable_genes > 0:
                 msg += f"; {unmappable_genes} "
                 msg += f"could not be mapped to {self.preferred_type}"
+
             if unmappable_genes > 0 and strict:
                 msg += "\nunmappable genes were\n"
                 msg += f"{json.dumps(bad_genes,indent=2)}"

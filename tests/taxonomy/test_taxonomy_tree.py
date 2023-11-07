@@ -493,3 +493,45 @@ def test_backfill():
     assert noisy != expected_assignment
     noisy = tree.backfill_assignments(noisy)
     assert noisy == expected_assignment
+
+
+def test_bad_level():
+    """
+    Test errors raised when you ask for a level that does not exist
+    """
+
+    data = {
+        "hierarchy": ["A", "B", "C", "D"],
+        "A": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in ('a', 'b', 'c')
+        },
+        "B": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in ('aa', 'ab', 'ba', 'bb', 'ca', 'cb')
+        },
+        "C": {
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in (
+                'aaa', 'aab', 'aba', 'abb', 'baa', 'bab',
+                'bba', 'bbb', 'caa', 'cab', 'cba', 'cbb')
+        },
+        "D":{
+            k: [f'{k}{j}' for j in ('a', 'b')]
+            for k in (
+               'aaaa', 'aaab', 'aaba', 'aabb',
+               'abaa', 'abab', 'abba', 'abbb',
+               'baaa', 'baab', 'baba', 'babb',
+               'bbaa', 'bbab', 'bbba', 'bbbb',
+               'caaa', 'caab', 'caba', 'cabb',
+               'cbaa', 'cbab', 'cbba', 'cbbb')
+        }
+    }
+
+    tree = TaxonomyTree(data=data)
+
+    with pytest.raises(RuntimeError, match ="F is not a valid level"):
+        tree.nodes_at_level('F')
+
+    with pytest.raises(RuntimeError, match="F is not a valid level"):
+        tree.children(level='F', node='ffff')

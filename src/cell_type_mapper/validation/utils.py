@@ -95,6 +95,45 @@ def round_x_to_integers(
     _clean_up(tmp_dir)
 
 
+def is_data_ge_zero(
+        h5ad_path,
+        layer='X'):
+    """
+    Is the specified layer greater than or equal to zero.
+
+    Return a boolean and the minimum value of the data.
+
+    Note: if the data is a uint, the minimum value returned
+    will be zero, regardless of what the actual minimum value
+    of the data is.
+    """
+    layer_key = _layer_to_layer_key(layer)
+    with h5py.File(h5ad_path, 'r') as in_file:
+        attrs = dict(in_file[layer_key].attrs)
+        if 'encoding-type' not in attrs:
+            dtype = None
+        elif attrs['encoding-type'] == 'array':
+            dtype = in_file[layer_key].dtype
+        elif 'csr' in attrs['encoding-type'] \
+                or 'csc' in attrs['encoding-type']:
+            dtype = in_file[f'{layer_key}/data'].dtype
+
+        if dtype is not None:
+            if np.issubdtype(dtype, np.integer):
+                iinfo = np.iinfo(dtype)
+                if iinfo.min >= 0:
+                    return True, 0
+
+    minmax = get_minmax_x_from_h5ad(
+        h5ad_path=h5ad_path,
+        layer=layer)
+
+    if minmax[0] < 0.0:
+        return False, minmax[0]
+
+    return True, minmax[0]
+
+
 def get_minmax_x_from_h5ad(
         h5ad_path,
         layer='X'):
@@ -149,8 +188,20 @@ def map_gene_ids_in_var(
 
     if gene_id_mapper is None:
         species = detect_species(gene_id_list)
+
+        if species is None:
+            msg = (
+                "Could not find a species for the genes you gave:\n"
+                f"First five genes:\n{gene_id_list[:5]}"
+            )
+            if log is not None:
+                log.error(msg)
+            else:
+                raise RuntimeError(msg)
+
         if log is not None:
             log.info(f"Mapping genes to {species} genes")
+
         gene_id_mapper = GeneIdMapper.from_species(
             species=species,
             log=log)
@@ -228,7 +279,15 @@ def _get_minmax_from_dense(x_dataset):
         return (x.min(), x.max())
     min_val = None
     max_val = None
-    chunk_size = x_dataset.chunks
+    raw_chunk_size = x_dataset.chunks
+    x_shape = x_dataset.shape
+    ntot = x_shape[0]*x_shape[1]
+    nchunk = raw_chunk_size[0]*raw_chunk_size[1]
+    chunk_size = (raw_chunk_size[0], raw_chunk_size[1])
+    while nchunk < 1000000000 and nchunk < ntot//2:
+        chunk_size = (chunk_size[0]*2, chunk_size[1]*2)
+        nchunk = chunk_size[0]*chunk_size[1]
+
     for r0 in range(0, x_dataset.shape[0], chunk_size[0]):
         r1 = min(x_dataset.shape[0], r0+chunk_size[0])
         for c0 in range(0, x_dataset.shape[1], chunk_size[1]):
@@ -264,7 +323,12 @@ def _get_minmax_from_sparse(x_grp):
     min_val = None
     max_val = None
 
+    ntot = data_dataset.shape[0]
+
     chunk_size = data_dataset.chunks
+    while chunk_size[0] < 1000000000 and chunk_size[0] < ntot//2:
+        chunk_size = (chunk_size[0]*2,)
+
     n_el = data_dataset.shape[0]
 
     for i0 in range(0, n_el, chunk_size[0]):

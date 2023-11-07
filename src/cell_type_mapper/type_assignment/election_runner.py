@@ -7,7 +7,7 @@ from cell_type_mapper.utils.torch_utils import (
     use_torch)
 
 from cell_type_mapper.validation.utils import (
-    get_minmax_x_from_h5ad)
+    is_data_ge_zero)
 
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
@@ -43,10 +43,10 @@ def run_type_assignment_on_h5ad(
 
     if normalization == 'raw':
         # check that data is >= 0
-        minmax = get_minmax_x_from_h5ad(query_h5ad_path)
-        if minmax[0] < 0:
+        is_ge_zero = is_data_ge_zero(h5ad_path=query_h5ad_path, layer='X')
+        if not is_ge_zero[0]:
             error_msg = (
-                f"Minimum expression value is {minmax[0]}; "
+                f"Minimum expression value is {is_ge_zero[1]}; "
                 "must be >= 0 (we will be taking the logarithm "
                 "in order to convert from 'raw' to 'log2CPM' data)"
             )

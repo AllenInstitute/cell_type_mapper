@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+from unittest.mock import patch
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -18,6 +19,9 @@ from cell_type_mapper.gene_id.gene_id_mapper import (
 
 from cell_type_mapper.validation.validate_h5ad import (
     validate_h5ad)
+
+from cell_type_mapper.cli.cli_log import (
+    CommandLog)
 
 
 @pytest.fixture(scope='module')
@@ -98,6 +102,117 @@ def good_x_fixture(var_fixture, obs_fixture):
         for i_col in chosen:
             data[i_row, i_col] = np.round(rng.random()*10.0+1.4)
     return data
+
+
+@pytest.mark.parametrize('as_layer, with_log',
+    itertools.product([True, False], [True, False]))
+def test_validation_of_h5ad_without_encoding(
+        var_fixture,
+        obs_fixture,
+        x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        as_layer,
+        with_log):
+    """
+    Test that the correct failure message is emitted when the h5ad file
+    is missing 'encoding' type fro its layer
+    """
+
+    if with_log:
+        log = CommandLog()
+    else:
+        log = None
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    data = x_fixture
+
+    a_data = anndata.AnnData(
+        var=var_fixture,
+        obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+
+    if as_layer:
+        layer = 'garbage'
+        to_write = f'layers/{layer}'
+    else:
+        to_write = 'X'
+        layer = 'X'
+
+    with h5py.File(orig_path, 'a') as dst:
+        dst.create_dataset(to_write, data=x_fixture)
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    valid_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    with pytest.raises(RuntimeError, match="lacks the 'encoding-type'"):
+        validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=None,
+            valid_h5ad_path=valid_h5ad_path,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            layer=layer,
+            round_to_int=True,
+            log=log)
+
+@pytest.mark.parametrize('with_log',
+    [True, False])
+def test_validation_of_corrupted_h5ad(
+        var_fixture,
+        obs_fixture,
+        x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        with_log):
+    """
+    Test that the correct failure message is emitted when the h5ad file
+    is so corrupted h5py cannot open it
+    """
+
+    if with_log:
+        log = CommandLog()
+    else:
+        log = None
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    a_data = anndata.AnnData(
+        var=var_fixture,
+        obs=obs_fixture,
+        X=x_fixture)
+    a_data.write_h5ad(orig_path)
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    valid_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    def bad_file(*args, **kwargs):
+        raise RuntimeError("not going to open this")
+    with patch('h5py.File', bad_file):
+        with pytest.raises(RuntimeError, match="could not even be opened"):
+            validate_h5ad(
+                h5ad_path=orig_path,
+                output_dir=None,
+                valid_h5ad_path=valid_h5ad_path,
+                gene_id_mapper=gene_id_mapper,
+                tmp_dir=tmp_dir_fixture,
+                layer='X',
+                round_to_int=True,
+                log=log)
 
 
 @pytest.mark.parametrize(

@@ -41,7 +41,7 @@ from cell_type_mapper.type_assignment.election import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from cell_type_mapper.cli.hierarchical_mapping import (
+from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping)
 
 if is_torch_available():

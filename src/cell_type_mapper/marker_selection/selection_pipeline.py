@@ -17,6 +17,7 @@ def select_all_markers(
         n_per_utility=15,
         n_processors=4,
         behemoth_cutoff=1000000,
+        n_per_utility_override=None,
         parent_list=None,
         tmp_dir=None):
     """
@@ -42,6 +43,9 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    n_per_utility_override:
+        Optional dict mapping parent node to an alternative
+        value of n_per_utility
     parent_list:
         If not None, a list of parent nodes (in the form of
         (level, node) tuples) to get markers for. Ignore
@@ -140,6 +144,11 @@ def select_all_markers(
                             only_keep_pairs=leaves,
                             tmp_dir=tmp_dir)
 
+                this_n_per = n_per_utility
+                if n_per_utility_override is not None:
+                    if chosen_parent in n_per_utility_override:
+                        this_n_per = n_per_utility_override[chosen_parent]
+
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
                         kwargs={
@@ -148,7 +157,7 @@ def select_all_markers(
                             'query_gene_names': query_gene_names,
                             'taxonomy_tree': taxonomy_tree,
                             'parent_node': chosen_parent,
-                            'n_per_utility': n_per_utility,
+                            'n_per_utility': this_n_per,
                             'output_dict': output_dict,
                             'stdout_lock': stdout_lock,
                             'summary_log': summary_log,

@@ -3,10 +3,6 @@ import numpy as np
 import numbers
 import h5py
 import pathlib
-import time
-
-from cell_type_mapper.utils.utils import (
-    print_timing)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -295,18 +291,22 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
     bad_row_idx = -999
 
+    desired_cells = set(cell_name_to_cluster_name.keys())
     for data_path in data_path_list:
 
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
 
-        n_cells = len(cell_name_list)
+        n_overlap = len(set(cell_name_list).intersection(desired_cells))
+        if n_overlap == 0:
+            continue
 
         chunk_iterator = AnnDataRowIterator(
             h5ad_path=data_path,
             row_chunk_size=rows_at_a_time)
 
-        t0 = time.time()
+        print(f'loading {data_path}')
+
         processed_cells = 0
         for chunk in chunk_iterator:
             r0 = chunk[1]
@@ -344,11 +344,6 @@ def precompute_summary_stats_from_h5ad_and_lookup(
                         buffer_dict[k][unq_cluster, :] += summary_chunk[k]
 
             processed_cells += (r1-r0)
-            print_timing(
-                t0=t0,
-                i_chunk=processed_cells,
-                tot_chunks=n_cells,
-                unit='hr')
 
     _create_empty_stats_file(
         output_path=output_path,

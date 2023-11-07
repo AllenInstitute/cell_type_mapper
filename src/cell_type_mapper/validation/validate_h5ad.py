@@ -1,5 +1,7 @@
+import h5py
 import numpy as np
 import pathlib
+import traceback
 import warnings
 
 from cell_type_mapper.utils.utils import (
@@ -88,15 +90,54 @@ def validate_h5ad(
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
 
-    # somewhere in here, check to see if we are working on a layer;
-    # if that happens, just go ahead and copy and set current_h5ad_path
-    # to new_h5ad_path
-
     has_warnings = False
 
     output_path = None
 
+    # the actual input file
     original_h5ad_path = pathlib.Path(h5ad_path)
+
+    # check that file can even be open
+    try:
+        with h5py.File(original_h5ad_path, 'r') as src:
+            pass
+    except Exception:
+        error_msg = f"\n{traceback.format_exc()}\n"
+        error_msg += (
+            "This h5ad file is corrupted such that it could not "
+            "even be opened with h5py. See above for the specific "
+            "error message raised by h5py."
+        )
+        if log is None:
+            raise RuntimeError(error_msg)
+        else:
+            log.error(error_msg)
+
+    # check that anndata metadata fields are present
+    if layer == 'X':
+        to_check = 'X'
+    else:
+        to_check = f'layers/{layer}'
+    with h5py.File(original_h5ad_path, 'r') as src:
+        attrs = dict(src[to_check].attrs)
+    if 'encoding-type' not in attrs:
+        msg = (
+            f"The '{to_check}' field in this h5ad file lacks the "
+            "'encoding-type' metadata field. "
+            "That field is necessary for this software to determine if this "
+            "data is stored as a sparse or dense matrix. Please see the "
+            "anndata specification here\n"
+            "https://anndata.readthedocs.io/en/latest/fileformat-prose.html"
+        )
+        if log is None:
+            raise RuntimeError(msg)
+        else:
+            log.error(msg)
+
+    # where data should be taken from at each step of the
+    # validation (if layer != 'X', a new file will be created
+    # early on and all subsequent processing happens on that
+    # file)
     current_h5ad_path = original_h5ad_path
 
     h5ad_name = original_h5ad_path.name.replace(

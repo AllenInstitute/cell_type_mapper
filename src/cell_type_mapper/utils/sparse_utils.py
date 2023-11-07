@@ -718,13 +718,34 @@ def _amalgamate_sparse_array(
             src_path = src_element['path']
             ct_rows += len(src_element['rows'])
             with h5py.File(src_path, 'r') as src:
-                indices = src[indices_key][()]
+                n_indices = src[indices_key].shape[0]
+                indices_chunk = min(n_indices//4, 50000000)
+                if indices_chunk == 0:
+                    indices_chunk = n_indices
+
+                # load only a subset of indices at a time
+                indices0 = 0
+                indices1 = indices_chunk
+                indices = src[indices_key][indices0:indices1]
+
                 indptr = src[indptr_key][()]
                 for idx in src_element['rows']:
                     full_indptr.append(local_indptr_idx)
-                    i0 = indptr[idx]
-                    i1 = indptr[idx+1]
-                    this = indices[i0:i1]
+
+                    raw_i0 = indptr[idx]
+                    raw_i1 = indptr[idx+1]
+                    if raw_i1 >= indices1:
+                        indices0 = raw_i0
+                        indices1 = max(raw_i0+indices_chunk, raw_i1)
+                        indices = src[indices_key][indices0:indices1]
+
+                    i0 = raw_i0-indices0
+                    i1 = raw_i1-indices0
+                    if i0 < 0:
+                        raise RuntimeError(
+                            "Failure while chunking through indices")
+
+                    this = np.copy(indices[i0:i1])
                     full_indices.append(this)
                     ct_elements += len(this)
                     local_indptr_idx += len(this)
@@ -732,13 +753,29 @@ def _amalgamate_sparse_array(
                         this_max = this.max()
                         if this_max > max_index:
                             max_index = this_max
+
                 del indices
-                data = src[data_key][()]
+
+                data0 = 0
+                data1 = indices_chunk
+
+                data = src[data_key][data0:data1]
                 src_dtypes.add(data.dtype)
                 for idx in src_element['rows']:
-                    i0 = indptr[idx]
-                    i1 = indptr[idx+1]
-                    this = data[i0:i1]
+                    raw_i0 = indptr[idx]
+                    raw_i1 = indptr[idx+1]
+                    if raw_i1 >= data1:
+                        data0 = raw_i0
+                        data1 = max(raw_i0+indices_chunk, raw_i1)
+                        data = src[data_key][data0:data1]
+
+                    i0 = raw_i0-data0
+                    i1 = raw_i1-data0
+                    if i0 < 0:
+                        raise RuntimeError(
+                            "Failure while chunking through data")
+
+                    this = np.copy(data[i0:i1])
                     full_data.append(this)
                     if len(this) > 0:
                         delta = np.abs(np.round(this)-this)

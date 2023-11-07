@@ -35,7 +35,7 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from cell_type_mapper.cli.hierarchical_mapping import (
+from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
@@ -401,7 +401,7 @@ def test_mapping_from_markers(
 
 
 @pytest.mark.parametrize('use_gpu', [False, True])
-def test_mapping_from_markers_when_some_markers_missing(
+def test_mapping_from_markers_when_some_markers_missing_from_lookup(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
         raw_query_h5ad_fixture,
@@ -467,7 +467,223 @@ def test_mapping_from_markers_when_some_markers_missing(
         args= [],
         input_data=config)
 
-    with pytest.raises(RuntimeError, match="validating marker lookup"):
+    msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
+    with pytest.raises(RuntimeError, match=msg):
+        runner.run()
+
+    os.environ[env_var] = ''
+
+
+
+@pytest.mark.parametrize('use_gpu, delete_to_none',
+    itertools.product([False, True], [False, True]))
+def test_mapping_from_markers_when_some_markers_missing_from_query(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        use_gpu,
+        delete_to_none):
+    """
+    Test what happens when the query set is missing markers
+    from a parent node. Should pass, having backfilled the markers
+    from that marker's parent.
+
+    if delete_to_none is True, then remove all of the markers
+    along the designated branch of the taxonomy tree, except
+    the markers at the root node
+    """
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['flatten'] = False
+
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        markers = json.load(src)
+
+    assert len(markers['subclass/subclass_5']) > 0
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+    parents = taxonomy_tree.parents(
+        level='subclass', node='subclass_5')
+
+    # marker_parent is the parent node whose markers
+    # we expect subclass/subclass_5 to match after we have
+    # deleted the marker genes from the query file.
+    if delete_to_none:
+        marker_parent = 'None'
+    else:
+        marker_parent = f'class/{parents["class"]}'
+
+    assert len(markers[marker_parent]) > 0
+
+    assert set(markers['subclass/subclass_5']) != set(
+        markers[marker_parent])
+
+    # overwrite the marker genes for subclass_5 in the query set
+    new_query_path = mkstemp_clean(
+        dir=tmp_dir_fixture, suffix='.h5ad')
+    old_query = anndata.read_h5ad(baseline_config['query_path'], backed='r')
+    old_var = old_query.var.reset_index().to_dict(orient='records')
+    to_overwrite = set(markers['subclass/subclass_5'])
+    if delete_to_none:
+        for level in parents:
+            these = set(markers[f'{level}/{parents[level]}'])
+            to_overwrite = to_overwrite.union(these)
+
+    ct = 0
+    for record in old_var:
+        if record['gene_name'] in to_overwrite:
+            record['gene_name'] = f'overwritten_{ct}'
+            ct += 1
+
+    new_var = pd.DataFrame(old_var).set_index('gene_name')
+    new_a = anndata.AnnData(
+        X=old_query.X[()],
+        var=new_var,
+        obs=old_query.obs)
+    new_a.write_h5ad(new_query_path)
+
+    config['query_path'] = new_query_path
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+    config['drop_level'] = None
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    # subclass/subclass_5 marker genes should now be identical to
+    # its parent's, since we removed its default markers from the
+    # query dataset
+    with open(result_path, 'rb') as src:
+        results = json.load(src)
+    result_markers = results['marker_genes']
+    assert set(result_markers[marker_parent]) == set(
+        result_markers['subclass/subclass_5'])
+
+    # if we did not delete the entire branch of the taxonomy tree,
+    # we should expect that subclass/subclass_5 has different markers
+    # than the root node
+    if not delete_to_none:
+        assert set(result_markers['subclass/subclass_5']) != set(
+            result_markers['None'])
+
+    os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize('use_gpu', [False, True])
+def test_mapping_from_markers_when_root_markers_missing_from_query(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        use_gpu):
+    """
+    Test what happens when the query set is missing all of the
+    markers along a branch of the taxonomy tree (i.e. all of the markers
+    up to None)
+    """
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['flatten'] = False
+
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        markers = json.load(src)
+
+    # overwrite the markers in the root node
+    new_query_path = mkstemp_clean(
+        dir=tmp_dir_fixture, suffix='.h5ad')
+    old_query = anndata.read_h5ad(baseline_config['query_path'], backed='r')
+    old_var = old_query.var.reset_index().to_dict(orient='records')
+    to_overwrite = set(markers['None'])
+    ct = 0
+    for record in old_var:
+        if record['gene_name'] in to_overwrite:
+            record['gene_name'] = f'overwritten_{ct}'
+            ct += 1
+
+    new_var = pd.DataFrame(old_var).set_index('gene_name')
+    new_a = anndata.AnnData(
+        X=old_query.X[()],
+        var=new_var,
+        obs=old_query.obs)
+    new_a.write_h5ad(new_query_path)
+
+    config['query_path'] = new_query_path
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+    config['drop_level'] = None
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    msg = "'None' has no valid markers in query gene set"
+
+    with pytest.raises(RuntimeError, match=msg):
         runner.run()
 
     os.environ[env_var] = ''

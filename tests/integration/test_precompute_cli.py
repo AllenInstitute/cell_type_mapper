@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -23,6 +24,18 @@ from cell_type_mapper.cell_by_gene.cell_by_gene import (
 
 from cell_type_mapper.cli.precompute_stats import (
     PrecomputationRunner)
+
+from cell_type_mapper.cli.reference_markers import (
+    ReferenceMarkerRunner)
+
+from cell_type_mapper.diff_exp.precompute_utils import (
+    merge_precompute_files)
+
+from cell_type_mapper.diff_exp.markers import (
+    find_markers_for_all_taxonomy_pairs)
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 
 def _create_word(rng):
@@ -44,7 +57,7 @@ def tmp_dir_fixture(
 @pytest.fixture(scope='module')
 def cluster_names_fixture():
     result = []
-    for ii in range(1234):
+    for ii in range(133):
         result.append(f'cluster_{ii}')
     return result
 
@@ -449,7 +462,12 @@ def test_precompute_cli(
             dataset_to_output[dataset] = new_path
     else:
         dataset_to_output['None'] = output_path
+    combined_path = pathlib.Path(output_path[:-2] + 'combined.h5')
 
+    if split_by_dataset:
+        assert combined_path.is_file()
+    else:
+        assert not combined_path.is_file()
 
     for dataset in dataset_to_output:
         actual_output = dataset_to_output[dataset]
@@ -528,3 +546,176 @@ def test_precompute_cli(
             assert 'config' in metadata
             for k in config:
                 assert metadata['config'][k] == config[k]
+
+    if split_by_dataset:
+        # check contents of merged files
+        expected_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+        path_list = list(dataset_to_output.values())
+        merge_precompute_files(
+            precompute_path_list=path_list,
+            output_path=expected_path)
+        with h5py.File(expected_path, 'r') as expected:
+            with h5py.File(combined_path, 'r') as actual:
+                for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                    np.testing.assert_allclose(
+                        expected[k][()],
+                        actual[k][()],
+                        atol=0.0,
+                        rtol=1.0e-6)
+
+
+@pytest.fixture(scope='module')
+def precomputed_stats_path_fixture(
+        h5ad_path_list_fixture,
+        cell_metadata_fixture,
+        cluster_annotation_term_fixture,
+        cluster_membership_fixture,
+        dataset_list_fixture,
+        tmp_dir_fixture):
+    """
+    List of properly produced precomputed stats files
+    (exclude the 'combined' file)
+    """
+
+    output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    output_path = f'{output_dir}/precomputed_stats.h5'
+
+    config = {
+        'output_path': output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_path_list_fixture,
+        'normalization': 'raw',
+        'cell_metadata_path': cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': True}
+
+    runner = PrecomputationRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    precomputed_stats_path_list = [
+        str(n) for n in pathlib.Path(output_dir).iterdir()
+        if n.is_file and 'combined' not in n.name]
+
+    assert len(precomputed_stats_path_list) == len(dataset_list_fixture)
+    return precomputed_stats_path_list
+
+
+@pytest.mark.parametrize(
+    "files_exist",[True, False])
+def test_reference_cli_config(
+        precomputed_stats_path_fixture,
+        dataset_list_fixture,
+        tmp_dir_fixture,
+        files_exist):
+    """
+    Test that the reference marker CLI tool creates expected
+    files and throws expected errors.
+
+    This test is here because we are using the pre-established
+    multi dataset infrastructure to create the precomputed data
+    paths.
+    """
+    valid_output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    # paths that we expect the ReferenceMarker
+    # CLI tool will produce
+    default_output_paths = []
+    for pth in precomputed_stats_path_fixture:
+        pth = pathlib.Path(pth)
+        old_name = pth.name
+        old_stem = old_name.split('.')[0]
+        new_name = old_name.replace(old_stem, 'reference_markers', 1)
+        default_output_paths.append(f'{valid_output_dir}/{new_name}')
+
+    if files_exist:
+        # create paths at teh default locations, forcing the CLI
+        # tool to salt its output
+        for pth in default_output_paths:
+            with open(pth, 'wb') as out_file:
+                out_file.write(b'junk')
+
+    config = {
+        'precomputed_path_list': precomputed_stats_path_fixture,
+        'output_dir': valid_output_dir,
+        'clobber': False,
+        'drop_level': None,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 4,
+        'exact_penetrance': False,
+        'p_th': 0.5,
+        'q1_th': 0.5,
+        'q1_min_th': 0.01,
+        'qdiff_th': 0.5,
+        'qdiff_min_th': 0.01,
+        'log2_fold_th': 1.0,
+        'log2_fold_min_th': 0.01,
+        'n_valid': 5
+    }
+
+    if files_exist:
+        with pytest.raises(RuntimeError, match="already exists; to overwrite"):
+            runner = ReferenceMarkerRunner(
+                args=[],
+                input_data=config)
+            runner.run()
+        for pth in default_output_paths:
+            pth = pathlib.Path(pth)
+            assert pth.is_file()
+
+    else:
+        runner = ReferenceMarkerRunner(
+            args=[],
+            input_data=config)
+        runner.run()
+
+        output_list = [str(n) for n in pathlib.Path(valid_output_dir).iterdir()]
+        assert set(output_list) == set(default_output_paths)
+
+        found_precompute_paths = []
+        for pth in default_output_paths:
+            with h5py.File(pth, 'r') as src:
+                metadata = json.loads(src['metadata'][()].decode('utf-8'))
+                found_precompute_paths.append(metadata['precomputed_path'])
+
+                # assert that there are some markers in this file
+                ntot = np.diff(src['sparse_by_pair/up_pair_idx'][()])
+                ntot += np.diff(src['sparse_by_pair/down_pair_idx'][()])
+                assert ntot.sum() > 0
+
+                # re-run the analysis, to make sure results align
+                expected_path = mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    suffix='.h5')
+
+                find_markers_for_all_taxonomy_pairs(
+                    precomputed_stats_path=metadata['precomputed_path'],
+                    taxonomy_tree=TaxonomyTree.from_precomputed_stats(
+                            metadata['precomputed_path']),
+                    output_path=expected_path,
+                    tmp_dir=tmp_dir_fixture,
+                    n_processors=config['n_processors'],
+                    p_th=config['p_th'],
+                    q1_th=config['q1_th'],
+                    q1_min_th=config['q1_min_th'],
+                    qdiff_th=config['qdiff_th'],
+                    qdiff_min_th=config['qdiff_min_th'],
+                    log2_fold_th=config['log2_fold_th'],
+                    log2_fold_min_th=config['log2_fold_min_th'],
+                    n_valid=config['n_valid'])
+
+                with h5py.File(expected_path, 'r') as expected:
+                    for grp in ('sparse_by_pair', 'sparse_by_gene'):
+                        for dataset in expected[grp].keys():
+                            np.testing.assert_array_equal(
+                                src[f'{grp}/{dataset}'][()],
+                                expected[f'{grp}/{dataset}'][()])
+
+        # make sure every precomputed_stats file got a corresponding
+        # marker file
+        assert set(found_precompute_paths) == set(
+                        precomputed_stats_path_fixture)

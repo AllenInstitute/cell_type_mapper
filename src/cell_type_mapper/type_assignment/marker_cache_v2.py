@@ -1,7 +1,11 @@
+import copy
 import h5py
 import json
 import numpy as np
 import warnings
+
+from cell_type_mapper.diff_exp.precompute_utils import (
+    run_leaf_census)
 
 from cell_type_mapper.marker_selection.selection_pipeline import (
     select_all_markers)
@@ -99,10 +103,11 @@ def create_marker_cache_from_specified_markers(
     # check that all non-trivial parent nodes will have more than
     # zero marker genes assigned to them
     if taxonomy_tree is not None:
-        validate_marker_lookup(
+        marker_lookup = validate_marker_lookup(
             marker_lookup=marker_lookup,
             query_gene_names=query_gene_names,
-            taxonomy_tree=taxonomy_tree)
+            taxonomy_tree=taxonomy_tree,
+            log=log)
 
     query_gene_set = set(query_gene_names)
     reference_gene_set = set(reference_gene_names)
@@ -162,6 +167,131 @@ def create_marker_cache_from_specified_markers(
             log.warn(msg)
 
 
+def create_marker_gene_lookup_from_ref_list(
+        reference_marker_path_list,
+        query_gene_names,
+        n_per_utility,
+        n_per_utility_override,
+        n_processors,
+        behemoth_cutoff,
+        tmp_dir=None,
+        drop_level=None):
+    """
+    Parameters
+    ----------
+    reference_marker_path_list:
+        List of paths to reference_marker
+    query_gene_names:
+        list of gene names in the query dataset
+    taxonomy_tree:
+        Dict encoding the cell type taxonomy
+    n_per_utility:
+        How many genes to select per (taxon_pair, sign)
+        combination
+    n_per_utility:
+        Dict mapping (level, node) pairs denoting parent
+        nodes to override values of n_per_utility
+    n_processors:
+        Number of independent workers to spin up.
+    behemoth_cutoff:
+        Number of leaf nodes for a parent to be considered
+        a behemoth
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
+    drop_level:
+        Optional level to drop from taxonomy tree
+    """
+
+    # assemble dict mapping precomputed stats path to reference
+    # marker path
+    error_msg = ""
+    precompute_to_ref = dict()
+    for ref_path in reference_marker_path_list:
+        with h5py.File(ref_path, 'r') as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        if 'precomputed_path' not in metadata:
+            error_msg += (
+                "===\n"
+                f"{ref_path} does not point to a "
+                "precomputed stats file\n===\n")
+            continue
+        stats_path = metadata['precomputed_path']
+        if stats_path in precompute_to_ref:
+            error_msg += (
+                f"stats_path\n{stats_path}\noccurs for\n"
+                f"{ref_path}\nand\n"
+                f"{precompute_to_ref[stats_path]}\n===\n"
+            )
+        precompute_to_ref[stats_path] = ref_path
+
+    if len(error_msg) > 0:
+        raise RuntimeError(error_msg)
+
+    (leaf_census,
+     taxonomy_tree) = run_leaf_census(
+         list(precompute_to_ref.keys()))
+
+    if drop_level is not None:
+        if drop_level in taxonomy_tree.hierarchy:
+            taxonomy_tree = taxonomy_tree.drop_level(drop_level)
+
+    # assemble dict mapping reference marker path to the a
+    # list of parent nodes valid for that reference marker file
+    marker_config = dict()
+    for parent in taxonomy_tree.all_parents:
+        if parent is None:
+            children = taxonomy_tree.all_leaves
+        else:
+            children = taxonomy_tree.as_leaves[parent[0]][parent[1]]
+
+        this_census = dict()
+        for child in children:
+            for pth in leaf_census[child]:
+                if pth not in this_census:
+                    this_census[pth] = 0
+                this_census[pth] += leaf_census[child][pth]
+        n_max = 0
+        pth_max = None
+        for pth in this_census:
+            if pth_max is None or this_census[pth] > n_max:
+                n_max = this_census[pth]
+                pth_max = pth
+        ref_path = precompute_to_ref[pth_max]
+        if ref_path not in marker_config:
+            marker_config[ref_path] = {
+                'parent_list': []
+            }
+        marker_config[ref_path]['parent_list'].append(parent)
+
+    marker_lookup = None
+    for reference_path in marker_config:
+
+        parent_list = marker_config[reference_path]['parent_list']
+
+        this_lookup = create_raw_marker_gene_lookup(
+                input_cache_path=reference_path,
+                query_gene_names=query_gene_names,
+                taxonomy_tree=taxonomy_tree,
+                parent_list=parent_list,
+                n_per_utility=n_per_utility,
+                n_per_utility_override=n_per_utility_override,
+                n_processors=n_processors,
+                behemoth_cutoff=behemoth_cutoff,
+                tmp_dir=tmp_dir)
+
+        if marker_lookup is None:
+            marker_lookup = this_lookup
+        else:
+            marker_lookup['log'].update(this_lookup['log'])
+            for k in this_lookup:
+                if k == 'log':
+                    continue
+                marker_lookup[k] = this_lookup[k]
+
+    return marker_lookup
+
+
 def create_raw_marker_gene_lookup(
         input_cache_path,
         query_gene_names,
@@ -170,6 +300,7 @@ def create_raw_marker_gene_lookup(
         n_processors,
         behemoth_cutoff=10000000,
         parent_list=None,
+        n_per_utility_override=None,
         tmp_dir=None):
     """
     Create and return a dict mapping
@@ -200,6 +331,9 @@ def create_raw_marker_gene_lookup(
 
         If this is None, will use all the parents in
         the taxonomy_tree.
+    n_per_utility_override:
+        Optional dict mapping parent nodes (encoded as (level, node)
+        tuples) to an override value for n_per_utility.
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
@@ -213,6 +347,7 @@ def create_raw_marker_gene_lookup(
         query_gene_names=query_gene_names,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=n_per_utility,
+        n_per_utility_override=n_per_utility_override,
         n_processors=n_processors,
         behemoth_cutoff=behemoth_cutoff,
         parent_list=parent_list,
@@ -366,11 +501,14 @@ def serialize_markers(
 def validate_marker_lookup(
         marker_lookup,
         query_gene_names,
-        taxonomy_tree):
+        taxonomy_tree,
+        log=None):
     """
     Verify that downselecting the specified marker lookup to include only the
     genes in query_gene_names will produce a set of markers for
-    every non-trivial parent node in taxnomy_tree.
+    every non-trivial parent node in taxnomy_tree. If any non-trivial parent
+    would have zero markers, reassign the markers from higher up in
+    the taxonomy tree to that marker.
 
     Parameters
     ----------
@@ -381,13 +519,15 @@ def validate_marker_lookup(
     taxonomy_tree:
         A TaxonomyTree
     log:
-        Optional logger to record failures
+        Optional object to log messages/warnings for CLI
 
     Returns
     -------
-    Nothing. Just raises an exception if markers are missing from a non-trivial
-    parent node.
+    marker_lookup:
+        Altered in cases where query set was missing markers.
     """
+
+    marker_lookup = copy.deepcopy(marker_lookup)
 
     query_gene_names = set(query_gene_names)
     all_parents = taxonomy_tree.all_parents
@@ -419,9 +559,48 @@ def validate_marker_lookup(
             continue
 
         if len(query_gene_names.intersection(markers)) == 0:
-            error_msg += (f"'{parent_str}' has no valid markers "
-                          "in query gene set\n")
+
+            # try patching with markers from levels above this level
+
+            if parent_str != 'None':
+                ancestors = taxonomy_tree.parents(
+                    level=parent[0],
+                    node=parent[1])
+                reverse_hier = copy.deepcopy(taxonomy_tree.hierarchy)
+                reverse_hier.reverse()
+                patched_with = None
+                for ancestor_level in reverse_hier:
+                    if ancestor_level in ancestors:
+                        ancestor_str = (
+                            f'{ancestor_level}/{ancestors[ancestor_level]}')
+                        new_markers = marker_lookup[ancestor_str]
+                        if len(query_gene_names.intersection(
+                                    set(new_markers))) > 0:
+                            marker_lookup[parent_str] = new_markers
+                            patched_with = ancestor_str
+                            break
+
+                if len(query_gene_names.intersection(
+                            set(marker_lookup[parent_str]))) == 0:
+                    marker_lookup[parent_str] = marker_lookup['None']
+                    patched_with = 'None'
+
+                warning_msg = (
+                     f"'{parent_str}' had no markers in "
+                     "query set; replacing with markers from "
+                     f"'{patched_with}'")
+                if log is not None:
+                    log.warn(warning_msg)
+                else:
+                    warnings.warn(warning_msg)
+
+            if len(query_gene_names.intersection(
+                        set(marker_lookup[parent_str]))) == 0:
+                error_msg += (f"'{parent_str}' has no valid markers "
+                              "in query gene set\n")
 
     if len(error_msg) > 0:
         error_msg = f"validating marker lookup\n{error_msg}"
         raise RuntimeError(error_msg)
+
+    return marker_lookup

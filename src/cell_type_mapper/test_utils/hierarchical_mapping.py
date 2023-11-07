@@ -1,3 +1,8 @@
+"""
+This is an early prototype of an end-to-end hierarchical mapping job
+(i.e. one that discovers its own marker genes on the fly) which some
+unit tests use.
+"""
 import argparse
 import h5py
 import json
