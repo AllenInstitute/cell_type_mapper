@@ -29,6 +29,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 def create_p_value_mask_file(
         precomputed_stats_path,
+        dst_path,
         p_th=0.01,
         n_processors=4,
         tmp_dir=None,
@@ -81,11 +82,6 @@ def create_p_value_mask_file(
         taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
     inner_tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
-    tmp_output_path = pathlib.Path(
-        mkstemp_clean(
-            dir=inner_tmp_dir,
-            prefix='unthinned_',
-            suffix='.h5'))
 
     tree_as_leaves = taxonomy_tree.as_leaves
 
@@ -111,7 +107,7 @@ def create_p_value_mask_file(
     n_genes = len(gene_names)
 
     idx_to_pair = _prep_output_file(
-            output_path=tmp_output_path,
+            output_path=dst_path,
             taxonomy_tree=taxonomy_tree,
             gene_names=gene_names)
 
@@ -194,9 +190,7 @@ def create_p_value_mask_file(
     # do the joining spock
     _merge_masks(
         src_path_list=tmp_path_list,
-        dst_path=tmp_output_path)
-
-    return tmp_output_path
+        dst_path=dst_path)
 
 
 def _p_values_worker(
