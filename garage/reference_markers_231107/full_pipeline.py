@@ -26,7 +26,8 @@ from cell_type_mapper.utils.csc_to_csr import (
     transpose_sparse_matrix_on_disk)
 
 from cell_type_mapper.diff_exp.markers import (
-    add_sparse_by_gene_markers_to_file)
+    add_sparse_by_gene_markers_to_file,
+    _lookup_to_sparse)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -530,8 +531,8 @@ def _find_markers_worker_v2(
     idx_min = idx_values[0]
     idx_max = idx_values[-1]
 
-    up_reg_dense = np.zeros((n_pairs, n_genes), dtype=np.uint8)
-    down_reg_dense = np.zeros((n_pairs, n_genes), dtype=np.uint8)
+    up_reg_lookup = dict()
+    down_reg_lookup = dict()
 
     up_mask = np.zeros(n_genes, dtype=bool)
 
@@ -584,20 +585,17 @@ def _find_markers_worker_v2(
         up_mask[:] = False
         up_mask[stats_2["mean"] > stats_1["mean"]] = True
 
-        up_reg_dense[ct, np.logical_and(validity_mask, up_mask)] = True
-        down_reg_dense[ct,
-            np.logical_and(validity_mask, np.logical_not(up_mask))] = True
+        up_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask, up_mask))[0]
+        down_reg_lookup[idx] = np.where(
+            np.logical_and(validity_mask, np.logical_not(up_mask)))[0]
 
 
-    up_sparse = scipy_sparse.csr_matrix(up_reg_dense)
-    up_gene_idx = up_sparse.indices.astype(int)
-    up_pair_idx = up_sparse.indptr.astype(int)
-    del up_sparse
+    (up_pair_idx,
+     up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
 
-    down_sparse = scipy_sparse.csr_matrix(down_reg_dense)
-    down_gene_idx = down_sparse.indices.astype(int)
-    down_pair_idx = down_sparse.indptr.astype(int)
-    del down_sparse
+    (down_pair_idx,
+     down_gene_idx) = _lookup_to_sparse(down_reg_lookup)
 
     valid_gene_idx = set(up_gene_idx)
     valid_gene_idx = valid_gene_idx.union(
