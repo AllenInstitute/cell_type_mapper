@@ -293,11 +293,21 @@ def create_sparse_by_pair_marker_file_v2(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    n_per = min(1000000, n_pairs//(2*n_processors))
+    bytes_per_pair = n_genes*3
+    n_per = max_bytes //bytes_per_pair
+
+    if n_per > n_pairs//(2*n_processors):
+        n_per = n_pairs//(2*n_processors)
+
+    if n_per == 0:
+        n_per = 10000
+
     n_per -= (n_per % 8)
     n_per = max(8, n_per)
     t0 = time.time()
     ct_complete = 0
+
+    print(f'running with n_per {n_per}')
 
     for col0 in range(0, n_pairs, n_per):
         col1 = col0+n_per
