@@ -275,7 +275,7 @@ def _p_values_worker(
     sparse_mask = scipy_sparse.csr_matrix(dense_mask)
 
     indices = np.copy(sparse_mask.indices)
-    indptr = np.copy(sparse_mask.indptr)
+    indptr = np.copy(sparse_mask.indptr).astype(np.int64)
     del sparse_mask
     indices = indices.astype(idx_dtype)
 
@@ -288,9 +288,9 @@ def _p_values_worker(
         out_file.create_dataset(
             'n_pairs', data=n_pairs)
         out_file.create_dataset(
-            'indices', data=indices)
+            'indices', data=indices, dtype=idx_dtype)
         out_file.create_dataset(
-            'indptr', data=indptr)
+            'indptr', data=indptr, dtype=np.int64)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
 
@@ -397,7 +397,7 @@ def _merge_masks(
         dst_indptr = dst.create_dataset(
             'indptr',
             shape=(n_indptr+1,),
-            dtype=int)
+            dtype=np.int64)
 
         idx_0 = 0
         indptr_0 = 0
@@ -406,9 +406,13 @@ def _merge_masks(
             src_path = idx_to_path[min_row]
             with h5py.File(src_path, 'r') as src:
                 indices = src['indices'][()].astype(indices_dtype)
-                indptr = src['indptr'][()]+idx_0
+                indptr = src['indptr'][()]
+                assert indptr.min() >= 0
+                indptr += idx_0
                 dst_indices[idx_0:idx_0+len(indices)] = indices
                 dst_indptr[indptr_0:indptr_0+len(indptr)-1] = indptr[:-1]
                 idx_0 += len(indices)
                 indptr_0 += len(indptr)-1
+                assert idx_0 > 0
+                assert indptr_0 > 0
         dst_indptr[-1] = n_indices
