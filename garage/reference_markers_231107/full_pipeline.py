@@ -297,7 +297,7 @@ def create_sparse_by_pair_marker_file_v2(
 
     # how many pairs to run per proceess
     bytes_per_pair = n_genes*3
-    n_per = max_bytes //bytes_per_pair
+    n_per = max_bytes//bytes_per_pair
 
     if n_per > n_pairs//(2*n_processors):
         n_per = n_pairs//(2*n_processors)
