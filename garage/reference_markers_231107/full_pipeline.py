@@ -8,6 +8,8 @@ import shutil
 import tempfile
 import time
 
+import os
+
 from cell_type_mapper.utils.utils import (
     print_timing,
     _clean_up,
@@ -308,10 +310,14 @@ def create_sparse_by_pair_marker_file_v2(
     t0 = time.time()
     ct_complete = 0
 
+    print(f'parent process {os.getpid()}')
     print(f'running with n_per {n_per}')
 
     for col0 in range(0, n_pairs, n_per):
         col1 = col0+n_per
+
+        print(f'starting job for {col0}:{col1}')
+
         tmp_path = mkstemp_clean(
             dir=inner_tmp_dir,
             prefix=f'columns_{col0}_{col1}_',
@@ -511,6 +517,7 @@ def _find_markers_worker_v2(
         can be considered valid markers
     """
 
+    print(f'worker starting process {os.getpid()}')
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
     n_pairs = len(idx_to_pair)
     idx_dtype = choose_int_dtype((0, n_genes))
@@ -539,9 +546,9 @@ def _find_markers_worker_v2(
     # load the relevant p-value mask
     with h5py.File(p_value_mask_path, mode='r', swmr=True) as src:
         p_indptr = src['indptr'][()]
-        i0 = p_indptr[idx_min]
-        i1 = p_indptr[idx_max+1]
-        p_indices = src['indices'][i0:i1]
+        p_i0 = p_indptr[idx_min]
+        p_i1 = p_indptr[idx_max+1]
+        p_indices = src['indices'][p_i0:p_i1]
 
     p_indptr = p_indptr[idx_min:idx_max+2]
     p_indptr -= p_indptr[0]
@@ -558,7 +565,11 @@ def _find_markers_worker_v2(
         # mask indicating which genes passed the p-value test
         p_mask[:] = False
         assert ct+1 <= len(p_indptr)
-        assert p_indptr[ct+1] <= len(p_indices)
+        if not p_indptr[ct+1] <= len(p_indices):
+            raise RuntimeError(
+                f"last p_indptr {p_indptr[ct+1]}; "
+                f"len(p_indices) {len(p_indices)}; "
+                f"{p_i0}:{p_i1}; {idx_min} {idx_max}")
         p_mask[p_indices[p_indptr[ct]:p_indptr[ct+1]]] = True
 
         penetrance_mask = penetrance_from_stats(
