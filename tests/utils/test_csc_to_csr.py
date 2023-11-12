@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
@@ -14,7 +15,8 @@ from cell_type_mapper.utils.sparse_utils import (
     load_csr)
 
 from cell_type_mapper.utils.csc_to_csr import (
-    csc_to_csr_on_disk)
+    csc_to_csr_on_disk,
+    transpose_sparse_matrix_on_disk)
 
 
 @pytest.fixture(scope='module')
@@ -127,6 +129,65 @@ def test_csc_to_csr_on_disk(
                 expected,
                 atol=0.0,
                 rtol=1.0e-7)
+
+
+@pytest.mark.parametrize(
+        'max_gb,use_data',
+        itertools.product([0.1, 0.01, 0.001, 0.0001],[True,False]))
+def test_transpose_sparse_matrix_on_disk(
+        tmp_dir_fixture,
+        x_array_fixture,
+        csc_fixture,
+        max_gb,
+        use_data):
+
+    output_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
+    with h5py.File(csc_fixture, 'r') as original:
+        if use_data:
+            data_handle = original['X/data']
+        else:
+            data_handle = None
+
+        transpose_sparse_matrix_on_disk(
+            indices_handle=original['X/indices'],
+            indptr_handle=original['X/indptr'],
+            data_handle=data_handle,
+            output_path=output_path,
+            n_indices=x_array_fixture.shape[0],
+            max_gb=max_gb)
+
+    expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
+    with h5py.File(output_path, 'r') as src:
+        np.testing.assert_array_equal(
+            src['indptr'][()], expected_csr.indptr)
+        np.testing.assert_array_equal(
+            src['indices'][()], expected_csr.indices)
+
+        if use_data:
+            np.testing.assert_allclose(
+                src['data'][()],
+                expected_csr.data,
+                atol=0.0,
+                rtol=1.0e-7)
+        else:
+            assert 'data' not in src.keys()
+
+        if use_data:
+            dr = 372
+            for r0 in range(0, x_array_fixture.shape[0], dr):
+                r1 = min(x_array_fixture.shape[0], r0+dr)
+                actual = load_csr(
+                    row_spec=(r0, r1),
+                    data=src['data'],
+                    indices=src['indices'],
+                    indptr=src['indptr'],
+                    n_cols=x_array_fixture.shape[1])
+                expected = x_array_fixture[r0:r1, :]
+                np.testing.assert_allclose(
+                    actual,
+                    expected,
+                    atol=0.0,
+                    rtol=1.0e-7)
 
 
 @pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
