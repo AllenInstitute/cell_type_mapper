@@ -1,5 +1,9 @@
 import h5py
 import numpy as np
+import pathlib
+
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean)
 
 
 def transpose_sparse_matrix_on_disk_v2(
@@ -9,9 +13,97 @@ def transpose_sparse_matrix_on_disk_v2(
         n_indices,
         max_gb,
         output_path,
-        verbose=False):
-    pass
+        verbose=False,
+        tmp_dir=None):
+    """
+    n_indices is the number of unique indices values in original array
+    """
 
+    indices_dtype = int
+
+    use_data = (data_handle is not None)
+
+    n_raw_indices = indices_handle.shape[0]
+    indices_gb = (4*n_raw_indices)/(1024**3)
+    chunk_size = np.round(n_raw_indices*max_gb/indices_gb).astype(int)
+    if chunk_size == 0:
+        chunk_size = 10000
+    if chunk_size > n_raw_indices:
+        chunk_size = n_raw_indices
+
+    indices_chunk_size = np.round(n_indices/32).astype(int)
+
+    path_list = []
+    for i0 in range(0, n_indices, indices_chunk_size):
+        i1 = min(n_indices, i0+indices_chunk_size)
+
+        tmp_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir,
+                    suffix='.h5',
+                    prefix=f'transpose_{i0}_{i1}_'))
+
+        _transpose_subset_of_indices(
+            indices_handle=indices_handle,
+            indptr_handle=indptr_handle,
+            data_handle=data_handle,
+            indices_minmax=(i0, i1),
+            chunk_size=chunk_size,
+            output_path=tmp_path)
+
+        path_list.append(tmp_path)
+
+    indices_size = 0
+    indptr_size = 0
+    for path in path_list:
+        with h5py.File(path, 'r') as src:
+            indices_size += src['indices'].shape[0]
+            indptr_size += src['indptr'].shape[0]-1
+    indptr_size += 1
+
+    indptr_idx = 0
+    indices_idx = 0
+    with h5py.File(output_path, 'w') as dst:
+        indices = dst.create_dataset(
+            'indices',
+            shape=(indices_size,),
+            chunks=(min(indptr_size, 10000),),
+            dtype=indices_dtype)
+        indptr = dst.create_dataset(
+            'indptr',
+            shape=(indptr_size,),
+            chunks=None,
+            dtype=int)
+        if use_data:
+            data = dst.create_dataset(
+                'data',
+                shape=(indices_size,),
+                chunks=(min(indptr_size, 10000),),
+                dtype=data_handle.dtype)
+
+        for path in path_list:
+            with h5py.File(path, 'r') as src:
+                src_indices = src['indices']
+                src_indptr = src['indptr']
+                if use_data:
+                    src_data = src['data']
+                src_n = src_indices.shape[0]
+                src_n_ptr = src_indptr.shape[0]-1
+                indptr[indptr_idx:indptr_idx+src_n_ptr] = src_indptr[:-1] + indices_idx
+
+                dst0 = indices_idx
+                for src0 in range(0, src_n, chunk_size):
+                    src1 = min(src_n, src0+chunk_size)
+                    dst1 = dst0 + (src1-src0)
+                    indices[dst0:dst1] = src_indices[src0:src1]
+                    if use_data:
+                        data[dst0:dst1] = src_data[src0:src1]
+                    dst0 = dst1
+
+                indices_idx += src_n
+                indptr_idx += src_n_ptr
+            path.unlink()
+        indptr[-1] = indices_idx
 
 def _transpose_subset_of_indices(
         indices_handle,
@@ -20,9 +112,7 @@ def _transpose_subset_of_indices(
         indices_minmax,
         chunk_size,
         output_path):
-    """
-    n_indices is the number of unique indices values in original array
-    """
+
 
     use_data = (data_handle is not None)
 
@@ -61,10 +151,19 @@ def _transpose_subset_of_indices(
         indices += this['indices']
         if use_data:
             data += this['data']
+
     indptr.append(indptr_ct)
-    indices = np.concatenate(indices)
+
+    if len(indices) > 0:
+        indices = np.concatenate(indices)
+    else:
+        indices = np.array([])
+
     if use_data:
-        data = np.concatenate(data)
+        if len(data) > 0:
+            data = np.concatenate(data)
+        else:
+            data = np.array([])
 
     with h5py.File(output_path, 'w') as dst:
         dst.create_dataset(
