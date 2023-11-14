@@ -6,6 +6,7 @@ def _grab_indices_from_chunk(
         indptr,
         indptr_0,
         indices_chunk,
+        data_chunk,
         indices_minmax,
         indices_position,
         output_dict):
@@ -19,6 +20,9 @@ def _grab_indices_from_chunk(
         indptr)
     indices_chunk:
         the chunk of indices to be processed now
+    data_chunk:
+        the chunk of the data array being transposed
+        (can be None)
     indices_minmax:
         tuple indicating min, max of indices values being
         considered by this worker
@@ -44,6 +48,8 @@ def _grab_indices_from_chunk(
     valid[indices_chunk>=indices_minmax[1]] = False
     indices_idx = indices_idx[valid]
     indices_chunk = indices_chunk[valid]
+    if data_chunk is not None:
+         data_chunk = data_chunk[valid]
 
     indptr_idx = np.zeros(indices_idx.shape, dtype=int)
     for ii in range(len(indptr)-1):
@@ -56,5 +62,7 @@ def _grab_indices_from_chunk(
         valid = (indices_chunk==unq)
         this = indptr_idx[valid]
         if unq not in output_dict:
-            output_dict[unq] = []
-        output_dict[unq].append(this)
+            output_dict[unq] = {'indices': [], 'data': []}
+        output_dict[unq]['indices'].append(this)
+        if data_chunk is not None:
+            output_dict[unq]['data'].append(data_chunk[valid])
