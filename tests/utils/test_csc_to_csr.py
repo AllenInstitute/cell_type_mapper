@@ -18,6 +18,9 @@ from cell_type_mapper.utils.csc_to_csr import (
     csc_to_csr_on_disk,
     transpose_sparse_matrix_on_disk)
 
+from cell_type_mapper.utils.csc_to_csr_parallel import (
+    transpose_sparse_matrix_on_disk_v2)
+
 
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(
@@ -132,14 +135,15 @@ def test_csc_to_csr_on_disk(
 
 
 @pytest.mark.parametrize(
-        'max_gb,use_data',
-        itertools.product([0.1, 0.01, 0.001, 0.0001],[True,False]))
+        'max_gb,use_data,version',
+        itertools.product([0.1, 0.01, 0.001, 0.0001],[True,False],[1,2]))
 def test_transpose_sparse_matrix_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
         csc_fixture,
         max_gb,
-        use_data):
+        use_data,
+        version):
 
     output_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5')
     with h5py.File(csc_fixture, 'r') as original:
@@ -148,13 +152,23 @@ def test_transpose_sparse_matrix_on_disk(
         else:
             data_handle = None
 
-        transpose_sparse_matrix_on_disk(
-            indices_handle=original['X/indices'],
-            indptr_handle=original['X/indptr'],
-            data_handle=data_handle,
-            output_path=output_path,
-            n_indices=x_array_fixture.shape[0],
-            max_gb=max_gb)
+        if version == 1:
+            transpose_sparse_matrix_on_disk(
+                indices_handle=original['X/indices'],
+                indptr_handle=original['X/indptr'],
+                data_handle=data_handle,
+                output_path=output_path,
+                n_indices=x_array_fixture.shape[0],
+                max_gb=max_gb)
+        else:
+            transpose_sparse_matrix_on_disk_v2(
+                indices_handle=original['X/indices'],
+                indptr_handle=original['X/indptr'],
+                data_handle=data_handle,
+                output_path=output_path,
+                n_indices=x_array_fixture.shape[0],
+                max_gb=max_gb,
+                tmp_dir=tmp_dir_fixture)
 
     expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
     with h5py.File(output_path, 'r') as src:
