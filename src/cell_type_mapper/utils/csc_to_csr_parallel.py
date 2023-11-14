@@ -31,11 +31,13 @@ def transpose_sparse_matrix_on_disk_v2(
     if chunk_size > n_raw_indices:
         chunk_size = n_raw_indices
 
+    print(f'chunk_size {chunk_size:.2e} of {n_raw_indices:.2e}')
     indices_chunk_size = np.round(n_indices/32).astype(int)
 
     path_list = []
     for i0 in range(0, n_indices, indices_chunk_size):
         i1 = min(n_indices, i0+indices_chunk_size)
+        print(f'running {i0}:{i1}')
 
         tmp_path = pathlib.Path(
                 mkstemp_clean(
@@ -121,6 +123,7 @@ def _transpose_subset_of_indices(
     indptr = indptr_handle[()]
     for i0 in range(0, n_indices, chunk_size):
         i1 = min(n_indices, i0+chunk_size)
+        print(f'    grabbing {i0}:{i1}')
         if use_data:
             data_chunk = data_handle[i0:i1]
         else:
@@ -134,6 +137,8 @@ def _transpose_subset_of_indices(
             indices_minmax=indices_minmax,
             indices_position=(i0, i1),
             output_dict=output_dict)
+
+    print('done grabbing')
 
     indptr = []
     indices = []
@@ -222,21 +227,27 @@ def _grab_indices_from_chunk(
     "column" values for that index.
     """
     indices_idx = np.arange(indices_position[0], indices_position[1], dtype=int)
-    valid = np.ones(indices_chunk.shape, dtype=bool)
-    valid[indices_chunk<indices_minmax[0]] = False
-    valid[indices_chunk>=indices_minmax[1]] = False
-    indices_idx = indices_idx[valid]
-    indices_chunk = indices_chunk[valid]
+    full_valid = np.ones(indices_chunk.shape, dtype=bool)
+    full_valid[indices_chunk<indices_minmax[0]] = False
+    full_valid[indices_chunk>=indices_minmax[1]] = False
+    indices_chunk = indices_chunk[full_valid]
+    masked_indices_idx = np.copy(indices_idx[full_valid])
     if data_chunk is not None:
-         data_chunk = data_chunk[valid]
+         data_chunk = data_chunk[full_valid]
 
-    indptr_idx = np.zeros(indices_idx.shape, dtype=int)
+    print(f"        iterating over indptr {len(indices_chunk)} {len(indptr)}")
+
+    indptr_idx = np.zeros(masked_indices_idx.shape, dtype=int)
     for ii in range(len(indptr)-1):
         row = ii+indptr_0
         idx = indptr[ii]
-        valid = np.logical_and(indices_idx>=idx, indices_idx<indptr[ii+1])
+        valid = np.logical_and(masked_indices_idx>=idx,
+                               masked_indices_idx<indptr[ii+1])
         indptr_idx[valid] = row
 
+    indices_idx = masked_indices_idx
+
+    print(f"        iterating over unique indices {len(np.unique(indices_chunk))}")
     for unq in np.unique(indices_chunk):
         valid = (indices_chunk==unq)
         this = indptr_idx[valid]
