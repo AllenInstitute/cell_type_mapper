@@ -42,6 +42,7 @@ def test_grab_indices_from_chunk(
                 if i_col < indices_minmax[0] or i_col >= indices_minmax[1]:
                     continue
                 expected[i_col].append(i_row)
+        indptr = csr.indptr[indptr_0:]
     else:
         indptr = csr.indptr
         indices = csr.indices
@@ -77,7 +78,7 @@ def test_grab_indices_from_chunk(
 
     for i_col in expected:
         if data[:, i_col].sum() == 0 or len(expected[i_col]) == 0:
-            i_col not in output_dict
+            assert i_col not in output_dict
         else:
             np.testing.assert_array_equal(
                 output_dict[i_col],
