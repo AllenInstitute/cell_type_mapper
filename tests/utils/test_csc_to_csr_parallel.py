@@ -1,26 +1,20 @@
 import pytest
 
+import h5py
 import itertools
 import numpy as np
 import scipy.sparse as scipy_sparse
 
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean)
+
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    _grab_indices_from_chunk)
+    _grab_indices_from_chunk,
+    _transpose_subset_of_indices)
 
 
-@pytest.mark.parametrize(
-        'indptr_0,indices_minmax,clip_indices,use_data',
-        itertools.product([0, 5],
-                          [(0, 89), (11,35)],
-                          [True, False],
-                          [True, False]))
-def test_grab_indices_from_chunk(
-        indptr_0,
-        indices_minmax,
-        clip_indices,
-        use_data):
-
-    n_indices = 100
+@pytest.fixture
+def sparse_array_fixture():
     rng = np.random.default_rng(445513)
     n_rows = 67
     n_cols = 89
@@ -30,6 +24,25 @@ def test_grab_indices_from_chunk(
     data[chosen] = rng.integers(10, 5000, len(chosen))
     data = data.reshape((n_rows, n_cols))
     data[:, 55] = 0
+    return data
+
+
+@pytest.mark.parametrize(
+        'indptr_0,indices_minmax,clip_indices,use_data',
+        itertools.product([0, 5],
+                          [(0, 89), (11,35)],
+                          [True, False],
+                          [True, False]))
+def test_grab_indices_from_chunk(
+        sparse_array_fixture,
+        indptr_0,
+        indices_minmax,
+        clip_indices,
+        use_data):
+
+    data = sparse_array_fixture
+    n_rows = data.shape[0]
+    n_cols = data.shape[1]
     csr = scipy_sparse.csr_matrix(data)
 
     expected_indices = dict()
@@ -93,3 +106,56 @@ def test_grab_indices_from_chunk(
                 np.testing.assert_array_equal(
                     np.concatenate(output_dict[i_col]['data']),
                     expected_data[i_col])
+
+
+@pytest.mark.parametrize(
+        "indices_minmax,use_data",
+        itertools.product(
+            [(0, 25), (0, 89), (23, 89), (34, 65)],
+            [True, False]
+        ))
+def test_transpose_chunk_of_indices(
+        sparse_array_fixture,
+        tmp_dir_fixture,
+        indices_minmax,
+        use_data):
+
+    csr = scipy_sparse.csr_matrix(sparse_array_fixture)
+
+    subset = sparse_array_fixture[:, indices_minmax[0]:indices_minmax[1]]
+    csc = scipy_sparse.csc_matrix(subset)
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5',
+        prefix='transposed_chunk_')
+
+    if use_data:
+        data_handle = csr.data
+    else:
+        data_handle = None
+
+    _transpose_subset_of_indices(
+        indices_handle=csr.indices,
+        indptr_handle=csr.indptr,
+        data_handle=data_handle,
+        indices_minmax=indices_minmax,
+        chunk_size=100,
+        output_path=output_path)
+
+    with h5py.File(output_path, 'r') as src:
+        minmax = src['indices_minmax'][()]
+        assert minmax[0] == indices_minmax[0]
+        assert minmax[1] == indices_minmax[1]
+        np.testing.assert_array_equal(
+            src['indices'][()],
+            csc.indices)
+        np.testing.assert_array_equal(
+            src['indptr'][()],
+            csc.indptr)
+        if not use_data:
+            assert 'data' not in src.keys()
+        else:
+            np.testing.assert_array_equal(
+                src['data'][()],
+                csc.data)
