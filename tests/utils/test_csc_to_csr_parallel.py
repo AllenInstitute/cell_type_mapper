@@ -122,6 +122,16 @@ def test_transpose_chunk_of_indices(
 
     csr = scipy_sparse.csr_matrix(sparse_array_fixture)
 
+    csr_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5',
+        prefix='csr_')
+
+    with h5py.File(csr_path, 'w') as dst:
+        dst.create_dataset('data', data=csr.data)
+        dst.create_dataset('indices', data=csr.indices)
+        dst.create_dataset('indptr', data=csr.indptr)
+
     subset = sparse_array_fixture[:, indices_minmax[0]:indices_minmax[1]]
     csc = scipy_sparse.csc_matrix(subset)
 
@@ -131,14 +141,15 @@ def test_transpose_chunk_of_indices(
         prefix='transposed_chunk_')
 
     if use_data:
-        data_handle = csr.data
+        data_tag = 'data'
     else:
-        data_handle = None
+        data_tag = None
 
     _transpose_subset_of_indices(
-        indices_handle=csr.indices,
-        indptr_handle=csr.indptr,
-        data_handle=data_handle,
+        h5_path=csr_path,
+        indices_tag='indices',
+        indptr_tag='indptr',
+        data_tag=data_tag,
         indices_minmax=indices_minmax,
         chunk_size=100,
         output_path=output_path)
