@@ -1,4 +1,5 @@
 import h5py
+import multiprocessing
 import numpy as np
 import pathlib
 import tempfile
@@ -8,16 +9,21 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.multiprocessing_utils import (
+    winnow_process_list)
+
 
 def transpose_sparse_matrix_on_disk_v2(
-        indices_handle,
-        indptr_handle,
-        data_handle,
+        h5_path,
+        indices_tag,
+        indptr_tag,
+        data_tag,
         n_indices,
         max_gb,
         output_path,
         verbose=False,
-        tmp_dir=None):
+        tmp_dir=None,
+        n_processors=4):
     """
     n_indices is the number of unique indices values in original array
     """
@@ -28,32 +34,40 @@ def transpose_sparse_matrix_on_disk_v2(
 
     try:
         _transpose_sparse_matrix_on_disk_v2(
-            indices_handle=indices_handle,
-            indptr_handle=indptr_handle,
-            data_handle=data_handle,
+            h5_path=h5_path,
+            indices_tag=indices_tag,
+            indptr_tag=indptr_tag,
+            data_tag=data_tag,
             n_indices=n_indices,
             max_gb=max_gb,
             output_path=output_path,
             verbose=verbose,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            n_processors=n_processors)
     finally:
         _clean_up(tmp_dir)
 
 
 def _transpose_sparse_matrix_on_disk_v2(
-        indices_handle,
-        indptr_handle,
-        data_handle,
+        h5_path,
+        indices_tag,
+        indptr_tag,
+        data_tag,
         n_indices,
         max_gb,
         output_path,
         verbose=False,
-        tmp_dir=None):
+        tmp_dir=None,
+        n_processors=4):
     indices_dtype = int
 
-    use_data = (data_handle is not None)
+    use_data = (data_tag is not None)
 
-    n_raw_indices = indices_handle.shape[0]
+    with h5py.File(h5_path, 'r') as src:
+        n_raw_indices = src[indices_tag].shape[0]
+        if use_data:
+            data_dtype = src[data_tag].dtype
+
     indices_gb = (4*n_raw_indices)/(1024**3)
     chunk_size = np.round(n_raw_indices*max_gb/indices_gb).astype(int)
     if chunk_size == 0:
@@ -61,9 +75,10 @@ def _transpose_sparse_matrix_on_disk_v2(
     if chunk_size > n_raw_indices:
         chunk_size = n_raw_indices
 
-    indices_chunk_size = np.round(n_indices/2).astype(int)
+    indices_chunk_size = np.round(n_indices/n_processors).astype(int)
 
     path_list = []
+    process_list = []
     for i0 in range(0, n_indices, indices_chunk_size):
         i1 = min(n_indices, i0+indices_chunk_size)
 
@@ -73,15 +88,25 @@ def _transpose_sparse_matrix_on_disk_v2(
                     suffix='.h5',
                     prefix=f'transpose_{i0}_{i1}_'))
 
-        _transpose_subset_of_indices(
-            indices_handle=indices_handle,
-            indptr_handle=indptr_handle,
-            data_handle=data_handle,
-            indices_minmax=(i0, i1),
-            chunk_size=chunk_size,
-            output_path=tmp_path)
+        p = multiprocessing.Process(
+            target=_transpose_subset_of_indices,
+            kwargs={
+                'h5_path': h5_path,
+                'indices_tag': indices_tag,
+                'indptr_tag': indptr_tag,
+                'data_tag': data_tag,
+                'indices_minmax': (i0, i1),
+                'chunk_size': chunk_size,
+                'output_path': tmp_path
+            })
 
+        p.start()
+        process_list.append(p)
         path_list.append(tmp_path)
+        while len(process_list) >= n_processors:
+            process_list = winnow_process_list(process_list)
+    for p in process_list:
+        p.join()
 
     indices_size = 0
     indptr_size = 0
@@ -110,7 +135,7 @@ def _transpose_sparse_matrix_on_disk_v2(
                 'data',
                 shape=(indices_size,),
                 chunks=(min(indptr_size, 10000),),
-                dtype=data_handle.dtype)
+                dtype=data_dtype)
 
         for path in path_list:
             with h5py.File(path, 'r') as src:
@@ -120,7 +145,8 @@ def _transpose_sparse_matrix_on_disk_v2(
                     src_data = src['data']
                 src_n = src_indices.shape[0]
                 src_n_ptr = src_indptr.shape[0]-1
-                indptr[indptr_idx:indptr_idx+src_n_ptr] = src_indptr[:-1] + indices_idx
+                indptr[indptr_idx:indptr_idx+src_n_ptr] = (src_indptr[:-1]
+                                                           + indices_idx)
 
                 dst0 = indices_idx
                 for src0 in range(0, src_n, chunk_size):
@@ -140,34 +166,42 @@ def _transpose_sparse_matrix_on_disk_v2(
 
 
 def _transpose_subset_of_indices(
-        indices_handle,
-        indptr_handle,
-        data_handle,
+        h5_path,
+        indices_tag,
+        indptr_tag,
+        data_tag,
         indices_minmax,
         chunk_size,
         output_path):
 
+    use_data = (data_tag is not None)
 
-    use_data = (data_handle is not None)
-
-    output_dict = dict()
-    n_indices = indices_handle.shape[0]
-    indptr = indptr_handle[()]
-    for i0 in range(0, n_indices, chunk_size):
-        i1 = min(n_indices, i0+chunk_size)
+    with h5py.File(h5_path, 'r', swmr=True) as src:
+        indices_handle = src[indices_tag]
+        indptr_handle = src[indptr_tag]
         if use_data:
-            data_chunk = data_handle[i0:i1]
+            data_handle = src[data_tag]
         else:
-            data_chunk = None
-        indices_chunk = indices_handle[i0:i1]
-        _grab_indices_from_chunk(
-            indptr=indptr,
-            indptr_0=0,
-            indices_chunk=indices_chunk,
-            data_chunk=data_chunk,
-            indices_minmax=indices_minmax,
-            indices_position=(i0, i1),
-            output_dict=output_dict)
+            data_handle = None
+
+        output_dict = dict()
+        n_indices = indices_handle.shape[0]
+        indptr = indptr_handle[()]
+        for i0 in range(0, n_indices, chunk_size):
+            i1 = min(n_indices, i0+chunk_size)
+            if use_data:
+                data_chunk = data_handle[i0:i1]
+            else:
+                data_chunk = None
+            indices_chunk = indices_handle[i0:i1]
+            _grab_indices_from_chunk(
+                indptr=indptr,
+                indptr_0=0,
+                indices_chunk=indices_chunk,
+                data_chunk=data_chunk,
+                indices_minmax=indices_minmax,
+                indices_position=(i0, i1),
+                output_dict=output_dict)
 
     indptr = []
     indices = []
@@ -255,14 +289,16 @@ def _grab_indices_from_chunk(
     output_dict[ii] will be a list of arrays indicating the
     "column" values for that index.
     """
-    indices_idx = np.arange(indices_position[0], indices_position[1], dtype=int)
+    indices_idx = np.arange(indices_position[0],
+                            indices_position[1],
+                            dtype=int)
     full_valid = np.ones(indices_chunk.shape, dtype=bool)
-    full_valid[indices_chunk<indices_minmax[0]] = False
-    full_valid[indices_chunk>=indices_minmax[1]] = False
+    full_valid[indices_chunk < indices_minmax[0]] = False
+    full_valid[indices_chunk >= indices_minmax[1]] = False
     indices_chunk = indices_chunk[full_valid]
     masked_indices_idx = np.copy(indices_idx[full_valid])
     if data_chunk is not None:
-         data_chunk = data_chunk[full_valid]
+        data_chunk = data_chunk[full_valid]
 
     indptr_idx = np.zeros(masked_indices_idx.shape, dtype=int)
     indptr_pos = 0
@@ -286,7 +322,8 @@ def _grab_indices_from_chunk(
 
     # sort first by indices then by indptr
     max_indptr = indptr_idx.max()
-    to_sort = indices_chunk.astype(np.int64)*(max_indptr+1)+indptr_idx.astype(np.int64)
+    to_sort = (indices_chunk.astype(np.int64)*(max_indptr+1)
+               + indptr_idx.astype(np.int64))
     sorted_dex = np.argsort(to_sort)
 
     del to_sort
