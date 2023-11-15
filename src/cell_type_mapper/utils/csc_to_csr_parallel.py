@@ -1,9 +1,12 @@
 import h5py
 import numpy as np
 import pathlib
+import tempfile
+import time
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean)
+    mkstemp_clean,
+    _clean_up)
 
 
 def transpose_sparse_matrix_on_disk_v2(
@@ -19,6 +22,33 @@ def transpose_sparse_matrix_on_disk_v2(
     n_indices is the number of unique indices values in original array
     """
 
+    tmp_dir = tempfile.mkdtemp(
+        dir=tmp_dir,
+        prefix='transposition')
+
+    try:
+        _transpose_sparse_matrix_on_disk_v2(
+            indices_handle=indices_handle,
+            indptr_handle=indptr_handle,
+            data_handle=data_handle,
+            n_indices=n_indices,
+            max_gb=max_gb,
+            output_path=output_path,
+            verbose=verbose,
+            tmp_dir=tmp_dir)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _transpose_sparse_matrix_on_disk_v2(
+        indices_handle,
+        indptr_handle,
+        data_handle,
+        n_indices,
+        max_gb,
+        output_path,
+        verbose=False,
+        tmp_dir=None):
     indices_dtype = int
 
     use_data = (data_handle is not None)
@@ -31,13 +61,11 @@ def transpose_sparse_matrix_on_disk_v2(
     if chunk_size > n_raw_indices:
         chunk_size = n_raw_indices
 
-    print(f'chunk_size {chunk_size:.2e} of {n_raw_indices:.2e}')
-    indices_chunk_size = np.round(n_indices/32).astype(int)
+    indices_chunk_size = np.round(n_indices/2).astype(int)
 
     path_list = []
     for i0 in range(0, n_indices, indices_chunk_size):
         i1 = min(n_indices, i0+indices_chunk_size)
-        print(f'running {i0}:{i1}')
 
         tmp_path = pathlib.Path(
                 mkstemp_clean(
@@ -63,6 +91,7 @@ def transpose_sparse_matrix_on_disk_v2(
             indptr_size += src['indptr'].shape[0]-1
     indptr_size += 1
 
+    t0 = time.time()
     indptr_idx = 0
     indices_idx = 0
     with h5py.File(output_path, 'w') as dst:
@@ -106,6 +135,9 @@ def transpose_sparse_matrix_on_disk_v2(
                 indptr_idx += src_n_ptr
             path.unlink()
         indptr[-1] = indices_idx
+    dur = time.time()-t0
+    print(f'joining took {dur:2e} seconds')
+
 
 def _transpose_subset_of_indices(
         indices_handle,
@@ -123,7 +155,6 @@ def _transpose_subset_of_indices(
     indptr = indptr_handle[()]
     for i0 in range(0, n_indices, chunk_size):
         i1 = min(n_indices, i0+chunk_size)
-        print(f'    grabbing {i0}:{i1}')
         if use_data:
             data_chunk = data_handle[i0:i1]
         else:
@@ -137,8 +168,6 @@ def _transpose_subset_of_indices(
             indices_minmax=indices_minmax,
             indices_position=(i0, i1),
             output_dict=output_dict)
-
-    print('done grabbing')
 
     indptr = []
     indices = []
@@ -235,24 +264,49 @@ def _grab_indices_from_chunk(
     if data_chunk is not None:
          data_chunk = data_chunk[full_valid]
 
-    print(f"        iterating over indptr {len(indices_chunk)} {len(indptr)}")
-
     indptr_idx = np.zeros(masked_indices_idx.shape, dtype=int)
+    indptr_pos = 0
     for ii in range(len(indptr)-1):
         row = ii+indptr_0
-        idx = indptr[ii]
-        valid = np.logical_and(masked_indices_idx>=idx,
-                               masked_indices_idx<indptr[ii+1])
-        indptr_idx[valid] = row
+        original0 = indptr[ii] - indices_position[0]
+        original1 = indptr[ii+1] - indices_position[0]
+        if original1 < 0:
+            continue
+        if original0 < 0:
+            original0 = 0
+        mask = full_valid[original0:original1]
+        n_valid = mask.sum()
+        indptr_idx[indptr_pos:indptr_pos+n_valid] = row
+        indptr_pos += n_valid
 
     indices_idx = masked_indices_idx
 
-    print(f"        iterating over unique indices {len(np.unique(indices_chunk))}")
-    for unq in np.unique(indices_chunk):
-        valid = (indices_chunk==unq)
-        this = indptr_idx[valid]
-        if unq not in output_dict:
-            output_dict[unq] = {'indices': [], 'data': []}
-        output_dict[unq]['indices'].append(this)
+    del full_valid
+    del indices_idx
+
+    # sort first by indices then by indptr
+    max_indptr = indptr_idx.max()
+    to_sort = indices_chunk.astype(np.int64)*(max_indptr+1)+indptr_idx.astype(np.int64)
+    sorted_dex = np.argsort(to_sort)
+
+    del to_sort
+
+    indices_chunk = indices_chunk[sorted_dex]
+    if data_chunk is not None:
+        data_chunk = data_chunk[sorted_dex]
+    indptr_idx = indptr_idx[sorted_dex]
+    delta_indices = np.diff(indices_chunk)
+
+    # these will be the last idx of blocks
+    transitions = np.concatenate([[0],
+                                  np.where(delta_indices > 0)[0]+1,
+                                  [len(indptr_idx)]])
+    for ii in range(1, len(transitions), 1):
+        indices_value = indices_chunk[transitions[ii-1]]
+        if indices_value not in output_dict:
+            output_dict[indices_value] = {'indices': [], 'data': []}
+        indptr_values = indptr_idx[transitions[ii-1]: transitions[ii]]
+        output_dict[indices_value]['indices'].append(indptr_values)
         if data_chunk is not None:
-            output_dict[unq]['data'].append(data_chunk[valid])
+            data_values = data_chunk[transitions[ii-1]:transitions[ii]]
+            output_dict[indices_value]['data'].append(data_values)
