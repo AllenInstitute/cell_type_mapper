@@ -16,7 +16,8 @@ from cell_type_mapper.validation.utils import (
     get_minmax_x_from_h5ad,
     round_x_to_integers,
     is_x_integers,
-    is_data_ge_zero)
+    is_data_ge_zero,
+    map_gene_ids_in_var)
 
 
 # add function to create various flavors of h5ad file

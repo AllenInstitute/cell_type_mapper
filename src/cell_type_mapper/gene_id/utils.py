@@ -35,7 +35,13 @@ def detect_species(gene_id_list):
     - If there are no known gene symbols present, return None
     """
 
-    gene_set = set(gene_id_list)
+    # break on dots in Ensembl IDs
+    clean_gene_id_list = [
+        g if not g.startswith('ENS') else g.split('.')[0]
+        for g in gene_id_list
+    ]
+
+    gene_set = set(clean_gene_id_list)
     census = dict()
     for species, lookup in [('mouse', mouse_gene_id_lookup),
                             ('human', human_gene_id_lookup)]:

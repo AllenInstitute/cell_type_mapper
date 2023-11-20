@@ -36,3 +36,11 @@ def test_detect_species():
     with pytest.raises(RuntimeError,
                        match="These species"):
         detect_species(bad)
+
+    # mouse ensembl with dots
+    mouse_dot = ['ENSMUSG00000051951.5', 'ENSMUSG00000033740.2']
+    assert detect_species(mouse_dot) == 'mouse'
+
+    #human ensembl with dots
+    human_dot = ['ENSG00000256904.6', 'ENSG00000245105.8']
+    assert detect_species(human_dot) == 'human'
