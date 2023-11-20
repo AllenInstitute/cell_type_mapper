@@ -652,3 +652,52 @@ def test_validation_cli_of_good_h5ad_in_layer(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
+
+def test_validation_cli_on_ensembl_dot(
+        tmp_dir_fixture):
+
+    rng = np.random.default_rng(221133)
+    obs = pd.DataFrame(
+        [{'cell': '1'}, {'cell': 'b'}]
+    ).set_index('cell')
+    x = rng.random((2,2))
+
+    mouse_var_data = [
+        {'gene_id': 'ENSMUSG00000051951.5'},
+        {'gene_id': 'ENSMUSG00000033740.2'}
+    ]
+    expected_mouse = ['ENSMUSG00000051951', 'ENSMUSG00000033740']
+
+    human_var_data = [
+        {'gene_id': 'ENSG00000256904.6'},
+        {'gene_id': 'ENSG00000245105.8'}
+    ]
+    expected_human = ['ENSG00000256904', 'ENSG00000245105']
+
+    for var_data, expected in zip((mouse_var_data, human_var_data),
+                                  (expected_mouse, expected_human)):
+
+        input_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='with_ensembl_dot_',
+            suffix='.h5ad')
+
+        var = pd.DataFrame(var_data).set_index('gene_id')
+        a = anndata.AnnData(X=x, var=var, obs=obs)
+        a.write_h5ad(input_path)
+        json_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json')
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data={
+                'h5ad_path': input_path,
+                'output_dir': str(tmp_dir_fixture),
+                'output_json': json_path
+            })
+        runner.run()
+        with open(json_path, 'rb') as src:
+            output_config = json.load(src)
+        new_h5ad = anndata.read_h5ad(output_config['valid_h5ad_path'], backed='r')
+        assert list(new_h5ad.var.index.values) == expected
