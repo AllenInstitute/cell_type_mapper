@@ -532,6 +532,9 @@ def validate_marker_lookup(
     query_gene_names = set(query_gene_names)
     all_parents = taxonomy_tree.all_parents
     error_msg = ''
+
+    bad_parent_ct = 0  # parents who lack markers in the query set
+
     for parent in all_parents:
 
         if parent is None:
@@ -548,6 +551,8 @@ def validate_marker_lookup(
         if not len(children) > 1:
             continue
 
+        # These are cases in which a parent is missing from the
+        # marker lookup file altogether.
         if parent_str in marker_lookup:
             markers = set(marker_lookup[parent_str])
             if len(markers) == 0:
@@ -588,7 +593,7 @@ def validate_marker_lookup(
                     patched_with = 'None'
 
                 warning_msg = (
-                     f"'{parent_str}' had no markers in "
+                     f"parent node '{parent_str}' had no markers in "
                      "query set; replacing with markers from "
                      f"'{patched_with}'")
                 if log is not None:
@@ -600,9 +605,20 @@ def validate_marker_lookup(
                         set(marker_lookup[parent_str]))) == 0:
                 error_msg += (f"'{parent_str}' has no valid markers "
                               "in query gene set\n")
+                bad_parent_ct += 1
 
     if len(error_msg) > 0:
-        error_msg = f"validating marker lookup\n{error_msg}"
+        if bad_parent_ct == len(all_parents):
+            query_gene_names = list(query_gene_names)
+            query_gene_names.sort()
+            error_msg = (
+                "After comparing query data to reference data, "
+                "no valid marker genes could be found at any level "
+                "in the taxonomy.\nExample of genes in query set:\n"
+                f"{query_gene_names[:5]}"
+            )
+        else:
+            error_msg = f"validating marker lookup\n{error_msg}"
         raise RuntimeError(error_msg)
 
     return marker_lookup

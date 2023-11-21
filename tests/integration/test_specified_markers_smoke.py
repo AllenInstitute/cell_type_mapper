@@ -210,5 +210,9 @@ def test_ensembl_mapping_in_cli(
         actual = json.load(open(output_path, 'rb'))
         assert 'RAN SUCCESSFULLY' in actual['log'][-2]
     else:
-        with pytest.raises(RuntimeError, match="'None' has no valid markers"):
+        msg = (
+            "After comparing query data to reference data, "
+            "no valid marker genes could be found"
+        )
+        with pytest.raises(RuntimeError, match=msg):
             runner.run()

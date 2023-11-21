@@ -766,7 +766,8 @@ def test_mapping_when_there_are_no_markers(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
-    msg = "'None' has no valid markers in query gene set"
+    msg = ("After comparing query data to reference data, "
+           "no valid marker genes could be found")
     with pytest.raises(RuntimeError, match=msg):
         runner = FromSpecifiedMarkersRunner(
             args= [],
