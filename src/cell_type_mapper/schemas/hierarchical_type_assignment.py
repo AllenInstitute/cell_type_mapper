@@ -45,7 +45,7 @@ class HierarchicalConfigMixin(object):
 
     n_runners_up = argschema.fields.Int(
         required=False,
-        default=0,
+        default=5,
         allow_none=False,
         dsecription="The number of runner up node assignments "
         "to record at each level of the taxonomy.")
