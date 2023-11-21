@@ -573,6 +573,8 @@ def validate_marker_lookup(
                     if ancestor_level in ancestors:
                         ancestor_str = (
                             f'{ancestor_level}/{ancestors[ancestor_level]}')
+                        if ancestor_str not in marker_lookup:
+                            continue
                         new_markers = marker_lookup[ancestor_str]
                         if len(query_gene_names.intersection(
                                     set(new_markers))) > 0:

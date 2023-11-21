@@ -687,3 +687,91 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
         runner.run()
 
     os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize(
+        'flatten,use_gpu',
+        itertools.product(
+            (True, False),
+            (True, False)
+        ))
+def test_mapping_when_there_are_no_markers(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        flatten,
+        use_gpu):
+    """
+    Test case when there are no markers
+    """
+
+    use_csv = True
+    use_tmp_dir = True
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    if use_csv:
+        csv_path = mkstemp_clean(
+            dir=this_tmp,
+            suffix='.csv')
+    else:
+        csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+    config['query_path'] = baseline_config['query_path']
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['flatten'] = flatten
+
+    # overwrite markers with garbage
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        original_markers = json.load(src)
+    for k in original_markers:
+        original_markers[k] = ['garbage1', 'garbage2', 'garbage3']
+
+    bad_marker_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.json')
+    with open(bad_marker_path, 'w') as dst:
+        dst.write(json.dumps(original_markers))
+
+    config['query_markers'] = {
+        'serialized_lookup': bad_marker_path}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    msg = "'None' has no valid markers in query gene set"
+    with pytest.raises(RuntimeError, match=msg):
+        runner = FromSpecifiedMarkersRunner(
+            args= [],
+            input_data=config)
+
+        runner.run()
+
+    os.environ[env_var] = ''
