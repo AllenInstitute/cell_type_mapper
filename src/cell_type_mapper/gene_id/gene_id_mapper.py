@@ -83,9 +83,15 @@ class GeneIdMapper(object):
 
         If strict == True, raise an error if there are genes that
         cannot be mapped.
+
+        Returns
+        -------
+        A dict
+            {'mapped_genes': list of mapped gene identifiers,
+             'n_unmapped': number of genes that were not successfully mapped}
         """
         if len(gene_id_list) == 0:
-            return []
+            return {'mapped_genes': [], 'n_unmapped': 0}
 
         if strict:
             bad_genes = []
@@ -146,7 +152,7 @@ class GeneIdMapper(object):
 
         output = self._post_process(output)
 
-        return output
+        return {'mapped_genes': output, 'n_unmapped': unmappable_genes}
 
 
 class RandomNameGenerator(object):

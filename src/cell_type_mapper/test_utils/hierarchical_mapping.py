@@ -177,7 +177,7 @@ def _run_mapping(config, tmp_dir, log):
     create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_tmp,
         input_cache_path=reference_marker_tmp,
-        query_gene_names=_get_query_gene_names(query_loc),
+        query_gene_names=_get_query_gene_names(query_loc)[0],
         taxonomy_tree=taxonomy_tree,
         n_per_utility=query_marker_config['n_per_utility'],
         n_processors=query_marker_config['n_processors'],

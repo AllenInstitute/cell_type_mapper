@@ -29,26 +29,31 @@ def test_gene_id_mapper_class(map_data_fixture):
 
     good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
     actual = mapper.map_gene_identifiers(good)
-    assert actual == good
+    assert actual['mapped_genes'] == good
+    assert actual['n_unmapped'] == 0
 
     names = ["charlie", "alice", "zachary", "mark", "robert"]
     actual = mapper.map_gene_identifiers(names)
-    assert len(actual) == 5
-    assert actual[0] == 'ENSG3'
-    assert actual[1] == 'ENSG0'
-    assert 'unmapped_0' in actual[2]
-    assert 'unmapped_1' in actual[3]
-    assert actual[4] == 'ENSG1'
+    actual_genes = actual['mapped_genes']
+    assert len(actual_genes) == 5
+    assert actual_genes[0] == 'ENSG3'
+    assert actual_genes[1] == 'ENSG0'
+    assert 'unmapped_0' in actual_genes[2]
+    assert 'unmapped_1' in actual_genes[3]
+    assert actual_genes[4] == 'ENSG1'
+    assert actual['n_unmapped'] == 2
 
     nicknames = ["alice", "hammer", "allie", "kyle", "chuck", "hammer"]
     actual = mapper.map_gene_identifiers(nicknames)
-    assert len(actual) == 6
-    assert actual[0] == 'ENSG0'
-    assert actual[1] == 'ENSG2'
-    assert actual[2] == 'ENSG0'
-    assert 'unmapped_2' in actual[3]
-    assert actual[4] == 'ENSG3'
-    assert actual[5] == 'ENSG2'
+    actual_genes = actual['mapped_genes']
+    assert len(actual_genes) == 6
+    assert actual_genes[0] == 'ENSG0'
+    assert actual_genes[1] == 'ENSG2'
+    assert actual_genes[2] == 'ENSG0'
+    assert 'unmapped_2' in actual_genes[3]
+    assert actual_genes[4] == 'ENSG3'
+    assert actual_genes[5] == 'ENSG2'
+    assert actual['n_unmapped'] == 1
 
 
 def test_gene_id_mapper_strict(map_data_fixture):
@@ -60,7 +65,8 @@ def test_gene_id_mapper_strict(map_data_fixture):
 
     good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
     actual = mapper.map_gene_identifiers(good, strict=True)
-    assert actual == good
+    assert actual['mapped_genes'] == good
+    assert actual['n_unmapped'] == 0
 
     names = ["charlie", "alice", "zachary", "mark", "robert"]
     with pytest.raises(RuntimeError, match="could not be mapped"):
@@ -111,7 +117,8 @@ def test_suffix_clipping():
     input_arr = ['hammer', 'chuck', 'allie', 'ENSG555.7', 'robert']
     expected = ['ENSG2', 'ENSG3', 'ENSG0', 'ENSG555', 'ENSG1']
     actual = mapper.map_gene_identifiers(input_arr)
-    assert actual == expected
+    assert actual['mapped_genes'] == expected
+    assert actual['n_unmapped'] == 0
 
 
 @pytest.mark.parametrize('strict', [True, False])

@@ -76,7 +76,9 @@ def run_mapping(config, output_path, log_path=None):
             config['query_markers']['serialized_lookup']).name
         safe_config['query_path'] = pathlib.Path(
             config['query_path']).name
-        for k in ('extended_result_path', 'csv_result_path'):
+        for k in ('extended_result_path',
+                  'csv_result_path',
+                  'summary_metadata_path'):
             if safe_config[k] is not None:
                 safe_config[k] = pathlib.Path(config[k]).name
         safe_config.pop('extended_result_dir')
@@ -137,6 +139,38 @@ def run_mapping(config, output_path, log_path=None):
             tmp_dir=tmp_dir,
             tmp_result_dir=tmp_result_dir,
             log=log)
+
+        if config['summary_metadata_path'] is not None:
+            n_mapped_cells = len(output['results'])
+            uns = read_uns_from_h5ad(
+                    config['query_path'])
+            n_total_genes = len(
+                    read_df_from_h5ad(
+                        config['query_path'],
+                        df_name='var'))
+
+            local_unmapped = output.pop('n_unmapped_genes')
+
+            if config['map_to_ensembl']:
+                n_mapped_genes = n_total_genes - local_unmapped
+            else:
+                gene_key = 'AIBS_CDM_n_mapped_genes'
+                if gene_key in uns:
+                    n_mapped_genes = uns[gene_key]
+                else:
+                    n_mapped_genes = len(
+                        read_df_from_h5ad(
+                            config['query_path'],
+                            df_name='var'))
+
+            with open(config['summary_metadata_path'], 'w') as dst:
+                dst.write(
+                    json.dumps(
+                        {
+                         'n_mapped_cells': int(n_mapped_cells),
+                         'n_mapped_genes': int(n_mapped_genes)
+                        },
+                        indent=2))
 
         _clean_up(tmp_result_dir)
         log.info("RAN SUCCESSFULLY")
@@ -245,7 +279,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         all_markers.sort()
         marker_lookup = {'None': all_markers}
 
-    query_gene_names = _get_query_gene_names(
+    (query_gene_names,
+     n_unmapped) = _get_query_gene_names(
         query_loc,
         map_to_ensembl=config['map_to_ensembl'])
 
@@ -340,6 +375,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     output["results"] = result
     output["marker_genes"] = marker_gene_lookup
     output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+    output["n_unmapped_genes"] = n_unmapped
 
     return output
 

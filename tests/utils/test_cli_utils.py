@@ -47,8 +47,9 @@ def test_get_query_gene_names(tmp_dir_fixture, as_ensembl):
     actual = _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
     if as_ensembl:
         for idx in (0, 1, 3):
-            assert actual[idx] == expected_ensembl[idx]
-        assert 'unmapped' in actual[2]
-        assert len(actual) == 4
+            assert actual[0][idx] == expected_ensembl[idx]
+        assert 'unmapped' in actual[0][2]
+        assert len(actual[0]) == 4
+        assert actual[1] == 1
     else:
-        assert actual == input_names
+        assert actual == (input_names, 0)

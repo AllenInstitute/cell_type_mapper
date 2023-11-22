@@ -33,15 +33,21 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
     """
     If map_to_ensembl is True, automatically map the gene IDs in
     query_gene_path.var.index to ENSEMBL IDs
+
+    Return the list of gene names and the number of genes that could
+    not be mapped (this will be zero of map_to_ensemble is False)
     """
     var = read_df_from_h5ad(query_gene_path, 'var')
     result = list(var.index.values)
+    n_unmapped = 0
     if map_to_ensembl:
         gene_id_mapper = GeneIdMapper.from_mouse()
-        result = gene_id_mapper.map_gene_identifiers(
+        raw_result = gene_id_mapper.map_gene_identifiers(
             result,
             strict=False)
-    return result
+        result = raw_result['mapped_genes']
+        n_unmapped = raw_result['n_unmapped']
+    return result, n_unmapped
 
 
 def create_precomputed_stats_file(

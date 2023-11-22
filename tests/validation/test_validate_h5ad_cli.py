@@ -285,6 +285,7 @@ def test_validation_cli_of_h5ad(
             assert in_file[data_key].dtype == np.uint8
 
     actual = anndata.read_h5ad(result_path, backed='r')
+    assert actual.uns['AIBS_CDM_n_mapped_genes'] == 3
     pd.testing.assert_frame_equal(obs_fixture, actual.obs)
     actual_x = actual.X
 
@@ -427,20 +428,34 @@ def test_validation_cli_of_good_h5ad(
 
     if specify_path:
         assert result_path == valid_path
+        actual = anndata.read_h5ad(result_path, backed='r')
+        original = anndata.read_h5ad(orig_path, backed='r')
+        assert actual.uns['AIBS_CDM_n_mapped_genes'] == len(original.var)
+        for k in original.uns:
+            assert actual.uns[k] == original.uns[k]
+        actual_x = actual.X[()]
+        original_x = original.X[()]
+        assert type(actual_x) == type(original_x)
+        if not isinstance(actual_x, np.ndarray):
+            actual_x = actual_x.toarray()
+            original_x = original_x.toarray()
+        np.testing.assert_allclose(actual_x, original_x, atol=0.0, rtol=1.0e-6)
+        pd.testing.assert_frame_equal(actual.var, original.var)
+        pd.testing.assert_frame_equal(actual.obs, original.obs)
     else:
         assert result_path == orig_path
 
-    # make sure input file did not change
-    md51 = hashlib.md5()
-    with open(orig_path, 'rb') as src:
-        md51.update(src.read())
+        # make sure input file did not change
+        md51 = hashlib.md5()
+        with open(orig_path, 'rb') as src:
+            md51.update(src.read())
 
-    assert md50.hexdigest() == md51.hexdigest()
-    md51 = hashlib.md5()
-    with open(result_path, 'rb') as src:
-        md51.update(src.read())
+        assert md50.hexdigest() == md51.hexdigest()
+        md51 = hashlib.md5()
+        with open(result_path, 'rb') as src:
+            md51.update(src.read())
 
-    assert md50.hexdigest() == md51.hexdigest()
+        assert md50.hexdigest() == md51.hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -597,6 +612,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
     assert result_path != orig_path
 
     actual = anndata.read_h5ad(result_path)
+    assert actual.uns['AIBS_CDM_n_mapped_genes'] == len(good_var_fixture)
     pd.testing.assert_frame_equal(
         actual.var,
         good_var_fixture)
@@ -701,3 +717,4 @@ def test_validation_cli_on_ensembl_dot(
             output_config = json.load(src)
         new_h5ad = anndata.read_h5ad(output_config['valid_h5ad_path'], backed='r')
         assert list(new_h5ad.var.index.values) == expected
+        assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)

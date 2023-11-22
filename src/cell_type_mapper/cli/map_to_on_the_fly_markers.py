@@ -164,7 +164,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                   'flatten',
                   'max_gb',
                   'cloud_safe',
-                  'precomputed_stats'):
+                  'precomputed_stats',
+                  'summary_metadata_path'):
             mapping_config[k] = self.args[k]
 
         mapping_runner = FromSpecifiedMarkersRunner(

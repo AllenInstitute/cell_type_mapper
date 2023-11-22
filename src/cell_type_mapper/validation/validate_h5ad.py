@@ -13,7 +13,8 @@ from cell_type_mapper.utils.anndata_utils import (
     write_df_to_h5ad,
     copy_layer_to_x,
     read_uns_from_h5ad,
-    write_uns_to_h5ad)
+    write_uns_to_h5ad,
+    update_uns)
 
 from cell_type_mapper.validation.utils import (
     is_x_integers,
@@ -189,7 +190,10 @@ def validate_h5ad(
         else:
             raise RuntimeError(error_msg)
 
-    mapped_var = map_gene_ids_in_var(
+    n_genes = len(var_original)
+
+    (mapped_var,
+     n_unmapped_genes) = map_gene_ids_in_var(
         var_df=var_original,
         gene_id_mapper=gene_id_mapper,
         log=log)
@@ -301,5 +305,9 @@ def validate_h5ad(
     if output_path is None:
         if new_h5ad_path.exists():
             new_h5ad_path.unlink()
+    else:
+        update_uns(
+            output_path,
+            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
 
     return output_path, has_warnings

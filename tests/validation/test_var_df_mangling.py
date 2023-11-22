@@ -76,7 +76,8 @@ def test_var_mapping(
          'garbage': 'z'}
     ]
     expected = pd.DataFrame(expected_records).set_index('EnsemblID_VALIDATED')
-    pd.testing.assert_frame_equal(new_var, expected)
+    pd.testing.assert_frame_equal(new_var[0], expected)
+    assert new_var[1] == 1
 
 
 def test_var_mapping_column_name_taken(
@@ -120,7 +121,8 @@ def test_var_mapping_column_name_taken(
          'garbage': 'z'}
     ]
     expected = pd.DataFrame(expected_records).set_index('EnsemblID_VALIDATED_0')
-    pd.testing.assert_frame_equal(new_var, expected)
+    pd.testing.assert_frame_equal(new_var[0], expected)
+    assert new_var[1] == 1
 
 
 def test_var_mapping_column_no_op(
@@ -142,4 +144,4 @@ def test_var_mapping_column_no_op(
         var_df=var_orig,
         gene_id_mapper=gene_id_mapper)
 
-    assert new_var is None
+    assert new_var == (None, 0)

@@ -45,6 +45,16 @@ class SearchSchemaMixin(object):
         description="Path to CSV file where output file will be "
         "written (if None, no CSV will be produced).")
 
+    summary_metadata_path = argschema.fields.OutputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "If not None, the path to a JSON file where summary "
+            "metadata (e.g. number of mapped genes and number "
+            "of mapped cells) will be stored")
+        )
+
     drop_level = argschema.fields.String(
         required=False,
         default=None,
