@@ -245,7 +245,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         all_markers.sort()
         marker_lookup = {'None': all_markers}
 
-    query_gene_names = _get_query_gene_names(
+    (query_gene_names,
+     n_unmapped) = _get_query_gene_names(
         query_loc,
         map_to_ensembl=config['map_to_ensembl'])
 

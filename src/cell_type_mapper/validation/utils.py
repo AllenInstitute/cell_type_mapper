@@ -179,9 +179,10 @@ def map_gene_ids_in_var(
     Returns
     -------
     If the var dataframe needs to be updated, return the updated
-    var dataframe.
+    var dataframe and the number of genes that were unable to be
+    mapped.
 
-    If not, return None.
+    If not, return None (and 0)
     """
 
     gene_id_list = list(var_df.index.values)
@@ -206,9 +207,10 @@ def map_gene_ids_in_var(
             species=species,
             log=log)
 
-    new_gene_id_list = gene_id_mapper.map_gene_identifiers(gene_id_list)
+    mapping_output = gene_id_mapper.map_gene_identifiers(gene_id_list)
+    new_gene_id_list = mapping_output['mapped_genes']
     if new_gene_id_list == gene_id_list:
-        return None
+        return None, 0
 
     var_df = var_df.reset_index().to_dict(orient='records')
     idx_key_root = f'{gene_id_mapper.preferred_type}_VALIDATED'
@@ -223,7 +225,7 @@ def map_gene_ids_in_var(
 
     new_var = pd.DataFrame(var_df).set_index(idx_key)
 
-    return new_var
+    return new_var, mapping_output['n_unmapped']
 
 
 def _get_minmax_x_using_anndata(

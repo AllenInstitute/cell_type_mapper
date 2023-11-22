@@ -10,6 +10,10 @@ from marshmallow import post_load
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad,
+    update_uns)
+
 from cell_type_mapper.validation.validate_h5ad import (
     validate_h5ad)
 
@@ -175,6 +179,12 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                     shutil.copy(
                         src=self.args['h5ad_path'],
                         dst=new_path)
+                    # need to update uns to contain the number of mapped genes
+                    n_genes = len(read_df_from_h5ad(new_path, df_name='var'))
+                    update_uns(
+                        new_path,
+                        new_uns={'AIBS_CDM_n_mapped_genes': n_genes},
+                        clobber=False)
                     output_manifest['valid_h5ad_path'] = new_path
                 else:
                     output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
