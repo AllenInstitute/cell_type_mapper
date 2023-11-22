@@ -19,7 +19,8 @@ from cell_type_mapper.utils.anndata_utils import (
     read_uns_from_h5ad,
     write_uns_to_h5ad,
     append_to_obsm,
-    does_obsm_have_key)
+    does_obsm_have_key,
+    update_uns)
 
 
 @pytest.fixture(scope='module')
@@ -242,6 +243,49 @@ def test_read_write_uns_from_h5ad(tmp_dir_fixture):
     actual = read_uns_from_h5ad(other_path)
     assert actual == dict()
 
+
+@pytest.mark.parametrize(
+     'which_test', ['basic', 'error', 'clobber'])
+def test_update_uns(tmp_dir_fixture, which_test):
+
+    original_uns = {'a': 1, 'b': [1, 2, 3]}
+    a_data = anndata.AnnData(
+        uns=original_uns)
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='update_uns_',
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    if which_test == 'basic':
+        new_uns = {'c': 'abcd', 'd': 5}
+        update_uns(h5ad_path, new_uns=new_uns)
+
+        actual = anndata.read_h5ad(h5ad_path, backed='r')
+        assert len(actual.uns) == len(new_uns) + len(original_uns)
+
+        for k in original_uns:
+            if isinstance(actual.uns[k], np.ndarray):
+                np.testing.assert_array_equal(actual.uns[k], original_uns[k])
+            else:
+                assert actual.uns[k] == original_uns[k]
+        for k in new_uns:
+            assert actual.uns[k] == new_uns[k]
+
+    elif which_test == 'error':
+        with pytest.raises(RuntimeError, match="keys already exist"):
+            update_uns(h5ad_path, new_uns={'a':2, 'f': 6}, clobber=False)
+
+    elif which_test == 'clobber':
+        update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=True)
+        actual = anndata.read_h5ad(h5ad_path, backed='r')
+        assert len(actual.uns) == 3
+        assert actual.uns['a'] == 2
+        assert actual.uns['f'] == 6
+        np.testing.assert_array_equal(
+            actual.uns['b'], original_uns['b'])
+    else:
+        raise RuntimeError(f"cannot parse which_test = {which_test}")
 
 def test_read_empty_uns(tmp_dir_fixture):
     """

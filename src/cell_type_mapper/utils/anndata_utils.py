@@ -54,6 +54,33 @@ def write_uns_to_h5ad(h5ad_path, uns_value):
             write_elem(dst, k='uns', elem=uns_value)
 
 
+def update_uns(h5ad_path, new_uns, clobber=False):
+    """
+    Extend the uns element in the specified h5ad file using
+    the dict specified in new_uns.
+
+    If clobber is True, overwrite any keys in the original uns
+    that exist in new_uns.
+
+    Otherwise, raise an exception of there are duplicate keys.
+    """
+    uns = read_uns_from_h5ad(h5ad_path)
+    if not clobber:
+        new_keys = set(new_uns.keys())
+        old_keys = set(uns.keys())
+        duplicates = new_keys.intersection(old_keys)
+        if len(duplicates) > 0:
+            duplicates = list(duplicates)
+            duplicates.sort()
+            msg = (
+                "Cannot update uns. The following keys already exist:\n"
+                f"{duplicates}"
+            )
+            raise RuntimeError(msg)
+    uns.update(new_uns)
+    write_uns_to_h5ad(h5ad_path, uns_value=uns)
+
+
 def does_obsm_have_key(h5ad_path, obsm_key):
     """
     Return a boolean assessing whether or not obsm has
