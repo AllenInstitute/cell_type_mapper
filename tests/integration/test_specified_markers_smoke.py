@@ -7,6 +7,7 @@ import pytest
 import anndata
 import copy
 import h5py
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -24,6 +25,9 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
+
+from cell_type_mapper.cli.validate_h5ad import (
+    ValidateH5adRunner)
 
 
 @pytest.fixture(scope='module')
@@ -124,19 +128,25 @@ def precomputed_stats_fixture(
 
 
 @pytest.fixture(scope='module')
+def n_extra_genes_fixture():
+    """
+    Number of unmappable genes to include in the data
+    """
+    return 19
+
+@pytest.fixture(scope='module')
 def query_h5ad_fixture(
         gene_name_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        n_extra_genes_fixture):
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='query_data_',
         suffix='.h5ad')
 
-    n_extra = 19
-
     n_cells = 321
-    n_genes = len(gene_name_fixture) + n_extra
+    n_genes = len(gene_name_fixture) + n_extra_genes_fixture
 
     rng = np.random.default_rng(77123)
     X = rng.random((n_cells, n_genes), dtype=np.float32)
@@ -146,7 +156,7 @@ def query_h5ad_fixture(
          for ii in range(n_cells)]).set_index('cell_id')
 
     these_gene_names = copy.deepcopy(gene_name_fixture)
-    for ii in range(n_extra):
+    for ii in range(n_extra_genes_fixture):
         these_gene_names.append(f'extra_gene_{ii}')
     rng.shuffle(these_gene_names)
 
@@ -162,14 +172,17 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-@pytest.mark.parametrize('map_to_ensembl', [True, False])
+@pytest.mark.parametrize('map_to_ensembl,write_summary',
+    itertools.product([True, False], [True, False]))
 def test_ensembl_mapping_in_cli(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
         tmp_dir_fixture,
-        map_to_ensembl):
+        n_extra_genes_fixture,
+        map_to_ensembl,
+        write_summary):
     """
     Test for expected behavior (error/no error) when we just
     ask the from_specified_markers CLI to map gene names to
@@ -180,6 +193,14 @@ def test_ensembl_mapping_in_cli(
         prefix='outptut_',
         suffix='.json')
 
+    if write_summary:
+        metadata_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='summary_',
+            suffix='.json')
+    else:
+        metadata_path = None
+
     config = {
         'precomputed_stats': {
             'path': str(precomputed_stats_fixture)
@@ -189,6 +210,7 @@ def test_ensembl_mapping_in_cli(
         },
         'query_path': str(query_h5ad_fixture),
         'extended_result_path': str(output_path),
+        'summary_metadata_path': metadata_path,
         'map_to_ensembl': map_to_ensembl,
         'type_assignment': {
             'normalization': 'log2CPM',
@@ -209,6 +231,14 @@ def test_ensembl_mapping_in_cli(
         runner.run()
         actual = json.load(open(output_path, 'rb'))
         assert 'RAN SUCCESSFULLY' in actual['log'][-2]
+        if write_summary:
+            metadata = json.load(open(metadata_path, 'rb'))
+            assert 'n_mapped_cells' in metadata
+            assert 'n_mapped_genes' in metadata
+            query_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+            assert metadata['n_mapped_cells'] == len(query_data.obs)
+            assert metadata['n_mapped_genes'] == (len(query_data.var)
+                                                  -n_extra_genes_fixture)
     else:
         msg = (
             "After comparing query data to reference data, "
@@ -216,3 +246,86 @@ def test_ensembl_mapping_in_cli(
         )
         with pytest.raises(RuntimeError, match=msg):
             runner.run()
+
+
+
+@pytest.mark.parametrize('map_to_ensembl',
+    [True, False])
+def test_summary_from_validated_file(
+        taxonomy_tree_fixture,
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture,
+        n_extra_genes_fixture,
+        map_to_ensembl):
+    """
+    This test makes sure that the summary metadata is correctly recorded
+    when ensembl mapping is handled by the validation CLI
+    """
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad')
+
+    output_json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_',
+        suffix='.json')
+
+    validation_config = {
+        'h5ad_path': str(query_h5ad_fixture),
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json_path}
+
+    runner = ValidateH5adRunner(
+        args=[],
+        input_data=validation_config)
+    runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='outptut_',
+        suffix='.json')
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_',
+        suffix='.json')
+
+    config = {
+        'precomputed_stats': {
+            'path': str(precomputed_stats_fixture)
+        },
+        'query_markers': {
+            'serialized_lookup': str(marker_lookup_fixture)
+        },
+        'query_path': validated_path,
+        'extended_result_path': str(output_path),
+        'summary_metadata_path': metadata_path,
+        'map_to_ensembl': map_to_ensembl,
+        'type_assignment': {
+            'normalization': 'log2CPM',
+            'bootstrap_iteration': 10,
+            'bootstrap_factor': 0.9,
+            'n_runners_up': 2,
+            'rng_seed': 5513,
+            'chunk_size': 50,
+            'n_processors': 3
+        }
+    }
+
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    metadata = json.load(open(metadata_path, 'rb'))
+    assert 'n_mapped_cells' in metadata
+    assert 'n_mapped_genes' in metadata
+    query_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+    assert metadata['n_mapped_cells'] == len(query_data.obs)
+    assert metadata['n_mapped_genes'] == (len(query_data.var)
+                                          -n_extra_genes_fixture)
