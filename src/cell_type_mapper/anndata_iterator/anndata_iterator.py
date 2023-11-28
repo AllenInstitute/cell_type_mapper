@@ -103,7 +103,8 @@ class AnnDataRowIterator(object):
             self._initialize_as_csc(
                 h5ad_path=h5ad_path,
                 row_chunk_size=row_chunk_size,
-                tmp_dir=tmp_dir)
+                tmp_dir=tmp_dir,
+                keep_open=keep_open)
         elif encoding_type.startswith('array'):
             self._iterator_type = "dense"
             with h5py.File(h5ad_path, "r") as src:
@@ -145,7 +146,8 @@ class AnnDataRowIterator(object):
             self,
             h5ad_path,
             row_chunk_size,
-            tmp_dir=None):
+            tmp_dir=None,
+            keep_open=True):
         """
         Initialize iterator for CSC data. If possible,
         write out data to scratch space as CSR matrix
@@ -161,6 +163,9 @@ class AnnDataRowIterator(object):
             scratch dir in which to write the CSR form of the data
             (if None, no CSR data will be written and we will just
             use anndata.chunked_X to iterate over the data)
+        keep_open:
+            boolean indicating whether or not to leave the h5 handle
+            open (should be false when using cuda)
         """
         write_as_csr = True
         self.tmp_dir = tempfile.mkdtemp(
@@ -217,7 +222,8 @@ class AnnDataRowIterator(object):
             self._chunk_iterator = CSRRowIterator(
                 h5_path=self.tmp_path,
                 row_chunk_size=row_chunk_size,
-                array_shape=array_shape)
+                array_shape=array_shape,
+                keep_open=keep_open)
 
             duration = time.time()-t0
             if self.log is not None:
