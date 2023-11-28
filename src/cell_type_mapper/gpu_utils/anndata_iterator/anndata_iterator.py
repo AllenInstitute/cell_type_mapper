@@ -41,7 +41,13 @@ class Collator():
 
         data = np.concatenate([b[0] for b in batch])
 
-        data = torch.from_numpy(data)  # .type(torch.HalfTensor)
+        try:
+            data = torch.from_numpy(data)  # .type(torch.HalfTensor)
+        except TypeError:
+            alt_dtype = _choose_alternate_dtype(data.dtype)
+            data = data.astype(alt_dtype)
+            data = torch.from_numpy(data)
+
         data = data.to(device=self.device, non_blocking=True)
 
         r0 = batch[0][1]
@@ -94,3 +100,23 @@ def get_torch_dataloader(query_h5ad_path,
                             collate_fn=collator,
                             pin_memory=True)
     return dataloader
+
+
+def _choose_alternate_dtype(original_dtype):
+    """
+    Choose a signed integer type to replace original_dtype, which is
+    presumably an unsigned integer type which torch cannot successfully
+    convert into a tensor
+    """
+    if not np.issubdtype(original_dtype, np.integer):
+        raise RuntimeError(
+            f"{original_dtype} is not an integer; unclear how to "
+            "convert it to a torch compatible dtype")
+    orig_iinfo = np.iinfo(original_dtype)
+    for candidate in (np.int16, np.int32, np.int64):
+        this_iinfo = np.iinfo(candidate)
+        if this_iinfo.max >= orig_iinfo.max:
+            return candidate
+    raise RuntimeError(
+        "Could not find a torch-compatible dtype "
+        f"equivalent to {original_dtype}")
