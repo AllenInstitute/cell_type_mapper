@@ -534,6 +534,7 @@ def validate_marker_lookup(
     error_msg = ''
 
     bad_parent_ct = 0  # parents who lack markers in the query set
+    skipped_parent_ct = 0
 
     for parent in all_parents:
 
@@ -549,6 +550,7 @@ def validate_marker_lookup(
                 node=parent[1])
 
         if not len(children) > 1:
+            skipped_parent_ct += 1
             continue
 
         # These are cases in which a parent is missing from the
@@ -608,7 +610,7 @@ def validate_marker_lookup(
                 bad_parent_ct += 1
 
     if len(error_msg) > 0:
-        if bad_parent_ct == len(all_parents):
+        if bad_parent_ct + skipped_parent_ct == len(all_parents):
             query_gene_names = list(query_gene_names)
             query_gene_names.sort()
             error_msg = (
