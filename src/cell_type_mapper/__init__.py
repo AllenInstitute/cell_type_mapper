@@ -1,2 +1,2 @@
-__version__ = "1.1.4"
+__version__ = "1.1.5"
 __repository__ = "http://github.com/AllenInstitute/cell_type_mapper"

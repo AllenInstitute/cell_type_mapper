@@ -243,6 +243,16 @@ def create_sparse_by_pair_marker_file(
             idx for idx, g in enumerate(gene_names)
             if g in gene_set
         ])
+
+        if len(valid_gene_idx) == 0:
+            msg = (
+                "Genes in query data file do not overlap genes in "
+                "reference data file.\n"
+                f"example query genes: {gene_list[:10]}\n"
+                f"example reference genes: {gene_names[:10]}\n"
+            )
+            raise RuntimeError(msg)
+
     else:
         valid_gene_idx = None
 

@@ -5,11 +5,10 @@ import os
 
 try:
     import torch
+    from cell_type_mapper.gpu_utils.anndata_iterator.anndata_iterator import (
+        Collator)
 except ImportError:
     pass
-
-from cell_type_mapper.gpu_utils.anndata_iterator.anndata_iterator import (
-    Collator)
 
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
@@ -25,7 +24,7 @@ def test_anndata_iterator_with_torch():
     a safe int value.
     """
     if not is_torch_available():
-        pass
+        return
 
     env_var = 'AIBS_BKP_USE_TORCH'
     os.environ[env_var] = 'true'
