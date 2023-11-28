@@ -10,6 +10,7 @@ import numpy as np
 import os
 import pandas as pd
 import pathlib
+import scipy.sparse as scipy_sparse
 import tempfile
 
 from cell_type_mapper.utils.utils import (
@@ -774,5 +775,148 @@ def test_mapping_when_there_are_no_markers(
             input_data=config)
 
         runner.run()
+
+    os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize(
+        'flatten,use_gpu,query_dtype,density',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (np.uint16, np.uint32),
+            ('csr', 'csc', 'array')
+        ))
+def test_mapping_uint16_data(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        flatten,
+        use_gpu,
+        query_dtype,
+        density):
+    """
+    Test mapping data that is saved as a uint16 (torch cannot convert
+    any uint other than uint8 to a tensor)
+    """
+
+    use_csv = True
+    use_tmp_dir = True
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    if use_csv:
+        csv_path = mkstemp_clean(
+            dir=this_tmp,
+            suffix='.csv')
+    else:
+        csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    # recast query data using specified dtype
+    src = anndata.read_h5ad(baseline_config['query_path'], backed='r')
+    obs = src.obs[:10]
+    var = src.var
+
+    rng = np.random.default_rng(556611)
+    iinfo = np.iinfo(query_dtype)
+    if density == 'array':
+        baseline_query_data = rng.integers(
+            0, iinfo.max, (len(obs), len(var)), dtype=np.int64)
+        query_data = baseline_query_data.astype(query_dtype)
+    else:
+        ntot = len(obs)*len(var)
+        baseline_query_data = np.zeros(ntot, dtype=np.int64)
+        chosen = rng.choice(np.arange(ntot), ntot//3, replace=False)
+        baseline_query_data[chosen] = rng.integers(0, iinfo.max, len(chosen))
+        baseline_query_data = baseline_query_data.reshape(len(obs), len(var))
+
+        query_data = baseline_query_data.astype(query_dtype)
+
+        if density == 'csc':
+            query_data = scipy_sparse.csc_matrix(query_data)
+        else:
+            query_data = scipy_sparse.csr_matrix(query_data)
+
+    dst = anndata.AnnData(X=query_data, obs=obs, var=var)
+    query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+    dst.write_h5ad(query_path)
+
+    config['query_path'] = query_path
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    actual = json.load(open(result_path, 'rb'))
+    assert 'RAN SUCCESSFULLY' in actual['log'][-2]
+
+    # now save the data as an np.int64 and verify
+    # that the results are exactly the same
+    baseline_dst = anndata.AnnData(X=baseline_query_data, var=var, obs=obs)
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+    baseline_dst.write_h5ad(baseline_path)
+    config['query_path'] = baseline_path
+    baseline_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.json')
+    config['extended_result_path'] = baseline_output
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    expected = json.load(open(baseline_output, 'rb'))
+    actual_results = {
+        cell['cell_id']: cell for cell in actual['results']}
+    expected_results = {
+        cell['cell_id']: cell for cell in expected['results']}
+
+    assert expected_results == actual_results
+
+    # make sure that the data we ran was saved as an int64
+    with h5py.File(config['query_path'], 'r') as src:
+        assert src['X'].dtype == np.int64
 
     os.environ[env_var] = ''
