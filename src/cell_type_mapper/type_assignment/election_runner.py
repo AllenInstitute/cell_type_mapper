@@ -9,6 +9,9 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.validation.utils import (
     is_data_ge_zero)
 
+from cell_type_mapper.utils.output_utils import (
+    re_order_blob)
+
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
@@ -56,7 +59,7 @@ def run_type_assignment_on_h5ad(
                 raise RuntimeError(error_msg)
 
     if use_torch():
-        return run_type_assignment_on_h5ad_gpu(
+        result = run_type_assignment_on_h5ad_gpu(
             query_h5ad_path,
             precomputed_stats_path,
             marker_gene_cache_path,
@@ -72,19 +75,26 @@ def run_type_assignment_on_h5ad(
             log=log,
             max_gb=max_gb,
             results_output_path=results_output_path)
-    return run_type_assignment_on_h5ad_cpu(
-        query_h5ad_path,
-        precomputed_stats_path,
-        marker_gene_cache_path,
-        taxonomy_tree,
-        n_processors,
-        chunk_size,
-        bootstrap_factor,
-        bootstrap_iteration,
-        rng,
-        n_assignments=n_assignments,
-        normalization=normalization,
-        tmp_dir=tmp_dir,
-        log=log,
-        max_gb=max_gb,
-        results_output_path=results_output_path)
+    else:
+        result = run_type_assignment_on_h5ad_cpu(
+            query_h5ad_path,
+            precomputed_stats_path,
+            marker_gene_cache_path,
+            taxonomy_tree,
+            n_processors,
+            chunk_size,
+            bootstrap_factor,
+            bootstrap_iteration,
+            rng,
+            n_assignments=n_assignments,
+            normalization=normalization,
+            tmp_dir=tmp_dir,
+            log=log,
+            max_gb=max_gb,
+            results_output_path=results_output_path)
+
+    result = re_order_blob(
+        results_blob=result,
+        query_path=query_h5ad_path)
+
+    return result
