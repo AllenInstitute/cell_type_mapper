@@ -1,6 +1,8 @@
 import pytest
 
+import anndata
 import numpy as np
+import pandas as pd
 import pathlib
 
 from cell_type_mapper.utils.utils import (
@@ -8,6 +10,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.output_utils import (
+    re_order_blob,
     blob_to_df,
     blob_to_csv)
 
@@ -390,3 +393,30 @@ def test_blob_to_csv_level_map(tmp_dir_fixture, with_metadata, results_fixture):
                    'salted_49_confidence\n')
     # version line is at 2+n_offset
     assert actual_lines[3+n_offset] == header_line
+
+
+def test_re_order_blob(tmp_dir_fixture):
+    rng = np.random.default_rng(221312)
+    cell_id_list = [f'c_{ii}' for ii in range(11)]
+    obs = pd.DataFrame(
+        [{'cell_id': c} for c in cell_id_list]).set_index('cell_id')
+    a_data = anndata.AnnData(obs=obs)
+    h5ad_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    rng.shuffle(cell_id_list)
+    results_blob = [
+        {'cell_id': c, 'data': ii**2}
+        for ii, c in enumerate(cell_id_list)
+    ]
+    results_lookup = {c['cell_id']: c for c in results_blob}
+
+    new_blob = re_order_blob(
+        results_blob=results_blob,
+        query_path=h5ad_path)
+
+    assert not list([c['cell_id'] for c in results_blob]) == list(obs.index.values)
+    assert list([c['cell_id'] for c in new_blob]) == list(obs.index.values)
+    for c in new_blob:
+        assert c == results_lookup[c['cell_id']]
+    assert len(new_blob) == len(results_lookup)

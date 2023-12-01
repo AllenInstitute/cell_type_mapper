@@ -4,6 +4,50 @@ import pathlib
 
 import cell_type_mapper
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad)
+
+
+def re_order_blob(
+        results_blob,
+        query_path):
+    """
+    Re-order the cells in results_blob to match the order in which they appear
+    in the h5ad file pointed to by query_path
+    Parameters
+    ----------
+    results_blob:
+        The blob-form results. A list of dicts. Each dict is a cell
+        and looks like
+            {
+                'cell_id': my_cell,
+                'level1': {'assignment':...
+                           'confidence':...},
+                'level2': {'assignment':...,
+                           'confidence':...}}
+
+    query_path:
+        Path to the query h5ad file. The contents of results_blob will be
+        re-ordered to match the order of query_path.obs.index.values
+
+    Returns
+    -------
+    results_blob:
+        re-ordered accordingly
+    """
+
+    cell_order = read_df_from_h5ad(
+            h5ad_path=query_path,
+            df_name='obs').index.values
+
+    results_blob = {
+        c['cell_id']: c for c in results_blob}
+
+    results_blob = list([
+        results_blob[c] for c in cell_order])
+
+    return results_blob
+
 
 def blob_to_csv(
         results_blob,

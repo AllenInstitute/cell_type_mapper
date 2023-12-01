@@ -17,6 +17,9 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad)
+
 from cell_type_mapper.data.mouse_gene_id_lookup import (
     mouse_gene_id_lookup)
 
@@ -261,7 +264,10 @@ def test_summary_from_validated_file(
         map_to_ensembl):
     """
     This test makes sure that the summary metadata is correctly recorded
-    when ensembl mapping is handled by the validation CLI
+    when ensembl mapping is handled by the validation CLI.
+
+    Additionally test that cells in the output CSV file are in the same
+    order as in the input h5ad file.
     """
 
     validated_path = mkstemp_clean(
@@ -289,6 +295,11 @@ def test_summary_from_validated_file(
         prefix='outptut_',
         suffix='.json')
 
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_output_',
+        suffix='.csv')
+
     metadata_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='summary_',
@@ -303,6 +314,7 @@ def test_summary_from_validated_file(
         },
         'query_path': validated_path,
         'extended_result_path': str(output_path),
+        'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
         'map_to_ensembl': map_to_ensembl,
         'type_assignment': {
@@ -329,3 +341,9 @@ def test_summary_from_validated_file(
     assert metadata['n_mapped_cells'] == len(query_data.obs)
     assert metadata['n_mapped_genes'] == (len(query_data.var)
                                           -n_extra_genes_fixture)
+
+    src_obs = read_df_from_h5ad(query_h5ad_fixture, df_name='obs')
+    mapping_df = pd.read_csv(csv_path, comment='#')
+    assert len(mapping_df) == len(src_obs)
+    np.testing.assert_array_equal(
+        mapping_df.cell_id.values, src_obs.index.values)
