@@ -1,6 +1,7 @@
 import pytest
 
 import anndata
+import itertools
 import numpy as np
 import pandas as pd
 
@@ -10,20 +11,39 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.cli_utils import _get_query_gene_names
 
 
-@pytest.mark.parametrize('as_ensembl', [True, False])
-def test_get_query_gene_names(tmp_dir_fixture, as_ensembl):
+@pytest.mark.parametrize('as_ensembl,species',
+        itertools.product([True, False], ['human', 'mouse', 'nonsense']))
+def test_get_query_gene_names(tmp_dir_fixture, as_ensembl, species):
 
-    input_names = [
-        'Xkr4',
-        'Rrs1',
-        'bob',
-        'NCBIGene:73261']
+    if species == 'mouse':
+        input_names = [
+            'Xkr4',
+            'Rrs1',
+            'bob',
+            'NCBIGene:73261']
 
-    expected_ensembl = [
-        'ENSMUSG00000051951',
-        'ENSMUSG00000061024',
-        None,
-        'ENSMUSG00000005983']
+        expected_ensembl = [
+            'ENSMUSG00000051951',
+            'ENSMUSG00000061024',
+            None,
+            'ENSMUSG00000005983']
+    elif species == 'human':
+        input_names = [
+            'A1BG',
+            'A1CF',
+            'alice',
+            'A4GALT']
+        expected_ensembl = [
+            "ENSG00000121410",
+            "ENSG00000148584",
+            None,
+            "ENSG00000128274"
+        ]
+    elif species == 'nonsense':
+        input_names = ['alice', 'bob', 'cheryl', 'dan']
+    else:
+        raise RuntimeError(
+            f"Unclear how to handle species {species}")
 
     var = pd.DataFrame(
         [{'gene_id': n} for n in input_names]).set_index('gene_id')
@@ -44,12 +64,16 @@ def test_get_query_gene_names(tmp_dir_fixture, as_ensembl):
 
     a_data.write_h5ad(src_path)
 
-    actual = _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
-    if as_ensembl:
-        for idx in (0, 1, 3):
-            assert actual[0][idx] == expected_ensembl[idx]
-        assert 'unmapped' in actual[0][2]
-        assert len(actual[0]) == 4
-        assert actual[1] == 1
+    if species == 'nonsense' and as_ensembl:
+        with pytest.raises(RuntimeError, match="Could not find a species"):
+            _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
     else:
-        assert actual == (input_names, 0)
+        actual = _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
+        if as_ensembl:
+            for idx in (0, 1, 3):
+                assert actual[0][idx] == expected_ensembl[idx]
+            assert 'unmapped' in actual[0][2]
+            assert len(actual[0]) == 4
+            assert actual[1] == 1
+        else:
+            assert actual == (input_names, 0)
