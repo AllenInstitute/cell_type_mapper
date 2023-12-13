@@ -92,7 +92,7 @@ class PrecomputedStatsSchema(argschema.ArgSchema):
         description=(
             "If true, split the dataset by the 'dataset_label' field in "
             "cell_metadata.csv, storing each dataset in a separate HDF5 file. "
-            "Files will be named like ouptut_path but with a secondary suffix "
+            "Files will be named like output_path but with a secondary suffix "
             "added before .h5 specifying which dataset they contain."
         ))
 
