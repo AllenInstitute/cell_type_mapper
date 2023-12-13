@@ -1,8 +1,17 @@
 from typing import Union, List, Optional, Dict
+import h5py
+import multiprocessing
 import numpy as np
 import numbers
-import h5py
 import pathlib
+import tempfile
+
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
+
+from cell_type_mapper.utils.multiprocessing_utils import (
+    winnow_process_list)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -29,7 +38,9 @@ def precompute_summary_stats_from_h5ad(
         taxonomy_tree: Optional[TaxonomyTree],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization="log2CPM"):
+        normalization="log2CPM",
+        tmp_dir=None,
+        n_processors=3):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -59,6 +70,12 @@ def precompute_summary_stats_from_h5ad(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
 
+    tmp_dir:
+        Directory where scratch files can be written
+
+    n_processors:
+        Number of parallel worker processes to spin up
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -78,7 +95,9 @@ def precompute_summary_stats_from_h5ad(
         taxonomy_tree=taxonomy_tree,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
@@ -86,7 +105,9 @@ def precompute_summary_stats_from_h5ad_and_tree(
         taxonomy_tree: TaxonomyTree,
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        tmp_dir=None,
+        n_processors=3):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -111,6 +132,12 @@ def precompute_summary_stats_from_h5ad_and_tree(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
+
+    tmp_dir:
+        Directory where scratch files can be written
+
+    n_processors:
+        Number of parallel worker processes to spin up
 
     Note
     ----
@@ -143,7 +170,9 @@ def precompute_summary_stats_from_h5ad_and_tree(
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -157,7 +186,9 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
         normalization='log2CPM',
-        cell_set=None):
+        cell_set=None,
+        tmp_dir=None,
+        n_processors=3):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -189,6 +220,12 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         in this set will be included in the precomputed stats
         computation.
 
+    tmp_dir:
+        Directory where scratch files can be written
+
+    n_processors:
+        Number of parallel worker processes to spin up
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
@@ -215,7 +252,9 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -229,7 +268,9 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         cluster_to_output_row: Dict[str, int],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        tmp_dir=None,
+        n_processors=3):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -259,7 +300,38 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
+
+    tmp_dir:
+        Directory where scratch files can be written
+
+    n_processors:
+        Number of parallel worker processes to spin up
     """
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+
+    try:
+        _precompute_summary_stats_from_h5ad_and_lookup(
+            data_path_list=data_path_list,
+            cell_name_to_cluster_name=cell_name_to_cluster_name,
+            cluster_to_output_row=cluster_to_output_row,
+            output_path=output_path,
+            rows_at_a_time=rows_at_a_time,
+            normalization=normalization,
+            tmp_dir=tmp_dir,
+            n_processors=n_processors)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _precompute_summary_stats_from_h5ad_and_lookup(
+        data_path_list: List[Union[str, pathlib.Path]],
+        cell_name_to_cluster_name: Dict[str, str],
+        cluster_to_output_row: Dict[str, int],
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM',
+        tmp_dir=None,
+        n_processors=3):
 
     gene_names = None
     for pth in data_path_list:
@@ -276,14 +348,6 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     n_clusters = len(cluster_to_output_row)
     n_genes = len(gene_names)
 
-    buffer_dict = dict()
-    buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
-    buffer_dict['sum'] = np.zeros((n_clusters, n_genes), dtype=float)
-    buffer_dict['sumsq'] = np.zeros((n_clusters, n_genes), dtype=float)
-    buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
-    buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
-    buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
-
     cell_name_to_output_row = dict()
     for cell_name in cell_name_to_cluster_name:
         cell_name_to_output_row[cell_name] = cluster_to_output_row[
@@ -292,6 +356,10 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     bad_row_idx = -999
 
     desired_cells = set(cell_name_to_cluster_name.keys())
+    buffer_path_list = []
+
+    process_list = []
+
     for data_path in data_path_list:
 
         cell_name_list = list(
@@ -307,43 +375,50 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
         print(f'loading {data_path}')
 
-        processed_cells = 0
         for chunk in chunk_iterator:
-            r0 = chunk[1]
-            r1 = chunk[2]
-            cluster_chunk = np.array([
-                cell_name_to_output_row[cell_name_list[idx]]
-                if cell_name_list[idx] in cell_name_to_output_row
-                else bad_row_idx
-                for idx in range(r0, r1)
-            ])
-            for unq_cluster in np.unique(cluster_chunk):
-                if unq_cluster == bad_row_idx:
-                    continue
-                valid = np.where(cluster_chunk == unq_cluster)[0]
-                valid = np.sort(valid)
-                this_cluster = chunk[0][valid, :]
 
-                if not isinstance(this_cluster, np.ndarray):
-                    this_cluster = this_cluster.toarray()
+            buffer_path = mkstemp_clean(
+                dir=tmp_dir,
+                prefix='precomputation_buffer_',
+                suffix='.h5')
+            buffer_path_list.append(buffer_path)
 
-                this_cluster = CellByGeneMatrix(
-                    data=this_cluster,
-                    gene_identifiers=gene_names,
-                    normalization=normalization)
+            if n_processors <= 1:
 
-                if this_cluster.normalization != 'log2CPM':
-                    this_cluster.to_log2CPM_in_place()
+                _process_chunk(
+                    chunk=chunk,
+                    gene_names=gene_names,
+                    cell_name_to_output_row=cell_name_to_output_row,
+                    cell_name_list=cell_name_list,
+                    bad_row_idx=bad_row_idx,
+                    normalization=normalization,
+                    n_clusters=n_clusters,
+                    buffer_path=buffer_path)
 
-                summary_chunk = summary_stats_for_chunk(this_cluster)
+            else:
+                p = multiprocessing.Process(
+                        target=_process_chunk,
+                        kwargs={
+                            'chunk': chunk,
+                            'gene_names': gene_names,
+                            'cell_name_to_output_row': cell_name_to_output_row,
+                            'cell_name_list': cell_name_list,
+                            'bad_row_idx': bad_row_idx,
+                            'normalization': normalization,
+                            'n_clusters': n_clusters,
+                            'buffer_path': buffer_path
+                        }
+                    )
 
-                for k in summary_chunk.keys():
-                    if len(buffer_dict[k].shape) == 1:
-                        buffer_dict[k][unq_cluster] += summary_chunk[k]
-                    else:
-                        buffer_dict[k][unq_cluster, :] += summary_chunk[k]
+                p.start()
 
-            processed_cells += (r1-r0)
+                process_list.append(p)
+
+                while len(process_list) >= n_processors:
+                    process_list = winnow_process_list(process_list)
+
+    for p in process_list:
+        p.join()
 
     _create_empty_stats_file(
         output_path=output_path,
@@ -353,8 +428,73 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         col_names=gene_names)
 
     with h5py.File(output_path, 'a') as out_file:
-        for k in buffer_dict.keys():
-            if k == 'n_cells':
-                out_file[k][:] = buffer_dict[k]
+        for buffer_path in buffer_path_list:
+            with h5py.File(buffer_path, 'r') as src:
+                for k in src.keys():
+                    if k == 'n_cells':
+                        out_file[k][:] += src[k][()]
+                    else:
+                        out_file[k][:, :] += src[k][()]
+
+
+def _process_chunk(
+        chunk,
+        gene_names,
+        cell_name_to_output_row,
+        cell_name_list,
+        bad_row_idx,
+        normalization,
+        n_clusters,
+        buffer_path):
+    """
+    Assemble the summary stats from a chunk of data and write it to
+    an HDF5 file at buffer_path
+    """
+
+    n_genes = len(gene_names)
+
+    buffer_dict = dict()
+    buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
+    buffer_dict['sum'] = np.zeros((n_clusters, n_genes), dtype=float)
+    buffer_dict['sumsq'] = np.zeros((n_clusters, n_genes), dtype=float)
+    buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
+    buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
+    buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
+
+    r0 = chunk[1]
+    r1 = chunk[2]
+    cluster_chunk = np.array([
+        cell_name_to_output_row[cell_name_list[idx]]
+        if cell_name_list[idx] in cell_name_to_output_row
+        else bad_row_idx
+        for idx in range(r0, r1)
+    ])
+    for unq_cluster in np.unique(cluster_chunk):
+        if unq_cluster == bad_row_idx:
+            continue
+        valid = np.where(cluster_chunk == unq_cluster)[0]
+        valid = np.sort(valid)
+        this_cluster = chunk[0][valid, :]
+
+        if not isinstance(this_cluster, np.ndarray):
+            this_cluster = this_cluster.toarray()
+
+        this_cluster = CellByGeneMatrix(
+            data=this_cluster,
+            gene_identifiers=gene_names,
+            normalization=normalization)
+
+        if this_cluster.normalization != 'log2CPM':
+            this_cluster.to_log2CPM_in_place()
+
+        summary_chunk = summary_stats_for_chunk(this_cluster)
+
+        for k in summary_chunk.keys():
+            if len(buffer_dict[k].shape) == 1:
+                buffer_dict[k][unq_cluster] += summary_chunk[k]
             else:
-                out_file[k][:, :] = buffer_dict[k]
+                buffer_dict[k][unq_cluster, :] += summary_chunk[k]
+
+    with h5py.File(buffer_path, 'w') as dst:
+        for k in buffer_dict:
+            dst.create_dataset(k, data=buffer_dict[k])
