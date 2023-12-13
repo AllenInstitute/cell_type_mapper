@@ -354,15 +354,16 @@ def many_raw_h5ad_fixture(
     return path_list
 
 @pytest.mark.parametrize(
-        'use_raw',
-        [True, False])
+        'use_raw,n_processors',
+        itertools.product([True, False], [1, 3]))
 def test_precompute_from_data(
         h5ad_path_fixture,
         raw_h5ad_path_fixture,
         records_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
-        use_raw):
+        use_raw,
+        n_processors):
     """
     Test the generation of precomputed stats file.
 
@@ -390,7 +391,9 @@ def test_precompute_from_data(
         taxonomy_tree=None,
         output_path=stats_file,
         rows_at_a_time=13,
-        normalization=normalization)
+        normalization=normalization,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir_fixture)
 
     expected_tree = get_taxonomy_tree(
         obs_records=records_fixture,
@@ -450,8 +453,8 @@ def test_precompute_from_data(
 
 
 @pytest.mark.parametrize(
-        'use_raw, omit_clusters',
-        itertools.product([True, False], [True, False]))
+        'use_raw, omit_clusters, n_processors',
+        itertools.product([True, False], [True, False], [1, 3]))
 def test_precompute_from_many_h5ad_with_lookup(
         many_h5ad_fixture,
         many_raw_h5ad_fixture,
@@ -460,7 +463,8 @@ def test_precompute_from_many_h5ad_with_lookup(
         baseline_stats_fixture,
         tmp_dir_fixture,
         use_raw,
-        omit_clusters):
+        omit_clusters,
+        n_processors):
     """
     Test the generation of precomputed stats file from many
     h5ad files at once.
@@ -515,7 +519,9 @@ def test_precompute_from_many_h5ad_with_lookup(
         cluster_to_output_row=cluster_to_output_row,
         output_path=stats_file,
         rows_at_a_time=13,
-        normalization=normalization)
+        normalization=normalization,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir_fixture)
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:
@@ -593,8 +599,8 @@ def test_precompute_from_many_h5ad_with_lookup(
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('use_raw,use_cell_set',
-        itertools.product([True, False], [True, False]))
+@pytest.mark.parametrize('use_raw,use_cell_set,n_processors',
+        itertools.product([True, False], [True, False], [1, 3]))
 def test_precompute_from_many_h5ad_with_tree(
         many_h5ad_fixture,
         many_raw_h5ad_fixture,
@@ -605,7 +611,8 @@ def test_precompute_from_many_h5ad_with_tree(
         baseline_stats_fixture_limited_cells,
         cell_set_fixture,
         use_raw,
-        use_cell_set):
+        use_cell_set,
+        n_processors):
     """
     Test the generation of precomputed stats file from many
     h5ad files at once.
@@ -662,7 +669,9 @@ def test_precompute_from_many_h5ad_with_tree(
         output_path=stats_file,
         rows_at_a_time=13,
         normalization=normalization,
-        cell_set=cell_set)
+        cell_set=cell_set,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir_fixture)
 
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
