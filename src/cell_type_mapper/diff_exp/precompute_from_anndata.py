@@ -353,43 +353,15 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
         print(f'loading {data_path}')
 
-        processed_cells = 0
         for chunk in chunk_iterator:
-            r0 = chunk[1]
-            r1 = chunk[2]
-            cluster_chunk = np.array([
-                cell_name_to_output_row[cell_name_list[idx]]
-                if cell_name_list[idx] in cell_name_to_output_row
-                else bad_row_idx
-                for idx in range(r0, r1)
-            ])
-            for unq_cluster in np.unique(cluster_chunk):
-                if unq_cluster == bad_row_idx:
-                    continue
-                valid = np.where(cluster_chunk == unq_cluster)[0]
-                valid = np.sort(valid)
-                this_cluster = chunk[0][valid, :]
-
-                if not isinstance(this_cluster, np.ndarray):
-                    this_cluster = this_cluster.toarray()
-
-                this_cluster = CellByGeneMatrix(
-                    data=this_cluster,
-                    gene_identifiers=gene_names,
-                    normalization=normalization)
-
-                if this_cluster.normalization != 'log2CPM':
-                    this_cluster.to_log2CPM_in_place()
-
-                summary_chunk = summary_stats_for_chunk(this_cluster)
-
-                for k in summary_chunk.keys():
-                    if len(buffer_dict[k].shape) == 1:
-                        buffer_dict[k][unq_cluster] += summary_chunk[k]
-                    else:
-                        buffer_dict[k][unq_cluster, :] += summary_chunk[k]
-
-            processed_cells += (r1-r0)
+            _process_chunk(
+                chunk=chunk,
+                buffer_dict=buffer_dict,
+                gene_names=gene_names,
+                cell_name_to_output_row=cell_name_to_output_row,
+                cell_name_list=cell_name_list,
+                bad_row_idx=bad_row_idx,
+                normalization=normalization)
 
     _create_empty_stats_file(
         output_path=output_path,
@@ -404,3 +376,46 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 out_file[k][:] = buffer_dict[k]
             else:
                 out_file[k][:, :] = buffer_dict[k]
+
+
+def _process_chunk(
+        chunk,
+        buffer_dict,
+        gene_names,
+        cell_name_to_output_row,
+        cell_name_list,
+        bad_row_idx,
+        normalization):
+    r0 = chunk[1]
+    r1 = chunk[2]
+    cluster_chunk = np.array([
+        cell_name_to_output_row[cell_name_list[idx]]
+        if cell_name_list[idx] in cell_name_to_output_row
+        else bad_row_idx
+        for idx in range(r0, r1)
+    ])
+    for unq_cluster in np.unique(cluster_chunk):
+        if unq_cluster == bad_row_idx:
+            continue
+        valid = np.where(cluster_chunk == unq_cluster)[0]
+        valid = np.sort(valid)
+        this_cluster = chunk[0][valid, :]
+
+        if not isinstance(this_cluster, np.ndarray):
+            this_cluster = this_cluster.toarray()
+
+        this_cluster = CellByGeneMatrix(
+            data=this_cluster,
+            gene_identifiers=gene_names,
+            normalization=normalization)
+
+        if this_cluster.normalization != 'log2CPM':
+            this_cluster.to_log2CPM_in_place()
+
+        summary_chunk = summary_stats_for_chunk(this_cluster)
+
+        for k in summary_chunk.keys():
+            if len(buffer_dict[k].shape) == 1:
+                buffer_dict[k][unq_cluster] += summary_chunk[k]
+            else:
+                buffer_dict[k][unq_cluster, :] += summary_chunk[k]
