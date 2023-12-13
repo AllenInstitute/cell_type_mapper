@@ -3,6 +3,11 @@ import numpy as np
 import numbers
 import h5py
 import pathlib
+import tempfile
+
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -29,7 +34,8 @@ def precompute_summary_stats_from_h5ad(
         taxonomy_tree: Optional[TaxonomyTree],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization="log2CPM"):
+        normalization="log2CPM",
+        tmp_dir=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -59,6 +65,9 @@ def precompute_summary_stats_from_h5ad(
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
 
+    tmp_dir:
+        Directory where scratch files can be written
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -78,7 +87,8 @@ def precompute_summary_stats_from_h5ad(
         taxonomy_tree=taxonomy_tree,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
@@ -86,7 +96,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         taxonomy_tree: TaxonomyTree,
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        tmp_dir=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -111,6 +122,9 @@ def precompute_summary_stats_from_h5ad_and_tree(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
+
+    tmp_dir:
+        Directory where scratch files can be written
 
     Note
     ----
@@ -143,7 +157,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -157,7 +172,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
         normalization='log2CPM',
-        cell_set=None):
+        cell_set=None,
+        tmp_dir=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -189,6 +205,9 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         in this set will be included in the precomputed stats
         computation.
 
+    tmp_dir:
+        Directory where scratch files can be written
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
@@ -215,7 +234,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         cluster_to_output_row=cluster_to_output_row,
         output_path=output_path,
         rows_at_a_time=rows_at_a_time,
-        normalization=normalization)
+        normalization=normalization,
+        tmp_dir=tmp_dir)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -229,7 +249,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         cluster_to_output_row: Dict[str, int],
         output_path: Union[str, pathlib.Path],
         rows_at_a_time: int = 10000,
-        normalization='log2CPM'):
+        normalization='log2CPM',
+        tmp_dir=None):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -259,8 +280,33 @@ def precompute_summary_stats_from_h5ad_and_lookup(
     normalization:
         The normalization of the cell by gene matrix in
         the input file; either 'raw' or 'log2CPM'
-    """
 
+    tmp_dir:
+        Directory where scratch files can be written
+    """
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+
+    try:
+        _precompute_summary_stats_from_h5ad_and_lookup(
+            data_path_list=data_path_list,
+            cell_name_to_cluster_name=cell_name_to_cluster_name,
+            cluster_to_output_row=cluster_to_output_row,
+            output_path=output_path,
+            rows_at_a_time=rows_at_a_time,
+            normalization=normalization,
+            tmp_dir=tmp_dir)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _precompute_summary_stats_from_h5ad_and_lookup(
+        data_path_list: List[Union[str, pathlib.Path]],
+        cell_name_to_cluster_name: Dict[str, str],
+        cluster_to_output_row: Dict[str, int],
+        output_path: Union[str, pathlib.Path],
+        rows_at_a_time: int = 10000,
+        normalization='log2CPM',
+        tmp_dir=None):
     gene_names = None
     for pth in data_path_list:
         these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
