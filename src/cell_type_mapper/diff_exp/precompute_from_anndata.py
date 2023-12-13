@@ -322,14 +322,6 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     n_clusters = len(cluster_to_output_row)
     n_genes = len(gene_names)
 
-    buffer_dict = dict()
-    buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
-    buffer_dict['sum'] = np.zeros((n_clusters, n_genes), dtype=float)
-    buffer_dict['sumsq'] = np.zeros((n_clusters, n_genes), dtype=float)
-    buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
-    buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
-    buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
-
     cell_name_to_output_row = dict()
     for cell_name in cell_name_to_cluster_name:
         cell_name_to_output_row[cell_name] = cluster_to_output_row[
@@ -338,6 +330,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     bad_row_idx = -999
 
     desired_cells = set(cell_name_to_cluster_name.keys())
+    buffer_path_list = []
     for data_path in data_path_list:
 
         cell_name_list = list(
@@ -354,14 +347,22 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         print(f'loading {data_path}')
 
         for chunk in chunk_iterator:
+
+            buffer_path = mkstemp_clean(
+                dir=tmp_dir,
+                prefix='precomputation_buffer_',
+                suffix='.h5')
+            buffer_path_list.append(buffer_path)
+
             _process_chunk(
                 chunk=chunk,
-                buffer_dict=buffer_dict,
                 gene_names=gene_names,
                 cell_name_to_output_row=cell_name_to_output_row,
                 cell_name_list=cell_name_list,
                 bad_row_idx=bad_row_idx,
-                normalization=normalization)
+                normalization=normalization,
+                n_clusters=n_clusters,
+                buffer_path=buffer_path)
 
     _create_empty_stats_file(
         output_path=output_path,
@@ -371,21 +372,39 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         col_names=gene_names)
 
     with h5py.File(output_path, 'a') as out_file:
-        for k in buffer_dict.keys():
-            if k == 'n_cells':
-                out_file[k][:] = buffer_dict[k]
-            else:
-                out_file[k][:, :] = buffer_dict[k]
+        for buffer_path in buffer_path_list:
+            with h5py.File(buffer_path, 'r') as src:
+                for k in src.keys():
+                    if k == 'n_cells':
+                        out_file[k][:] += src[k][()]
+                    else:
+                        out_file[k][:, :] += src[k][()]
 
 
 def _process_chunk(
         chunk,
-        buffer_dict,
         gene_names,
         cell_name_to_output_row,
         cell_name_list,
         bad_row_idx,
-        normalization):
+        normalization,
+        n_clusters,
+        buffer_path):
+    """
+    Assemble the summary stats from a chunk of data and write it to
+    an HDF5 file at buffer_path
+    """
+
+    n_genes = len(gene_names)
+
+    buffer_dict = dict()
+    buffer_dict['n_cells'] = np.zeros(n_clusters, dtype=int)
+    buffer_dict['sum'] = np.zeros((n_clusters, n_genes), dtype=float)
+    buffer_dict['sumsq'] = np.zeros((n_clusters, n_genes), dtype=float)
+    buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
+    buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
+    buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
+
     r0 = chunk[1]
     r1 = chunk[2]
     cluster_chunk = np.array([
@@ -419,3 +438,7 @@ def _process_chunk(
                 buffer_dict[k][unq_cluster] += summary_chunk[k]
             else:
                 buffer_dict[k][unq_cluster, :] += summary_chunk[k]
+
+    with h5py.File(buffer_path, 'w') as dst:
+        for k in buffer_dict:
+            dst.create_dataset(k, data=buffer_dict[k])
