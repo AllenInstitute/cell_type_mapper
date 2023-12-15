@@ -22,8 +22,8 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
-from cell_type_mapper.cli.precompute_stats import (
-    PrecomputationRunner)
+from cell_type_mapper.cli.precompute_stats_abc import (
+    PrecomputationABCRunner)
 
 from cell_type_mapper.cli.reference_markers import (
     ReferenceMarkerRunner)
@@ -446,7 +446,7 @@ def test_precompute_cli(
         'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
         'split_by_dataset': split_by_dataset}
 
-    runner = PrecomputationRunner(
+    runner = PrecomputationABCRunner(
         args=[],
         input_data=config)
 
@@ -591,7 +591,7 @@ def precomputed_stats_path_fixture(
         'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
         'split_by_dataset': True}
 
-    runner = PrecomputationRunner(
+    runner = PrecomputationABCRunner(
         args=[],
         input_data=config)
 

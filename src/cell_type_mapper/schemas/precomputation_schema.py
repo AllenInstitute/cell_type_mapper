@@ -44,7 +44,7 @@ class PrecomputedStatsSchemaMixin(object):
         return data
 
 
-class PrecomputedStatsSchema(
+class PrecomputedStatsABCSchema(
         PrecomputedStatsSchemaMixin,
         argschema.ArgSchema):
 
@@ -69,7 +69,7 @@ class PrecomputedStatsSchema(
         default=None,
         allow_none=False,
         description="Path to cluster_annotation_term.csv; the file "
-        "containing parent-child reslationships within our cell types "
+        "containing parent-child relationships within our cell types "
         "taxonomy")
 
     cluster_membership_path = argschema.fields.InputFile(
