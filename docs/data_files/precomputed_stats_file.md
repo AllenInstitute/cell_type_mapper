@@ -69,23 +69,47 @@ individual cells in the reference dataset.
 
 ### Numerical datasets
 
-The following datasets represent numerical statistics about the cell type
-clusters and are indexed according to `cluster_to_row` and `col_names`. Not
-all of these statistics are used at present. They are calculated in anticipation
-of a future release in which this library will be able to identify marker genes
-in the reference dataset without relying on legacy R code.
+The numerical datasets encode the cell-type-cluster-by-gene statistics
+characterizing the cell type clusters in the taxonomy. With the exception
+of `n_cells` they areall `(n_cluster, n_gene)` in shape. The columns must
+be in the same order as the gene names encoded in `col_names` above.
+The mapping from cell type cluster to row is encoded in the `cluster_to_row`
+dataset above.
 
-- `n_cells`: The number of cells in each cluster. `n_cells[ii]` is the number
-of cells in the cluster with name `cluster_to_row[name] == ii`.
-- `sum`: An (`n_clusters`, `n_genes`) array indicating the sum of `log2(CPM+1)`
-values for each gene in each cluster (i.e. raw counts are converted to
-`log2(CPM+1)` and then summed). Rows are indexed according to `cluster_to_row`.
-Columns are indexed according to `col_names`.
-- `sumsq`: like `sum`, except it represents the sum of the squares of the
-`log2(CPM+1)` expression values (for use in estimating the variance).
-- `gt0`: A (`n_clusters`, `n_genes`) array indicating how many cells had raw
-expression greater than zero in each gene for each cluster.
-- `gt1`: A (`n_clusters`, `n_genes`) array indicating how many cells had raw
-expression greater than unity in each gene for each cluster.
-- `ge1`: A (`n_clusters`, `n_genes`) array indicating how many cells ahd
-raw expression greater than or equal to unity in each geen for each cluster.
+#### `n_cells`
+
+This is a `(n_clusters,)` array of ints. Each element records the number
+of cells in the reference dataset that were assigned to that particular
+cell type cluter.
+
+#### `sum` and `sumsq`
+
+These are `(n_clusters, n_genes)` arrays of floats aggregating the sum of the
+gene expression values and the sum of the squares of gene expression values
+per cell type cluster per gene (we collect the sum of the squares for use
+when computing variances during marker gene selection)
+
+**Note:** If you are not using the `precomputed_stats.h5` file for marker
+gene selection (i.e. if you are only using it as the source of the average
+gene expression per cell type cluster in your reference dataset) it is safe
+to leave out `sumsq`. Only `sum` is **required.**
+
+#### `ge1`, `gt1`, `gt0`
+
+These are `(n_clusters, n_genes)` arrays of integers recording, for each
+`(cluster, gene)` pair, how many cells
+
+- expressed that gene at greater than or equal to 1 CPM
+- expressed that gene at greater than 1 CPM
+- expressed that gene at greater 0 CPM
+
+**Note:** These arrays are only used for marker gene selection. If you are just
+creating a `precomputed_stats.h5` file to serve as the source of
+"average gene expression per cell type", having selected your marker genes
+using some other tool, it is save to leave `ge`, `gt1` and `gt0` out of your
+`precomputed_stats.h5` file.
+
+**Note:** As of this writing, `gt1` and `gt0` actually are not even used
+in marker gene selection (they are placeholders against future developments
+in marker gene selection). They can safely be left out of
+`precomputed_stats.h5`.
