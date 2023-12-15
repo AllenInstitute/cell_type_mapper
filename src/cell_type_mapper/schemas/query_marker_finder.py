@@ -31,11 +31,15 @@ class QueryMarkerFinderSchema(
         QueryFinderConfigMixin):
 
     query_path = argschema.fields.InputFile(
-        required=True,
+        required=False,
         default=None,
-        allow_none=False,
-        description="Path to the h5ad file containing the query "
-        "dataset (used to read the list of available genes).")
+        allow_none=True,
+        description=(
+            "Path to the h5ad file containing the query "
+            "dataset (used to read the list of available genes). "
+            "If None, will assume any gene that occurs in all of the "
+            "reference marker files is a legal choice."
+        ))
 
     reference_marker_path_list = argschema.fields.List(
         argschema.fields.InputFile,
