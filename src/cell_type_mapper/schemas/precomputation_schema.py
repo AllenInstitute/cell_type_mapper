@@ -17,6 +17,7 @@ class PrecomputedStatsSchemaMixin(object):
         required=True,
         default=None,
         allow_none=False,
+        cli_as_single_argument=True,
         description="List of term_set_labels in our cell types taxonomy "
         "ordered from most gross to most fine")
 
