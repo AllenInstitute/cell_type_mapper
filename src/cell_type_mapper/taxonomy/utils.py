@@ -129,6 +129,10 @@ def get_taxonomy_tree(
 
     tree["hierarchy"] = column_hierarchy
 
+    for row in obs_records:
+        for k in column_hierarchy:
+            row[k] = str(row[k])
+
     for i_row, row in enumerate(obs_records):
         this_leaf = row[leaf_column]
         if this_leaf not in tree[leaf_column]:
