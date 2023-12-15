@@ -1,7 +1,6 @@
 pytest
 numpy
 scipy
-zarr
 anndata
 matplotlib
 marshmallow==3.12.2
