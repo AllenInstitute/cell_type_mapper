@@ -4,10 +4,10 @@ For each (reference dataset, cell type taxonomy) pair, we need to store
 the average gene expression profile per cell type cluster. This data, along
 with the actual cell type taxonomy, is stored in an HDF5 file. This repository
 contains several tools for generating this file from different input datafiles.
-Those will be discussed at the bottom of this page. First, we will document
-the structure and contents of the file so that users whose exact use case
-is not served by the available tools can create the file on their own
-using their preferred method for writing HDF5 files.
+Those tools will be discussed next. For users whose need are not served
+by those tools and who feel comfortable writing out their own HDF5 file,
+"by hand," the schema of `precomputed_stats.h5` is documented [here](#Schema).
+
 
 ## Schema
 
