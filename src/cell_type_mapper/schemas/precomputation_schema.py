@@ -35,6 +35,23 @@ class PrecomputedStatsSchemaMixin(object):
         "precomputed stats. The serialized taxonomy tree will also be "
         "saved here")
 
+    n_processors = argschema.fields.Integer(
+        required=False,
+        default=3,
+        allow_none=False,
+        description=(
+            "Number of worker processes to spin up."
+        ))
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Directory where temprorary scratch files will be written out "
+            "if n_processors > 1"
+        ))
+
     @post_load
     def check_norm(self, data, **kwargs):
         if data['normalization'] not in ('raw', 'log2CPM'):
@@ -44,7 +61,22 @@ class PrecomputedStatsSchemaMixin(object):
         return data
 
 
-class PrecomputedStatsSchema(
+class PrecomputedStatsScrattchSchema(
+        PrecomputedStatsSchemaMixin,
+        argschema.ArgSchema):
+
+    h5ad_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to the h5ad file containing the cell-by-gene "
+            "data along with the taxonomy (stored in the obs "
+            "dataframe)."
+        ))
+
+
+class PrecomputedStatsABCSchema(
         PrecomputedStatsSchemaMixin,
         argschema.ArgSchema):
 
@@ -69,7 +101,7 @@ class PrecomputedStatsSchema(
         default=None,
         allow_none=False,
         description="Path to cluster_annotation_term.csv; the file "
-        "containing parent-child reslationships within our cell types "
+        "containing parent-child relationships within our cell types "
         "taxonomy")
 
     cluster_membership_path = argschema.fields.InputFile(
