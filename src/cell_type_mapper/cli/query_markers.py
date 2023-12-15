@@ -4,6 +4,8 @@ import h5py
 import json
 import time
 
+import cell_type_mapper
+
 from cell_type_mapper.utils.utils import (
     get_timestamp)
 
@@ -65,6 +67,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
         marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
         marker_lookup['metadata']['timestamp'] = get_timestamp()
+        marker_lookup['metadata']['cell_type_mapper_version'] = \
+            cell_type_mapper.__version__
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
                 json.dumps(marker_lookup, indent=2))

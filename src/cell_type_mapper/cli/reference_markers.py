@@ -5,6 +5,8 @@ import json
 import pathlib
 import time
 
+import cell_type_mapper
+
 from cell_type_mapper.utils.utils import get_timestamp
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -31,7 +33,8 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
         parent_metadata = {
             'config': self.args,
             'timestamp': get_timestamp(),
-            'input_to_output_map': input_to_output
+            'input_to_output_map': input_to_output,
+            'cell_type_mapper_version': cell_type_mapper.__version__
         }
 
         taxonomy_tree = None
