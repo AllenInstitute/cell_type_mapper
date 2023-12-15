@@ -9,6 +9,8 @@ import tempfile
 import time
 import traceback
 
+import cell_type_mapper
+
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     is_cuda_available,
@@ -186,6 +188,7 @@ def run_mapping(config, output_path, log_path=None):
             log.write_log(log_path)
         output["config"] = safe_config
         output["log"] = log.log
+        output["cell_type_mapper_version"] = cell_type_mapper.__version__
 
         uns = read_uns_from_h5ad(config["query_path"])
         if "AIBS_CDM_gene_mapping" in uns:
