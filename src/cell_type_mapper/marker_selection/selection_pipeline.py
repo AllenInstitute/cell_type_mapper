@@ -222,4 +222,6 @@ def _marker_selection_worker(
         summary_log=summary_log,
         tmp_dir=tmp_dir)
 
+    print(f'found {len(marker_genes)} markers at parent node: {parent_node}')
+
     output_dict[parent_node] = marker_genes
