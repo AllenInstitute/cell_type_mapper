@@ -7,10 +7,10 @@ import os
 import h5py
 import tempfile
 import pathlib
-import zarr
 
 from cell_type_mapper.utils.utils import (
-    _clean_up)
+    _clean_up,
+    mkstemp_clean)
 
 from cell_type_mapper.utils.sparse_utils import(
     load_csr,
@@ -24,8 +24,10 @@ from cell_type_mapper.utils.sparse_utils import(
     mask_indptr_by_indices)
 
 
-def test_load_csr():
-    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+def test_load_csr(tmp_dir_fixture):
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
 
     rng = np.random.default_rng(88123)
 
@@ -39,17 +41,17 @@ def test_load_csr():
 
     csr = scipy_sparse.csr_matrix(data)
     ann = anndata.AnnData(csr, dtype=int)
-    ann.write_zarr(tmp_path)
+    ann.write_h5ad(tmp_path)
 
-    with zarr.open(tmp_path, 'r') as written_zarr:
+    with h5py.File(tmp_path, 'r') as src:
         for r0 in range(0, 150, 47):
             r1 = min(200, r0+47)
             subset = load_csr(
                         row_spec=(r0, r1),
                         n_cols=data.shape[1],
-                        data=written_zarr.X.data,
-                        indices=written_zarr.X.indices,
-                        indptr=written_zarr.X.indptr)
+                        data=src['X/data'],
+                        indices=src['X/indices'],
+                        indptr=src['X/indptr'])
             np.testing.assert_array_equal(
                 subset,
                 data[r0:r1, :])
@@ -61,9 +63,9 @@ def test_load_csr():
             subset = load_csr(
                 row_spec=(r0, r1),
                 n_cols=data.shape[1],
-                data=written_zarr.X.data,
-                indices=written_zarr.X.indices,
-                indptr=written_zarr.X.indptr)
+                data=src['X/data'],
+                indices=src['X/indices'],
+                indptr=src['X/indptr'])
 
             np.testing.assert_array_equal(
                 subset,
@@ -72,8 +74,8 @@ def test_load_csr():
     _clean_up(tmp_path)
 
 
-def test_load_csc():
-    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+def test_load_csc(tmp_dir_fixture):
+    tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
 
     rng = np.random.default_rng(5656213)
 
@@ -87,17 +89,17 @@ def test_load_csc():
 
     csc = scipy_sparse.csc_matrix(data)
     ann = anndata.AnnData(csc, dtype=int)
-    ann.write_zarr(tmp_path)
+    ann.write_h5ad(tmp_path)
 
-    with zarr.open(tmp_path, 'r') as written_zarr:
+    with h5py.File(tmp_path, 'r') as src:
         for c0 in range(0, 250, 47):
             c1 = min(300, c0+47)
             subset = load_csc(
                         col_spec=(c0, c1),
                         n_rows=data.shape[0],
-                        data=written_zarr.X.data,
-                        indices=written_zarr.X.indices,
-                        indptr=written_zarr.X.indptr)
+                        data=src['X/data'],
+                        indices=src['X/indices'],
+                        indptr=src['X/indptr'])
             np.testing.assert_array_equal(
                 subset,
                 data[:, c0:c1])
@@ -109,9 +111,9 @@ def test_load_csc():
             subset = load_csc(
                 col_spec=(c0, c1),
                 n_rows=data.shape[0],
-                data=written_zarr.X.data,
-                indices=written_zarr.X.indices,
-                indptr=written_zarr.X.indptr)
+                data=src['X/data'],
+                indices=src['X/indices'],
+                indptr=src['X/indptr'])
 
             np.testing.assert_array_equal(
                 subset,
@@ -120,8 +122,8 @@ def test_load_csc():
     _clean_up(tmp_path)
 
 
-def test_load_csr_chunk():
-    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+def test_load_csr_chunk(tmp_dir_fixture):
+    tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
 
     rng = np.random.default_rng(88123)
 
@@ -135,9 +137,9 @@ def test_load_csr_chunk():
 
     csr = scipy_sparse.csr_matrix(data)
     ann = anndata.AnnData(csr, dtype=int)
-    ann.write_zarr(tmp_path)
+    ann.write_h5ad(tmp_path)
 
-    with zarr.open(tmp_path, 'r') as written_zarr:
+    with h5py.File(tmp_path, 'r') as src:
         for r0 in range(0, 150, 47):
             r1 = min(200, r0+47)
             for c0 in range(0, 270, 37):
@@ -145,9 +147,9 @@ def test_load_csr_chunk():
                 subset = load_csr_chunk(
                             row_spec=(r0, r1),
                             col_spec=(c0, c1),
-                            data=written_zarr.X.data,
-                            indices=written_zarr.X.indices,
-                            indptr=written_zarr.X.indptr)
+                            data=src['X/data'],
+                            indices=src['X/indices'],
+                            indptr=src['X/indptr'])
 
                 assert subset.shape == (r1-r0, c1-c0)
 
@@ -164,9 +166,9 @@ def test_load_csr_chunk():
             subset = load_csr_chunk(
                 row_spec=(r0, r1),
                 col_spec=(c0, c1),
-                data=written_zarr.X.data,
-                indices=written_zarr.X.indices,
-                indptr=written_zarr.X.indptr)
+                data=src['X/data'],
+                indices=src['X/indices'],
+                indptr=src['X/indptr'])
 
             assert subset.shape == (r1-r0, c1-c0)
 
@@ -177,17 +179,17 @@ def test_load_csr_chunk():
     _clean_up(tmp_path)
 
 
-def test_load_csr_chunk_very_sparse():
-    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+def test_load_csr_chunk_very_sparse(tmp_dir_fixture):
+    tmp_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
 
     data = np.zeros((20, 20), dtype=int)
     data[7, 11] = 1
 
     csr = scipy_sparse.csr_matrix(data)
     ann = anndata.AnnData(csr, dtype=int)
-    ann.write_zarr(tmp_path)
+    ann.write_h5ad(tmp_path)
 
-    with zarr.open(tmp_path, 'r') as written_zarr:
+    with h5py.File(tmp_path, 'r') as src:
         for subset, expected_sum in zip([((1, 15), (6, 13)),
                                          ((15, 19), (3, 14))],
                                         [1, 0]):
@@ -198,9 +200,9 @@ def test_load_csr_chunk_very_sparse():
             actual = load_csr_chunk(
                     row_spec=(subset[0][0], subset[0][1]),
                     col_spec=(subset[1][0], subset[1][1]),
-                    data=written_zarr.X.data,
-                    indices=written_zarr.X.indices,
-                    indptr=written_zarr.X.indptr)
+                    data=src['X/data'],
+                    indices=src['X/indices'],
+                    indptr=src['X/indptr'])
 
             assert actual.sum() == expected_sum
 
@@ -297,11 +299,12 @@ def test_merge_csr_block_zeros(zero_block):
 
 
 
-def test_load_disjoint_csr():
+def test_load_disjoint_csr(tmp_dir_fixture):
     nrows = 200
     ncols = 300
 
-    tmp_path = tempfile.mkdtemp(suffix='.zarr')
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture, suffix='.h5ad')
 
     rng = np.random.default_rng(776623)
 
@@ -315,7 +318,7 @@ def test_load_disjoint_csr():
 
     csr = scipy_sparse.csr_matrix(data)
     ann = anndata.AnnData(csr, dtype=int)
-    ann.write_zarr(tmp_path)
+    ann.write_h5ad(tmp_path)
 
     index_list = np.unique(rng.integers(0, nrows, 45))
 
@@ -325,14 +328,14 @@ def test_load_disjoint_csr():
     for ct, ii in enumerate(index_list):
         expected[ct, :] = data[ii, :]
 
-    with zarr.open(tmp_path, 'r') as written_zarr:
+    with h5py.File(tmp_path, 'r') as src:
         (chunk_data,
          chunk_indices,
          chunk_indptr) = _load_disjoint_csr(
                              row_index_list=index_list,
-                             data=written_zarr.X.data,
-                             indices=written_zarr.X.indices,
-                             indptr=written_zarr.X.indptr)
+                             data=src['X/data'],
+                             indices=src['X/indices'],
+                             indptr=src['X/indptr'])
 
     actual = scipy_sparse.csr_matrix(
                 (chunk_data, chunk_indices, chunk_indptr),
