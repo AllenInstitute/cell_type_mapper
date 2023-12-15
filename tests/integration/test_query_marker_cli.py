@@ -41,27 +41,28 @@ def test_query_marker_cli_tool(
             query_gene_names,
             len(query_gene_names)*3//4,
             replace=False)
+
+        query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='h5ad_for_finding_query_markers_',
+            suffix='.h5ad')
+
+        var = pd.DataFrame(
+            [{'gene_name': g}
+             for g in valid_gene_names]).set_index('gene_name')
+        adata = anndata.AnnData(var=var)
+        adata.write_h5ad(query_path)
     else:
         valid_gene_names = query_gene_names
-
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='h5ad_for_finding_query_markers_',
-        suffix='.h5ad')
+        query_path = None
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='query_markers_',
         suffix='.json')
 
-    var = pd.DataFrame(
-        [{'gene_name': g}
-         for g in valid_gene_names]).set_index('gene_name')
-    adata = anndata.AnnData(var=var)
-    adata.write_h5ad(h5ad_path)
-
     config = {
-        'query_path': h5ad_path,
+        'query_path': query_path,
         'reference_marker_path_list': [ref_marker_path_fixture],
         'n_processors': 3,
         'n_per_utility': n_per_utility,

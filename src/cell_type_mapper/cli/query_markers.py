@@ -1,5 +1,6 @@
 import argschema
 import copy
+import h5py
 import json
 import time
 
@@ -23,10 +24,24 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
 
         t0 = time.time()
 
-        var = read_df_from_h5ad(
-            self.args['query_path'],
-            df_name='var')
-        query_gene_names = list(var.index.values)
+        if self.args['query_path'] is not None:
+            var = read_df_from_h5ad(
+                self.args['query_path'],
+                df_name='var')
+            query_gene_names = list(var.index.values)
+
+        else:
+            # find all of the genes that exist in every reference marker
+            # file
+            query_gene_names = None
+            for ref_path in self.args['reference_marker_path_list']:
+                with h5py.File(ref_path, 'r') as src:
+                    these = json.loads(src['gene_names'][()].decode('utf-8'))
+                these = set(these)
+                if query_gene_names is None:
+                    query_gene_names = these
+                else:
+                    query_gene_names = query_gene_names.intersection(these)
 
         n_per_utility_override = None
         if self.args['n_per_utility_override'] is not None:
