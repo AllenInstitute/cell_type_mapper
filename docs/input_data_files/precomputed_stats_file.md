@@ -8,6 +8,57 @@ Those tools will be discussed next. For users whose need are not served
 by those tools and who feel comfortable writing out their own HDF5 file,
 "by hand," the schema of `precomputed_stats.h5` is documented [here](#Schema).
 
+## Tools to create `precomputed_stats.h5`
+
+There are currently two command-line tools provided to create
+`precomputed_stats.h5`. One that creates the file from a single H5AD file
+which is expected to contain all of the cell-by-gene expression data as well
+as the cell type taxonomy. Another that creates the file from a series of
+H5AD files containing the cell-by-gene expression data alongside a series of
+CSV files encoding the cell type taxonomy parent-child relationships (this
+mirrors the way data is being released for the Allen Institute ABC Atlas).
+
+### Creating `precomputed_stats.h5` from a single H5AD file
+
+The tool to create `precomputed_stats.h5` from a single H5AD file is invoked
+via
+```
+python -m cell_type_mapper.cli.precompute_stats_scrattch ...
+```
+Running with `--help` will give the specific command line arguments that the
+tool accepts/needs.
+
+The tool expects the input H5AD file (specified with the `--h5ad_path` argument)
+to contain the following data.
+
+- cell-by-gene expression data stored in the `X` matrix.
+- cell type assignments at each level in the taxonomy stored as separate columns
+in the `obs` dataframe.
+
+To specify the cell type taxonomy, you pass the list of levels in the taxonomy
+from most gross to most fine in the `--hierarchy` command line argument. For
+instance, if you ran
+```
+python -m cell_type_mapper.cli.precompute_stats_scratch \
+--h5ad_path path/to/my_file.h5ad \
+--hierarchy '["class", "subclass", "cluster"]'
+```
+(Note the nested quotation marks around the specification of `--hierarchy`).
+
+The tool will expect `obs` to contain columns `"class"`, `"subclass"`, and
+`"cluster"` recording which of these taxons each cell belongs to. Additionally,
+it is required that the taxonomy be a tree (i.e. every cell with the same
+`"cluster"` has the same `"subclass"`; every cell with the same `"subclass"` has
+the same `"class"`). If your taxonomy is not a strict tree, the code will
+tell you as much and crash.
+
+The cell-by-gene expression data in `X` can either be in raw counts or
+`log2(CPM+1)`. Tell the code which it is with the `--normalization` command line
+argument (either `"raw"` or `"log2CPM"`).
+
+
+### Creating `precomputed_stats.h5` an ABC Atlas release
+
 
 ## Schema
 
