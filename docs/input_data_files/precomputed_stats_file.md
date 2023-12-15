@@ -23,7 +23,7 @@ mirrors the way data is being released for the Allen Institute ABC Atlas).
 The tool to create `precomputed_stats.h5` from a single H5AD file is invoked
 via
 ```
-python -m cell_type_mapper.cli.precompute_stats_scrattch ...
+python -m cell_type_mapper.cli.precompute_stats_scrattch --h5ad_path path/to/input.h5ad ...
 ```
 Running with `--help` will give the specific command line arguments that the
 tool accepts/needs.
