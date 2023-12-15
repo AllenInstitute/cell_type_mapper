@@ -1,3 +1,17 @@
+"""
+This is the module used to generate the precomputed_stats.h5 file
+from a set of files that look like an ABC Atlas data release, i.e.
+
+- a list of h5ad files containing the cell by gene data
+
+- a cluster_annotation_term.csv file defining parent-child relationships
+  in the cell type taxonomy
+
+- a cluster_to_cluster_annotation_membership.csv definining the relationship
+  between cluster names and cluster aliases
+
+- a cell_metadata.csv assigning cells to clusters
+"""
 import argschema
 import copy
 import h5py
@@ -7,7 +21,7 @@ import pathlib
 import time
 
 from cell_type_mapper.schemas.precomputation_schema import (
-    PrecomputedStatsSchema)
+    PrecomputedStatsABCSchema)
 
 from cell_type_mapper.utils.utils import (
     get_timestamp)
@@ -22,9 +36,9 @@ from cell_type_mapper.diff_exp.precompute_utils import (
     merge_precompute_files)
 
 
-class PrecomputationRunner(argschema.ArgSchemaParser):
+class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
-    default_schema = PrecomputedStatsSchema
+    default_schema = PrecomputedStatsABCSchema
 
     def run(self):
 
@@ -172,7 +186,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
 
 def main():
-    runner = PrecomputationRunner()
+    runner = PrecomputationABCRunner()
     runner.run()
 
 
