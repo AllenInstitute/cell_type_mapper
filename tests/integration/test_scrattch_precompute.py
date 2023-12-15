@@ -219,78 +219,127 @@ def raw_h5ad_fixture(
     return h5ad_path
 
 
+@pytest.fixture(scope='function')
+def log2_h5ad_fixture(
+        obs_fixture,
+        log2_cell_by_gene_fixture,
+        n_cells,
+        n_genes,
+        tmp_dir_fixture,
+        request):
+
+    x = np.zeros((n_cells, n_genes), dtype=float)
+    for i_cell, cell in enumerate(obs_fixture.index.values):
+        x[i_cell, :] = log2_cell_by_gene_fixture[cell]
+    if request.param == 'csr':
+        x = scipy.sparse.csr_matrix(x)
+    elif request.param == 'csc':
+        x = scipy.sparse.csc_matrix(x)
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f'raw_scrattch_{request.param}_',
+        suffix='.h5ad')
+
+    var = pd.DataFrame(
+        [{'gene': f'g_{ii}'}
+         for ii in range(n_genes)]).set_index('gene')
+
+    src = anndata.AnnData(
+        X=x,
+        obs=obs_fixture,
+        var=var)
+
+    src.write_h5ad(h5ad_path)
+    return h5ad_path
+
+
 @pytest.mark.parametrize(
-        'raw_h5ad_fixture, n_processors',
-        itertools.product(
-            ['csc', 'csr', 'dense'],
-            [1, 3]),
-        indirect=['raw_h5ad_fixture'])
+        'raw_h5ad_fixture, log2_h5ad_fixture, n_processors',
+        [('csc', 'csc', 1),
+         ('csc', 'csc', 3),
+         ('csr', 'csr', 1),
+         ('csr', 'csr', 3),
+         ('dense', 'dense', 1),
+         ('dense', 'dense', 3)
+        ],
+        indirect=['raw_h5ad_fixture', 'log2_h5ad_fixture'])
 def test_precompute_scrattch_cli(
         taxonomy_fixture,
         cluster_stats_fixture,
         n_processors,
         tmp_dir_fixture,
-        raw_h5ad_fixture):
+        raw_h5ad_fixture,
+        log2_h5ad_fixture):
 
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='precompute_from_scrattch_',
-        suffix='.h5')
+    for normalization in ('log2CPM', 'raw'):
+        if normalization == 'raw':
+            input_path = raw_h5ad_fixture
+        elif normalization == 'log2CPM':
+            input_path = log2_h5ad_fixture
+        else:
+            raise RuntimeError(
+                f"Unsure about normalization {normalization}")
 
-    config = {
-        'h5ad_path': raw_h5ad_fixture,
-        'n_processors': n_processors,
-        'normalization': 'raw',
-        'tmp_dir': tmp_dir_fixture,
-        'output_path': output_path,
-        'hierarchy': ['class', 'subclass', 'cluster']
-    }
+        output_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='precompute_from_scrattch_',
+            suffix='.h5')
 
-    runner = PrecomputationScrattchRunner(
-        args=[],
-        input_data=config)
+        config = {
+            'h5ad_path': input_path,
+            'n_processors': n_processors,
+            'normalization': normalization,
+            'tmp_dir': tmp_dir_fixture,
+            'output_path': output_path,
+            'hierarchy': ['class', 'subclass', 'cluster']
+        }
 
-    runner.run()
+        runner = PrecomputationScrattchRunner(
+            args=[],
+            input_data=config)
 
-    actual_path = pathlib.Path(output_path)
-    assert actual_path.is_file()
+        runner.run()
 
-    src = anndata.read_h5ad(raw_h5ad_fixture, backed='r')
-    gene_names = src.var.index.values
+        actual_path = pathlib.Path(output_path)
+        assert actual_path.is_file()
 
-    with h5py.File(actual_path, 'r') as src:
-        cluster_to_row = json.loads(
-            src['cluster_to_row'][()].decode('utf-8'))
-        assert len(cluster_to_row) == len(cluster_stats_fixture)
-        np.testing.assert_array_equal(
-            np.array(json.loads(src['col_names'][()].decode('utf-8'))),
-            gene_names)
-        for cluster in cluster_to_row:
-            row_idx = cluster_to_row[cluster]
-            expected = cluster_stats_fixture[cluster]
-            assert src['n_cells'][row_idx] == expected['n_cells']
-            for k in ('sum', 'sumsq'):
-                np.testing.assert_allclose(
-                    src[k][row_idx, :],
-                    expected[k],
-                    atol=0.0,
-                    rtol=1.0e-6)
+        src = anndata.read_h5ad(input_path, backed='r')
+        gene_names = src.var.index.values
 
-            for k in ('gt1', 'gt0', 'ge1'):
-                np.testing.assert_array_equal(
-                    src[k][row_idx, :],
-                    expected[k])
+        with h5py.File(actual_path, 'r') as src:
+            cluster_to_row = json.loads(
+                src['cluster_to_row'][()].decode('utf-8'))
+            assert len(cluster_to_row) == len(cluster_stats_fixture)
+            np.testing.assert_array_equal(
+                np.array(json.loads(src['col_names'][()].decode('utf-8'))),
+                gene_names)
+            for cluster in cluster_to_row:
+                row_idx = cluster_to_row[cluster]
+                expected = cluster_stats_fixture[cluster]
+                assert src['n_cells'][row_idx] == expected['n_cells']
+                for k in ('sum', 'sumsq'):
+                    np.testing.assert_allclose(
+                        src[k][row_idx, :],
+                        expected[k],
+                        atol=0.0,
+                        rtol=1.0e-6)
 
-    actual_taxonomy = TaxonomyTree.from_precomputed_stats(actual_path)
-    assert actual_taxonomy.hierarchy == taxonomy_fixture.hierarchy
-    for level in actual_taxonomy.hierarchy:
-        actual_nodes = actual_taxonomy.nodes_at_level(level)
-        for node in taxonomy_fixture.nodes_at_level(level):
-            expected_children = taxonomy_fixture.children(level=level, node=node)
-            if len(expected_children) == 0:
-                assert node not in actual_nodes
-            else:
-                if level != actual_taxonomy.leaf_level:
-                    # cells in actual_taxonomy are referred to by row number;
-                    # in taxonomy_fixture they are referred to by cell_id
-                    assert set(actual_taxonomy.children(level=level, node=node)) == set(expected_children)
+                for k in ('gt1', 'gt0', 'ge1'):
+                    np.testing.assert_array_equal(
+                        src[k][row_idx, :],
+                        expected[k])
+
+        actual_taxonomy = TaxonomyTree.from_precomputed_stats(actual_path)
+        assert actual_taxonomy.hierarchy == taxonomy_fixture.hierarchy
+        for level in actual_taxonomy.hierarchy:
+            actual_nodes = actual_taxonomy.nodes_at_level(level)
+            for node in taxonomy_fixture.nodes_at_level(level):
+                expected_children = taxonomy_fixture.children(level=level, node=node)
+                if len(expected_children) == 0:
+                    assert node not in actual_nodes
+                else:
+                   if level != actual_taxonomy.leaf_level:
+                        # cells in actual_taxonomy are referred to by row number;
+                        # in taxonomy_fixture they are referred to by cell_id
+                        assert set(actual_taxonomy.children(level=level, node=node)) == set(expected_children)
