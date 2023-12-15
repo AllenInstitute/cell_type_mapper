@@ -68,7 +68,7 @@ def print_timing(
     pred = per*tot_chunks
     remain = pred-duration
     this_msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
-    this_msg += f"predict {remain:.2e} of {pred:.2e} left"
+    this_msg += f"predict {remain:.2e} {unit} of {pred:.2e} {unit} left"
     if nametag is not None:
         this_msg = f"{nametag} -- {msg}"
 
