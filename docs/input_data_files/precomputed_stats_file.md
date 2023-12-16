@@ -23,7 +23,7 @@ mirrors the way data is being released for the Allen Institute ABC Atlas).
 The tool to create `precomputed_stats.h5` from a single H5AD file is invoked
 via
 ```
-python -m cell_type_mapper.cli.precompute_stats_scrattch --h5ad_path path/to/input.h5ad ...
+python -m cell_type_mapper.cli.precompute_stats_scrattch --help
 ```
 Running with `--help` will give the specific command line arguments that the
 tool accepts/needs.
@@ -59,6 +59,17 @@ argument (either `"raw"` or `"log2CPM"`).
 
 ### Creating `precomputed_stats.h5` an ABC Atlas release
 
+The `precompute_stats_abc` command line too, invoked via
+```
+python -m cell_type_mapper.cli.precompute_stats_abc --help
+```
+assumes a different data model than `precompute_stats_scrattch` defined above
+
+- cell by gene data can be contained in several h5ad files. However, these files **only** contain cell by gene data (again in the `X` matrices; again either
+`"raw"` or `"log2CPM"` normalization). They do not
+contain any cell type taxonomy data. `obs` and `var` are only used to find
+cell labels and gene labels.
+- cell type taxonomy data is encoded in a series of CSV files described below
 
 ## Schema
 
