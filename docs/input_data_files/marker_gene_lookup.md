@@ -24,6 +24,9 @@ if you use the `precompute_stats_abc` command line tool to create your
 must be the machine readable names encoded in `cluster_annotation_term_set_label`
 and `cluster_annotation_term_label`
 (see [here](precomputed_stats_file.md#taxonomy-containing-csv-files)).
+This also means that if your `precomputed_stats.h5` file refers to genes
+with, for example, Ensembl IDs, your marker gene lookup file must also refer
+to genes with their Ensembl IDs.
 
 ```
 {
