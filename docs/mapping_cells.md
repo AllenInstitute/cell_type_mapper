@@ -31,7 +31,7 @@ files.
 The only requirements on the unlabeled data being mapped are
 
 - Data is stored in an
-(H5AD file)[https://anndata.readthedocs.io/en/latest/fileformat-prose.html]
+[H5AD file](https://anndata.readthedocs.io/en/latest/fileformat-prose.html)
 - cell-by-gene expression data is stored in the `X` matrix of the H5AD file
 - `var.index.values` correspond to the gene identifiers used in the marker
 gene lookup JSON file.
