@@ -71,6 +71,55 @@ contain any cell type taxonomy data. `obs` and `var` are only used to find
 cell labels and gene labels.
 - cell type taxonomy data is encoded in a series of CSV files described below
 
+#### Taxonomy-containing CSV files
+
+##### `cluster_to_cluster_annotation_membership.csv`
+
+A CSV in which each row is a node in the cell type taxonomy and the
+columns are (there may be extra columns; these are the required columns)
+
+- `cluster_annotation_term_set_label`: the machine-readable identifier of
+the level in the taxonomy hierarchy (e.g. `CCN20230722_CLAS`,
+`CCN20230722_SUBC`, and `CCN2020722_CLUS` for classes, subclasses,
+and clusters).
+- `cluster_annotation_term_set_name`: the human-readable name corresponding
+to the term set label.
+- `cluster_annotation_term_label`: the machine-readable identifier of
+individual node in the taxonomy tree (e.g. `CS20230722_CLAS_01` for a specific
+class).
+- `cluster_annotation_term_name`: the human readable name corresponding to
+the annotation term label.
+- `cluster_alias`: the globally unique alias (probably an integer)
+corresponding to the node in the taxonomy tree (this is only used for leaf
+nodes in the taxonomy tree).
+
+#### `cluster_annotation_term.csv`
+
+A CSV in which each row is a node in the cell type taxonomy and the
+columns are (there may be extra columns; these are the required columns)
+
+- `label`: the machine readable label of the node in the taxonomy tree (must
+correspond to the `cluster_annotation_term_label` column in
+`cluster_to_cluster_annotation_membership.csv`.
+- `cluster_annotation_term_set_label`:  same the similarly named column in
+`cluster_to_cluster_annotation_membership.csv`.
+- `parent_term_label`: the `label` of the node in the taxonomy tree that is
+the direct parent of the current node.
+- `parent_term_set_label`: the `cluster_annotation_term_setl_label` of the
+node in the taxonomy tree that is the direct parent of the current node.
+
+#### `cell_metadata.csv`
+
+A CSV in which each row is a cell in the dataset and the columns are (there may
+be extra columns; these are the required columns)
+
+- `cell_label`: the unique identifier of the cell. Must correspond to the index
+of the `obs` dataframe in the H5AD file containing cell-by-gene data for the
+cell.
+- `cluster_alias`: the alias of the leaf node in the taxonomy to which the
+cell was assigned. This must correspond to a `cluster_alias` in
+`cluster_to_cluster_annotation_membership.csv`.
+
 ## Schema
 
 The precomputed stats file contains several non-numerical datasets representing
