@@ -39,6 +39,7 @@ This also means that if your `precomputed_stats.h5` file refers to genes
 with, for example, Ensembl IDs, your marker gene lookup file must also refer
 to genes with their Ensembl IDs.
 
+Here is the example cartoon lookup table
 ```
 {
   "None": [
@@ -98,8 +99,8 @@ to genes with their Ensembl IDs.
 ## Creating the marker gene lookup table
 
 Detailed documentation of the marker gene discovery algorithm used by this
-codebase will be recorded elsewhere. Here we present a user guide the tools
-in this codebase to go from a `precomputed_stats.h5` file to a
+codebase will be recorded elsewhere. Here we present a user's guide to the
+tools in this codebase to go from a `precomputed_stats.h5` file to a
 `marker_gene_lookup.json` file.
 
 There are two steps in finding marker genes (according to this codebase).
@@ -130,7 +131,7 @@ This tool has many configurable parameters that inform the specific algorithm
 being carried out. Those will be documented elsewhere. For the purposes of
 this document, it is important for the user to specify
 
-- `precomputed_path_list`: the path to the `precomputed_stats.h5` file
+- `precomputed_path_list`: the path to the `precomputed_stats.h5` file or files
 representing the taxonomy for which we are finding marker genes.
 - `n_processors`: the number of independent worker processes to spin up.
 - `tmp_dir`: a directory where temporary scratch files can be written (the
@@ -172,7 +173,7 @@ It accepts a list of of `reference_marker.h5` files and writes out the expected
 JSON lookup table.
 
 The key configuration parameters affecting the output are `n_per_utility` and
-`n_per_utility_override`. The function as follows:
+`n_per_utility_override`. They function as follows:
 
 For every `(clusterA, clusterB)` pair being compared, the code will try to
 select marker genes such that there are `n_per_utility` marker genes
