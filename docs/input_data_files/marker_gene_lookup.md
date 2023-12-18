@@ -2,7 +2,18 @@
 
 The `from_specified_markers` command line tool expects you to pass in the path
 to a file telling the code which marker genes to use at which node in the
-cell type taxonomy. This file is a text file that contains the JSON
+cell type taxonomy. Below we will discuss the [schema](#Schema) of the expected
+file and
+[tools provided in this codebase](#creating-the-marker-gene-lookup-table) to
+create the marker gene lookup table. **Note:** any file that adheres to the
+schema below will work. Marker gene discovery is an open research question in
+the field. The tools in this codebase use a specific algorithm (documentation
+forthcoming). Users should feel free to select marker genes however they
+are comfortable doing so.
+
+# Schema
+
+This file is a text file that contains the JSON
 serialization of a dict. The keys of the dict are the parent nodes in the
 cell type taxonomy tree (i.e. the nodes with children that need to be chosen
 between). The root of the tree (i.e. the node from which the first cell type
@@ -83,3 +94,5 @@ to genes with their Ensembl IDs.
   ]
 }
 ```
+
+# Creating the marker gene lookup table
