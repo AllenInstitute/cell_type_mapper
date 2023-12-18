@@ -51,7 +51,7 @@ the tool will expect `obs` to contain columns `"class"`, `"subclass"`, and
 it is required that the taxonomy be a tree (i.e. every cell with the same
 `"cluster"` has the same `"subclass"`; every cell with the same `"subclass"` has
 the same `"class"`). If your taxonomy is not a strict tree, the code will
-tell you as much and crash.
+tell you as much and throw an error.
 
 The cell-by-gene expression data in `X` can either be in raw counts or
 `log2(CPM+1)`. Tell the code which it is with the `--normalization` command line
@@ -102,7 +102,7 @@ columns are (there may be extra columns; these are the required columns)
 - `label`: the machine readable label of the node in the taxonomy tree (must
 correspond to the `cluster_annotation_term_label` column in
 `cluster_to_cluster_annotation_membership.csv`).
-- `cluster_annotation_term_set_label`:  same the similarly named column in
+- `cluster_annotation_term_set_label`:  same as the similarly named column in
 `cluster_to_cluster_annotation_membership.csv`.
 - `parent_term_label`: the `label` of the node in the taxonomy tree that is
 the direct parent of the current node.
@@ -181,11 +181,7 @@ of a list representing the names of the genes represented by these columns.
 This is the JSON serialization of a dict encoding the cell type
 taxonomy tree to which data will be mapped. The contents of this dict match
 that of the taxonomy tree encoded in the cell type mapping output file and
-documented
-[here.](taxonomy_tree.md) **Note:** that this encoding includes a
-mapping from cell type cluster (the leaf level of the taxonomy tree) to
-individual cells in the reference dataset.
-
+documented [here.](taxonomy_tree.md)
 
 ### Numerical datasets
 
@@ -207,7 +203,8 @@ cell type cluster.
 These are `(n_clusters, n_genes)` arrays of floats aggregating the sum of the
 gene expression values and the sum of the squares of gene expression values
 per cell type cluster per gene (we collect the sum of the squares for use
-when computing variances during marker gene selection).
+when computing variances during marker gene selection). Values are assumed
+to be in `log2(CPM+1)` normalization before squaring and/or summing.
 
 **Note:** If you are not using the `precomputed_stats.h5` file for marker
 gene selection (i.e. if you are only using it as the source of the average
