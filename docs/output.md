@@ -77,80 +77,12 @@ should be self explanatory).
 
 ### taxonomy_tree
 
+
 This is a dict that is a serialization of the taxonomy tree to which the
 data was mapped. It can be interpreted as is or used to instantiate a
-`TaxonomyTree` object with
-
-```
-from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
-tree = TaxonomyTree(data=results_dict['taxonomy_tree'])
-```
-
-**Note:** for size considerations, the part of the tree that maps individual
-cells in the reference data to cell type clusters has been removed from this
-tree. This will cause a warning to be emitted when you instantiate the tree
-as above. You may neglect the warning.
-
-We will now document the contents of `result_dict['taxonomy_tree']` interpreted
-as a straight dict.
-
-The key-value pairs of the taxonomy tree dict are
-
-- `metadata`: metadata about how the taxonomy tree was created
-- `hierarchy`: list of taxonomic levels from grossest to finest
-- `hierarchy_mapper`: a dict mapping machine-readable level names to
-human-readable level names
-- `name_mapper`: a dict mapping machine-readable node names to human readable node names
-- A key for each machine-readable level in the taxonomy that points to a dict
-mapping nodes on that level of the taxonomy to their children
-
-Looking at `hierarchy_mapper` we see something like
-
-```
->>> result_dict['taxonomy_tree']['hierarchy_mapper']
-{'CCN20230504_CLUS': 'cluster', 'CCN20230504_SUPT': 'supertype', 'CCN20230504_SUBC': 'subclass', 'CCN20230504_CLAS': 'class'}
-```
-
-corresponding to
-
-```
->>> result_dict['taxonomy_tree']['hierarchy']
-['CCN20230504_CLAS', 'CCN20230504_SUBC', 'CCN20230504_SUPT', 'CCN20230504_CLUS']
-```
-
-which shows the order, from largest parent down to leaf, of inheritance of
-levels in this taxonomy tree. Looking at `name_mapper`, we might see something like this
-
-```
->>> result_dict['taxonomy_tree']['name_mapper']['CCN20230504_CLUS']['CCN20230504_CLUS_5046']
-{'name': '5046 MOB-mi Frmd7 Gaba', 'alias': '1376'}
-```
-
-indicating that the node at level `CCN20230504_CLUS` with machine-readable
-label `CCN20230504_CLUS_5046` can also be referred to by
-"name" `5046 MOB-mi Frmd7 Gaba` and by "alias" `1376`.
-
-Looking into the encoding of the tree itself, we might see something like
-
-```
->>> result_dict['taxonomy_tree']['CCN20230504_SUBC']
-{
-  "CCN20230504_SUBC_305": [
-    "CCN20230504_SUPT_1041"
-  ],
-  "CCN20230504_SUBC_306": [
-    "CCN20230504_SUPT_1042",
-    "CCN20230504_SUPT_1043",
-    "CCN20230504_SUPT_1044",
-    "CCN20230504_SUPT_1045"
-  ]
-...
-}
-```
-
-indicating that, at the taxonomic level `CCN20230504_SUBC`, the node
-`CCN20230504_SUBC_305` has only one child node, while the node
-`CCN20230504_SUBC_306` has four child nodes.
+`TaxonomyTree` object with. The particulars of this representation
+of a taxonomy tree are documented
+[here.](input_data_files/taxonomy_tree.md)
 
 ### marker_genes
 
