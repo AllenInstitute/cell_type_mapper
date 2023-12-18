@@ -1,21 +1,28 @@
 # Running the cell type mapping pipeline
 
 This document explains how to run the code in this library to map unlabeled
-cell by gene expression data onto the Allen Institute cell type taxonomy.
+cell by gene expression data onto a reference cell type taxonomy.
 
-In order to map an unlabeled dataset onto a taxonomy, you need to supporting
-datafiles: an HDF5 file defining your taxonomy and the average gene expression
-profile for the cell types in your taxonomy and a JSON file defining the
-marker genes to be used for mapping given your taxonomy. These files may
-be costly (~ a few hours) to generate, but should only need to be generated
-once for a given axonomy. The specific schemas
+In order to map an unlabeled dataset onto a taxonomy, you need two supporting
+datafiles:
+
+- an HDF5 file defining your taxonomy and the average gene expression
+profile for the cell types in your taxonomy and
+- a JSON file defining the marker genes to be used for mapping given your taxonomy.
+
+These files may be costly (~ a few hours) to generate, but should only
+need to be generated
+once for a given taxonomy. The specific schemas
 of these files and the tools provided in this codebase to help create them
 are [documented here](ingesting_new_taxonomies.md).
 
 If you are an internal Allen Institute user and just want to map to one of
 the taxonomies currently supported by the MapMyCells online app, email Scott
 Daniel, and he can provide you with the appropriate files. If you are an
-external user and want to map to one of the MapMyCells-supported taxonomies,
+external user and want to map to one of the MapMyCells-supported taxonomies
+and the
+[online MapMyCells app](https://portal.brain-map.org/atlases-and-data/bkp/mapmycells)
+is for some reason insufficient for your purposes, please
 file an issue on this repository and we can discuss how to get you the relevant
 files.
 
