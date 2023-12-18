@@ -26,6 +26,16 @@ is for some reason insufficient for your purposes, please
 file an issue on this repository and we can discuss how to get you the relevant
 files.
 
+### Requirements on unlabeled data
+
+The only requirements on the unlabeled data being mapped are
+
+- Data is stored in an
+(H5AD file)[https://anndata.readthedocs.io/en/latest/fileformat-prose.html]
+- cell-by-gene expression data is stored in the `X` matrix of the H5AD file
+- `var.index.values` correspond to the gene identifiers used in the marker
+gene lookup JSON file.
+
 ### Mapping unlabeled data onto the reference taxonomy
 
 Once you have created the necessary input files, mapping unlabeled data
@@ -34,9 +44,8 @@ invoked via
 ```
 python -m cell_type_mapper.cli.from_specified_markers --help
 ```
-For historical reasons, there are a lot of configuration parameters that are
-not actually used any more (these will get cleaned up in a future version).
-The parameters that are used are:
+Running with `--help` will output detailed documentation of the command
+line parameters accepted by this tool. The important parameters are
 
 - `query_path`: the path to the H5AD file containing your unlabeled data.
 - `extended_result_path`: the path to the [extended output file.](output.md#json-output-file)
@@ -48,8 +57,7 @@ The parameters that are used are:
 documented here.](input_data_files/marker_gene_lookup.md)
 - `drop_level`: a level to drop from the cell type taxonomy before doing the mapping. This is
 necessary because the Allen Institute taxonomy includes a "supertype" level that is not actually
-used during hierarchical mapping. **Note:** be sure to use the same level naming scheme as was
-used in the taxonomy you created in step (1).
+used during hierarchical mapping.
 - `flatten`: a boolean. If `true`, then flatten the cell type taxonomy and fit directly to the
 leaf level nodes without traversing the tree.
 - `type_assignment.normalization`: either 'raw' or 'log2CPM'. Indicates the normalization of
@@ -94,7 +102,7 @@ python -m cell_type_mapper.cli.from_specified_markers --input_json path/to/confi
 
 #### "Flat" Correlation mapping
 
-To run the `MapMyCell` Correlation Mapping algorithm (i.e. mapping onto a tree with only one taxonomic
+To run the `MapMyCells` Correlation Mapping algorithm (i.e. mapping onto a tree with only one taxonomic
 level; no bootstrapping), run the above code with
 ```
 --flatten true
@@ -145,7 +153,7 @@ To facilitate this process, we provie a command line tool that will take
 as input the H5AD file of unlabeled data and write out a new H5AD file with
 the same contents, except that the genes are all identified by Ensembl IDs.
 
-**This is not necessarily required if you are mapping to taxonomies other than
+**This step may not be required if you are mapping to taxonomies other than
 those already supported in the online version of MapMyCells.** It is also not
 required if your H5AD file already refers to genes via Ensembl IDs.
 
