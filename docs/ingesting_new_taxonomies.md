@@ -1,7 +1,7 @@
 # Ingesting new taxonomies into the cell type mapper
 
 We assume that any cell type taxonomy is based on a reference set of cells,
-i.e. a set of unlabeled cells that have been used to discover the cell
+i.e. a set of cells that have been used to discover the cell
 types in the taxonomy and that serve as the basis for answering questions like
 "what is the average gene expression profile of all of the cells in classA?" or
 "how many reference cells in classA express geneB at greater than 1 CPM?".
