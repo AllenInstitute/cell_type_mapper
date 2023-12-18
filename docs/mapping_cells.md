@@ -10,7 +10,7 @@ marker genes to be used for mapping given your taxonomy. These files may
 be costly (~ a few hours) to generate, but should only need to be generated
 once for a given axonomy. The specific schemas
 of these files and the tools provided in this codebase to help create them
-are [documented here](input_data_files/ingesting_new_taxonomies.md).
+are [documented here](ingesting_new_taxonomies.md).
 
 If you are an internal Allen Institute user and just want to map to one of
 the taxonomies currently supported by the MapMyCells online app, email Scott
