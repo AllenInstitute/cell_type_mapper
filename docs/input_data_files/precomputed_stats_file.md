@@ -182,7 +182,7 @@ This is the JSON serialization of a dict encoding the cell type
 taxonomy tree to which data will be mapped. The contents of this dict match
 that of the taxonomy tree encoded in the cell type mapping output file and
 documented
-[here.](../output.md#taxonomy_tree) **Note:** that this encoding includes a
+[here.](taxonomy_tree.md) **Note:** that this encoding includes a
 mapping from cell type cluster (the leaf level of the taxonomy tree) to
 individual cells in the reference dataset.
 
