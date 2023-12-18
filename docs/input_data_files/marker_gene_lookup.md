@@ -108,3 +108,44 @@ There are two steps in finding marker genes (according to this codebase).
 a marker gene for discriminating between those two cell types.
 2. Subselecting the genes found in (1) to give a set of marker genes that is
 more manageable in size.
+
+These steps are carried out by different executables with different outputs.
+
+Because (1) involves finding all of the marker genes for `(n_clusters choose 2)`
+pairs of cell types, it can take a long time and produce a lot of data. If
+there are 5,000 cell type clusters in your taxonomy (as with the Allen Institute
+whole mouse brain taxonomy), `(5,000 choose 2)` means you are finding the marker genes for 12.5 million `(clusterA, clusterB)` pairs. This not only takes hours,
+it can produce a list of marker genes that is several tens of gigabytes in size.
+The output of this step is therefore saved to an HDF5 file (which can be 30 GB
+in size). This HDF5 file is then taken as the input to (2), which actually
+produces the expected `marker_gene_lookup.json` file.
+
+Step (1) is carried out by the command line tool
+```
+python -m cell_type_mapper.cli.reference_markers --help
+```
+This tool has many configurable parameters that inform the specific algorithm
+being carried out. Those will be documented elsewhere. For the purposes of
+this document, it is important for the user to specify
+
+- `precomputed_path_list`: the path to the `precomputed_stats.h5` file
+representing the taxonomy for which we are finding marker genes.
+- `n_processors`: the number of independent worker processes to spin up.
+- `tmp_dir`: a directory where temporary scratch files can be written (the
+code will clean these up after itself).
+- `output_dir`: the directory where the resulting HDF5 file will be written.
+
+In order to support cases where reference datasets contain multiple modalities
+that should not be mixed (e.g. 10Xv3 and 10Xv2), we have the user specify and
+output directory rather than an output file. The idea is that a user can then
+pass all of the reference marker files in the output directory into the next
+step and the code will be smart enough to select marker genes without mixing
+modalities. The code will try to write a file
+named `reference_markers.h5`. If that file already exists, it will add an integer
+to make the name unique. You can run the code with `--clobber True` to
+just overwrite existing files, or you can specify an empty directory.
+
+The reference marker HDF5 file contain paths to the `precomputed_stats.h5` files
+from which they were created in their `metadata` fields, allowing step (2)
+of the process to correctly link `reference_maker.h5` and `precomputed_stats.h5`
+files as needed.
