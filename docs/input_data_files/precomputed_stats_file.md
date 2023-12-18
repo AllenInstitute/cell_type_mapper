@@ -59,7 +59,7 @@ argument (either `"raw"` or `"log2CPM"`).
 
 ### Creating `precomputed_stats.h5` an ABC Atlas release
 
-The `precompute_stats_abc` command line too, invoked via
+The `precompute_stats_abc` command line tool, invoked via
 ```
 python -m cell_type_mapper.cli.precompute_stats_abc --help
 ```
