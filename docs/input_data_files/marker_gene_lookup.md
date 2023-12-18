@@ -11,7 +11,7 @@ the field. The tools in this codebase use a specific algorithm (documentation
 forthcoming). Users should feel free to select marker genes however they
 are comfortable doing so.
 
-# Schema
+## Schema
 
 This file is a text file that contains the JSON
 serialization of a dict. The keys of the dict are the parent nodes in the
@@ -95,4 +95,4 @@ to genes with their Ensembl IDs.
 }
 ```
 
-# Creating the marker gene lookup table
+## Creating the marker gene lookup table
