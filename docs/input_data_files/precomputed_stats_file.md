@@ -5,15 +5,16 @@ the average gene expression profile per cell type cluster. This data, along
 with the actual cell type taxonomy, is stored in an HDF5 file. This repository
 contains several tools for generating this file from different input datafiles.
 Those tools will be discussed next. For users whose need are not served
-by those tools and who feel comfortable writing out their own HDF5 file,
-"by hand," the schema of `precomputed_stats.h5` is documented [here](#Schema).
+by those tools and who feel comfortable writing out their own HDF5 file
+"by hand" the schema of `precomputed_stats.h5` is documented
+[at the end of this page.](#Schema)
 
 ## Tools to create `precomputed_stats.h5`
 
 There are currently two command-line tools provided to create
 `precomputed_stats.h5`. One that creates the file from a single H5AD file
 which is expected to contain all of the cell-by-gene expression data as well
-as the cell type taxonomy. Another that creates the file from a series of
+as the cell type taxonomy. Another tool creates the file from a series of
 H5AD files containing the cell-by-gene expression data alongside a series of
 CSV files encoding the cell type taxonomy parent-child relationships (this
 mirrors the way data is being released for the Allen Institute ABC Atlas).
@@ -45,7 +46,7 @@ python -m cell_type_mapper.cli.precompute_stats_scratch \
 ```
 (Note the nested quotation marks around the specification of `--hierarchy`).
 
-The tool will expect `obs` to contain columns `"class"`, `"subclass"`, and
+the tool will expect `obs` to contain columns `"class"`, `"subclass"`, and
 `"cluster"` recording which of these taxons each cell belongs to. Additionally,
 it is required that the taxonomy be a tree (i.e. every cell with the same
 `"cluster"` has the same `"subclass"`; every cell with the same `"subclass"` has
@@ -63,7 +64,7 @@ The `precompute_stats_abc` command line tool, invoked via
 ```
 python -m cell_type_mapper.cli.precompute_stats_abc --help
 ```
-assumes a different data model than `precompute_stats_scrattch` defined above
+assumes a different data model than `precompute_stats_scrattch` defined above.
 
 - cell by gene data can be contained in several h5ad files. However, these files **only** contain cell by gene data (again in the `X` matrices; again either
 `"raw"` or `"log2CPM"` normalization). They do not
@@ -83,12 +84,12 @@ the level in the taxonomy hierarchy (e.g. `CCN20230722_CLAS`,
 `CCN20230722_SUBC`, and `CCN2020722_CLUS` for classes, subclasses,
 and clusters).
 - `cluster_annotation_term_set_name`: the human-readable name corresponding
-to the term set label.
+to the term set label (e.g. `class`, `subclass`, and `cluster`).
 - `cluster_annotation_term_label`: the machine-readable identifier of
 individual node in the taxonomy tree (e.g. `CS20230722_CLAS_01` for a specific
 class).
 - `cluster_annotation_term_name`: the human readable name corresponding to
-the annotation term label.
+the annotation term label (e.g. `L6 IT CTX Glut_3`).
 - `cluster_alias`: the globally unique alias (probably an integer)
 corresponding to the node in the taxonomy tree (this is only used for leaf
 nodes in the taxonomy tree).
@@ -100,12 +101,12 @@ columns are (there may be extra columns; these are the required columns)
 
 - `label`: the machine readable label of the node in the taxonomy tree (must
 correspond to the `cluster_annotation_term_label` column in
-`cluster_to_cluster_annotation_membership.csv`.
+`cluster_to_cluster_annotation_membership.csv`).
 - `cluster_annotation_term_set_label`:  same the similarly named column in
 `cluster_to_cluster_annotation_membership.csv`.
 - `parent_term_label`: the `label` of the node in the taxonomy tree that is
 the direct parent of the current node.
-- `parent_term_set_label`: the `cluster_annotation_term_setl_label` of the
+- `parent_term_set_label`: the `cluster_annotation_term_set_label` of the
 node in the taxonomy tree that is the direct parent of the current node.
 
 #### `cell_metadata.csv`
@@ -119,6 +120,14 @@ cell.
 - `cluster_alias`: the alias of the leaf node in the taxonomy to which the
 cell was assigned. This must correspond to a `cluster_alias` in
 `cluster_to_cluster_annotation_membership.csv`.
+
+Once the tool has ingested the taxonomy, it will scan the list of provided
+H5AD files to find the cells that belong to each cell type and assemble the
+required statistics. It is not required that cells of the same cell type
+be in the same H5AD file. Each cell in `cell_metadata.csv` must be in
+one of the provided H5AD files. The H5AD files may also contain cells not
+mentioned in `cell_metadata.csv`. These cells will be ignored when populating
+the `precomputed_stats.h5` file.
 
 ## Schema
 
@@ -182,7 +191,7 @@ individual cells in the reference dataset.
 
 The numerical datasets encode the cell-type-cluster-by-gene statistics
 characterizing the cell type clusters in the taxonomy. With the exception
-of `n_cells` they areall `(n_cluster, n_gene)` in shape. The columns must
+of `n_cells` they are all `(n_cluster, n_gene)` in shape. The columns must
 be in the same order as the gene names encoded in `col_names` above.
 The mapping from cell type cluster to row is encoded in the `cluster_to_row`
 dataset above.
@@ -191,14 +200,14 @@ dataset above.
 
 This is a `(n_clusters,)` array of ints. Each element records the number
 of cells in the reference dataset that were assigned to that particular
-cell type cluter.
+cell type cluster.
 
 #### `sum` and `sumsq`
 
 These are `(n_clusters, n_genes)` arrays of floats aggregating the sum of the
 gene expression values and the sum of the squares of gene expression values
 per cell type cluster per gene (we collect the sum of the squares for use
-when computing variances during marker gene selection)
+when computing variances during marker gene selection).
 
 **Note:** If you are not using the `precomputed_stats.h5` file for marker
 gene selection (i.e. if you are only using it as the source of the average
