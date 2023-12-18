@@ -58,7 +58,7 @@ The cell-by-gene expression data in `X` can either be in raw counts or
 argument (either `"raw"` or `"log2CPM"`).
 
 
-### Creating `precomputed_stats.h5` an ABC Atlas release
+### Creating `precomputed_stats.h5` from an ABC Atlas release
 
 The `precompute_stats_abc` command line tool, invoked via
 ```
