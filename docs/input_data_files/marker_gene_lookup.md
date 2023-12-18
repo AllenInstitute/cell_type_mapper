@@ -96,3 +96,15 @@ to genes with their Ensembl IDs.
 ```
 
 ## Creating the marker gene lookup table
+
+Detailed documentation of the marker gene discovery algorithm used by this
+codebase will be recorded elsewhere. Here we present a user guide the tools
+in this codebase to go from a `precomputed_stats.h5` file to a
+`marker_gene_lookup.json` file.
+
+There are two steps in finding marker genes (according to this codebase).
+
+1. Finding the "reference marker genes." In this step we find, for every pair of leaf nodes in the cell type taxonomy tree, every gene that could conceivably be
+a marker gene for discriminating between those two cell types.
+2. Subselecting the genes found in (1) to give a set of marker genes that is
+more manageable in size.
