@@ -1,4 +1,4 @@
-### Taxonomy Tree serialization
+# Taxonomy Tree serialization
 
 A serialized representation of the cell type taxonomy tree is important
 both as a part of the cell type mapper's input
@@ -31,6 +31,55 @@ human-readable level names (OPTIONAL)
 - A key for each machine-readable level in the taxonomy that points to a dict
 mapping nodes on that level of the taxonomy to their children. (REQUIRED)
 
+## Required fields
+
+Aside from `'hierarchy'` which maps to a list indicating, from most gross to
+most fine, the order of the levels in the taxonomy tree, the only other
+**required** fields in the taxonomy tree dict are those that encode the
+parent-child relationships between the taxonomy nodes. Those fields are
+themselves nested dicts, i.e. evel listed under `'hierarchy'` is itself
+a key of the taxonomy tree dict pointing towards a dict which maps indivdiual
+node names in the taxonomy to lists of their child nodes. For instance
+
+```
+{
+    "hierarchy": ["class", "subclass", "cluster"],
+    "class": {
+        "class_01": ["subclass_01", "subclass_03"],
+        "class_02": ["subclass_02"]
+    },
+    "subclass":{
+        "subclass_01": ["cluster_01", "cluster_02"],
+        "subclass_02": ["cluster_03", "cluster_05"],
+        "subclass_03": ["cluster_04"]
+    },
+    "cluster": {
+        "cluster_01": [],
+        "cluster_02": [],
+        "cluster_03": [],
+        "cluster_04": [],
+        "cluster_05": []
+    }
+}
+
+```
+
+Indicates that cluster_01 is a child of subclass_01 which is a child of
+class_01. clusetr_02 is also a child of subclass_01. cluster_03 is a child of
+subclass_02 which is a child of class_02. etc.
+
+The code does not care about the mapping of leaf nodes ("clusters" in the
+above example) to individual cells, but there does need to be a `"cluster"`
+dict with the appropriate keys.
+
+
+## Optional fields
+
+Here we will document the optional fields in the schema by example. This section
+is probably only useful for interpreting the output of the online MapMyCells
+tool. Users who are ingesting their own taxonomy into this codebase should not
+concern themselves with these fields.
+
 Looking at `hierarchy_mapper` we see something like
 
 ```
@@ -56,25 +105,3 @@ levels in this taxonomy tree. Looking at `name_mapper`, we might see something l
 indicating that the node at level `CCN20230504_CLUS` with machine-readable
 label `CCN20230504_CLUS_5046` can also be referred to by
 "name" `5046 MOB-mi Frmd7 Gaba` and by "alias" `1376`.
-
-Looking into the encoding of the tree itself, we might see something like
-
-```
->>> result_dict['taxonomy_tree']['CCN20230504_SUBC']
-{
-  "CCN20230504_SUBC_305": [
-    "CCN20230504_SUPT_1041"
-  ],
-  "CCN20230504_SUBC_306": [
-    "CCN20230504_SUPT_1042",
-    "CCN20230504_SUPT_1043",
-    "CCN20230504_SUPT_1044",
-    "CCN20230504_SUPT_1045"
-  ]
-...
-}
-```
-
-indicating that, at the taxonomic level `CCN20230504_SUBC`, the node
-`CCN20230504_SUBC_305` has only one child node, while the node
-`CCN20230504_SUBC_306` has four child nodes.
