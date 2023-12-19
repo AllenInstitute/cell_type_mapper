@@ -25,7 +25,10 @@ tell the cell type mapper to discover the marker genes at runtime, given the
 context of your query datasets. This is only recommended for small taxonomies.
 The cell type taxonomy backing the December 2023 SEA-AD release on MapMyCells
 has only a few hundred clusters at the leaf level. Marker gene discovery takes
-a few tens of seconds. The Allen Institute whole mouse brain taxonomy has 5,000
+a few tens of seconds. The
+[Allen Institute whole mouse brain
+taxonomy](https://doi.org/10.1038/s41586-023-06812-z)
+has 5,000
 clusters at the leaf level. Marker gene discovery takes several hours. It
 is up to the user to decide whether they want to precompute the marker gene
 lookup table or discover marker genes at runtime.
