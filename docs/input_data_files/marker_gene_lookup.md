@@ -20,7 +20,7 @@ between). The root of the tree (i.e. the node from which the first cell type
 choice is made) is specified with the key `'None'`. All other keys are of the
 form `"level"/"node"` where `"level"` is the the node of the cell type taxonomy
 (e.g. "class", "subclass", "cluster") and `"node"` is the specific node
-at that level. The values of the dicts are lists of marker genes to be used
+at that level. The values of the dict are lists of marker genes to be used
 when selecting between that parent node's child nodes.
 
 A cartoon example of a marker gene lookup table is below. Parent nodes
