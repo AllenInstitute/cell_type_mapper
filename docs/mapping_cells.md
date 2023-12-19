@@ -3,6 +3,8 @@
 This document explains how to run the code in this library to map unlabeled
 cell by gene expression data onto a reference cell type taxonomy.
 
+## Defining the taxonomy on which to map
+
 In order to map an unlabeled dataset onto a taxonomy, you need two supporting
 datafiles:
 
