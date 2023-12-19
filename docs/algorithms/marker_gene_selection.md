@@ -60,8 +60,8 @@ q_diff = |P_iA-P_iB|/q1
 and the `log2` fold change of the gene expression between
 the two clusters (i.e. the absolute value of the difference
 between the mean `log2(CPM+1)` expression of gene `i` in
-clusterA and the mean `log2(CPM+1) expression of gene `i`
-in cluterB).
+clusterA and the mean `log2(CPM+1)` expression of gene `i`
+in clusterB).
 
 A gene is considered a marker gene for discriminating between
 clusterA and clusterB if
@@ -168,7 +168,7 @@ selecting between
 'subclass_01' -> ['cluster_01', 'cluster_02']
 ```
 Consider only those cell type cluster pairs that descend from different
-chilren of interest. So, if the parent node is `'None'`, then the cluster
+children of interest. So, if the parent node is `'None'`, then the cluster
 pairs that need to be considered are
 ```
 (cluster_01, cluster_03)
@@ -205,28 +205,29 @@ combination.
 of marker genes for the parent node being considered. Increment the
 counter for every `(clusterA, clusterB, direction)` combination for which
 that gene is a marker.
-3. Whenever a `(clusterA, clusterB, direction)` combination achieves
+4. Whenever a `(clusterA, clusterB, direction)` combination achieves
 `n_per_utility` selected markers, find all the remaining genes which
 are markers for that combination and decrement their utility score,
 since we no longer need to worry about selecting markers for that
 combination.
-4. Continue until all `(clusterA, clusterB, direction)` combinations
+5. Continue until all `(clusterA, clusterB, direction)` combinations
 have achieved `n_per_utility` markers, or all genes have utility scores
 of zero (indicating that it was physically impossible to fulfill the
 compement of marker genes given the data we have).
 
 There are special conditions opposed on edge cases
 
-- In cases where there are not `2*n_per_utility` refernce markers for
-a `(clusterA, clusterB)` pair, all of the reference markers for tha
+- In cases where there are not `2*n_per_utility` reference markers for
+a `(clusterA, clusterB)` pair, all of the reference markers for that
 pair are chosen, regardless of which cluster they are up-regulated in.
 - Similarly, if `(clusterA, clusterB, up)` achieves `n_per_utility`
 markers but there are not `n_per_utility` reference markers for
-`(clusterA, clusterB, down)`, step (3) will not trigger.
-- If, in the regular course of running a `(clusterA, clusterB)`
-pair achieves `2*n_per_utility` markers, regardless of distribution
-along the `direction` axis, trigger step (3) for all genes that
-are markers for that `(clusterA, clusterB)` pair.
+`(clusterA, clusterB, down)`, step (4) will not trigger.
+- If, in the regular course of running the algorithm,
+a `(clusterA, clusterB)` pair achieves `2*n_per_utility` markers,
+regardless of distribution along the `direction` axis, trigger
+step (4) for all genes that are markers for that `(clusterA, clusterB)`
+pair.
 
 Effectively, priority is given to attempting to assign
 `2*n_per_utility` markers to each `(clusterA, clusterB)` pair,
@@ -240,7 +241,7 @@ enough markers for every `(clusterA, clusterB, direction)` combination."
 This is affected by the total number of marker genes there are in the
 reference marker dataset. The total number of markers in the reference
 marker dataset is, in turn, affected by the interaction between the data
-and the config parameters
+and the `reference_markers` config parameters
 ```
 n_valid
 q1_th

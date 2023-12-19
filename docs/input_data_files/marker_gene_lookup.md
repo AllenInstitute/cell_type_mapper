@@ -7,9 +7,9 @@ file and
 [tools provided in this codebase](#creating-the-marker-gene-lookup-table) to
 create the marker gene lookup table. **Note:** any file that adheres to the
 schema below will work. Marker gene discovery is an open research question in
-the field. The tools in this codebase use a specific algorithm (documentation
-forthcoming). Users should feel free to select marker genes however they
-are comfortable doing so.
+the field. The tools in this codebase use a specific algorithm (documented
+[here](../algorithms/marker_gene_selection.md)). Users should feel free to
+select marker genes however they are comfortable doing so.
 
 ## Schema
 
