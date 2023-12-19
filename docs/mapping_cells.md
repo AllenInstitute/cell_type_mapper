@@ -40,7 +40,7 @@ unlabeled dataset does not contain all of the genes that your reference dataset
 contained, the code can adapt its marker selection strategy to accommodate the
 limited gene list. The disadvantage of this code is that, for large taxonomies,
 marker selection can take hours (for the Allen Institute whole mouse brain
-taxonomy with ~ 5,000 cell type clusters, marker selection takes 3 hours).
+taxonomy with ~ 5,000 cell type clusters marker selection takes 3 hours).
 Users can decide on their own tolerance for delay.
 
 ## Requirements on unlabeled data
