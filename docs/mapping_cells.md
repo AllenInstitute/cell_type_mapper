@@ -3,6 +3,8 @@
 This document explains how to run the code in this library to map unlabeled
 cell by gene expression data onto a reference cell type taxonomy.
 
+## Defining the taxonomy on which to map
+
 In order to map an unlabeled dataset onto a taxonomy, you need two supporting
 datafiles:
 
@@ -37,8 +39,10 @@ to as a precomputed step. The advantage of this code is that, if your
 unlabeled dataset does not contain all of the genes that your reference dataset
 contained, the code can adapt its marker selection strategy to accommodate the
 limited gene list. The disadvantage of this code is that, for large taxonomies,
-marker selection can take hours (for the Allen Institute whole mouse brain
-taxonomy with ~ 5,000 cell type clusters, marker selection takes 3 hours).
+marker selection can take hours (for the
+[Allen Institute whole mouse brain
+taxonomy](https://doi.org/10.1038/s41586-023-06812-z)
+with ~ 5,000 cell type clusters marker selection takes 3 hours).
 Users can decide on their own tolerance for delay.
 
 ## Requirements on unlabeled data
