@@ -26,6 +26,9 @@ is for some reason insufficient for your purposes, please
 file an issue on this repository and we can discuss how to get you the relevant
 files.
 
+The specific algorithm used for cell type mapping is described
+[here.](algorithms/hierarchical_mapping.md)
+
 ### Requirements on unlabeled data
 
 The only requirements on the unlabeled data being mapped are
