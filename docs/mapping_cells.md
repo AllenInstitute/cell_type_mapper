@@ -3,6 +3,8 @@
 This document explains how to run the code in this library to map unlabeled
 cell by gene expression data onto a reference cell type taxonomy.
 
+## Defining the taxonomy on which to map
+
 In order to map an unlabeled dataset onto a taxonomy, you need two supporting
 datafiles:
 
@@ -26,7 +28,24 @@ is for some reason insufficient for your purposes, please
 file an issue on this repository and we can discuss how to get you the relevant
 files.
 
-### Requirements on unlabeled data
+The specific algorithm used for cell type mapping is described
+[here.](algorithms/hierarchical_mapping.md)
+
+**Note:** for small taxonomies (~ a few hundred; maybe 1,000 leaf nodes), there
+is an alternative mapping tool documented
+[here](#finding-markers-at-runtime)
+which finds marker genes while running the mapping algorithm, as opposed
+to as a precomputed step. The advantage of this code is that, if your
+unlabeled dataset does not contain all of the genes that your reference dataset
+contained, the code can adapt its marker selection strategy to accommodate the
+limited gene list. The disadvantage of this code is that, for large taxonomies,
+marker selection can take hours (for the
+[Allen Institute whole mouse brain
+taxonomy](https://doi.org/10.1038/s41586-023-06812-z)
+with ~ 5,000 cell type clusters marker selection takes 3 hours).
+Users can decide on their own tolerance for delay.
+
+## Requirements on unlabeled data
 
 The only requirements on the unlabeled data being mapped are
 
@@ -36,7 +55,7 @@ The only requirements on the unlabeled data being mapped are
 - `var.index.values` correspond to the gene identifiers used in the marker
 gene lookup JSON file.
 
-### Mapping unlabeled data onto the reference taxonomy
+## Mapping unlabeled data onto the reference taxonomy
 
 Once you have created the necessary input files, mapping unlabeled data
 to your taxonomy can proceed using the command line interface tool
@@ -100,7 +119,7 @@ and passed in using
 python -m cell_type_mapper.cli.from_specified_markers --input_json path/to/config.json
 ```
 
-#### "Flat" Correlation mapping
+### "Flat" Correlation mapping
 
 To run the `MapMyCells` Correlation Mapping algorithm (i.e. mapping onto a tree with only one taxonomic
 level; no bootstrapping), run the above code with
@@ -125,7 +144,7 @@ be slower) than hierarchcal mapping. This because, with hierarchical mapping, as
 you descend the taxonomy tree, you need drammatically fewer marker genes, which
 speeds up the nearest neighbor searches going on within the algorithm.
 
-#### Running programmatically
+## Running programmatically
 
 This module uses the
 [argschema library](https://github.com/AllenInstitute/argschema)
@@ -146,7 +165,7 @@ runner.run()
 The `args=[]` is important to prevent the `runner` from trying to grab
 configuration parameters from the command line.
 
-### "Validating" the unlabeled dataset
+## "Validating" the unlabeled dataset
 
 The online MapMyCells app demands that users identify genes with Ensembl IDs.
 To facilitate this process, we provie a command line tool that will take
@@ -179,3 +198,30 @@ expects the cell by gene data to be.
 tool will automatically create one from `--output_dir` and the name of the
 input H5AD file. The resulting output file will be recorded in the output
 manifest specified with `--output_json`.
+
+
+## Finding markers at runtime
+
+If users do not wish to pre-calculate their marker gene lookup table,
+there is a tool provided which requires only a `precomputed_stats.h5` file
+and will find marker genes at runtime. That tool can be invoked via
+```
+python -m cell_type_mapper.cli.map_to_on_the_fly_markers --help
+```
+It uses all of the config parameters for the
+[marker gene selection code](input_data_files/marker_gene_lookup.md)
+with parameters for reference marker finding passed in with a
+`reference_markers.` prefix and parameters for query marker
+selection passed in with a `query_markers.` prefix.
+
+Users should read both the
+[surface level](input_data_files/marker_gene_lookup.md)
+and the
+[in depth](algorithms/marker_gene_selection.md)
+marker gene selection documentation before deciding
+to use this tool. As mentioned above, depending on the size
+of the cell type taxonomy tree, it could be a time-consuming
+calculation. Detailed profiling has not yet been performed. We will
+report findings on the relationship between the number of cell type
+clusters and the time it takes to find marker genes as they become
+available.

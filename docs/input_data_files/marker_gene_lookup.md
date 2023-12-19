@@ -7,9 +7,9 @@ file and
 [tools provided in this codebase](#creating-the-marker-gene-lookup-table) to
 create the marker gene lookup table. **Note:** any file that adheres to the
 schema below will work. Marker gene discovery is an open research question in
-the field. The tools in this codebase use a specific algorithm (documentation
-forthcoming). Users should feel free to select marker genes however they
-are comfortable doing so.
+the field. The tools in this codebase use a specific algorithm (documented
+[here](../algorithms/marker_gene_selection.md)). Users should feel free to
+select marker genes however they are comfortable doing so.
 
 ## Schema
 
@@ -20,7 +20,7 @@ between). The root of the tree (i.e. the node from which the first cell type
 choice is made) is specified with the key `'None'`. All other keys are of the
 form `"level"/"node"` where `"level"` is the the node of the cell type taxonomy
 (e.g. "class", "subclass", "cluster") and `"node"` is the specific node
-at that level. The values of the dicts are lists of marker genes to be used
+at that level. The values of the dict are lists of marker genes to be used
 when selecting between that parent node's child nodes.
 
 A cartoon example of a marker gene lookup table is below. Parent nodes
@@ -99,7 +99,8 @@ Here is the example cartoon lookup table
 ## Creating the marker gene lookup table
 
 Detailed documentation of the marker gene discovery algorithm used by this
-codebase will be recorded elsewhere. Here we present a user's guide to the
+codebase can be found[here](../algorithms/marker_gene_selection.md).
+In this document, we present a user's guide to the
 tools in this codebase to go from a `precomputed_stats.h5` file to a
 `marker_gene_lookup.json` file.
 
