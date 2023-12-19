@@ -23,7 +23,9 @@ This file, as well as tools to create it, are documented
 strictly required. If your cell type taxonomy is simple enough, you can
 tell the cell type mapper to discover the marker genes at runtime, given the
 context of your query datasets. This is only recommended for small taxonomies.
-The cell type taxonomy backing the December 2023 SEA-AD release on MapMyCells
+The cell type taxonomy backing the
+[December 2023 SEA-AD release](https://doi.org/10.21203/rs.3.rs-2921860/v1)
+on MapMyCells
 has only a few hundred clusters at the leaf level. Marker gene discovery takes
 a few tens of seconds. The
 [Allen Institute whole mouse brain
