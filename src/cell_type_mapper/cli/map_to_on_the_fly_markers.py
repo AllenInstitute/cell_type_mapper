@@ -1,5 +1,6 @@
 import argschema
 import copy
+import os
 import pathlib
 import tempfile
 
@@ -74,6 +75,15 @@ class MapperSchema_OTF(
         description="Number of independendent processes to use when "
         "parallelizing work for mapping job")
 
+    use_gpu = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=(
+            "If False, do not use GPU implementation, even "
+            "if a GPU and CUDA are present on the system."
+        ))
+
 
 class OnTheFlyMapper(argschema.ArgSchemaParser):
 
@@ -83,9 +93,19 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         log = CommandLog()
         tmp_dir = tempfile.mkdtemp(
             dir=self.args['tmp_dir'])
+
+        cached_env = None
+        env_var = 'AIBS_BKP_USE_TORCH'
+        if not self.args['use_gpu']:
+            if env_var in os.environ:
+                cached_env = os.environ[env_var]
+            os.environ[env_var] = 'false'
+
         try:
             self._run(tmp_dir=tmp_dir, log=log)
         finally:
+            if cached_env is not None:
+                os.environ[env_var] = cached_env
             _clean_up(tmp_dir)
 
     def _run(self, tmp_dir, log):

@@ -5,8 +5,10 @@ the fly
 import pytest
 
 import anndata
+import itertools
 import json
 import numpy as np
+import os
 import pandas as pd
 import tempfile
 from unittest.mock import patch
@@ -22,12 +24,16 @@ from cell_type_mapper.cli.map_to_on_the_fly_markers import (
 
 
 @pytest.mark.parametrize(
-    'write_summary', [True, False])
+    'write_summary, use_gpu',
+    itertools.product([True, False], [True, False]))
 def test_otf_smoke(
         tmp_dir_fixture,
         precomputed_path_fixture,
         raw_query_h5ad_fixture,
-        write_summary):
+        write_summary,
+        use_gpu):
+
+    os.environ['AIBS_BKP_USE_TORCH'] = 'silly'
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -54,7 +60,8 @@ def test_otf_smoke(
         'reference_markers': {},
         'type_assignment': {'normalization': 'raw'},
         'extended_result_path': output_path,
-        'summary_metadata_path': metadata_path
+        'summary_metadata_path': metadata_path,
+        'use_gpu': use_gpu
     }
 
     runner = OnTheFlyMapper(args=[], input_data=config)
@@ -75,14 +82,21 @@ def test_otf_smoke(
         n_genes = len(read_df_from_h5ad(raw_query_h5ad_fixture, df_name='var'))
         assert metadata['n_mapped_genes'] == n_genes
 
+    # make sure that mapper reset environment variable on exit
+    assert os.environ['AIBS_BKP_USE_TORCH'] == 'silly'
 
+
+@pytest.mark.parametrize('use_gpu', [True, False])
 def test_otf_no_markers(
         tmp_dir_fixture,
-        precomputed_path_fixture):
+        precomputed_path_fixture,
+        use_gpu):
     """
     Check that the correct error is raised when reference marker finding
     fails.
     """
+
+    os.environ['AIBS_BKP_USE_TORCH'] = 'silly'
 
     query_path = mkstemp_clean(
        dir=tmp_dir_fixture,
@@ -120,7 +134,8 @@ def test_otf_no_markers(
         'reference_markers': {},
         'type_assignment': {'normalization': 'raw'},
         'extended_result_path': output_path,
-        'summary_metadata_path': metadata_path
+        'summary_metadata_path': metadata_path,
+        'use_gpu': use_gpu
     }
 
     runner = OnTheFlyMapper(args=[], input_data=config)
@@ -130,3 +145,6 @@ def test_otf_no_markers(
     )
     with pytest.raises(RuntimeError, match=msg):
         runner.run()
+
+    # make sure that mapper reset environment variable on exit
+    assert os.environ['AIBS_BKP_USE_TORCH'] == 'silly'
