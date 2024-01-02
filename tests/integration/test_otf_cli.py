@@ -5,11 +5,15 @@ the fly
 import pytest
 
 import anndata
+import itertools
 import json
 import numpy as np
 import pandas as pd
 import tempfile
 from unittest.mock import patch
+
+from cell_type_mapper.test_utils.cloud_safe import (
+    check_not_file)
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
@@ -22,12 +26,14 @@ from cell_type_mapper.cli.map_to_on_the_fly_markers import (
 
 
 @pytest.mark.parametrize(
-    'write_summary', [True, False])
+    'write_summary, cloud_safe',
+    itertools.product([True, False], [True, False]))
 def test_otf_smoke(
         tmp_dir_fixture,
         precomputed_path_fixture,
         raw_query_h5ad_fixture,
-        write_summary):
+        write_summary,
+        cloud_safe):
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -54,7 +60,8 @@ def test_otf_smoke(
         'reference_markers': {},
         'type_assignment': {'normalization': 'raw'},
         'extended_result_path': output_path,
-        'summary_metadata_path': metadata_path
+        'summary_metadata_path': metadata_path,
+        'cloud_safe': cloud_safe
     }
 
     runner = OnTheFlyMapper(args=[], input_data=config)
@@ -74,6 +81,12 @@ def test_otf_smoke(
         assert metadata['n_mapped_cells'] == n_cells
         n_genes = len(read_df_from_h5ad(raw_query_h5ad_fixture, df_name='var'))
         assert metadata['n_mapped_genes'] == n_genes
+
+    if cloud_safe:
+        with open(output_path, 'rb') as src:
+            data = json.load(src)
+        check_not_file(data['config'])
+        check_not_file(data['log'])
 
 
 def test_otf_no_markers(

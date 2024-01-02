@@ -13,6 +13,9 @@ import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
 
+from cell_type_mapper.test_utils.cloud_safe import (
+    check_not_file)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -920,3 +923,92 @@ def test_mapping_uint16_data(
         assert src['X'].dtype == np.int64
 
     os.environ[env_var] = ''
+
+
+
+@pytest.mark.parametrize(
+        'flatten,use_gpu,just_once,drop_subclass',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (True, False)
+        ))
+def test_cloud_safe_mapping(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        flatten,
+        use_gpu,
+        just_once,
+        drop_subclass):
+    """
+    Test that when cloud_safe is True, no absolute file paths
+    get recorded in the output log
+    """
+
+    use_csv = True
+    use_tmp_dir = True
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    if use_csv:
+        csv_path = mkstemp_clean(
+            dir=this_tmp,
+            suffix='.csv')
+    else:
+        csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+    config['query_path'] = baseline_config['query_path']
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+    config['cloud_safe'] = True
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    with open(result_path, 'rb') as src:
+        data = json.load(src)
+        check_not_file(data['log'])
+        check_not_file(data['config'])
