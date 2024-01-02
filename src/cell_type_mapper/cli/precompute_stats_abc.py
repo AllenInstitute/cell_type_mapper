@@ -86,7 +86,9 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 rows_at_a_time=10000,
                 normalization=self.args['normalization'],
                 output_path=output_path,
-                cell_set=cell_set)
+                cell_set=cell_set,
+                n_processors=self.args['n_processors'],
+                tmp_dir=self.args['tmp_dir'])
 
             metadata['timestamp'] = get_timestamp()
             metadata['dataset'] = dataset
