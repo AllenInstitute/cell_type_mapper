@@ -77,7 +77,8 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 log2_fold_th=self.args['log2_fold_th'],
                 log2_fold_min_th=self.args['log2_fold_min_th'],
                 n_valid=self.args['n_valid'],
-                gene_list=gene_list)
+                gene_list=gene_list,
+                max_gb=self.args['max_gb'])
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path
