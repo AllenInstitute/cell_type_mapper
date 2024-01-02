@@ -1,6 +1,7 @@
 import pytest
 
 import h5py
+import itertools
 import json
 import numpy as np
 import pathlib
@@ -119,11 +120,13 @@ def marker_file_fixture(
     return h5_path
 
 
+@pytest.mark.parametrize('n_processors', [1, 3])
 def test_adding_by_gene_sparse(
         marker_file_fixture,
         n_genes,
         n_pairs,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        n_processors):
 
     new_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -138,7 +141,8 @@ def test_adding_by_gene_sparse(
         h5_path=new_path,
         n_genes=n_genes,
         max_gb=0.6,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        n_processors=n_processors)
 
     sparse_markers = MarkerGeneArray.from_cache_path(
         new_path)
@@ -169,13 +173,15 @@ def test_adding_by_gene_sparse(
 
 
 @pytest.mark.parametrize(
-   "downsample",['genes', 'pairs', 'pair_gene', 'gene_pair', None])
+   "downsample, n_processors",
+   itertools.product(['genes', 'pairs', 'pair_gene', 'gene_pair', None], [1, 3]))
 def test_sparse_markers_specific_classes(
         marker_file_fixture,
         n_genes,
         n_pairs,
         tmp_dir_fixture,
-        downsample):
+        downsample,
+        n_processors):
     """
     Test that the classes used to access the two 'flavors' of sparsity
     give consistent results
@@ -194,7 +200,8 @@ def test_sparse_markers_specific_classes(
         h5_path=new_path,
         n_genes=n_genes,
         max_gb=0.6,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        n_processors=n_processors)
 
     rng = np.random.default_rng(22310)
 
@@ -258,8 +265,10 @@ def test_sparse_markers_specific_classes(
 
 
 @pytest.mark.parametrize(
-    "downsampling",
-    [None, ('genes',), ('pairs',), ('genes', 'pairs'), ('pairs', 'genes')])
+    "downsampling,n_processors",
+    itertools.product(
+        [None, ('genes',), ('pairs',), ('genes', 'pairs'), ('pairs', 'genes')],
+        [1,3]))
 def test_sparse_marker_access_class(
         marker_file_fixture,
         marker_array_fixture,
@@ -268,7 +277,8 @@ def test_sparse_marker_access_class(
         n_nodes,
         tmp_dir_fixture,
         pair_to_idx_fixture,
-        downsampling):
+        downsampling,
+        n_processors):
 
     up_array = np.copy(marker_array_fixture['up'])
     down_array = np.copy(marker_array_fixture['down'])
@@ -286,7 +296,8 @@ def test_sparse_marker_access_class(
         h5_path=new_path,
         n_genes=n_genes,
         max_gb=0.6,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        n_processors=n_processors)
 
     sparse_markers = MarkerGeneArray.from_cache_path(
         new_path)

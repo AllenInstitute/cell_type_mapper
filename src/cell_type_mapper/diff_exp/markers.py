@@ -27,6 +27,9 @@ from cell_type_mapper.diff_exp.scores import (
 from cell_type_mapper.utils.csc_to_csr import (
     transpose_sparse_matrix_on_disk)
 
+from cell_type_mapper.utils.csc_to_csr_parallel import (
+    transpose_sparse_matrix_on_disk_v2)
+
 
 def find_markers_for_all_taxonomy_pairs(
         precomputed_stats_path,
@@ -121,7 +124,9 @@ def find_markers_for_all_taxonomy_pairs(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
-    tmp_thinned_path = create_sparse_by_pair_marker_file(
+    t0 = time.time()
+
+    tmp_path = create_sparse_by_pair_marker_file(
         precomputed_stats_path=precomputed_stats_path,
         taxonomy_tree=taxonomy_tree,
         p_th=p_th,
@@ -138,19 +143,33 @@ def find_markers_for_all_taxonomy_pairs(
         n_valid=n_valid,
         gene_list=gene_list)
 
+    duration = time.time()-t0
+    print(f"Initial marker discovery took {duration:.2e} seconds")
+
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
 
+    t0 = time.time()
+
     add_sparse_by_gene_markers_to_file(
-        h5_path=tmp_thinned_path,
+        h5_path=tmp_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
+
+    duration = time.time()-t0
+    print(f"Transposing markers took {duration:.2e} seconds")
+
+    t0 = time.time()
 
     shutil.move(
-        src=tmp_thinned_path,
+        src=tmp_path,
         dst=output_path)
+
+    duration = time.time()-t0
+    print(f"Copying to {output_path} took {duration:.2e} seconds")
 
     _clean_up(tmp_dir)
 
@@ -433,7 +452,8 @@ def add_sparse_by_gene_markers_to_file(
         h5_path,
         n_genes,
         max_gb,
-        tmp_dir):
+        tmp_dir,
+        n_processors=1):
     """
     Add the "sparse_by_gene" representation of markers to
     a marker file that already contains the
@@ -451,14 +471,27 @@ def add_sparse_by_gene_markers_to_file(
             prefix='transposed_',
             suffix='.h5')
 
-        with h5py.File(h5_path, 'r') as src:
-            transpose_sparse_matrix_on_disk(
-                indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
-                indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
-                data_handle=None,
+        if n_processors == 1:
+            with h5py.File(h5_path, 'r') as src:
+                transpose_sparse_matrix_on_disk(
+                    indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
+                    indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
+                    data_handle=None,
+                    n_indices=n_genes,
+                    max_gb=max_gb,
+                    output_path=transposed_path)
+        else:
+            transpose_sparse_matrix_on_disk_v2(
+                h5_path=h5_path,
+                indices_tag=f'sparse_by_pair/{direction}_gene_idx',
+                indptr_tag=f'sparse_by_pair/{direction}_pair_idx',
+                data_tag=None,
                 n_indices=n_genes,
                 max_gb=max_gb,
-                output_path=transposed_path)
+                output_path=transposed_path,
+                verbose=False,
+                tmp_dir=tmp_dir,
+                n_processors=n_processors)
 
         with h5py.File(transposed_path, 'r') as src:
             with h5py.File(h5_path, 'a') as dst:
