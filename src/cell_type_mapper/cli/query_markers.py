@@ -65,10 +65,14 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             tmp_dir=self.args['tmp_dir'],
             drop_level=self.args['drop_level'])
 
+        dur = time.time()-t0
+
         marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
         marker_lookup['metadata']['timestamp'] = get_timestamp()
         marker_lookup['metadata']['cell_type_mapper_version'] = \
             cell_type_mapper.__version__
+        marker_lookup['metadata']['duration'] = dur
+
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
                 json.dumps(marker_lookup, indent=2))
