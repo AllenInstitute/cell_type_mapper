@@ -70,6 +70,7 @@ def _transpose_sparse_matrix_on_disk_v2(
 
     indices_gb = (4*n_raw_indices)/(1024**3)
     chunk_size = np.round(n_raw_indices*max_gb/indices_gb).astype(int)
+    chunk_size = np.round(chunk_size/n_processors).astype(int)
     if chunk_size == 0:
         chunk_size = 10000
     if chunk_size > n_raw_indices:
@@ -105,8 +106,8 @@ def _transpose_sparse_matrix_on_disk_v2(
         path_list.append(tmp_path)
         while len(process_list) >= n_processors:
             process_list = winnow_process_list(process_list)
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     indices_size = 0
     indptr_size = 0
@@ -320,6 +321,9 @@ def _grab_indices_from_chunk(
     del full_valid
     del indices_idx
 
+    if len(indptr_idx) == 0:
+        return dict()
+
     # sort first by indices then by indptr
     max_indptr = indptr_idx.max()
     to_sort = (indices_chunk.astype(np.int64)*(max_indptr+1)
@@ -329,9 +333,10 @@ def _grab_indices_from_chunk(
     del to_sort
 
     indices_chunk = indices_chunk[sorted_dex]
+    indptr_idx = indptr_idx[sorted_dex]
     if data_chunk is not None:
         data_chunk = data_chunk[sorted_dex]
-    indptr_idx = indptr_idx[sorted_dex]
+
     delta_indices = np.diff(indices_chunk)
 
     # these will be the last idx of blocks
