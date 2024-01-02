@@ -80,7 +80,8 @@ def run_mapping(config, output_path, log_path=None):
             config['query_path']).name
         for k in ('extended_result_path',
                   'csv_result_path',
-                  'summary_metadata_path'):
+                  'summary_metadata_path',
+                  'tmp_dir'):
             if safe_config[k] is not None:
                 safe_config[k] = pathlib.Path(config[k]).name
         safe_config.pop('extended_result_dir')
