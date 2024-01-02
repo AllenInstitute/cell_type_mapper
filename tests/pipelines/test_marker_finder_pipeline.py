@@ -44,6 +44,8 @@ from cell_type_mapper.marker_selection.selection import (
 from cell_type_mapper.cli.reference_markers import (
    ReferenceMarkerRunner)
 
+from cell_type_mapper.cli.cli_log import CommandLog
+
 
 @pytest.fixture
 def tree_fixture(
@@ -74,19 +76,31 @@ def test_reference_marker_finding_cli(
         output_path=precompute_path,
         rows_at_a_time=1000)
 
+    output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
     config = {
         'n_processors': 3,
         'precomputed_path_list': [str(precompute_path.resolve().absolute())],
-        'output_dir': tempfile.mkdtemp(dir=tmp_dir_fixture),
+        'output_dir': output_dir,
         'drop_level': None
     }
 
     runner = ReferenceMarkerRunner(args=[], input_data=config)
     runner.run()
 
+    # check that logs are recorded in output files
+    output_dir = pathlib.Path(output_dir)
+    file_path_list = [n for n in output_dir.iterdir()]
+    assert len(file_path_list) > 0
+    for file_path in file_path_list:
+        with h5py.File(file_path, "r") as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        assert 'log' in metadata
+        assert len(metadata['log']) > 0
 
 @pytest.mark.parametrize(
-        "limit_genes", [True, False])
+        "limit_genes,use_log",
+        itertools.product([True, False], [True, False]))
 def test_marker_finding_pipeline(
         h5ad_path_fixture,
         column_hierarchy,
@@ -94,12 +108,18 @@ def test_marker_finding_pipeline(
         gene_names,
         n_genes,
         tree_fixture,
-        limit_genes):
+        limit_genes,
+        use_log):
     """
     if limit_genes, pass a gene_list thrugh to
     find_markers_for_all_taxonomy_pairs, limiting the list
     of genes that are valid markers
     """
+
+    if use_log:
+        log = CommandLog()
+    else:
+        log = None
 
     if limit_genes:
         rng = np.random.default_rng(22131)
@@ -151,7 +171,8 @@ def test_marker_finding_pipeline(
             output_path=marker_path,
             n_processors=n_processors,
             tmp_dir=tmp_dir,
-            gene_list=chosen_genes)
+            gene_list=chosen_genes,
+            log=log)
 
     with h5py.File(marker_path, 'r') as in_file:
         assert 'gene_names' in in_file

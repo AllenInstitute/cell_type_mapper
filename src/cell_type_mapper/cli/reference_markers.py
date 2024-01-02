@@ -18,6 +18,8 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+from cell_type_mapper.cli.cli_log import CommandLog
+
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceMarkerFinderSchema)
 
@@ -27,6 +29,8 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
     default_schema = ReferenceMarkerFinderSchema
 
     def run(self):
+
+        log = CommandLog()
 
         input_to_output = self.create_input_to_output_map()
 
@@ -78,11 +82,14 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 log2_fold_min_th=self.args['log2_fold_min_th'],
                 n_valid=self.args['n_valid'],
                 gene_list=gene_list,
-                max_gb=self.args['max_gb'])
+                max_gb=self.args['max_gb'],
+                log=log)
+
+            log.info("RAN SUCCESSFULLY")
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path
-
+            metadata['log'] = log.log
             metadata_str = json.dumps(metadata)
             with h5py.File(output_path, 'a') as dst:
                 dst.create_dataset(

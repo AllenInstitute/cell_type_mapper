@@ -47,7 +47,8 @@ def find_markers_for_all_taxonomy_pairs(
         max_gb=20,
         exact_penetrance=False,
         n_valid=30,
-        gene_list=None):
+        gene_list=None,
+        log=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -96,6 +97,9 @@ def find_markers_for_all_taxonomy_pairs(
         Optional list limiting the genes that can be considered
         as markers.
 
+    log:
+        Optional CommandLog to record log messages
+
     Returns
     --------
     None
@@ -121,6 +125,10 @@ def find_markers_for_all_taxonomy_pairs(
         discriminator
     """
 
+    if log is not None:
+        msg = f"Starting {pathlib.Path(precomputed_stats_path).name}"
+        log.info(msg)
+
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
@@ -144,7 +152,11 @@ def find_markers_for_all_taxonomy_pairs(
         gene_list=gene_list)
 
     duration = time.time()-t0
-    print(f"Initial marker discovery took {duration:.2e} seconds")
+    msg = f"Initial marker discovery took {duration:.2e} seconds"
+    if log is not None:
+        log.info(msg)
+    else:
+        print(msg)
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
@@ -160,7 +172,11 @@ def find_markers_for_all_taxonomy_pairs(
         n_processors=n_processors)
 
     duration = time.time()-t0
-    print(f"Transposing markers took {duration:.2e} seconds")
+    msg = f"Transposing markers took {duration:.2e} seconds"
+    if log is not None:
+        log.info(msg)
+    else:
+        print(msg)
 
     t0 = time.time()
 
@@ -169,9 +185,16 @@ def find_markers_for_all_taxonomy_pairs(
         dst=output_path)
 
     duration = time.time()-t0
-    print(f"Copying to {output_path} took {duration:.2e} seconds")
+    msg = f"Copying to {output_path} took {duration:.2e} seconds"
+    if log is not None:
+        log.info(msg)
+    else:
+        print(msg)
 
     _clean_up(tmp_dir)
+    if log is not None:
+        msg = f"Wrote {pathlib.Path(output_path).name}"
+        log.info(msg)
 
 
 def create_sparse_by_pair_marker_file(
