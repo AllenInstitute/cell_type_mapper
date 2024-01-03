@@ -3,8 +3,8 @@ import h5py
 import multiprocessing
 import numpy as np
 import numbers
+import os
 import pathlib
-import shutil
 import tempfile
 import time
 
@@ -358,88 +358,82 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     bad_row_idx = -999
 
     desired_cells = set(cell_name_to_cluster_name.keys())
-    buffer_path_list = []
 
-    process_list = []
-
-    buffer_dir = None
+    path_to_cells = dict()
+    n_total_cells = 0
     for data_path in data_path_list:
-        while len(process_list) > 0:
-            process_list = winnow_process_list(process_list)
-
-        if buffer_dir is not None:
-            _clean_up(buffer_dir)
-            buffer_dir = None
-
-        if tmp_dir is not None:
-            buffer_dir = tempfile.mkdtemp(dir=tmp_dir)
-
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
 
         n_overlap = len(set(cell_name_list).intersection(desired_cells))
-        if n_overlap == 0:
+        if n_overlap > 0:
+            n_cells = len(cell_name_list)
+            path_to_cells[data_path] = n_cells
+            n_total_cells += n_cells
+
+    n_per = np.ceil(n_total_cells/n_processors).astype(int)
+
+    work_load = []
+    for ii in range(n_processors):
+        work_load.append([])
+
+    i_worker = 0
+    this_n_cells = 0
+    for data_path in data_path_list:
+        if data_path not in path_to_cells:
             continue
+        n_cells = path_to_cells[data_path]
+        for r0 in range(0, n_cells, rows_at_a_time):
+            r1 = min(n_cells, r0+rows_at_a_time)
+            work_load[i_worker].append((data_path, r0, r1))
+            this_n_cells += r1-r0
+            if this_n_cells > n_per:
+                i_worker += 1
+                this_n_cells = 0
 
-        to_load = data_path
-        if buffer_dir is not None:
-            to_load = pathlib.Path(
-                mkstemp_clean(
-                    dir=buffer_dir,
-                    prefix=pathlib.Path(data_path).name,
-                    suffix='.h5ad'))
-            print(f'copying {pathlib.Path(data_path).name} to {to_load.name}')
-            copy_t0 = time.time()
-            shutil.copy(src=data_path, dst=to_load)
-            print(f'done copying {time.time()-copy_t0:.2e}')
+    buffer_path_list = []
+    process_list = []
+    for work_spec in work_load:
 
-        chunk_iterator = AnnDataRowIterator(
-            h5ad_path=to_load,
-            row_chunk_size=rows_at_a_time)
+        buffer_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='precomputation_buffer_',
+            suffix='.h5')
+        buffer_path_list.append(buffer_path)
 
-        print(f'loading {to_load.name}')
+        if n_processors <= 1:
 
-        for chunk in chunk_iterator:
+            _process_chunk_spec(
+                chunk_specification_list=work_spec,
+                rows_at_a_time=rows_at_a_time,
+                gene_names=gene_names,
+                cell_name_to_output_row=cell_name_to_output_row,
+                bad_row_idx=bad_row_idx,
+                normalization=normalization,
+                n_clusters=n_clusters,
+                buffer_path=buffer_path)
 
-            buffer_path = mkstemp_clean(
-                dir=tmp_dir,
-                prefix='precomputation_buffer_',
-                suffix='.h5')
-            buffer_path_list.append(buffer_path)
+        else:
+            p = multiprocessing.Process(
+                    target=_process_chunk_spec,
+                    kwargs={
+                        'chunk_specification_list': work_spec,
+                        'rows_at_a_time': rows_at_a_time,
+                        'gene_names': gene_names,
+                        'cell_name_to_output_row': cell_name_to_output_row,
+                        'bad_row_idx': bad_row_idx,
+                        'normalization': normalization,
+                        'n_clusters': n_clusters,
+                        'buffer_path': buffer_path
+                    }
+                )
 
-            if n_processors <= 1:
+            p.start()
 
-                _process_chunk(
-                    chunk=chunk,
-                    gene_names=gene_names,
-                    cell_name_to_output_row=cell_name_to_output_row,
-                    cell_name_list=cell_name_list,
-                    bad_row_idx=bad_row_idx,
-                    normalization=normalization,
-                    n_clusters=n_clusters,
-                    buffer_path=buffer_path)
+            process_list.append(p)
 
-            else:
-                p = multiprocessing.Process(
-                        target=_process_chunk,
-                        kwargs={
-                            'chunk': chunk,
-                            'gene_names': gene_names,
-                            'cell_name_to_output_row': cell_name_to_output_row,
-                            'cell_name_list': cell_name_list,
-                            'bad_row_idx': bad_row_idx,
-                            'normalization': normalization,
-                            'n_clusters': n_clusters,
-                            'buffer_path': buffer_path
-                        }
-                    )
-
-                p.start()
-
-                process_list.append(p)
-
-                while len(process_list) >= n_processors:
-                    process_list = winnow_process_list(process_list)
+            while len(process_list) >= n_processors:
+                process_list = winnow_process_list(process_list)
 
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
@@ -461,11 +455,11 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                         out_file[k][:, :] += src[k][()]
 
 
-def _process_chunk(
-        chunk,
+def _process_chunk_spec(
+        chunk_specification_list,
+        rows_at_a_time,
         gene_names,
         cell_name_to_output_row,
-        cell_name_list,
         bad_row_idx,
         normalization,
         n_clusters,
@@ -473,8 +467,16 @@ def _process_chunk(
     """
     Assemble the summary stats from a chunk of data and write it to
     an HDF5 file at buffer_path
+
+
+    chunk_specification is a list of tuples like
+    (h5ad_path, r0, r1)
+    telling the code which files to open and which r0:r1
+    row chunks to process
     """
 
+    t0 = time.time()
+    time_reading = 0.0
     n_genes = len(gene_names)
 
     buffer_dict = dict()
@@ -484,6 +486,59 @@ def _process_chunk(
     buffer_dict['gt0'] = np.zeros((n_clusters, n_genes), dtype=int)
     buffer_dict['gt1'] = np.zeros((n_clusters, n_genes), dtype=int)
     buffer_dict['ge1'] = np.zeros((n_clusters, n_genes), dtype=int)
+
+    iterator = None
+    iterator_path = None
+    for chunk_spec in chunk_specification_list:
+        if iterator is None or iterator_path != chunk_spec[0]:
+            print(f'{os.getpid()} '
+                  f'opening {pathlib.Path(chunk_spec[0]).name}')
+
+            cell_name_list = list(
+                read_df_from_h5ad(chunk_spec[0], 'obs').index.values)
+
+            iterator = AnnDataRowIterator(
+                h5ad_path=chunk_spec[0],
+                row_chunk_size=rows_at_a_time)
+
+            iterator_path = chunk_spec[0]
+
+        r_t0 = time.time()
+        chunk = iterator.get_chunk(
+            r0=chunk_spec[1],
+            r1=chunk_spec[2])
+        time_reading += time.time()-r_t0
+
+        _process_chunk(
+            chunk=chunk,
+            gene_names=gene_names,
+            cell_name_to_output_row=cell_name_to_output_row,
+            cell_name_list=cell_name_list,
+            bad_row_idx=bad_row_idx,
+            normalization=normalization,
+            n_clusters=n_clusters,
+            buffer_dict=buffer_dict)
+        print(f'    process {os.getpid()} tot {time.time()-t0:.2e} '
+              f'reading {time_reading:.2e}')
+
+    w_t0 = time.time()
+    with h5py.File(buffer_path, 'w') as dst:
+        for k in buffer_dict:
+            dst.create_dataset(k, data=buffer_dict[k])
+    time_writing = time.time()-w_t0
+    print(f'finally process {os.getpid()} tot {time.time()-t0:.2e} '
+          f'reading {time_reading:.2e} writing {time_writing:.2e}')
+
+
+def _process_chunk(
+        chunk,
+        gene_names,
+        cell_name_to_output_row,
+        cell_name_list,
+        bad_row_idx,
+        normalization,
+        n_clusters,
+        buffer_dict):
 
     r0 = chunk[1]
     r1 = chunk[2]
@@ -518,7 +573,3 @@ def _process_chunk(
                 buffer_dict[k][unq_cluster] += summary_chunk[k]
             else:
                 buffer_dict[k][unq_cluster, :] += summary_chunk[k]
-
-    with h5py.File(buffer_path, 'w') as dst:
-        for k in buffer_dict:
-            dst.create_dataset(k, data=buffer_dict[k])
