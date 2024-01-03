@@ -5,7 +5,45 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.cloud_utils import (
+    is_exposed,
     sanitize_paths)
+
+
+
+def test_is_exposed(tmp_dir_fixture):
+    assert not is_exposed(pathlib.Path('.'))
+    assert not is_exposed(pathlib.Path('/'))
+
+    # nonsense path
+    garbage_path = pathlib.Path('/this/is/silly')
+    assert not garbage_path.exists()
+    assert not is_exposed(garbage_path)
+
+    # file that exists
+    other_path = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir_fixture, suffix='.csv'))
+    assert other_path.is_file()
+    assert is_exposed(other_path)
+
+    # file that does not exist but has valid parent
+    other_path = pathlib.Path(
+        mkstemp_clean(dir=tmp_dir_fixture, suffix='.csv'))
+    other_path.unlink()
+    assert not other_path.exists()
+    assert is_exposed(other_path)
+
+    # dir that exists
+    dir_path = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture))
+    assert dir_path.is_dir()
+    assert is_exposed(dir_path)
+
+    # dir that does not exist but has valid parent
+    dir_path = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture))
+    dir_path.rmdir()
+    assert not dir_path.is_dir()
+    assert is_exposed(dir_path)
 
 
 def test_sanitize_paths(tmp_dir_fixture):
