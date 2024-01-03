@@ -29,3 +29,19 @@ def sanitize_paths(
         return new_list
 
     return input_structure
+
+
+def is_exposed(input_path):
+    """
+    input_path is a pathlib.Path
+
+    Returns True if any part of input_path is a valid path to somewhere
+    in the file system. Returns False otherwise.
+    """
+    if input_path == pathlib.Path('.'):
+        return False
+    if input_path == pathlib.Path('/'):
+        return False
+    if input_path.is_file() or input_path.is_dir():
+        return True
+    return is_exposed(input_path.parent)
