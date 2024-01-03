@@ -308,6 +308,7 @@ def test_precompute_scrattch_cli(
         gene_names = src.var.index.values
 
         with h5py.File(actual_path, 'r') as src:
+            assert 'metadata' in src
             cluster_to_row = json.loads(
                 src['cluster_to_row'][()].decode('utf-8'))
             assert len(cluster_to_row) == len(cluster_stats_fixture)
