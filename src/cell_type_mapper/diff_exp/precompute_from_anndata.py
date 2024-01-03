@@ -383,11 +383,12 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
         to_load = data_path
         if buffer_dir is not None:
-            to_load = mkstemp_clean(
-                dir=buffer_dir,
-                prefix=pathlib.Path(data_path).name,
-                suffix='.h5ad')
-            print(f'copying {data_path} to {to_load}')
+            to_load = pathlib.Path(
+                mkstemp_clean(
+                    dir=buffer_dir,
+                    prefix=pathlib.Path(data_path).name,
+                    suffix='.h5ad'))
+            print(f'copying {pathlib.Path(data_path).name} to {to_load.name}')
             copy_t0 = time.time()
             shutil.copy(src=data_path, dst=to_load)
             print(f'done copying {time.time()-copy_t0:.2e}')
@@ -396,7 +397,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
             h5ad_path=to_load,
             row_chunk_size=rows_at_a_time)
 
-        print(f'loading {to_load}')
+        print(f'loading {to_load.name}')
 
         for chunk in chunk_iterator:
 
