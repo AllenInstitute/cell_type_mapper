@@ -147,6 +147,13 @@ class AnnDataRowIterator(object):
         result = next(self._chunk_iterator)
         return result
 
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
+        return self._chunk_iterator.get_chunk(
+            r0=r0, r1=r1)
+
     def _initialize_as_csc(
             self,
             h5ad_path,
@@ -303,18 +310,22 @@ class CSRRowIterator(object):
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
+        chunk = self.get_chunk(r0=self.r0, r1=r1)
+        self.r0 = r1
+        return chunk
 
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
         with self.h5_handler as h5_handle:
             chunk = load_csr(
-                row_spec=(self.r0, r1),
+                row_spec=(r0, r1),
                 n_cols=self.n_cols,
                 data=h5_handle[self.data_key],
                 indices=h5_handle[self.indices_key],
                 indptr=h5_handle[self.indptr_key])
-
-        old_r0 = self.r0
-        self.r0 = r1
-        return (chunk, old_r0, r1)
+        return (chunk, r0, r1)
 
     def __getitem__(self, r0):
         if isinstance(r0, list):
@@ -388,13 +399,17 @@ class DenseArrayRowIterator(object):
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
-
-        with self.h5_handler as h5_handle:
-            chunk = h5_handle[self.data_key][self.r0:r1, :]
-
-        old_r0 = self.r0
+        chunk = self.get_chunk(r0=self.r0, r1=r1)
         self.r0 = r1
-        return (chunk, old_r0, r1)
+        return chunk
+
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
+        with self.h5_handler as h5_handle:
+            chunk = h5_handle[self.data_key][r0:r1, :]
+        return (chunk, r0, r1)
 
     def __getitem__(self, r0):
         if isinstance(r0, list):
