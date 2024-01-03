@@ -13,8 +13,7 @@ def sanitize_paths(
         new_words = []
         for word in input_structure.split():
             path = pathlib.Path(word)
-            parent = path.parent
-            if parent.is_file() or parent.is_dir():
+            if is_exposed(path):
                 new_words.append(path.name)
             else:
                 new_words.append(word)
