@@ -292,7 +292,8 @@ def test_precompute_scrattch_cli(
             'normalization': normalization,
             'tmp_dir': tmp_dir_fixture,
             'output_path': output_path,
-            'hierarchy': ['class', 'subclass', 'cluster']
+            'hierarchy': ['class', 'subclass', 'cluster'],
+            'clobber': True
         }
 
         runner = PrecomputationScrattchRunner(
@@ -344,3 +345,40 @@ def test_precompute_scrattch_cli(
                         # cells in actual_taxonomy are referred to by row number;
                         # in taxonomy_fixture they are referred to by cell_id
                         assert set(actual_taxonomy.children(level=level, node=node)) == set(expected_children)
+
+
+@pytest.mark.parametrize(
+    'raw_h5ad_fixture', ['csc'], indirect=['raw_h5ad_fixture'])
+def test_precompute_scrattch_cli_clobber(
+        taxonomy_fixture,
+        cluster_stats_fixture,
+        tmp_dir_fixture,
+        raw_h5ad_fixture):
+
+        input_path = raw_h5ad_fixture
+
+        output_path = pathlib.Path(
+                mkstemp_clean(
+                    dir=tmp_dir_fixture,
+                    prefix='precompute_from_scrattch_',
+                    suffix='.h5'))
+
+        # tempfile will have already created it
+        assert output_path.exists()
+
+        config = {
+            'h5ad_path': input_path,
+            'n_processors': 1,
+            'normalization': 'raw',
+            'tmp_dir': tmp_dir_fixture,
+            'output_path': str(output_path),
+            'hierarchy': ['class', 'subclass', 'cluster'],
+            'clobber': False
+        }
+
+        runner = PrecomputationScrattchRunner(
+            args=[],
+            input_data=config)
+
+        with pytest.raises(RuntimeError, match='already exists; run with clobber'):
+            runner.run()
