@@ -4,7 +4,9 @@ import multiprocessing
 import numpy as np
 import numbers
 import pathlib
+import shutil
 import tempfile
+import time
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -360,7 +362,17 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
     process_list = []
 
+    buffer_dir = None
     for data_path in data_path_list:
+        while len(process_list) > 0:
+            process_list = winnow_process_list(process_list)
+
+        if buffer_dir is not None:
+            _clean_up(buffer_dir)
+            buffer_dir = None
+
+        if tmp_dir is not None:
+            buffer_dir = tempfile.mkdtemp(dir=tmp_dir)
 
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
@@ -369,11 +381,22 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         if n_overlap == 0:
             continue
 
+        to_load = data_path
+        if buffer_dir is not None:
+            to_load = mkstemp_clean(
+                dir=buffer_dir,
+                prefix=pathlib.Path(data_path).name,
+                suffix='.h5ad')
+            print(f'copying {data_path} to {to_load}')
+            copy_t0 = time.time()
+            shutil.copy(src=data_path, dst=to_load)
+            print(f'done copying {time.time()-copy_t0:.2e}')
+
         chunk_iterator = AnnDataRowIterator(
-            h5ad_path=data_path,
+            h5ad_path=to_load,
             row_chunk_size=rows_at_a_time)
 
-        print(f'loading {data_path}')
+        print(f'loading {to_load}')
 
         for chunk in chunk_iterator:
 
@@ -417,8 +440,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 while len(process_list) >= n_processors:
                     process_list = winnow_process_list(process_list)
 
-    for p in process_list:
-        p.join()
+    while len(process_list) > 0:
+        process_list = winnow_process_list(process_list)
 
     _create_empty_stats_file(
         output_path=output_path,
