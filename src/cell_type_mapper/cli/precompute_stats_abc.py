@@ -70,6 +70,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
         files_to_merge = []
         for dataset in dataset_to_output.keys():
+            local_t0 = time.time()
             if dataset == 'combined':
                 continue
 
@@ -92,6 +93,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
             metadata['timestamp'] = get_timestamp()
             metadata['dataset'] = dataset
+            metadata['duration'] = time.time()-local_t0
 
             with h5py.File(output_path, 'a') as out_file:
                 out_file.create_dataset(
@@ -102,6 +104,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
         if 'combined' in dataset_to_output:
             print('merging')
+            local_t0 = time.time()
             merged_path = pathlib.Path(
                 dataset_to_output['combined'])
             merge_precompute_files(
@@ -109,6 +112,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 output_path=merged_path)
             metadata.pop('dataset')
             metadata['timestamp'] = get_timestamp()
+            metadata['duration'] = time.time()-local_t0
 
             with h5py.File(merged_path, 'a') as dst:
                 dst.create_dataset(

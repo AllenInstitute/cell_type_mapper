@@ -4,6 +4,9 @@ from a scrattch-compliant h5ad file.
 """
 
 import argschema
+import h5py
+import json
+import time
 
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
@@ -17,6 +20,7 @@ class PrecomputationScrattchRunner(argschema.ArgSchemaParser):
     default_schema = PrecomputedStatsScrattchSchema
 
     def run(self):
+        t0 = time.time()
         precompute_summary_stats_from_h5ad(
             data_path=self.args['h5ad_path'],
             column_hierarchy=self.args['hierarchy'],
@@ -26,6 +30,13 @@ class PrecomputationScrattchRunner(argschema.ArgSchemaParser):
             normalization=self.args['normalization'],
             tmp_dir=self.args['tmp_dir'],
             n_processors=self.args['n_processors'])
+        metadata = {
+            'duration': time.time()-t0
+        }
+        with h5py.File(self.args['output_path'], 'a') as dst:
+            dst.create_dataset(
+                'metadata',
+                data=json.dumps(metadata).encode('utf-8'))
 
 
 def main():
