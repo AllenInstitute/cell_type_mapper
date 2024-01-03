@@ -3,6 +3,7 @@ import h5py
 import multiprocessing
 import numpy as np
 import numbers
+import os
 import pathlib
 import shutil
 import tempfile
@@ -473,7 +474,7 @@ def _process_chunk(
     Assemble the summary stats from a chunk of data and write it to
     an HDF5 file at buffer_path
     """
-
+    print(f'process {os.getpid()} running on {chunk[1]}:{chunk[2]}')
     n_genes = len(gene_names)
 
     buffer_dict = dict()
@@ -518,6 +519,9 @@ def _process_chunk(
             else:
                 buffer_dict[k][unq_cluster, :] += summary_chunk[k]
 
+    print(f'    process {os.getpid()} writing')
     with h5py.File(buffer_path, 'w') as dst:
         for k in buffer_dict:
-            dst.create_dataset(k, data=buffer_dict[k])
+            dst.create_dataset(k, data=buffer_dict[k], chunks=True)
+
+    print(f'    process {os.getpid()} completed')
