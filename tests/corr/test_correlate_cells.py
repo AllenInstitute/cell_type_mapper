@@ -302,9 +302,6 @@ def test_corrmap_cells_function(
     elif query_norm == 'log2CPM':
         query_path = h5ad_fixture
 
-    a_data = anndata.read_h5ad(h5ad_fixture, backed='r')
-    cell_id_list = a_data.obs_names
-
     results = corrmap_cells(
            query_path=query_path,
            precomputed_path=precomputed_fixture,
@@ -315,6 +312,9 @@ def test_corrmap_cells_function(
     with h5py.File(precomputed_fixture, 'r') as in_file:
         cluster_to_row = json.loads(in_file['cluster_to_row'][()].decode('utf-8'))
     row_to_cluster = {cluster_to_row[n]: n for n in cluster_to_row}
+
+    a_data = anndata.read_h5ad(h5ad_fixture, backed='r')
+    cell_id_list = a_data.obs_names
 
     assert len(results) == len(cell_id_list)
     expected_lookup = dict()

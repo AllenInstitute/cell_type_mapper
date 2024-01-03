@@ -22,11 +22,16 @@ class h5_handler_manager():
         self.mode = mode
         self.h5_handle = None
         if keepopen:
-            self.h5_handle = h5py.File(h5_path, mode)
+            self.h5_handle = h5py.File(h5_path,
+                                       mode,
+                                       swmr=True)
 
     def __enter__(self):
         if not self.keepopen:
-            self.h5_handle = h5py.File(self.h5_path, self.mode)
+            self.h5_handle = h5py.File(
+                self.h5_path,
+                self.mode,
+                swmr=True)
         return self.h5_handle
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -81,7 +86,7 @@ class AnnDataRowIterator(object):
             raise RuntimeError(
                 f"{h5ad_path} is not a file")
 
-        with h5py.File(h5ad_path, 'r') as in_file:
+        with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
             attrs = dict(in_file['X'].attrs)
             array_shape = None
             encoding_type = ''
@@ -107,7 +112,7 @@ class AnnDataRowIterator(object):
                 keep_open=keep_open)
         elif encoding_type.startswith('array'):
             self._iterator_type = "dense"
-            with h5py.File(h5ad_path, "r") as src:
+            with h5py.File(h5ad_path, "r", swmr=True) as src:
                 array_shape = src['X'].shape
             self.n_rows = array_shape[0]
             self._chunk_iterator = DenseArrayRowIterator(
@@ -183,7 +188,7 @@ class AnnDataRowIterator(object):
         if free_bytes < fudge_factor*file_size_bytes:
             write_as_csr = False
         else:
-            with h5py.File(h5ad_path, 'r') as src:
+            with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 attrs = dict(src['X'].attrs)
 
             if 'shape' not in attrs:
@@ -211,7 +216,7 @@ class AnnDataRowIterator(object):
 
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
-            with h5py.File(h5ad_path, 'r') as src:
+            with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 csc_to_csr_on_disk(
                     csc_group=src['X'],
                     csr_path=self.tmp_path,

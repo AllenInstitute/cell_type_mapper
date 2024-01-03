@@ -238,9 +238,10 @@ def test_ensembl_mapping_in_cli(
             metadata = json.load(open(metadata_path, 'rb'))
             assert 'n_mapped_cells' in metadata
             assert 'n_mapped_genes' in metadata
-            query_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
-            assert metadata['n_mapped_cells'] == len(query_data.obs)
-            assert metadata['n_mapped_genes'] == (len(query_data.var)
+            _obs = read_df_from_h5ad(query_h5ad_fixture, df_name='obs')
+            _var = read_df_from_h5ad(query_h5ad_fixture, df_name='var')
+            assert metadata['n_mapped_cells'] == len(_obs)
+            assert metadata['n_mapped_genes'] == (len(_var)
                                                   -n_extra_genes_fixture)
     else:
         msg = (
