@@ -9,6 +9,7 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
+import pathlib
 import tempfile
 from unittest.mock import patch
 
@@ -21,8 +22,75 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
 
+from cell_type_mapper.cli.reference_markers import (
+    ReferenceMarkerRunner)
+
+from cell_type_mapper.cli.query_markers import (
+    QueryMarkerRunner)
+
 from cell_type_mapper.cli.map_to_on_the_fly_markers import (
     OnTheFlyMapper)
+
+
+def test_query_pipeline(
+        tmp_dir_fixture,
+        precomputed_path_fixture):
+    """
+    Test that daisy chaining together reference and query marker
+    finding produces a result, regardless of accuracy.
+
+    This is to test that the requisite file paths are recorded
+    in the metadata of the various intermediate outputs.
+    """
+    output_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir_fixture))
+    assert len([n for n in output_dir.iterdir()]) == 0
+
+    reference_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='reference_markers_',
+        suffix='.h5')
+    query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_markers_',
+        suffix='.json')
+
+    reference_config = {
+        'precomputed_path_list': [str(precomputed_path_fixture)],
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 3,
+        'max_gb': 10,
+        'output_dir': str(output_dir)
+    }
+
+    ref_runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=reference_config)
+    ref_runner.run()
+
+    assert len([n for n in output_dir.iterdir()]) == 1
+    ref_path = [n for n in output_dir.iterdir()][0]
+
+    query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_markers_',
+        suffix='.json')
+
+    query_config = {
+        'reference_marker_path_list': [str(ref_path)],
+        'output_path': str(query_path),
+        'n_processors': 3,
+        'tmp_dir': str(tmp_dir_fixture)
+    }
+
+    query_runner = QueryMarkerRunner(
+        args=[],
+        input_data=query_config)
+    query_runner.run()
+
+    with open(query_path, 'rb') as src:
+        markers = json.load(src)
+    assert isinstance(markers, dict)
+
 
 
 @pytest.mark.parametrize(
