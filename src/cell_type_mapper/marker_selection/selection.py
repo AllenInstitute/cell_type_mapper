@@ -101,7 +101,7 @@ def select_marker_genes_v2(
 
     # calculate the initial array indicating how useful each gene
     # (*all* reference genes at this point) is at discriminating
-    # between the taxonomy pairs that we cair about
+    # between the taxonomy pairs that we care about
     (utility_array,
      marker_census) = create_utility_array(
             marker_gene_array=marker_gene_array,

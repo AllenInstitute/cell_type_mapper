@@ -11,6 +11,9 @@ import traceback
 
 import cell_type_mapper
 
+from cell_type_mapper.utils.cloud_utils import (
+    sanitize_paths)
+
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     is_cuda_available,
@@ -72,17 +75,7 @@ def run_mapping(config, output_path, log_path=None):
 
     safe_config = copy.deepcopy(config)
     if config['cloud_safe']:
-        safe_config['precomputed_stats']['path'] = pathlib.Path(
-             config['precomputed_stats']['path']).name
-        safe_config['query_markers']['serialized_lookup'] = pathlib.Path(
-            config['query_markers']['serialized_lookup']).name
-        safe_config['query_path'] = pathlib.Path(
-            config['query_path']).name
-        for k in ('extended_result_path',
-                  'csv_result_path',
-                  'summary_metadata_path'):
-            if safe_config[k] is not None:
-                safe_config[k] = pathlib.Path(config[k]).name
+        safe_config = sanitize_paths(safe_config)
         safe_config.pop('extended_result_dir')
         safe_config.pop('tmp_dir')
 
