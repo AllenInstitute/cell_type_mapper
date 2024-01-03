@@ -147,4 +147,58 @@ def test_anndata_row_iterator(
             x_array_fixture[i0:i1, :],
             atol=0.0,
             rtol=1.0e-7)
-        
+
+
+@pytest.mark.parametrize(
+    'use, with_tmp',
+    [('csr', False),
+     ('csc', False),
+     ('csc', True),
+     ('dense', False)])
+def test_anndata_row_iterator_get_chunk(
+        x_array_fixture,
+        csr_fixture,
+        csc_fixture,
+        dense_fixture,
+        tmp_dir_fixture,
+        use,
+        with_tmp):
+    if use == 'csr':
+        fpath = csr_fixture
+    elif use == 'csc':
+        fpath = csc_fixture
+    elif use == 'dense':
+        fpath = dense_fixture
+    else:
+        raise RuntimeError(
+            f"use={use} makese no sense")
+
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
+    chunk_size = 123
+
+    iterator = AnnDataRowIterator(
+        h5ad_path=fpath,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir)
+
+    n_rows = x_array_fixture.shape[0]
+    assert iterator.n_rows == n_rows
+
+    rng = np.random.default_rng(871123)
+    for ii in range(5):
+        i0 = rng.integers(0, 2*n_rows//3)
+        i1 = i0 + rng.integers(10, 100)
+        i1 = min(i1, n_rows)
+        chunk = iterator.get_chunk(r0=i0, r1=i1)
+        assert chunk[1] == i0
+        assert chunk[2] == i1
+        assert chunk[0].shape[0] == (i1-i0)
+        np.testing.assert_allclose(
+            chunk[0],
+            x_array_fixture[i0:i1, :],
+            atol=0.0,
+            rtol=1.0e-7)
