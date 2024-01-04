@@ -449,6 +449,20 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 i_worker += 1
                 this_n_cells = 0
 
+    # clean out empty work loads (can happen depending on
+    # how cells are distributed amongst the input data files)
+    to_pop = []
+    for ii in range(len(work_load)):
+        if len(work_load[ii]) == 0:
+            to_pop.append(ii)
+    to_pop.sort()
+    to_pop.reverse()
+    for ii in to_pop:
+        # make absolutely sure we are not popping an "interesting"
+        # set of work
+        assert len(work_load[ii]) == 0
+        work_load.pop(ii)
+
     buffer_path_list = []
     process_list = []
     for work_spec in work_load:
