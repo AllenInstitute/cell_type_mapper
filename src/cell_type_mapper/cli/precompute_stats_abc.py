@@ -84,7 +84,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
             precompute_summary_stats_from_h5ad_list_and_tree(
                 data_path_list=self.args['h5ad_path_list'],
                 taxonomy_tree=taxonomy_tree,
-                rows_at_a_time=50000,
+                rows_at_a_time=10000,
                 normalization=self.args['normalization'],
                 output_path=output_path,
                 cell_set=cell_set,
