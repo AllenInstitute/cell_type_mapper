@@ -445,14 +445,27 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         n_genes=n_genes,
         col_names=gene_names)
 
-    with h5py.File(output_path, 'a') as out_file:
-        for buffer_path in buffer_path_list:
-            with h5py.File(buffer_path, 'r') as src:
+    final_output = None
+    for buffer_path in buffer_path_list:
+        with h5py.File(buffer_path, 'r') as src:
+            if final_output is None:
+                final_output = dict()
                 for k in src.keys():
-                    if k == 'n_cells':
-                        out_file[k][:] += src[k][()]
-                    else:
-                        out_file[k][:, :] += src[k][()]
+                    final_output[k] = np.zeros(
+                        src[k].shape,
+                        dtype=src[k].dtype)
+            for k in src.keys():
+                if k == 'n_cells':
+                    final_output[k][:] += src[k][()]
+                else:
+                    final_output[k][:, :] += src[k][()]
+
+    with h5py.File(output_path, 'a') as out_file:
+        for k in final_output.keys():
+            if k == 'n_cells':
+                out_file[k][:] = final_output[k]
+            else:
+                out_file[k][:, :] = final_output[k]
 
 
 def _process_chunk_spec(
