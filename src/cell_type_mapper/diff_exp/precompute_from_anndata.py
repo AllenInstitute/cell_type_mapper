@@ -5,6 +5,7 @@ import numpy as np
 import numbers
 import os
 import pathlib
+import shutil
 import tempfile
 import time
 
@@ -109,7 +110,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         rows_at_a_time: int = 10000,
         normalization='log2CPM',
         tmp_dir=None,
-        n_processors=3):
+        n_processors=3,
+        copy_data_over=False):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -140,6 +142,12 @@ def precompute_summary_stats_from_h5ad_and_tree(
 
     n_processors:
         Number of parallel worker processes to spin up
+
+    copy_data_over:
+        A boolean. If true, the data in data_path will be copied
+        over into tmp_dir before any computations are attempted
+        (this is in case your tmp_dir is on a much faster file system
+        than the data is originally stored in).
 
     Note
     ----
@@ -174,7 +182,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         rows_at_a_time=rows_at_a_time,
         normalization=normalization,
         tmp_dir=tmp_dir,
-        n_processors=n_processors)
+        n_processors=n_processors,
+        copy_data_over=copy_data_over)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -190,7 +199,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         normalization='log2CPM',
         cell_set=None,
         tmp_dir=None,
-        n_processors=3):
+        n_processors=3,
+        copy_data_over=False):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -228,6 +238,12 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
     n_processors:
         Number of parallel worker processes to spin up
 
+    copy_data_over:
+        A boolean. If true, the data in data_path will be copied
+        over into tmp_dir before any computations are attempted
+        (this is in case your tmp_dir is on a much faster file system
+        than the data is originally stored in).
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
@@ -256,7 +272,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         rows_at_a_time=rows_at_a_time,
         normalization=normalization,
         tmp_dir=tmp_dir,
-        n_processors=n_processors)
+        n_processors=n_processors,
+        copy_data_over=copy_data_over)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -272,7 +289,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         rows_at_a_time: int = 10000,
         normalization='log2CPM',
         tmp_dir=None,
-        n_processors=3):
+        n_processors=3,
+        copy_data_over=False):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -308,8 +326,20 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
     n_processors:
         Number of parallel worker processes to spin up
+
+    copy_data_over:
+        A boolean. If true, the data in data_path will be copied
+        over into tmp_dir before any computations are attempted
+        (this is in case your tmp_dir is on a much faster file system
+        than the data is originally stored in).
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+
+    buffer_dir = None
+    if copy_data_over:
+        buffer_dir = tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='precomputation_data_buffer_')
 
     try:
         _precompute_summary_stats_from_h5ad_and_lookup(
@@ -320,7 +350,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             rows_at_a_time=rows_at_a_time,
             normalization=normalization,
             tmp_dir=tmp_dir,
-            n_processors=n_processors)
+            n_processors=n_processors,
+            buffer_dir=buffer_dir)
     finally:
         _clean_up(tmp_dir)
 
@@ -333,7 +364,13 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         rows_at_a_time: int = 10000,
         normalization='log2CPM',
         tmp_dir=None,
-        n_processors=3):
+        n_processors=3,
+        buffer_dir=None):
+    """
+    If buffer_dir is not None, data is copied there before computatations
+    are run (in case buffer_dir is on a faster file system than the data
+    is originally stored).
+    """
 
     gene_names = None
     for pth in data_path_list:
@@ -361,15 +398,36 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
     path_to_cells = dict()
     n_total_cells = 0
+    new_data_path_list = []
     for data_path in data_path_list:
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
 
         n_overlap = len(set(cell_name_list).intersection(desired_cells))
         if n_overlap > 0:
+            if buffer_dir is not None:
+                data_path = pathlib.Path(data_path)
+                new_path = mkstemp_clean(
+                    dir=buffer_dir,
+                    prefix=data_path.name,
+                    suffix='.h5ad')
+                t0 = time.time()
+                shutil.copy(
+                    src=data_path,
+                    dst=new_path)
+                print(
+                    f"copying {data_path.name} took "
+                    f"{time.time()-t0:.2e}"
+                )
+                data_path = new_path
+                new_data_path_list.append(new_path)
+
             n_cells = len(cell_name_list)
             path_to_cells[data_path] = n_cells
             n_total_cells += n_cells
+
+    if buffer_dir is not None:
+        data_path_list = new_data_path_list
 
     n_per = np.ceil(n_total_cells/n_processors).astype(int)
 
