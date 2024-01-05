@@ -2,7 +2,6 @@ import pytest
 
 import anndata
 import h5py
-import itertools
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
@@ -285,5 +284,12 @@ def test_anndata_iterator_from_layer(
         np.testing.assert_allclose(
             chunk[0],
             data[r0:r1, :],
+            atol=0.0,
+            rtol=1.0e-6)
+
+    for row in [55, 77, 112, 0, 45]:
+        np.testing.assert_allclose(
+            iterator[row][0][0,:],
+            data[row, :],
             atol=0.0,
             rtol=1.0e-6)
