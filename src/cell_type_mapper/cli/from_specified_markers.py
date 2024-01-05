@@ -178,9 +178,12 @@ def run_mapping(config, output_path, log_path=None):
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
         if log_path is not None:
-            log.write_log(log_path)
+            log.write_log(log_path, cloud_save=config['cloud_safe'])
         output["config"] = safe_config
-        output["log"] = log.log
+        output_log = copy.deepcopy(log.log)
+        if config['cloud_safe']:
+            output_log = sanitize_paths(output_log)
+        output["log"] = output_log
         output["cell_type_mapper_version"] = cell_type_mapper.__version__
 
         uns = read_uns_from_h5ad(config["query_path"])
