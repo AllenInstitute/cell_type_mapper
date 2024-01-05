@@ -1,4 +1,5 @@
 import anndata
+import copy
 import numpy as np
 import sys
 import time
@@ -12,6 +13,9 @@ except ImportError:
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
+
+from cell_type_mapper.utils.cloud_utils import (
+    sanitize_paths)
 
 
 class CommandLog(object):
@@ -60,9 +64,12 @@ class CommandLog(object):
     def log(self):
         return self._log
 
-    def write_log(self, output_path):
+    def write_log(self, output_path, cloud_safe=False):
+        to_write = copy.deepcopy(self.log)
+        if cloud_safe:
+            to_write = sanitize_paths(to_write)
         with open(output_path, 'a') as out_file:
-            for line in self.log:
+            for line in sanitize_paths(to_write):
                 out_file.write(line + "\n")
 
     def log_software_env(self):
