@@ -57,6 +57,9 @@ class AnnDataRowIterator(object):
         Path to the h5ad file over whose rows we are iterating
     row_chunk_size:
         Number of rows to deliver per chunk
+    layer:
+        The layer of the h5ad file we are iterating over
+        If not 'X', then look for data in 'layers/{layer}'
     tmp_dir:
         Optional scratch directory. This is where a hypothetical
         CSC file will be written as a CSR file. If None, the
@@ -73,10 +76,16 @@ class AnnDataRowIterator(object):
             self,
             h5ad_path,
             row_chunk_size,
+            layer='X',
             tmp_dir=None,
             log=None,
             max_gb=10,
             keep_open=True):
+
+        if layer == 'X':
+            self._layer = layer
+        else:
+            self._layer = f'layers/{layer}'
 
         self.log = log
         self.tmp_dir = None
@@ -87,7 +96,7 @@ class AnnDataRowIterator(object):
                 f"{h5ad_path} is not a file")
 
         with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
-            attrs = dict(in_file['X'].attrs)
+            attrs = dict(in_file[self.layer].attrs)
             array_shape = None
             encoding_type = ''
             if 'shape' in attrs:
@@ -102,7 +111,7 @@ class AnnDataRowIterator(object):
                 h5_path=h5ad_path,
                 row_chunk_size=row_chunk_size,
                 array_shape=array_shape,
-                h5_group='X',
+                h5_group=self.layer,
                 keep_open=keep_open)
         elif encoding_type.startswith('csc'):
             self._initialize_as_csc(
@@ -113,17 +122,22 @@ class AnnDataRowIterator(object):
         elif encoding_type.startswith('array'):
             self._iterator_type = "dense"
             with h5py.File(h5ad_path, "r", swmr=True) as src:
-                array_shape = src['X'].shape
+                array_shape = src[self.layer].shape
             self.n_rows = array_shape[0]
             self._chunk_iterator = DenseArrayRowIterator(
                   h5_path=h5ad_path,
                   row_chunk_size=row_chunk_size,
                   array_shape=array_shape,
-                  keep_open=keep_open)
+                  keep_open=keep_open,
+                  h5_group=self.layer)
         else:
             raise RuntimeError(
                 "Do not know how to iterate over anndata "
                 f"with attrs\n{attrs}")
+
+    @property
+    def layer(self):
+        return self._layer
 
     def __del__(self):
         if self.tmp_dir is not None:
@@ -196,7 +210,7 @@ class AnnDataRowIterator(object):
             write_as_csr = False
         else:
             with h5py.File(h5ad_path, 'r', swmr=True) as src:
-                attrs = dict(src['X'].attrs)
+                attrs = dict(src[self.layer].attrs)
 
             if 'shape' not in attrs:
                 write_as_csr = False
@@ -225,7 +239,7 @@ class AnnDataRowIterator(object):
             self.n_rows = array_shape[0]
             with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 csc_to_csr_on_disk(
-                    csc_group=src['X'],
+                    csc_group=src[self.layer],
                     csr_path=self.tmp_path,
                     array_shape=array_shape,
                     max_gb=0.8*self.max_gb)
@@ -360,8 +374,7 @@ class DenseArrayRowIterator(object):
     array_shape:
         Shape of the array we are iterating over
     h5_group:
-        Optional group in the HDF5 file where you will find
-        'data', 'indices' and 'indptr'
+        The HDF5 group of the data we are reading
     """
 
     def __init__(
@@ -369,7 +382,8 @@ class DenseArrayRowIterator(object):
             h5_path,
             row_chunk_size,
             array_shape,
-            keep_open=True):
+            keep_open=True,
+            h5_group='X'):
 
         self.h5_path = h5_path
         self.h5_handle = None
@@ -379,7 +393,7 @@ class DenseArrayRowIterator(object):
         self.n_cols = array_shape[1]
 
         self.h5_handler = h5_handler_manager(h5_path, keepopen=keep_open)
-        self.data_key = 'X'
+        self.data_key = h5_group
 
     def __del__(self):
         if self.h5_handle is not None:
