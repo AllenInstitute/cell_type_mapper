@@ -10,6 +10,9 @@ from cell_type_mapper.utils.utils import (
     _clean_up,
     json_clean_dict)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad)
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
@@ -83,8 +86,8 @@ def test_all_of_it(
         assert in_file['sparse_by_pair/up_gene_idx'].shape[0] > 0
         assert in_file['sparse_by_pair/down_gene_idx'].shape[0] > 0
 
-    q_data = anndata.read_h5ad(query_h5ad_path_fixture, backed='r')
-    query_gene_names = list(q_data.var_names)
+    query_gene_names = list(
+        read_df_from_h5ad(query_h5ad_path_fixture, df_name='var').index.values)
 
     marker_cache_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -114,6 +117,7 @@ def test_all_of_it(
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545))
 
+    q_data = anndata.read_h5ad(query_h5ad_path_fixture, backed='r')
     assert len(result) == q_data.X.shape[0]
     cell_id_set = set()
     for cell in result:

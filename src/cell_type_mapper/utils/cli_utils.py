@@ -1,6 +1,8 @@
 import pathlib
 import time
 
+from cell_type_mapper.gene_id.utils import detect_species
+
 from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
@@ -41,7 +43,16 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
     result = list(var.index.values)
     n_unmapped = 0
     if map_to_ensembl:
-        gene_id_mapper = GeneIdMapper.from_mouse()
+        species = detect_species(result)
+        if species is None:
+            msg = (
+                "Could not find a species for the genes you gave:\n"
+                f"First five genes:\n{result[:5]}"
+            )
+            raise RuntimeError(msg)
+
+        gene_id_mapper = GeneIdMapper.from_species(
+            species=species)
         raw_result = gene_id_mapper.map_gene_identifiers(
             result,
             strict=False)

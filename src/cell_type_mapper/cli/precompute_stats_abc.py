@@ -1,11 +1,27 @@
+"""
+This is the module used to generate the precomputed_stats.h5 file
+from a set of files that look like an ABC Atlas data release, i.e.
+
+- a list of h5ad files containing the cell by gene data
+
+- a cluster_annotation_term.csv file defining parent-child relationships
+  in the cell type taxonomy
+
+- a cluster_to_cluster_annotation_membership.csv definining the relationship
+  between cluster names and cluster aliases
+
+- a cell_metadata.csv assigning cells to clusters
+"""
 import argschema
 import copy
 import h5py
 import json
-from marshmallow import post_load
 import pandas as pd
 import pathlib
 import time
+
+from cell_type_mapper.schemas.precomputation_schema import (
+    PrecomputedStatsABCSchema)
 
 from cell_type_mapper.utils.utils import (
     get_timestamp)
@@ -20,94 +36,9 @@ from cell_type_mapper.diff_exp.precompute_utils import (
     merge_precompute_files)
 
 
-class PrecomputedStatsSchema(argschema.ArgSchema):
+class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
-    h5ad_path_list = argschema.fields.List(
-        argschema.fields.InputFile,
-        required=True,
-        default=None,
-        allow_none=False,
-        cli_as_single_argument=True,
-        description="List of paths to h5ad files that contain the "
-        "cell-by-gene data for which we are precomputing statistics")
-
-    normalization = argschema.fields.String(
-        required=False,
-        default='raw',
-        allow_none=False,
-        description="Normalization of the h5ad files; must be either "
-        "'raw' or 'log2CPM'")
-
-    cell_metadata_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to cell_metadata.csv; the file mapping cells "
-        "to clusters in our cell types taxonomy.")
-
-    cluster_annotation_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to cluster_annotation_term.csv; the file "
-        "containing parent-child reslationships within our cell types "
-        "taxonomy")
-
-    cluster_membership_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to cluster_to_cluster_annotation_membership.csv; "
-        "the file containing the mapping between cluster labels and aliases "
-        "in our cell types taxonomy")
-
-    hierarchy = argschema.fields.List(
-        argschema.fields.String,
-        required=True,
-        default=None,
-        allow_none=False,
-        description="List of term_set_labels in our cell types taxonomy "
-        "ordered from most gross to most fine")
-
-    output_path = argschema.fields.String(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to the HDF5 file that will be written with the "
-        "precomputed stats. The serialized taxonomy tree will also be "
-        "saved here")
-
-    clobber = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=(
-            "Set to True to allow the code to overwrite an existing file."
-        ))
-
-    split_by_dataset = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=(
-            "If true, split the dataset by the 'dataset_label' field in "
-            "cell_metadata.csv, storing each dataset in a separate HDF5 file. "
-            "Files will be named like ouptut_path but with a secondary suffix "
-            "added before .h5 specifying which dataset they contain."
-        ))
-
-    @post_load
-    def check_norm(self, data, **kwargs):
-        if data['normalization'] not in ('raw', 'log2CPM'):
-            raise ValueError(
-                "normalization must be either 'raw' or 'log2CPM'; "
-                f"you gave {data['nomralization']}")
-        return data
-
-
-class PrecomputationRunner(argschema.ArgSchemaParser):
-
-    default_schema = PrecomputedStatsSchema
+    default_schema = PrecomputedStatsABCSchema
 
     def run(self):
 
@@ -139,6 +70,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
         files_to_merge = []
         for dataset in dataset_to_output.keys():
+            local_t0 = time.time()
             if dataset == 'combined':
                 continue
 
@@ -155,10 +87,13 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                 rows_at_a_time=10000,
                 normalization=self.args['normalization'],
                 output_path=output_path,
-                cell_set=cell_set)
+                cell_set=cell_set,
+                n_processors=self.args['n_processors'],
+                tmp_dir=self.args['tmp_dir'])
 
             metadata['timestamp'] = get_timestamp()
             metadata['dataset'] = dataset
+            metadata['duration'] = time.time()-local_t0
 
             with h5py.File(output_path, 'a') as out_file:
                 out_file.create_dataset(
@@ -169,6 +104,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
         if 'combined' in dataset_to_output:
             print('merging')
+            local_t0 = time.time()
             merged_path = pathlib.Path(
                 dataset_to_output['combined'])
             merge_precompute_files(
@@ -176,6 +112,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
                 output_path=merged_path)
             metadata.pop('dataset')
             metadata['timestamp'] = get_timestamp()
+            metadata['duration'] = time.time()-local_t0
 
             with h5py.File(merged_path, 'a') as dst:
                 dst.create_dataset(
@@ -255,7 +192,7 @@ class PrecomputationRunner(argschema.ArgSchemaParser):
 
 
 def main():
-    runner = PrecomputationRunner()
+    runner = PrecomputationABCRunner()
     runner.run()
 
 

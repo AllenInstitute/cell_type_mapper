@@ -22,11 +22,16 @@ class h5_handler_manager():
         self.mode = mode
         self.h5_handle = None
         if keepopen:
-            self.h5_handle = h5py.File(h5_path, mode)
+            self.h5_handle = h5py.File(h5_path,
+                                       mode,
+                                       swmr=True)
 
     def __enter__(self):
         if not self.keepopen:
-            self.h5_handle = h5py.File(self.h5_path, self.mode)
+            self.h5_handle = h5py.File(
+                self.h5_path,
+                self.mode,
+                swmr=True)
         return self.h5_handle
 
     def __exit__(self, exc_type, exc_value, exc_traceback):
@@ -81,7 +86,7 @@ class AnnDataRowIterator(object):
             raise RuntimeError(
                 f"{h5ad_path} is not a file")
 
-        with h5py.File(h5ad_path, 'r') as in_file:
+        with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
             attrs = dict(in_file['X'].attrs)
             array_shape = None
             encoding_type = ''
@@ -107,7 +112,7 @@ class AnnDataRowIterator(object):
                 keep_open=keep_open)
         elif encoding_type.startswith('array'):
             self._iterator_type = "dense"
-            with h5py.File(h5ad_path, "r") as src:
+            with h5py.File(h5ad_path, "r", swmr=True) as src:
                 array_shape = src['X'].shape
             self.n_rows = array_shape[0]
             self._chunk_iterator = DenseArrayRowIterator(
@@ -141,6 +146,13 @@ class AnnDataRowIterator(object):
         """
         result = next(self._chunk_iterator)
         return result
+
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
+        return self._chunk_iterator.get_chunk(
+            r0=r0, r1=r1)
 
     def _initialize_as_csc(
             self,
@@ -183,7 +195,7 @@ class AnnDataRowIterator(object):
         if free_bytes < fudge_factor*file_size_bytes:
             write_as_csr = False
         else:
-            with h5py.File(h5ad_path, 'r') as src:
+            with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 attrs = dict(src['X'].attrs)
 
             if 'shape' not in attrs:
@@ -211,7 +223,7 @@ class AnnDataRowIterator(object):
 
             array_shape = attrs['shape']
             self.n_rows = array_shape[0]
-            with h5py.File(h5ad_path, 'r') as src:
+            with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 csc_to_csr_on_disk(
                     csc_group=src['X'],
                     csr_path=self.tmp_path,
@@ -298,18 +310,22 @@ class CSRRowIterator(object):
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
+        chunk = self.get_chunk(r0=self.r0, r1=r1)
+        self.r0 = r1
+        return chunk
 
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
         with self.h5_handler as h5_handle:
             chunk = load_csr(
-                row_spec=(self.r0, r1),
+                row_spec=(r0, r1),
                 n_cols=self.n_cols,
                 data=h5_handle[self.data_key],
                 indices=h5_handle[self.indices_key],
                 indptr=h5_handle[self.indptr_key])
-
-        old_r0 = self.r0
-        self.r0 = r1
-        return (chunk, old_r0, r1)
+        return (chunk, r0, r1)
 
     def __getitem__(self, r0):
         if isinstance(r0, list):
@@ -383,13 +399,17 @@ class DenseArrayRowIterator(object):
                 self.h5_handle = None
             raise StopIteration
         r1 = min(self.n_rows, self.r0+self.row_chunk_size)
-
-        with self.h5_handler as h5_handle:
-            chunk = h5_handle[self.data_key][self.r0:r1, :]
-
-        old_r0 = self.r0
+        chunk = self.get_chunk(r0=self.r0, r1=r1)
         self.r0 = r1
-        return (chunk, old_r0, r1)
+        return chunk
+
+    def get_chunk(self, r0, r1):
+        """
+        Returns the tuple (data[r0:r1, :], r0, r1)
+        """
+        with self.h5_handler as h5_handle:
+            chunk = h5_handle[self.data_key][r0:r1, :]
+        return (chunk, r0, r1)
 
     def __getitem__(self, r0):
         if isinstance(r0, list):

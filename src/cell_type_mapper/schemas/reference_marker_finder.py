@@ -139,3 +139,12 @@ class ReferenceMarkerFinderSchema(
         default=32,
         allow_none=False,
         description=("Number of independent processors to spin up."))
+
+    max_gb = argschema.fields.Int(
+        required=False,
+        default=20,
+        allow_none=False,
+        description=(
+            "Total amount of memory (in GB) the process is "
+            "allowed to consume (approximate)."
+        ))

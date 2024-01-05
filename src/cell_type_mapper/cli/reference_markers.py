@@ -5,6 +5,8 @@ import json
 import pathlib
 import time
 
+import cell_type_mapper
+
 from cell_type_mapper.utils.utils import get_timestamp
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -16,6 +18,8 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+from cell_type_mapper.cli.cli_log import CommandLog
+
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceMarkerFinderSchema)
 
@@ -26,12 +30,15 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
+        log = CommandLog()
+
         input_to_output = self.create_input_to_output_map()
 
         parent_metadata = {
             'config': self.args,
             'timestamp': get_timestamp(),
-            'input_to_output_map': input_to_output
+            'input_to_output_map': input_to_output,
+            'cell_type_mapper_version': cell_type_mapper.__version__
         }
 
         taxonomy_tree = None
@@ -74,11 +81,15 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 log2_fold_th=self.args['log2_fold_th'],
                 log2_fold_min_th=self.args['log2_fold_min_th'],
                 n_valid=self.args['n_valid'],
-                gene_list=gene_list)
+                gene_list=gene_list,
+                max_gb=self.args['max_gb'],
+                log=log)
+
+            log.info("RAN SUCCESSFULLY")
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path
-
+            metadata['log'] = log.log
             metadata_str = json.dumps(metadata)
             with h5py.File(output_path, 'a') as dst:
                 dst.create_dataset(
