@@ -214,8 +214,7 @@ class AnnDataRowIterator(object):
                     suffix=".h5"))
 
             t0 = time.time()
-            msg = f"transcribing {pathlib.Path(h5ad_path).name} "
-            msg += f"to {pathlib.Path(self.tmp_path).name} "
+            msg = f"transcribing {h5ad_path} to {self.tmp_path} "
             msg += "as a CSR array"
             if self.log is not None:
                 self.log.warn(msg)
@@ -241,7 +240,7 @@ class AnnDataRowIterator(object):
             duration = time.time()-t0
             if self.log is not None:
                 self.log.benchmark(
-                    msg=f"transcribing {pathlib.Path(h5ad_path).name} to CSR",
+                    msg=f"transcribing {h5ad_path} to CSR",
                     duration=duration)
             else:
                 msg = f"transcription to CSR took {duration:.2e} seconds"
