@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import numpy as np
 import pandas as pd
 import pathlib
@@ -20,7 +21,8 @@ from cell_type_mapper.utils.anndata_utils import (
     write_uns_to_h5ad,
     append_to_obsm,
     does_obsm_have_key,
-    update_uns)
+    update_uns,
+    amalgamate_csr_to_x)
 
 
 @pytest.fixture(scope='module')
@@ -480,3 +482,100 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
     roundtrip_obsm = roundtrip.obsm
     assert 'test' in roundtrip_obsm
     assert list(roundtrip_obsm['test'].z.values) == [13, 14, 15]
+
+
+@pytest.mark.parametrize(
+    "data_dtype, layer",
+    itertools.product(
+        [float, ],
+        ["X"]))
+def test_amalgamate_csr_to_x(
+        data_dtype,
+        layer,
+        tmp_dir_fixture):
+    rng = np.random.default_rng(7112233)
+    n_rows = 1000
+    n_cols = 231
+    n_tot = n_rows*n_cols
+    data = np.zeros(n_tot, dtype=data_dtype)
+    chosen = rng.choice(np.arange(n_tot), n_tot//3, replace=False)
+    if data_dtype == float:
+        data[chosen] = rng.random(len(chosen))
+    elif data_dtype == int:
+        data[chosen] = rng.integers(1, 2**23-1, len(chosen)).astype(data_dtype)
+    elif data_dtype == np.uint16:
+        data[chosen] = rng.integers(1, 255, len(chosen)).astype(data_dtype)
+    else:
+        raise RuntimeError(
+            f"test not designed for type {data_dtype}")
+
+    data = data.reshape((n_rows, n_cols))
+
+    src_path_list = []
+    d_row = 237
+    for i0 in range(0, n_rows, d_row):
+        i1 = min(n_rows, i0+d_row)
+        this = scipy_sparse.csr_matrix(
+            data[i0:i1, :])
+        h5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5')
+        with h5py.File(h5_path, 'w') as dst:
+            dst.create_dataset(
+                'data', data=this.data)
+            dst.create_dataset(
+                'indices', data=this.indices)
+            dst.create_dataset(
+                'indptr', data=this.indptr)
+        src_path_list.append(h5_path)
+
+    var = pd.DataFrame(
+        [{'g': f'g_{ii}'} for ii in range(n_cols)]).set_index('g')
+    obs = pd.DataFrame(
+        [{'c': f'c_{ii}'} for ii  in range(n_rows)]).set_index('c')
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    full_csr = scipy_sparse.csr_matrix(data)
+
+    a_data = anndata.AnnData(obs=obs, var=var)
+
+    a_data.write_h5ad(h5ad_path)
+
+    del a_data
+
+    amalgamate_csr_to_x(
+        src_path_list=src_path_list,
+        dst_path=h5ad_path,
+        final_shape=(n_rows, n_cols),
+        dst_grp=layer)
+
+    round_trip = anndata.read_h5ad(h5ad_path, backed='r')
+
+    if layer == 'X':
+        actual = round_trip.X[()].toarray()
+    else:
+        actual = round_trip.layers[layer.replace('layers/','')][()].toarray()
+
+    np.testing.assert_allclose(
+        actual,
+        data,
+        atol=0.0,
+        rtol=1.0e-6)
+
+    if layer == 'X':
+        col_idx = round_trip.var.index[[14, 188, 33]]
+        print(col_idx)
+        actual = round_trip[:, col_idx].to_memory()
+        expected = np.zeros((n_rows, 3), dtype=data_dtype)
+        expected[:, 0] = data[:, 14]
+        expected[:, 1] = data[:, 188]
+        expected[:, 2] = data[:, 33]
+        assert actual.X.shape == (n_rows, 3)
+        actual_x = actual.chunk_X(np.arange(n_rows))
+        np.testing.assert_allclose(
+            actual_x,
+            expected,
+            atol=0.0,
+            rtol=1.0e-6)

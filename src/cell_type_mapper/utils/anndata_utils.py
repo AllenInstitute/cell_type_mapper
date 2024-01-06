@@ -6,6 +6,11 @@ import numpy as np
 import pandas as pd
 import warnings
 
+from cell_type_mapper.utils.utils import (
+    merge_index_list,
+    mkstemp_clean,
+    _clean_up)
+
 from cell_type_mapper.utils.sparse_utils import (
     amalgamate_sparse_array)
 
@@ -342,3 +347,80 @@ def amalgamate_h5ad(
             name='encoding-version', data='0.1.0')
         x_handle.attrs.create(
             name='shape', data=np.array([len(dst_obs), len(dst_var)]))
+
+
+def amalgamate_csr_to_x(
+        src_path_list,
+        dst_path,
+        final_shape,
+        dst_grp='X'):
+    """
+    Iterat over a list of HDF5 files that store CSR matrices in
+    'data', 'indices', and 'indptr'. Combine the matrices into
+    a single CSR matrix stored according to the h5ad specification
+    in the file specified by dst_path at the group specified
+    by dst_grp
+
+    Parameters
+    ----------
+    src_path_list:
+        List of HDF5 files (in order) from which to read CSR data
+    dst_path:
+        Path to the fil to be written
+    final_shape:
+        Final shape of the dense array represented by the CSR data
+    dst_grp:
+        The HDF5 group in which to store the data (e.g. 'X' or
+        'layers/my_layer')
+    """
+    n_valid = 0
+    n_indptr = final_shape[0]+1
+    data_dtype = None
+    indices_dtype = None
+    for src_path in src_path_list:
+        with h5py.File(src_path, 'r') as src:
+            n_valid += src['data'].shape[0]
+            if data_dtype is None:
+                indices_dtype = src['indices'].dtype
+                data_dtype = src['data'].dtype
+
+    with h5py.File(dst_path, 'a') as dst:
+        grp = dst.create_group(dst_grp)
+        grp.attrs.create(
+            name='encoding-type', data='csr_matrix')
+        grp.attrs.create(
+            name='encoding-version', data='0.1.0')
+        grp.attrs.create(
+            name='shape', data=np.array(final_shape))
+
+        dst_data = grp.create_dataset(
+            'data',
+            shape=(n_valid,),
+            chunks=min(n_valid, 2000),
+            dtype=data_dtype)
+        dst_indices = grp.create_dataset(
+            'indices',
+            shape=(n_valid,),
+            chunks=min(n_valid, 2000),
+            dtype=indices_dtype)
+        dst_indptr = grp.create_dataset(
+            'indptr',
+            shape=(n_indptr,),
+            dtype=np.int32)
+
+        indptr0 = 0
+        indptr_offset = 0
+        data0 = 0
+        for src_path in src_path_list:
+            with h5py.File(src_path, 'r') as src:
+                n_data = src['data'].shape[0]
+                dst_data[data0:data0+n_data] = src['data'][()]
+                dst_indices[data0:data0+n_data] = src['indices'][()]
+                n_rows = src['indptr'].shape[0]-1
+                dst_indptr[indptr0:indptr0+n_rows] = (src['indptr'][:-1]
+                                                      + indptr_offset)
+                indptr0 += n_rows
+                data0 += n_data
+                indptr_offset = src['indptr'][-1] + indptr_offset
+        dst_indptr[-1] = n_valid
+        print(f'n_valid {n_valid} n_indptr {n_indptr} {dst_indptr[-5:]}')

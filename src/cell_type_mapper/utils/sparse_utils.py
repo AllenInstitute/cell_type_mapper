@@ -817,7 +817,7 @@ def _amalgamate_sparse_array(
                 f"{list(src_dtypes)}")
         data_dtype = src_dtypes.pop()
 
-    # oppen with mode='a' so that, if we are adding an 'X' element
+    # open with mode='a' so that, if we are adding an 'X' element
     # to an anndata file, we don't blow away pre-existing obs/var
     # data structures
     with h5py.File(tmp_path, 'r') as tmp_src:
