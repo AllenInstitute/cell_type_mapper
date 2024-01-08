@@ -15,9 +15,6 @@ import scipy.sparse as scipy_sparse
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from cell_type_mapper.utils.sparse_utils import (
-    amalgamate_sparse_array)
-
 from cell_type_mapper.utils.anndata_utils import (
     amalgamate_h5ad)
 
@@ -28,6 +25,7 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
+    layer='X'
 
     if data_dtype != float:
         iinfo = np.iinfo(data_dtype)
@@ -80,7 +78,8 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
+             'rows': list(chosen_rows),
+             'layer': layer})
 
 
     expected_array = np.stack(expected_rows)
@@ -89,11 +88,21 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         dir=tmp_dir_fixture,
         suffix='.h5')
 
-    amalgamate_sparse_array(
+    dst_var = pd.DataFrame(
+        [{'g': f'g_{ii}'}
+         for ii in range(n_cols)]).set_index('g')
+    dst_obs = pd.DataFrame(
+        [{'c': f'c_{ii}'}
+         for ii in range(expected_array.shape[0])]).set_index('c')
+
+    amalgamate_h5ad(
         src_rows=src_rows,
         dst_path=dst_path,
-        sparse_grp='X',
-        verbose=verbose)
+        dst_var=dst_var,
+        dst_obs=dst_obs,
+        verbose=verbose,
+        dst_sparse=True,
+        tmp_dir=tmp_dir_fixture)
 
     with h5py.File(dst_path, 'r') as dst:
         assert dst['X/indices'].dtype == np.int32
@@ -169,7 +178,8 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
+             'rows': list(chosen_rows),
+             'layer': 'X'})
 
 
     expected_array = np.stack(expected_rows)
@@ -252,7 +262,8 @@ def test_failure_when_many_floats(tmp_dir_fixture):
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
+             'rows': list(chosen_rows),
+             'layer': 'X'})
 
 
     dst_path = mkstemp_clean(
@@ -260,8 +271,9 @@ def test_failure_when_many_floats(tmp_dir_fixture):
         suffix='.h5')
 
     with pytest.raises(RuntimeError, match="disparate data types"):
-        amalgamate_sparse_array(
+        amalgamate_h5ad(
             src_rows=src_rows,
             dst_path=dst_path,
-            sparse_grp='X',
+            dst_obs=None,
+            dst_var=None,
             verbose=True)

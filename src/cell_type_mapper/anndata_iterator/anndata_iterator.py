@@ -357,7 +357,6 @@ class CSRRowIterator(object):
                 indptr=h5_handle[self.indptr_key])
         return (chunk, r0, r1)
 
-
     def get_batch(self, row_idx, sparse=False):
         """
         Return a dense array representing the rows whose
@@ -371,7 +370,7 @@ class CSRRowIterator(object):
             (data,
              indices,
              indptr) = _load_disjoint_csr(
-                row_index_list = row_idx,
+                row_index_list=row_idx,
                 data=h5_handle[self.data_key],
                 indices=h5_handle[self.indices_key],
                 indptr=h5_handle[self.indptr_key])

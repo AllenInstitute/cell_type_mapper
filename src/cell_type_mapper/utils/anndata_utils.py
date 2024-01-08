@@ -2,17 +2,18 @@ import anndata
 from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
 import h5py
+import json
 import numpy as np
 import pandas as pd
+import tempfile
 import warnings
 
 from cell_type_mapper.utils.utils import (
-    merge_index_list,
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.utils.sparse_utils import (
-    amalgamate_sparse_array)
+from cell_type_mapper.anndata_iterator.anndata_iterator import (
+    AnnDataRowIterator)
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -287,6 +288,7 @@ def amalgamate_h5ad(
         dst_path,
         dst_obs,
         dst_var,
+        dst_sparse=True,
         verbose=False,
         tmp_dir=None):
 
@@ -302,6 +304,8 @@ def amalgamate_h5ad(
         {
             'path': /path/to/src/file
             'rows': [ordered list of rows/columns from that file]
+            'layer': either 'X' or 'some_layer', in which case data is
+                     read from 'layers/some_layer'
         }
 
     dst_path:
@@ -313,6 +317,11 @@ def amalgamate_h5ad(
     dst_var:
         The var dataframe for the final file
 
+    dst_sparse:
+        A boolean. If True, dst will be written as a CSR
+        matrix. Otherwise, it will be written as a dense
+        matrix.
+
     verbose:
         If True, issue print statements indicating the
         status of the copy
@@ -320,33 +329,98 @@ def amalgamate_h5ad(
     tmp_dir:
         Directory where temporary files will be written
     """
-    # check that all files are csr matrices
-    for src_element in src_rows:
-        src_path = src_element['path']
-        with h5py.File(src_path, 'r') as src:
-            attrs = dict(src['X'].attrs)
-        if attrs['encoding-type'] != 'csr_matrix':
-            raise RuntimeError(
-                f"{src_path} is {attrs}\nnot 'csr_matrix'")
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    try:
+        _amalgamate_h5ad(
+            src_rows=src_rows,
+            dst_path=dst_path,
+            dst_obs=dst_obs,
+            dst_var=dst_var,
+            dst_sparse=dst_sparse,
+            verbose=verbose,
+            tmp_dir=tmp_dir)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _amalgamate_h5ad(
+        src_rows,
+        dst_path,
+        dst_obs,
+        dst_var,
+        dst_sparse,
+        verbose,
+        tmp_dir):
+
+    if not dst_sparse:
+        raise NotImplementedError(
+            "Not ready to amalgamate dense h5ad files")
+
+    # check that all source files have data stored in
+    # the same dtype
+    data_dtype_map = dict()
+    for packet in src_rows:
+        if packet['layer'] == 'X':
+            layer = 'X'
+        else:
+            layer = f'layers/{packet["layer"]}'
+        with h5py.File(packet['path'], 'r') as src:
+            attrs = dict(src[layer].attrs)
+            if attrs['encoding-type'] == 'array':
+                data_dtype_map[packet['path']] = src[layer].dtype
+            else:
+                data_dtype_map[packet['path']] = src[f'{layer}/data'].dtype
+    if len(set(data_dtype_map.values())) > 1:
+        to_output = {
+            k: str(data_dtype_map[k])
+            for k in data_dtype_map
+        }
+        raise RuntimeError(
+            "Cannot merge h5ad files whose arrays have disparate data types\n"
+            f"{json.dumps(to_output, indent=2)}"
+        )
+
+    tmp_path_list = []
+    for packet in src_rows:
+
+        tmp_path = mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5')
+
+        iterator = AnnDataRowIterator(
+            h5ad_path=packet['path'],
+            row_chunk_size=1000,
+            layer=packet['layer'],
+            tmp_dir=tmp_dir,
+            log=None,
+            max_gb=10)
+
+        row_batch = iterator.get_batch(
+            packet['rows'],
+            sparse=dst_sparse)
+
+        with h5py.File(tmp_path, 'w') as tmp_dst:
+            if dst_sparse:
+                tmp_dst.create_dataset(
+                    'data', data=row_batch.data)
+                tmp_dst.create_dataset(
+                    'indices', data=row_batch.indices)
+                tmp_dst.create_dataset(
+                    'indptr', data=row_batch.indptr)
+            else:
+                tmp_dst.create_dataset(
+                    'data', data=row_batch)
+
+        tmp_path_list.append(tmp_path)
 
     a_data = anndata.AnnData(obs=dst_obs, var=dst_var)
     a_data.write_h5ad(dst_path)
 
-    amalgamate_sparse_array(
-        src_rows=src_rows,
+    amalgamate_csr_to_x(
+        src_path_list=tmp_path_list,
         dst_path=dst_path,
-        sparse_grp='X',
-        verbose=verbose,
-        tmp_dir=tmp_dir)
-
-    with h5py.File(dst_path, 'a') as dst:
-        x_handle = dst['X']
-        x_handle.attrs.create(
-            name='encoding-type', data='csr_matrix')
-        x_handle.attrs.create(
-            name='encoding-version', data='0.1.0')
-        x_handle.attrs.create(
-            name='shape', data=np.array([len(dst_obs), len(dst_var)]))
+        final_shape=(len(dst_obs), len(dst_var)),
+        dst_grp='X')
 
 
 def amalgamate_csr_to_x(
