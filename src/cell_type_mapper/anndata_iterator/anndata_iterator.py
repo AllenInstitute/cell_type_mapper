@@ -172,12 +172,17 @@ class AnnDataRowIterator(object):
         return self._chunk_iterator.get_chunk(
             r0=r0, r1=r1)
 
-    def get_batch(self, row_idx):
+    def get_batch(self, row_idx, sparse=False):
         """
         Return a dense array representing the rows whose
         indices are in the list row_idx
+
+        If sparse is True, return result as a CSR matrix.
+        Otherwise, return as a dense array.
         """
-        return self._chunk_iterator.get_batch(row_idx)
+        return self._chunk_iterator.get_batch(
+                        row_idx,
+                        sparse=sparse)
 
     def _initialize_as_csc(
             self,
@@ -353,11 +358,15 @@ class CSRRowIterator(object):
         return (chunk, r0, r1)
 
 
-    def get_batch(self, row_idx):
+    def get_batch(self, row_idx, sparse=False):
         """
         Return a dense array representing the rows whose
         indices are in the list row_idx
+
+        If sparse is True, return result as a CSR matrix.
+        Otherwise, return as a dense array.
         """
+
         with self.h5_handler as h5_handle:
             (data,
              indices,
@@ -369,6 +378,8 @@ class CSRRowIterator(object):
         output = scipy.sparse.csr_matrix(
             (data, indices, indptr),
             shape=(len(row_idx), self.n_cols))
+        if sparse:
+            return output
         return output.toarray()
 
     def __getitem__(self, r0):
@@ -455,10 +466,13 @@ class DenseArrayRowIterator(object):
             chunk = h5_handle[self.data_key][r0:r1, :]
         return (chunk, r0, r1)
 
-    def get_batch(self, row_idx):
+    def get_batch(self, row_idx, sparse=False):
         """
         Return a dense array representing the rows whose
         indices are in the list row_idx
+
+        If sparse is True, return result as a CSR matrix.
+        Otherwise, return as a dense array.
         """
         sorted_row_idx = np.array(copy.deepcopy(row_idx))
         meta_sort = np.argsort(sorted_row_idx)
@@ -468,7 +482,12 @@ class DenseArrayRowIterator(object):
         output = np.zeros(raw.shape, dtype=raw.dtype)
         for ii, idx in enumerate(meta_sort):
             output[idx, :] = raw[ii, :]
-        return output
+
+        if not sparse:
+            return output
+        else:
+            output = scipy.sparse.csr_matrix(output)
+            return output
 
     def __getitem__(self, r0):
         if isinstance(r0, list):
