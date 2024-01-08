@@ -427,4 +427,3 @@ def amalgamate_csr_to_x(
                 data0 += n_data
                 indptr_offset = src['indptr'][-1] + indptr_offset
         dst_indptr[-1] = n_valid
-        print(f'n_valid {n_valid} n_indptr {n_indptr} {dst_indptr[-5:]}')
