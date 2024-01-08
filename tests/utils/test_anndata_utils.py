@@ -487,7 +487,7 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
 @pytest.mark.parametrize(
     "data_dtype, layer",
     itertools.product(
-        [float, ],
+        [float, int, np.uint16],
         ["X"]))
 def test_amalgamate_csr_to_x(
         data_dtype,
@@ -565,17 +565,23 @@ def test_amalgamate_csr_to_x(
         rtol=1.0e-6)
 
     if layer == 'X':
-        col_idx = round_trip.var.index[[14, 188, 33]]
-        print(col_idx)
-        actual = round_trip[:, col_idx].to_memory()
-        expected = np.zeros((n_rows, 3), dtype=data_dtype)
-        expected[:, 0] = data[:, 14]
-        expected[:, 1] = data[:, 188]
-        expected[:, 2] = data[:, 33]
-        assert actual.X.shape == (n_rows, 3)
-        actual_x = actual.chunk_X(np.arange(n_rows))
-        np.testing.assert_allclose(
-            actual_x,
-            expected,
-            atol=0.0,
-            rtol=1.0e-6)
+
+        d_chunk = 431
+        iterator = round_trip.chunked_X(d_chunk)
+        for chunk in iterator:
+            expected = data[chunk[1]:chunk[2], :]
+            np.testing.assert_allclose(chunk[0].toarray(), expected)
+
+        for idx_list in ([14, 188, 33],
+                         [11, 67, 2, 3],
+                         [0, 45, 16],
+                         [3, 67, 22, 230]):
+            col_idx = round_trip.var.index[idx_list]
+            actual = round_trip[:, col_idx].to_memory()
+            expected = data[:, idx_list]
+            actual_x = actual.chunk_X(np.arange(n_rows))
+            np.testing.assert_allclose(
+                actual_x,
+                expected,
+                atol=0.0,
+                rtol=1.0e-6)

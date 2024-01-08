@@ -373,6 +373,10 @@ def amalgamate_csr_to_x(
         The HDF5 group in which to store the data (e.g. 'X' or
         'layers/my_layer')
     """
+    if dst_grp != 'X':
+        raise NotImplementedError(
+            "amalgmage_csr_to_x cannot write to layers other than 'X'")
+
     n_valid = 0
     n_indptr = final_shape[0]+1
     data_dtype = None
