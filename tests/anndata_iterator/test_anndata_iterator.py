@@ -203,6 +203,18 @@ def test_anndata_row_iterator_get_chunk(
             atol=0.0,
             rtol=1.0e-7)
 
+    # now test get_batch (which gets a disjoint set of rows)
+    for row_batch in ([0, 61, 181, 55, 1122],
+                      [5, 77, 233, 88],
+                      [816, 545, 332, 999]):
+        expected = x_array_fixture[row_batch, :]
+        actual = iterator.get_batch(row_batch)
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            atol=0.0,
+            rtol=1.0e-7)
+
 
 @pytest.mark.parametrize(
     "density,with_tmp",

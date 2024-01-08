@@ -1,6 +1,9 @@
+import copy
 import h5py
+import numpy as np
 import os
 import pathlib
+import scipy.sparse
 import tempfile
 import time
 
@@ -12,7 +15,8 @@ from cell_type_mapper.utils.csc_to_csr import (
     csc_to_csr_on_disk)
 
 from cell_type_mapper.utils.sparse_utils import (
-    load_csr)
+    load_csr,
+    _load_disjoint_csr)
 
 
 class h5_handler_manager():
@@ -167,6 +171,13 @@ class AnnDataRowIterator(object):
         """
         return self._chunk_iterator.get_chunk(
             r0=r0, r1=r1)
+
+    def get_batch(self, row_idx):
+        """
+        Return a dense array representing the rows whose
+        indices are in the list row_idx
+        """
+        return self._chunk_iterator.get_batch(row_idx)
 
     def _initialize_as_csc(
             self,
@@ -341,6 +352,25 @@ class CSRRowIterator(object):
                 indptr=h5_handle[self.indptr_key])
         return (chunk, r0, r1)
 
+
+    def get_batch(self, row_idx):
+        """
+        Return a dense array representing the rows whose
+        indices are in the list row_idx
+        """
+        with self.h5_handler as h5_handle:
+            (data,
+             indices,
+             indptr) = _load_disjoint_csr(
+                row_index_list = row_idx,
+                data=h5_handle[self.data_key],
+                indices=h5_handle[self.indices_key],
+                indptr=h5_handle[self.indptr_key])
+        output = scipy.sparse.csr_matrix(
+            (data, indices, indptr),
+            shape=(len(row_idx), self.n_cols))
+        return output.toarray()
+
     def __getitem__(self, r0):
         if isinstance(r0, list):
             r1 = r0[-1] + 1
@@ -424,6 +454,21 @@ class DenseArrayRowIterator(object):
         with self.h5_handler as h5_handle:
             chunk = h5_handle[self.data_key][r0:r1, :]
         return (chunk, r0, r1)
+
+    def get_batch(self, row_idx):
+        """
+        Return a dense array representing the rows whose
+        indices are in the list row_idx
+        """
+        sorted_row_idx = np.array(copy.deepcopy(row_idx))
+        meta_sort = np.argsort(sorted_row_idx)
+        sorted_row_idx = sorted_row_idx[meta_sort]
+        with self.h5_handler as h5_handle:
+            raw = h5_handle[self.data_key][sorted_row_idx, :]
+        output = np.zeros(raw.shape, dtype=raw.dtype)
+        for ii, idx in enumerate(meta_sort):
+            output[idx, :] = raw[ii, :]
+        return output
 
     def __getitem__(self, r0):
         if isinstance(r0, list):
