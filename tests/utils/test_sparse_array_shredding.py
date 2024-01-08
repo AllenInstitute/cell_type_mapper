@@ -19,13 +19,19 @@ from cell_type_mapper.utils.anndata_utils import (
     amalgamate_h5ad)
 
 
-@pytest.mark.parametrize('data_dtype,verbose',
-    itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
+@pytest.mark.parametrize('data_dtype, layer, density',
+    itertools.product(
+        [np.uint8, np.uint16, np.int16, float],
+        ['X', 'dummy'],
+        ['csr', 'csc']))
+def test_csr_amalgamation(
+        tmp_dir_fixture,
+        data_dtype,
+        layer,
+        density):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
-    layer='X'
 
     if data_dtype != float:
         iinfo = np.iinfo(data_dtype)
@@ -33,7 +39,6 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         d_min = iinfo.min
         if d_min == 0:
             d_min = 1
-
 
     src_rows = []
     expected_rows = []
@@ -70,8 +75,21 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if density == 'csr':
+            data = scipy_sparse.csr_matrix(data.astype(data_dtype))
+        elif density == 'csc':
+            data = scipy_sparse.csc_matrix(data.astype(data_dtype))
+
+        if layer == 'X':
+            x = data
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: data}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
@@ -80,7 +98,6 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
             {'path': this_path,
              'rows': list(chosen_rows),
              'layer': layer})
-
 
     expected_array = np.stack(expected_rows)
 
@@ -100,7 +117,6 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         dst_path=dst_path,
         dst_var=dst_var,
         dst_obs=dst_obs,
-        verbose=verbose,
         dst_sparse=True,
         tmp_dir=tmp_dir_fixture)
 
@@ -120,9 +136,16 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
     assert actual.dtype == data_dtype
 
 
-@pytest.mark.parametrize('data_dtype,verbose',
-    itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
+@pytest.mark.parametrize('data_dtype, layer, density',
+    itertools.product(
+        [np.uint8, np.uint16, np.int16, float],
+        ['X', 'dummy'],
+        ['csr', 'csc']))
+def test_csr_anndata_amalgamation(
+        tmp_dir_fixture,
+        data_dtype,
+        layer,
+        density):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
@@ -170,8 +193,21 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if density == 'csr':
+            data = scipy_sparse.csr_matrix(data.astype(data_dtype))
+        elif density == 'csc':
+            data = scipy_sparse.csc_matrix(data.astype(data_dtype))
+
+        if layer == 'X':
+            x = data
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: data}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
@@ -179,8 +215,7 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         src_rows.append(
             {'path': this_path,
              'rows': list(chosen_rows),
-             'layer': 'X'})
-
+             'layer': layer})
 
     expected_array = np.stack(expected_rows)
 
@@ -200,8 +235,7 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         src_rows=src_rows,
         dst_path=dst_path,
         dst_obs=new_obs,
-        dst_var=new_var,
-        verbose=verbose)
+        dst_var=new_var)
 
     actual_a = anndata.read_h5ad(dst_path, backed='r')
     pd.testing.assert_frame_equal(actual_a.obs, new_obs)
@@ -216,7 +250,8 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
 
 
-def test_failure_when_many_floats(tmp_dir_fixture):
+@pytest.mark.parametrize('layer', ['X', 'dummy'])
+def test_failure_when_many_floats(tmp_dir_fixture, layer):
     """
     Test that amalgamation fails when the input arrays
     have disparate float dtypes
@@ -254,8 +289,16 @@ def test_failure_when_many_floats(tmp_dir_fixture):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if layer == 'X':
+            x = scipy_sparse.csr_matrix(data)
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: scipy_sparse.csr_matrix(data.astype(data_dtype))}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
@@ -263,8 +306,7 @@ def test_failure_when_many_floats(tmp_dir_fixture):
         src_rows.append(
             {'path': this_path,
              'rows': list(chosen_rows),
-             'layer': 'X'})
-
+             'layer': layer})
 
     dst_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -275,5 +317,4 @@ def test_failure_when_many_floats(tmp_dir_fixture):
             src_rows=src_rows,
             dst_path=dst_path,
             dst_obs=None,
-            dst_var=None,
-            verbose=True)
+            dst_var=None)

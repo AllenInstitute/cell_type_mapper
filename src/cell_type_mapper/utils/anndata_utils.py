@@ -289,7 +289,6 @@ def amalgamate_h5ad(
         dst_obs,
         dst_var,
         dst_sparse=True,
-        verbose=False,
         tmp_dir=None):
 
     """
@@ -322,10 +321,6 @@ def amalgamate_h5ad(
         matrix. Otherwise, it will be written as a dense
         matrix.
 
-    verbose:
-        If True, issue print statements indicating the
-        status of the copy
-
     tmp_dir:
         Directory where temporary files will be written
     """
@@ -337,7 +332,6 @@ def amalgamate_h5ad(
             dst_obs=dst_obs,
             dst_var=dst_var,
             dst_sparse=dst_sparse,
-            verbose=verbose,
             tmp_dir=tmp_dir)
     finally:
         _clean_up(tmp_dir)
@@ -349,7 +343,6 @@ def _amalgamate_h5ad(
         dst_obs,
         dst_var,
         dst_sparse,
-        verbose,
         tmp_dir):
 
     if not dst_sparse:
