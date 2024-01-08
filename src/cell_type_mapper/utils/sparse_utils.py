@@ -807,7 +807,6 @@ def _amalgamate_sparse_array(
                 tmp_indptr_key,
                 data=np.array(full_indptr))
 
-    indices_dtype = choose_int_dtype((0, max_index))
     if data_is_int:
         data_dtype = choose_int_dtype((data_min, data_max))
     else:
@@ -835,12 +834,12 @@ def _amalgamate_sparse_array(
             dst_handle.create_dataset(
                 'indices',
                 shape=(ct_elements,),
-                dtype=indices_dtype,
+                dtype=np.int32,
                 chunks=(min(ct_elements, 10000),))
             dst_handle.create_dataset(
                 'indptr',
                 shape=(ct_rows+1,),
-                dtype=int,
+                dtype=np.int32,
                 chunks=(min(ct_rows+1, 10000),))
 
             current_index = 0

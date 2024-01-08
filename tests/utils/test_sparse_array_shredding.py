@@ -96,6 +96,8 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         verbose=verbose)
 
     with h5py.File(dst_path, 'r') as dst:
+        assert dst['X/indices'].dtype == np.int32
+        assert dst['X/indptr'].dtype == np.int32
         actual = scipy_sparse.csr_matrix(
             (dst['X/data'][()],
              dst['X/indices'][()],
@@ -204,7 +206,7 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
 
 
 
-def test_failure_when_many_floates(tmp_dir_fixture):
+def test_failure_when_many_floats(tmp_dir_fixture):
     """
     Test that amalgamation fails when the input arrays
     have disparate float dtypes
