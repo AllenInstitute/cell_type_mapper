@@ -82,7 +82,7 @@ def validate_h5ad(
     Both valid_h5ad_path and output_dir cannot be non-None
     """
 
-    h5ad_path = pathlib.Path(h5ad_path)
+    original_h5ad_path = pathlib.Path(h5ad_path)
 
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
@@ -96,9 +96,6 @@ def validate_h5ad(
     has_warnings = False
 
     output_path = None
-
-    # the actual input file
-    original_h5ad_path = pathlib.Path(h5ad_path)
 
     # check that file can even be open
     try:
