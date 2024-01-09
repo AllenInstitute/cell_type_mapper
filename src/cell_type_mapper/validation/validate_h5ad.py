@@ -240,7 +240,7 @@ def _validate_h5ad(
 
     if output_path is not None:
         if log is not None:
-            msg = (f"VALIDATION: copied ../{h5ad_path.name} "
+            msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
                    f"to ../{new_h5ad_path.name}")
             log.info(msg)
 
@@ -332,7 +332,7 @@ def _validate_h5ad(
         has_warnings = True
 
     if log is not None:
-        msg = f"DONE VALIDATING ../{h5ad_path.name}; "
+        msg = f"DONE VALIDATING ../{original_h5ad_path.name}; "
         if output_path is not None:
             msg += f"reformatted file written to ../{output_path.name}\n"
         else:
