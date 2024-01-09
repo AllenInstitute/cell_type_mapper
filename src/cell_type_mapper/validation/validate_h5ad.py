@@ -148,29 +148,9 @@ def _validate_h5ad(
             h5ad_path=original_h5ad_path,
             df_name='var')
 
-    error_msg = ''
-    unq_genes, unq_gene_count = np.unique(
-        var_original.index.values,
-        return_counts=True)
-    repeated = np.where(unq_gene_count > 1)[0]
-    for idx in repeated:
-        error_msg += (
-            f"gene name '{unq_genes[idx]}' "
-            f"occurs {unq_gene_count[idx]} times; "
-            "gene names must be unique\n")
-
-    gene_names = set(var_original.index.values)
-    for bad_val in ('',):
-        if bad_val in gene_names:
-            error_msg += (f"gene name '{bad_val}' is invalid; "
-                          "if you cannot remove this column, just "
-                          "change the gene name to a (unique) "
-                          "nonsense string.")
-    if len(error_msg) > 0:
-        if log is not None:
-            log.error(error_msg)
-        else:
-            raise RuntimeError(error_msg)
+    _check_input_gene_names(
+        var_df=var_original,
+        log=log)
 
     # check that anndata metadata fields are present
     if layer == 'X':
@@ -368,3 +348,48 @@ def _validate_h5ad(
             {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
 
     return output_path, has_warnings
+
+
+def _check_input_gene_names(
+        var_df,
+        log):
+    """
+    Check that the var dataframe in var_df has unique
+    gene names and that none of the gene names are blank
+
+    Parameters
+    ----------
+    var_df:
+        a pandas dataframe. The 'var' element in an h5ad file
+    log:
+       Optional CommandLog. If None, errors will be thrown straight
+       to stderr
+
+    Returns
+    -------
+    None
+        Just throws errors if anything is amiss
+    """
+    error_msg = ''
+    unq_genes, unq_gene_count = np.unique(
+        var_df.index.values,
+        return_counts=True)
+    repeated = np.where(unq_gene_count > 1)[0]
+    for idx in repeated:
+        error_msg += (
+            f"gene name '{unq_genes[idx]}' "
+            f"occurs {unq_gene_count[idx]} times; "
+            "gene names must be unique\n")
+
+    gene_names = set(var_df.index.values)
+    for bad_val in ('',):
+        if bad_val in gene_names:
+            error_msg += (f"gene name '{bad_val}' is invalid; "
+                          "if you cannot remove this column, just "
+                          "change the gene name to a (unique) "
+                          "nonsense string.")
+    if len(error_msg) > 0:
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
