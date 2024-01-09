@@ -74,6 +74,9 @@ def validate_h5ad(
     Path to validated h5ad (if relevant).
     Returns None if no action was taken
 
+    Also a boolean indicating if there were warnings raised
+    by the validation process.
+
     Notes
     -----
     If valid_h5ad_path is specified, this is where the validated file
@@ -141,9 +144,8 @@ def _validate_h5ad(
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
+    write_to_new_path = False
     has_warnings = False
-
-    output_path = None
 
     # check that file can even be open
     try:
@@ -204,7 +206,7 @@ def _validate_h5ad(
             original_h5ad_path=original_h5ad_path,
             new_h5ad_path=new_h5ad_path,
             layer=layer)
-        output_path = new_h5ad_path
+        write_to_new_path = True
         working_h5ad_path = new_h5ad_path
 
     n_genes = len(var_original)
@@ -238,15 +240,15 @@ def _validate_h5ad(
 
     if mapped_var is not None or cast_to_int:
         # Copy data over, if it has not already been copied
-        if output_path is None:
+        if not write_to_new_path:
             copy_layer_to_x(
                 original_h5ad_path=original_h5ad_path,
                 new_h5ad_path=new_h5ad_path,
                 layer='X')
 
-            output_path = new_h5ad_path
+            write_to_new_path = True
 
-    if output_path is not None:
+    if write_to_new_path:
         if log is not None:
             msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
                    f"to ../{new_h5ad_path.name}")
@@ -320,19 +322,24 @@ def _validate_h5ad(
 
     if log is not None:
         msg = f"DONE VALIDATING ../{original_h5ad_path.name}; "
-        if output_path is not None:
-            msg += f"reformatted file written to ../{output_path.name}\n"
+        if write_to_new_path:
+            msg += f"reformatted file written to ../{new_h5ad_path.name}\n"
         else:
             msg += "no changes required"
         log.info(msg)
 
-    if output_path is None:
+    if write_to_new_path:
+        update_uns(
+            new_h5ad_path,
+            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
+    else:
         if new_h5ad_path.exists():
             new_h5ad_path.unlink()
+
+    if write_to_new_path:
+        output_path = new_h5ad_path
     else:
-        update_uns(
-            output_path,
-            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
+        output_path = None
 
     return output_path, has_warnings
 
