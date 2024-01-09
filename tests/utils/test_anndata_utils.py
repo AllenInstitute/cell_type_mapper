@@ -22,7 +22,8 @@ from cell_type_mapper.utils.anndata_utils import (
     append_to_obsm,
     does_obsm_have_key,
     update_uns,
-    amalgamate_csr_to_x)
+    amalgamate_csr_to_x,
+    amalgamate_dense_to_x)
 
 
 @pytest.fixture(scope='module')
@@ -485,13 +486,15 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
 
 
 @pytest.mark.parametrize(
-    "data_dtype, layer",
+    "data_dtype, layer, density",
     itertools.product(
         [float, int, np.uint16],
-        ["X"]))
+        ["X"],
+        ["csr", "dense"]))
 def test_amalgamate_csr_to_x(
         data_dtype,
         layer,
+        density,
         tmp_dir_fixture):
     rng = np.random.default_rng(7112233)
     n_rows = 1000
@@ -512,22 +515,33 @@ def test_amalgamate_csr_to_x(
     data = data.reshape((n_rows, n_cols))
 
     src_path_list = []
-    d_row = 237
-    for i0 in range(0, n_rows, d_row):
-        i1 = min(n_rows, i0+d_row)
-        this = scipy_sparse.csr_matrix(
-            data[i0:i1, :])
+
+    # size of chunks to save in different .h5 files
+    d_row_list = [237, 1, 412, 348, 2]
+
+    i0 = 0
+    for d_row in d_row_list:
+        i1 = i0 + d_row
+
         h5_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.h5')
-        with h5py.File(h5_path, 'w') as dst:
-            dst.create_dataset(
-                'data', data=this.data)
-            dst.create_dataset(
-                'indices', data=this.indices)
-            dst.create_dataset(
-                'indptr', data=this.indptr)
+        if density == "csr":
+            this = scipy_sparse.csr_matrix(
+                data[i0:i1, :])
+            with h5py.File(h5_path, 'w') as dst:
+                dst.create_dataset(
+                    'data', data=this.data)
+                dst.create_dataset(
+                    'indices', data=this.indices)
+                dst.create_dataset(
+                    'indptr', data=this.indptr)
+        else:
+            with h5py.File(h5_path, 'w') as dst:
+                dst.create_dataset('data', data=data[i0:i1, :])
+
         src_path_list.append(h5_path)
+        i0 = i1
 
     var = pd.DataFrame(
         [{'g': f'g_{ii}'} for ii in range(n_cols)]).set_index('g')
@@ -545,18 +559,28 @@ def test_amalgamate_csr_to_x(
 
     del a_data
 
-    amalgamate_csr_to_x(
-        src_path_list=src_path_list,
-        dst_path=h5ad_path,
-        final_shape=(n_rows, n_cols),
-        dst_grp=layer)
+    if density == "csr":
+        amalgamate_csr_to_x(
+            src_path_list=src_path_list,
+            dst_path=h5ad_path,
+            final_shape=(n_rows, n_cols),
+            dst_grp=layer)
+    else:
+        amalgamate_dense_to_x(
+            src_path_list=src_path_list,
+            dst_path=h5ad_path,
+            final_shape=(n_rows, n_cols),
+            dst_grp=layer)
 
     round_trip = anndata.read_h5ad(h5ad_path, backed='r')
 
     if layer == 'X':
-        actual = round_trip.X[()].toarray()
+        actual = round_trip.X[()]
     else:
-        actual = round_trip.layers[layer.replace('layers/','')][()].toarray()
+        actual = round_trip.layers[layer.replace('layers/','')][()]
+
+    if density == "csr":
+        actual = actual.toarray()
 
     np.testing.assert_allclose(
         actual,
@@ -570,7 +594,10 @@ def test_amalgamate_csr_to_x(
         iterator = round_trip.chunked_X(d_chunk)
         for chunk in iterator:
             expected = data[chunk[1]:chunk[2], :]
-            np.testing.assert_allclose(chunk[0].toarray(), expected)
+            actual = chunk[0]
+            if density == "csr":
+                actual = actual.toarray()
+            np.testing.assert_allclose(actual, expected)
 
         for idx_list in ([14, 188, 33],
                          [11, 67, 2, 3],
