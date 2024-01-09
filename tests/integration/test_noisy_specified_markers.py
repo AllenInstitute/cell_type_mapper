@@ -419,8 +419,9 @@ def test_mapping_from_markers(
 
 @pytest.mark.parametrize(
         'flatten,use_gpu,just_once,drop_subclass,'
-        'clobber',
+        'clobber,use_tmp_dir',
         itertools.product(
+            (True, False),
             (True, False),
             (True, False),
             (True, False),
@@ -437,6 +438,7 @@ def test_mapping_from_markers_to_query_h5ad(
         use_gpu,
         just_once,
         drop_subclass,
+        use_tmp_dir,
         clobber):
     """
     Test that we correctly write output to query_path.obsm when
@@ -452,7 +454,6 @@ def test_mapping_from_markers_to_query_h5ad(
     """
 
     use_csv = True
-    use_tmp_dir = True
     obsm_key = 'cdm_mapping'
 
     if use_gpu and not is_torch_available():
