@@ -9,6 +9,7 @@ import warnings
 from cell_type_mapper.utils.utils import (
     choose_int_dtype,
     get_timestamp,
+    mkstemp_clean,
     _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -114,6 +115,13 @@ def _validate_h5ad(
 
     original_h5ad_path = pathlib.Path(h5ad_path)
 
+    tmp_h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix=original_h5ad_path.name,
+            suffix='.h5ad')
+        )
+
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
             "Cannot specify both valid_h5ad_path and output_dir; "
@@ -122,6 +130,16 @@ def _validate_h5ad(
     if valid_h5ad_path is None and output_dir is None:
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
+
+    h5ad_name = original_h5ad_path.name.replace(
+                    original_h5ad_path.suffix, '')
+
+    if valid_h5ad_path is None:
+        output_dir = pathlib.Path(output_dir)
+        timestamp = get_timestamp().replace('-', '')
+        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    else:
+        new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
     has_warnings = False
 
@@ -178,16 +196,6 @@ def _validate_h5ad(
     # early on and all subsequent processing happens on that
     # file)
     working_h5ad_path = original_h5ad_path
-
-    h5ad_name = original_h5ad_path.name.replace(
-                    original_h5ad_path.suffix, '')
-
-    if valid_h5ad_path is None:
-        output_dir = pathlib.Path(output_dir)
-        timestamp = get_timestamp().replace('-', '')
-        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
-    else:
-        new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
     if layer != 'X':
         # Copy data into new file, moving cell by gene data from
