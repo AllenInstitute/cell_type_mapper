@@ -2,12 +2,14 @@ import h5py
 import json
 import numpy as np
 import pathlib
+import tempfile
 import traceback
 import warnings
 
 from cell_type_mapper.utils.utils import (
     choose_int_dtype,
-    get_timestamp)
+    get_timestamp,
+    _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -81,6 +83,34 @@ def validate_h5ad(
 
     Both valid_h5ad_path and output_dir cannot be non-None
     """
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    try:
+        result = _validate_h5ad(
+            h5ad_path=h5ad_path,
+            gene_id_mapper=gene_id_mapper,
+            log=log,
+            expected_max=expected_max,
+            tmp_dir=tmp_dir,
+            layer=layer,
+            round_to_int=round_to_int,
+            output_dir=output_dir,
+            valid_h5ad_path=valid_h5ad_path)
+    finally:
+        _clean_up(tmp_dir)
+
+    return result
+
+
+def _validate_h5ad(
+        h5ad_path,
+        gene_id_mapper,
+        log=None,
+        expected_max=20,
+        tmp_dir=None,
+        layer='X',
+        round_to_int=True,
+        output_dir=None,
+        valid_h5ad_path=None):
 
     original_h5ad_path = pathlib.Path(h5ad_path)
 
