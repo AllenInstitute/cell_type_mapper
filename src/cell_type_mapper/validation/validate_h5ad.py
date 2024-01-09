@@ -12,6 +12,9 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.h5_utils import (
+    copy_h5_excluding_data)
+
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
     write_df_to_h5ad,
@@ -193,23 +196,13 @@ def _validate_h5ad(
         else:
             log.error(msg)
 
-    # where data should be taken from at each step of the
-    # validation (if layer != 'X', a new file will be created
-    # early on and all subsequent processing happens on that
-    # file)
-    working_h5ad_path = original_h5ad_path
-
-    if layer != 'X':
-        # Copy data into new file, moving cell by gene data from
-        # layer to X
-        copy_layer_to_x(
-            original_h5ad_path=original_h5ad_path,
-            new_h5ad_path=new_h5ad_path,
+    cast_to_int = False
+    if round_to_int:
+        is_int = is_x_integers(
+            h5ad_path=original_h5ad_path,
             layer=layer)
-        write_to_new_path = True
-        working_h5ad_path = new_h5ad_path
-
-    n_genes = len(var_original)
+        if not is_int:
+            cast_to_int = True
 
     (mapped_var,
      n_unmapped_genes) = map_gene_ids_in_var(
@@ -217,14 +210,10 @@ def _validate_h5ad(
         gene_id_mapper=gene_id_mapper,
         log=log)
 
-    cast_to_int = False
-    if round_to_int:
-        is_int = is_x_integers(h5ad_path=working_h5ad_path)
-        if not is_int:
-            cast_to_int = True
-
     if expected_max is not None or cast_to_int:
-        x_minmax = get_minmax_x_from_h5ad(h5ad_path=working_h5ad_path)
+        x_minmax = get_minmax_x_from_h5ad(
+            h5ad_path=original_h5ad_path,
+            layer=layer)
 
         if expected_max is not None and x_minmax[1] < expected_max:
             msg = "VALIDATION: CDM expects raw counts data. The maximum value "
@@ -238,87 +227,101 @@ def _validate_h5ad(
                 warnings.warn(msg)
             has_warnings = True
 
-    if mapped_var is not None or cast_to_int:
-        # Copy data over, if it has not already been copied
-        if not write_to_new_path:
-            copy_layer_to_x(
-                original_h5ad_path=original_h5ad_path,
-                new_h5ad_path=new_h5ad_path,
-                layer='X')
+    if layer != 'X' or mapped_var is not None or cast_to_int:
+        # Copy data into new file, moving cell by gene data from
+        # layer to X
+        copy_layer_to_x(
+            original_h5ad_path=original_h5ad_path,
+            new_h5ad_path=tmp_h5ad_path,
+            layer=layer)
 
-            write_to_new_path = True
+        write_to_new_path = True
 
-    if write_to_new_path:
         if log is not None:
             msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
                    f"to ../{new_h5ad_path.name}")
             log.info(msg)
 
-    if mapped_var is not None:
-        if log is not None:
-            msg = "VALIDATION: modifying var dataframe of "
-            msg += f"../{original_h5ad_path.name} to include "
-            msg += "proper gene identifiers"
-            log.info(msg)
-
-        # check if genes are repeated in the mapped var DataFrame
-        if len(mapped_var) != len(set(mapped_var.index.values)):
-            repeats = dict()
-            for orig, mapped in zip(var_original.index.values,
-                                    mapped_var.index.values):
-                if mapped not in repeats:
-                    repeats[mapped] = []
-                repeats[mapped].append(orig)
-            for mapped in mapped_var.index.values:
-                if len(repeats[mapped]) == 1:
-                    repeats.pop(mapped)
-            error_msg = (
-                "The following gene symbols in your h5ad file "
-                "mapped to identical gene identifiers in the "
-                "validated h5ad file. The validated h5ad file must "
-                "contain unique gene identifiers.\n"
-            )
-            for mapped in repeats:
-                error_msg += (
-                    f"{json.dumps(repeats[mapped])} "
-                    "all mapped to "
-                    f"{mapped}\n"
-                )
+        if mapped_var is not None:
             if log is not None:
-                log.error(error_msg)
+                msg = "VALIDATION: modifying var dataframe of "
+                msg += f"../{original_h5ad_path.name} to include "
+                msg += "proper gene identifiers"
+                log.info(msg)
+
+            # check if genes are repeated in the mapped var DataFrame
+            if len(mapped_var) != len(set(mapped_var.index.values)):
+                repeats = dict()
+                for orig, mapped in zip(var_original.index.values,
+                                        mapped_var.index.values):
+                    if mapped not in repeats:
+                        repeats[mapped] = []
+                    repeats[mapped].append(orig)
+                for mapped in mapped_var.index.values:
+                    if len(repeats[mapped]) == 1:
+                        repeats.pop(mapped)
+                error_msg = (
+                    "The following gene symbols in your h5ad file "
+                    "mapped to identical gene identifiers in the "
+                    "validated h5ad file. The validated h5ad file must "
+                    "contain unique gene identifiers.\n"
+                )
+                for mapped in repeats:
+                    error_msg += (
+                        f"{json.dumps(repeats[mapped])} "
+                        "all mapped to "
+                        f"{mapped}\n"
+                    )
+                if log is not None:
+                    log.error(error_msg)
+                else:
+                    raise RuntimeError(error_msg)
+
+            write_df_to_h5ad(
+                h5ad_path=tmp_h5ad_path,
+                df_name='var',
+                df_value=mapped_var)
+
+            gene_mapping = {
+                orig: new
+                for orig, new in zip(var_original.index.values,
+                                     mapped_var.index.values)
+                if orig != new}
+
+            uns = read_uns_from_h5ad(tmp_h5ad_path)
+            uns['AIBS_CDM_gene_mapping'] = gene_mapping
+            write_uns_to_h5ad(tmp_h5ad_path, uns)
+            has_warnings = True
+
+        if cast_to_int:
+            output_dtype = choose_int_dtype(x_minmax)
+
+            msg = "VALIDATION: rounding X matrix of "
+            msg += f"{original_h5ad_path.name} to integer values"
+            if log is not None:
+                log.warn(msg)
             else:
-                raise RuntimeError(error_msg)
+                warnings.warn(msg)
+            round_x_to_integers(
+                h5ad_path=tmp_h5ad_path,
+                tmp_dir=tmp_dir,
+                output_dtype=output_dtype)
+            has_warnings = True
 
-        write_df_to_h5ad(
-            h5ad_path=new_h5ad_path,
-            df_name='var',
-            df_value=mapped_var)
+    if write_to_new_path:
+        n_genes = len(var_original)
+        update_uns(
+            tmp_h5ad_path,
+            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
 
-        gene_mapping = {
-            orig: new
-            for orig, new in zip(var_original.index.values,
-                                 mapped_var.index.values)
-            if orig != new}
-
-        uns = read_uns_from_h5ad(new_h5ad_path)
-        uns['AIBS_CDM_gene_mapping'] = gene_mapping
-        write_uns_to_h5ad(new_h5ad_path, uns)
-        has_warnings = True
-
-    if cast_to_int:
-        output_dtype = choose_int_dtype(x_minmax)
-
-        msg = "VALIDATION: rounding X matrix of "
-        msg += f"{original_h5ad_path.name} to integer values"
-        if log is not None:
-            log.warn(msg)
-        else:
-            warnings.warn(msg)
-        round_x_to_integers(
-            h5ad_path=new_h5ad_path,
-            tmp_dir=tmp_dir,
-            output_dtype=output_dtype)
-        has_warnings = True
+        copy_h5_excluding_data(
+            src_path=tmp_h5ad_path,
+            dst_path=new_h5ad_path,
+            excluded_groups=None,
+            excluded_datasets=None)
+    else:
+        if new_h5ad_path.exists():
+            new_h5ad_path.unlink()
 
     if log is not None:
         msg = f"DONE VALIDATING ../{original_h5ad_path.name}; "
@@ -327,14 +330,6 @@ def _validate_h5ad(
         else:
             msg += "no changes required"
         log.info(msg)
-
-    if write_to_new_path:
-        update_uns(
-            new_h5ad_path,
-            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
-    else:
-        if new_h5ad_path.exists():
-            new_h5ad_path.unlink()
 
     if write_to_new_path:
         output_path = new_h5ad_path
