@@ -290,27 +290,6 @@ def _validate_h5ad(
                                  mapped_var.index.values)
             if orig != new}
 
-        inverse_mapping = dict()
-        for orig in gene_mapping:
-            new = gene_mapping[orig]
-            if new not in inverse_mapping:
-                inverse_mapping[new] = []
-            inverse_mapping[new].append(orig)
-
-        # check uniqueness of output gene names
-        error_msg = ""
-        for new in inverse_mapping:
-            if len(inverse_mapping[new]) > 1:
-                error_msg += (
-                    f"gene '{new}' occurs more than once "
-                    "in validated h5ad file; originally "
-                    f"mapped from '{inverse_mapping[new]}'\n")
-        if len(error_msg) > 0:
-            if log:
-                log.error(error_msg)
-            else:
-                raise RuntimeError(error_msg)
-
         uns = read_uns_from_h5ad(new_h5ad_path)
         uns['AIBS_CDM_gene_mapping'] = gene_mapping
         write_uns_to_h5ad(new_h5ad_path, uns)
