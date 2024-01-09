@@ -202,3 +202,119 @@ def test_anndata_row_iterator_get_chunk(
             x_array_fixture[i0:i1, :],
             atol=0.0,
             rtol=1.0e-7)
+
+    # now test get_batch (which gets a disjoint set of rows)
+    for row_batch in ([0, 61, 181, 55, 1122],
+                      [5, 77, 233, 88],
+                      [816, 545, 332, 999]):
+        expected = x_array_fixture[row_batch, :]
+        actual = iterator.get_batch(row_batch, sparse=False)
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            atol=0.0,
+            rtol=1.0e-7)
+
+    for row_batch in ([0, 61, 181, 55, 1122],
+                      [5, 77, 233, 88],
+                      [816, 545, 332, 999]):
+        expected = x_array_fixture[row_batch, :]
+        actual = iterator.get_batch(row_batch, sparse=True)
+        assert isinstance(actual, scipy_sparse.csr_matrix)
+        actual = actual.toarray()
+        np.testing.assert_allclose(
+            actual,
+            expected,
+            atol=0.0,
+            rtol=1.0e-7)
+
+
+@pytest.mark.parametrize(
+    "density,with_tmp",
+    [
+        ('dense', False),
+        ('csr', False),
+        ('csc', False),
+        ('csc', True)
+    ]
+)
+def test_anndata_iterator_from_layer(
+        tmp_dir_fixture,
+        density,
+        with_tmp):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='anndata_from_layer_',
+        suffix='.h5ad')
+
+    n_rows = 119
+    n_cols = 567
+    rng = np.random.default_rng(991231)
+    fraction = 0.3
+
+    n_tot = n_rows*n_cols
+    data = np.zeros(n_tot, dtype=float)
+    chosen = rng.choice(
+        np.arange(n_tot),
+        np.round(fraction*n_tot).astype(int),
+        replace=False)
+    data[chosen] = rng.random(len(chosen))
+    data = data.reshape((n_rows, n_cols))
+    if density == 'csc':
+        layer_data = scipy_sparse.csc_matrix(data)
+    elif density == 'csr':
+        layer_data = scipy_sparse.csr_matrix(data)
+    elif density == 'dense':
+        layer_data = data
+    else:
+        raise RuntimeError(f"cannot handle density {density}")
+
+    a = anndata.AnnData(
+        X=np.zeros((n_rows, n_cols), dtype=float),
+        layers={'dummy': layer_data})
+
+    a.write_h5ad(
+        h5ad_path,
+        compression='gzip',
+        compression_opts=4)
+
+    if with_tmp:
+        tmp_dir = tmp_dir_fixture
+    else:
+        tmp_dir = None
+
+    chunk_size = 57
+    iterator = AnnDataRowIterator(
+        h5ad_path=h5ad_path,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir,
+        layer='dummy')
+
+    for r0 in range(0, n_rows, chunk_size):
+        r1 = min(n_rows, r0+chunk_size)
+        chunk = next(iterator)
+        assert chunk[1] == r0
+        assert chunk[2] == r1
+        np.testing.assert_allclose(
+            chunk[0],
+            data[r0:r1, :],
+            atol=0.0,
+            rtol=1.0e-6)
+
+    for r0, r1 in [(10, 34), (7, 67), (23, 103), (56, 119)]:
+        chunk = iterator.get_chunk(r0=r0, r1=r1)
+        assert chunk[1] == r0
+        assert chunk[2] == r1
+        np.testing.assert_allclose(
+            chunk[0],
+            data[r0:r1, :],
+            atol=0.0,
+            rtol=1.0e-6)
+
+    for row in [55, 77, 112, 0, 45]:
+        np.testing.assert_allclose(
+            iterator[row][0][0,:],
+            data[row, :],
+            atol=0.0,
+            rtol=1.0e-6)

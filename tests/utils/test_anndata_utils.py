@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import numpy as np
 import pandas as pd
 import pathlib
@@ -20,7 +21,9 @@ from cell_type_mapper.utils.anndata_utils import (
     write_uns_to_h5ad,
     append_to_obsm,
     does_obsm_have_key,
-    update_uns)
+    update_uns,
+    amalgamate_csr_to_x,
+    amalgamate_dense_to_x)
 
 
 @pytest.fixture(scope='module')
@@ -480,3 +483,132 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
     roundtrip_obsm = roundtrip.obsm
     assert 'test' in roundtrip_obsm
     assert list(roundtrip_obsm['test'].z.values) == [13, 14, 15]
+
+
+@pytest.mark.parametrize(
+    "data_dtype, layer, density",
+    itertools.product(
+        [float, int, np.uint16],
+        ["X"],
+        ["csr", "dense"]))
+def test_amalgamate_csr_to_x(
+        data_dtype,
+        layer,
+        density,
+        tmp_dir_fixture):
+    rng = np.random.default_rng(7112233)
+    n_rows = 1000
+    n_cols = 231
+    n_tot = n_rows*n_cols
+    data = np.zeros(n_tot, dtype=data_dtype)
+    chosen = rng.choice(np.arange(n_tot), n_tot//3, replace=False)
+    if data_dtype == float:
+        data[chosen] = rng.random(len(chosen))
+    elif data_dtype == int:
+        data[chosen] = rng.integers(1, 2**23-1, len(chosen)).astype(data_dtype)
+    elif data_dtype == np.uint16:
+        data[chosen] = rng.integers(1, 255, len(chosen)).astype(data_dtype)
+    else:
+        raise RuntimeError(
+            f"test not designed for type {data_dtype}")
+
+    data = data.reshape((n_rows, n_cols))
+
+    src_path_list = []
+
+    # size of chunks to save in different .h5 files
+    d_row_list = [237, 1, 412, 348, 2]
+
+    i0 = 0
+    for d_row in d_row_list:
+        i1 = i0 + d_row
+
+        h5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5')
+        if density == "csr":
+            this = scipy_sparse.csr_matrix(
+                data[i0:i1, :])
+            with h5py.File(h5_path, 'w') as dst:
+                dst.create_dataset(
+                    'data', data=this.data)
+                dst.create_dataset(
+                    'indices', data=this.indices)
+                dst.create_dataset(
+                    'indptr', data=this.indptr)
+        else:
+            with h5py.File(h5_path, 'w') as dst:
+                dst.create_dataset('data', data=data[i0:i1, :])
+
+        src_path_list.append(h5_path)
+        i0 = i1
+
+    var = pd.DataFrame(
+        [{'g': f'g_{ii}'} for ii in range(n_cols)]).set_index('g')
+    obs = pd.DataFrame(
+        [{'c': f'c_{ii}'} for ii  in range(n_rows)]).set_index('c')
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    full_csr = scipy_sparse.csr_matrix(data)
+
+    a_data = anndata.AnnData(obs=obs, var=var)
+
+    a_data.write_h5ad(h5ad_path)
+
+    del a_data
+
+    if density == "csr":
+        amalgamate_csr_to_x(
+            src_path_list=src_path_list,
+            dst_path=h5ad_path,
+            final_shape=(n_rows, n_cols),
+            dst_grp=layer)
+    else:
+        amalgamate_dense_to_x(
+            src_path_list=src_path_list,
+            dst_path=h5ad_path,
+            final_shape=(n_rows, n_cols),
+            dst_grp=layer)
+
+    round_trip = anndata.read_h5ad(h5ad_path, backed='r')
+
+    if layer == 'X':
+        actual = round_trip.X[()]
+    else:
+        actual = round_trip.layers[layer.replace('layers/','')][()]
+
+    if density == "csr":
+        actual = actual.toarray()
+
+    np.testing.assert_allclose(
+        actual,
+        data,
+        atol=0.0,
+        rtol=1.0e-6)
+
+    if layer == 'X':
+
+        d_chunk = 431
+        iterator = round_trip.chunked_X(d_chunk)
+        for chunk in iterator:
+            expected = data[chunk[1]:chunk[2], :]
+            actual = chunk[0]
+            if density == "csr":
+                actual = actual.toarray()
+            np.testing.assert_allclose(actual, expected)
+
+        for idx_list in ([14, 188, 33],
+                         [11, 67, 2, 3],
+                         [0, 45, 16],
+                         [3, 67, 22, 230]):
+            col_idx = round_trip.var.index[idx_list]
+            actual = round_trip[:, col_idx].to_memory()
+            expected = data[:, idx_list]
+            actual_x = actual.chunk_X(np.arange(n_rows))
+            np.testing.assert_allclose(
+                actual_x,
+                expected,
+                atol=0.0,
+                rtol=1.0e-6)
