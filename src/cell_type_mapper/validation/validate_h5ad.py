@@ -1,4 +1,5 @@
 import h5py
+import json
 import numpy as np
 import pathlib
 import traceback
@@ -42,7 +43,8 @@ def validate_h5ad(
         Path to the source h5ad file
     gene_id_mapper:
         the GeneIdMapper that will handle the mapping of gene
-        identifiers into the expected form.
+        identifiers into the expected form. If None, infer the
+        mapper based on the species implied by the input gene IDs.
     log:
         Optional logger to log messages for CLI
     expected_max:
@@ -114,6 +116,35 @@ def validate_h5ad(
         else:
             log.error(error_msg)
 
+    # check that gene names are not repeated
+    var_original = read_df_from_h5ad(
+            h5ad_path=original_h5ad_path,
+            df_name='var')
+
+    error_msg = ''
+    unq_genes, unq_gene_count = np.unique(
+        var_original.index.values,
+        return_counts=True)
+    repeated = np.where(unq_gene_count > 1)[0]
+    for idx in repeated:
+        error_msg += (
+            f"gene name '{unq_genes[idx]}' "
+            f"occurs {unq_gene_count[idx]} times; "
+            "gene names must be unique\n")
+
+    gene_names = set(var_original.index.values)
+    for bad_val in ('',):
+        if bad_val in gene_names:
+            error_msg += (f"gene name '{bad_val}' is invalid; "
+                          "if you cannot remove this column, just "
+                          "change the gene name to a (unique) "
+                          "nonsense string.")
+    if len(error_msg) > 0:
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
+
     # check that anndata metadata fields are present
     if layer == 'X':
         to_check = 'X'
@@ -160,35 +191,6 @@ def validate_h5ad(
             layer=layer)
         output_path = new_h5ad_path
         current_h5ad_path = new_h5ad_path
-
-    var_original = read_df_from_h5ad(
-            h5ad_path=current_h5ad_path,
-            df_name='var')
-
-    # check gene name contents
-    error_msg = ''
-    unq_genes, unq_gene_count = np.unique(
-        var_original.index.values,
-        return_counts=True)
-    repeated = np.where(unq_gene_count > 1)[0]
-    for idx in repeated:
-        error_msg += (
-            f"gene name '{unq_genes[idx]}' "
-            f"occurs {unq_gene_count[idx]} times; "
-            "gene names must be unique\n")
-
-    gene_names = set(var_original.index.values)
-    for bad_val in ('',):
-        if bad_val in gene_names:
-            error_msg += (f"gene name '{bad_val}' is invalid; "
-                          "if you cannot remove this column, just "
-                          "change the gene name to a (unique) "
-                          "nonsense string.")
-    if len(error_msg) > 0:
-        if log is not None:
-            log.error(error_msg)
-        else:
-            raise RuntimeError(error_msg)
 
     n_genes = len(var_original)
 
@@ -241,6 +243,34 @@ def validate_h5ad(
             msg += f"../{original_h5ad_path.name} to include "
             msg += "proper gene identifiers"
             log.info(msg)
+
+        # check if genes are repeated in the mapped var DataFrame
+        if len(mapped_var) != len(set(mapped_var.index.values)):
+            repeats = dict()
+            for orig, mapped in zip(var_original.index.values,
+                                    mapped_var.index.values):
+                if mapped not in repeats:
+                    repeats[mapped] = []
+                repeats[mapped].append(orig)
+            for mapped in mapped_var.index.values:
+                if len(repeats[mapped]) == 1:
+                    repeats.pop(mapped)
+            error_msg = (
+                "The following gene symbols in your h5ad file "
+                "mapped to identical gene identifiers in the "
+                "validated h5ad file. The validated h5ad file must "
+                "contain unique gene identifiers.\n"
+            )
+            for mapped in repeats:
+                error_msg += (
+                    f"{json.dumps(repeats[mapped])} "
+                    "all mapped to "
+                    f"{mapped}\n"
+                )
+            if log is not None:
+                log.error(error_msg)
+            else:
+                raise RuntimeError(error_msg)
 
         write_df_to_h5ad(
             h5ad_path=new_h5ad_path,
