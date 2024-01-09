@@ -177,7 +177,7 @@ def _validate_h5ad(
     # validation (if layer != 'X', a new file will be created
     # early on and all subsequent processing happens on that
     # file)
-    current_h5ad_path = original_h5ad_path
+    working_h5ad_path = original_h5ad_path
 
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
@@ -197,7 +197,7 @@ def _validate_h5ad(
             new_h5ad_path=new_h5ad_path,
             layer=layer)
         output_path = new_h5ad_path
-        current_h5ad_path = new_h5ad_path
+        working_h5ad_path = new_h5ad_path
 
     n_genes = len(var_original)
 
@@ -209,12 +209,12 @@ def _validate_h5ad(
 
     cast_to_int = False
     if round_to_int:
-        is_int = is_x_integers(h5ad_path=current_h5ad_path)
+        is_int = is_x_integers(h5ad_path=working_h5ad_path)
         if not is_int:
             cast_to_int = True
 
     if expected_max is not None or cast_to_int:
-        x_minmax = get_minmax_x_from_h5ad(h5ad_path=current_h5ad_path)
+        x_minmax = get_minmax_x_from_h5ad(h5ad_path=working_h5ad_path)
 
         if expected_max is not None and x_minmax[1] < expected_max:
             msg = "VALIDATION: CDM expects raw counts data. The maximum value "
