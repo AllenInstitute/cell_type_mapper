@@ -368,8 +368,8 @@ def _check_input_gene_names(
     for idx in repeated:
         error_msg += (
             f"gene name '{unq_genes[idx]}' "
-            f"occurs {unq_gene_count[idx]} times; "
-            "gene names must be unique\n")
+            f"occurs {unq_gene_count[idx]} times "
+            "in var; gene names must be unique\n")
 
     gene_names = set(var_df.index.values)
     for bad_val in ('',):
