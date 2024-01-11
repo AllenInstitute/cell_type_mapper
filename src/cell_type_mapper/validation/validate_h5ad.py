@@ -360,10 +360,25 @@ def _check_input_gene_names(
     None
         Just throws errors if anything is amiss
     """
+
     error_msg = ''
-    unq_genes, unq_gene_count = np.unique(
-        var_df.index.values,
-        return_counts=True)
+
+    try:
+        unq_genes, unq_gene_count = np.unique(
+            var_df.index.values,
+            return_counts=True)
+    except TypeError:
+        error_msg = f"{traceback.format_exc()}\n"
+        error_msg += (
+            "====hint====\n"
+            "We expect the index of var in your h5ad "
+            "file to be a list of unique gene names that are "
+            "strings (or string-like). Your h5ad has var.index.values "
+            "of type:\n"
+            f"{var_df.index.values.to_numpy().dtype}"
+        )
+        raise TypeError(error_msg)
+
     repeated = np.where(unq_gene_count > 1)[0]
     for idx in repeated:
         error_msg += (
