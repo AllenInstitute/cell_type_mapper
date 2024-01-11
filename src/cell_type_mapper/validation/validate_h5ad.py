@@ -182,6 +182,7 @@ def _validate_h5ad(
         to_check = f'layers/{layer}'
     with h5py.File(original_h5ad_path, 'r') as src:
         attrs = dict(src[to_check].attrs)
+
     if 'encoding-type' not in attrs:
         msg = (
             f"The '{to_check}' field in this h5ad file lacks the "
