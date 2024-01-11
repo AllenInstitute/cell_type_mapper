@@ -40,7 +40,7 @@ To specify the cell type taxonomy, you pass the list of levels in the taxonomy
 from most gross to most fine in the `--hierarchy` command line argument. For
 instance, if you ran
 ```
-python -m cell_type_mapper.cli.precompute_stats_scratch \
+python -m cell_type_mapper.cli.precompute_stats_scrattch \
 --h5ad_path path/to/my_file.h5ad \
 --hierarchy '["class", "subclass", "cluster"]'
 ```
