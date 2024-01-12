@@ -15,16 +15,22 @@ import scipy.sparse as scipy_sparse
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from cell_type_mapper.utils.sparse_utils import (
-    amalgamate_sparse_array)
-
 from cell_type_mapper.utils.anndata_utils import (
     amalgamate_h5ad)
 
 
-@pytest.mark.parametrize('data_dtype,verbose',
-    itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
+@pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
+    itertools.product(
+        [np.uint8, np.uint16, np.int16, float],
+        ['X', 'dummy'],
+        ['csr', 'csc', 'dense'],
+        [True, False]))
+def test_csr_amalgamation(
+        tmp_dir_fixture,
+        data_dtype,
+        layer,
+        density,
+        dst_sparse):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
@@ -35,7 +41,6 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         d_min = iinfo.min
         if d_min == 0:
             d_min = 1
-
 
     src_rows = []
     expected_rows = []
@@ -72,16 +77,31 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if density == 'csr':
+            data = scipy_sparse.csr_matrix(data.astype(data_dtype))
+        elif density == 'csc':
+            data = scipy_sparse.csc_matrix(data.astype(data_dtype))
+        else:
+            data = data.astype(data_dtype)
+
+        if layer == 'X':
+            x = data
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: data}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
-
+             'rows': list(chosen_rows),
+             'layer': layer})
 
     expected_array = np.stack(expected_rows)
 
@@ -89,29 +109,56 @@ def test_csr_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         dir=tmp_dir_fixture,
         suffix='.h5')
 
-    amalgamate_sparse_array(
+    dst_var = pd.DataFrame(
+        [{'g': f'g_{ii}'}
+         for ii in range(n_cols)]).set_index('g')
+    dst_obs = pd.DataFrame(
+        [{'c': f'c_{ii}'}
+         for ii in range(expected_array.shape[0])]).set_index('c')
+
+    amalgamate_h5ad(
         src_rows=src_rows,
         dst_path=dst_path,
-        sparse_grp='X',
-        verbose=verbose)
+        dst_var=dst_var,
+        dst_obs=dst_obs,
+        dst_sparse=dst_sparse,
+        tmp_dir=tmp_dir_fixture)
 
-    with h5py.File(dst_path, 'r') as dst:
-        actual = scipy_sparse.csr_matrix(
-            (dst['X/data'][()],
-             dst['X/indices'][()],
-             dst['X/indptr'][()]),
-            shape=expected_array.shape)
+    if dst_sparse:
+
+        with h5py.File(dst_path, 'r') as dst:
+            assert dst['X/indices'].dtype == np.int32
+            assert dst['X/indptr'].dtype == np.int32
+            actual = scipy_sparse.csr_matrix(
+                (dst['X/data'][()],
+                 dst['X/indices'][()],
+                 dst['X/indptr'][()]),
+                shape=expected_array.shape)
+            actual = actual.toarray()
+
+    else:
+        with h5py.File(dst_path, 'r') as dst:
+            actual = dst['X'][()]
 
     np.testing.assert_allclose(
-        actual.todense(),
+        actual,
         expected_array)
 
     assert actual.dtype == data_dtype
 
 
-@pytest.mark.parametrize('data_dtype,verbose',
-    itertools.product([np.uint8, np.uint16, np.int16, float], [True, False]))
-def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
+@pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
+    itertools.product(
+        [np.uint8, np.uint16, np.int16, float],
+        ['X', 'dummy'],
+        ['csr', 'csc', 'dense'],
+        [True, False]))
+def test_csr_anndata_amalgamation(
+        tmp_dir_fixture,
+        data_dtype,
+        layer,
+        density,
+        dst_sparse):
 
     rng = np.random.default_rng(712231)
     n_cols = 15
@@ -159,16 +206,31 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if density == 'csr':
+            data = scipy_sparse.csr_matrix(data.astype(data_dtype))
+        elif density == 'csc':
+            data = scipy_sparse.csc_matrix(data.astype(data_dtype))
+        else:
+            data = data.astype(data_dtype)
+
+        if layer == 'X':
+            x = data
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: data}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
-
+             'rows': list(chosen_rows),
+             'layer': layer})
 
     expected_array = np.stack(expected_rows)
 
@@ -189,22 +251,37 @@ def test_csr_anndata_amalgamation(tmp_dir_fixture, data_dtype, verbose):
         dst_path=dst_path,
         dst_obs=new_obs,
         dst_var=new_var,
-        verbose=verbose)
+        dst_sparse=dst_sparse)
 
     actual_a = anndata.read_h5ad(dst_path, backed='r')
     pd.testing.assert_frame_equal(actual_a.obs, new_obs)
     pd.testing.assert_frame_equal(actual_a.var, new_var)
 
-    actual_x = actual_a.X[()].todense()
+    if dst_sparse:
+        actual_x = actual_a.X[()].todense()
+    else:
+        actual_x = actual_a.X[()]
+
     np.testing.assert_allclose(
-        actual_a.X[()].todense(),
+        actual_x,
         expected_array)
 
     assert actual_x.dtype == data_dtype
 
+    # test that the resulting anndata object can be sliced on columns
+    col_idx = [2, 8, 1, 11]
+    col_pd_idx = actual_a.var.index[col_idx]
+    actual = actual_a[:, col_pd_idx].to_memory()
+    expected = expected_array[:, col_idx]
+    np.testing.assert_allclose(
+        actual.chunk_X(np.arange(len(actual_a.obs))),
+        expected,
+        atol=0.0,
+        rtol=1.0e-6)
 
 
-def test_failure_when_many_floates(tmp_dir_fixture):
+@pytest.mark.parametrize('layer', ['X', 'dummy'])
+def test_failure_when_many_floats(tmp_dir_fixture, layer):
     """
     Test that amalgamation fails when the input arrays
     have disparate float dtypes
@@ -242,24 +319,32 @@ def test_failure_when_many_floates(tmp_dir_fixture):
             dir=tmp_dir_fixture,
             suffix='.h5ad')
 
+        if layer == 'X':
+            x = scipy_sparse.csr_matrix(data)
+            layers = None
+        else:
+            x = np.zeros(data.shape, dtype=int)
+            layers = {layer: scipy_sparse.csr_matrix(data.astype(data_dtype))}
+
         a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
+            X=x,
+            layers=layers,
             dtype=data_dtype)
         a_data.write_h5ad(this_path)
         del a_data
 
         src_rows.append(
             {'path': this_path,
-             'rows': list(chosen_rows)})
-
+             'rows': list(chosen_rows),
+             'layer': layer})
 
     dst_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
     with pytest.raises(RuntimeError, match="disparate data types"):
-        amalgamate_sparse_array(
+        amalgamate_h5ad(
             src_rows=src_rows,
             dst_path=dst_path,
-            sparse_grp='X',
-            verbose=True)
+            dst_obs=None,
+            dst_var=None)
