@@ -302,7 +302,7 @@ def amalgamate_h5ad(
         Ordered list of dicts. Each dict is
         {
             'path': /path/to/src/file
-            'rows': [ordered list of rows/columns from that file]
+            'rows': [ordered list of rows from that file]
             'layer': either 'X' or 'some_layer', in which case data is
                      read from 'layers/some_layer'
         }
