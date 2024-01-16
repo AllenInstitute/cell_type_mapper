@@ -458,13 +458,21 @@ def amalgamate_csr_to_x(
     n_valid = 0
     n_indptr = final_shape[0]+1
     data_dtype = None
-    indices_dtype = None
+    indices_max = 0
     for src_path in src_path_list:
         with h5py.File(src_path, 'r') as src:
             n_valid += src['data'].shape[0]
             if data_dtype is None:
-                indices_dtype = src['indices'].dtype
                 data_dtype = src['data'].dtype
+            this_max = src['indices'][()].max()
+            if this_max > indices_max:
+                indices_max = this_max
+
+    cutoff = 2**32
+    if indices_max >= cutoff or n_valid >= cutoff:
+        index_dtype = np.int64
+    else:
+        index_dtype = np.int32
 
     with h5py.File(dst_path, 'a') as dst:
         grp = dst.create_group(dst_grp)
@@ -484,11 +492,11 @@ def amalgamate_csr_to_x(
             'indices',
             shape=(n_valid,),
             chunks=min(n_valid, 2000),
-            dtype=indices_dtype)
+            dtype=index_dtype)
         dst_indptr = grp.create_dataset(
             'indptr',
             shape=(n_indptr,),
-            dtype=np.int32)
+            dtype=index_dtype)
 
         indptr0 = 0
         indptr_offset = 0
