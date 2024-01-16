@@ -99,7 +99,7 @@ Here is the example cartoon lookup table
 ## Creating the marker gene lookup table
 
 Detailed documentation of the marker gene discovery algorithm used by this
-codebase can be found[here](../algorithms/marker_gene_selection.md).
+codebase can be found [here](../algorithms/marker_gene_selection.md).
 In this document, we present a user's guide to the
 tools in this codebase to go from a `precomputed_stats.h5` file to a
 `marker_gene_lookup.json` file.
