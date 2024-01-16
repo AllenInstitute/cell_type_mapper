@@ -274,7 +274,6 @@ def test_drop_level():
     assert expected == actual
     assert not baseline_tree == actual
 
-
     dropped_l1 = {
         'hierarchy': ['l0', 'l2', 'l3'],
         'l0': {
@@ -291,11 +290,11 @@ def test_drop_level():
             for ii in range(18)
         }
     }
+
     expected = TaxonomyTree(data=dropped_l1)
     actual = baseline_tree.drop_level('l1')
     assert actual == expected
     assert not baseline_tree == actual
-
 
     dropped_l2 = {
         'hierarchy': ['l0', 'l1', 'l3'],
@@ -318,6 +317,33 @@ def test_drop_level():
     }
     expected = TaxonomyTree(data=dropped_l2)
     actual = baseline_tree.drop_level('l2')
+    assert actual == expected
+    assert not baseline_tree == actual
+
+    # test dropping leaf level
+    dropped_l3 = {
+        'hierarchy': ['l0', 'l1', 'l2'],
+        'l0': {
+            'a0': ['b0', 'b3'],
+            'a1': ['b1', 'b4'],
+            'a2': ['b2']
+        },
+        'l1': {
+            'b0': ['c1', 'c5'],
+            'b1': ['c2'],
+            'b2': ['c0', 'c4', 'c3'],
+            'b3': ['c6'],
+            'b4': ['c7', 'c8']
+        },
+        'l2': {
+            f'c{ii}': list(range(ii*10, 5+ii*10)) \
+                      + list(range(10*(ii+9), 5+(ii+9)*10))
+            for ii in range(9)
+        }
+    }
+    expected = TaxonomyTree(data=dropped_l3)
+    actual = baseline_tree.drop_leaf_level()
+    assert actual.leaf_level == 'l2'
     assert actual == expected
     assert not baseline_tree == actual
 
