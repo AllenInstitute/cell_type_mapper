@@ -497,14 +497,14 @@ def amalgamate_csr_to_x(
         dst_data = grp.create_dataset(
             'data',
             shape=(n_valid,),
-            chunks=min(n_valid, 2000),
+            chunks=min(n_valid, 20000),
             dtype=data_dtype,
             compression=compression,
             compression_opts=compression_opts)
         dst_indices = grp.create_dataset(
             'indices',
             shape=(n_valid,),
-            chunks=min(n_valid, 2000),
+            chunks=min(n_valid, 20000),
             dtype=index_dtype,
             compression=compression,
             compression_opts=compression_opts)
