@@ -486,15 +486,17 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
 
 
 @pytest.mark.parametrize(
-    "data_dtype, layer, density",
+    "data_dtype, layer, density, compression",
     itertools.product(
         [float, int, np.uint16],
         ["X"],
-        ["csr", "dense"]))
+        ["csr", "dense"],
+        [True, False]))
 def test_amalgamate_csr_to_x(
         data_dtype,
         layer,
         density,
+        compression,
         tmp_dir_fixture):
     rng = np.random.default_rng(7112233)
     n_rows = 1000
@@ -564,13 +566,27 @@ def test_amalgamate_csr_to_x(
             src_path_list=src_path_list,
             dst_path=h5ad_path,
             final_shape=(n_rows, n_cols),
-            dst_grp=layer)
+            dst_grp=layer,
+            compression=compression)
     else:
         amalgamate_dense_to_x(
             src_path_list=src_path_list,
             dst_path=h5ad_path,
             final_shape=(n_rows, n_cols),
-            dst_grp=layer)
+            dst_grp=layer,
+            compression=compression)
+
+    # check compression
+    if compression:
+        if layer == 'X':
+            key = 'X'
+        else:
+            key = f'layers/{layer}'
+        if density == 'csr':
+            key = f'{key}/data'
+        with h5py.File(h5ad_path, 'r') as src:
+            assert src[key].compression == 'gzip'
+            assert src[key].compression_opts == 4
 
     round_trip = anndata.read_h5ad(h5ad_path, backed='r')
 

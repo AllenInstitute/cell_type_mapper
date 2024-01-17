@@ -423,7 +423,8 @@ def amalgamate_csr_to_x(
         src_path_list,
         dst_path,
         final_shape,
-        dst_grp='X'):
+        dst_grp='X',
+        compression=False):
     """
     Iterate over a list of HDF5 files that store CSR matrices in
     'data', 'indices', and 'indptr'. Combine the matrices into
@@ -442,6 +443,8 @@ def amalgamate_csr_to_x(
     dst_grp:
         The HDF5 group in which to store the data (e.g. 'X' or
         'layers/my_layer')
+    compression:
+        A boolean. If True, use gzip with opts=4
 
     Note
     ----
@@ -451,6 +454,14 @@ def amalgamate_csr_to_x(
 
     This code will actually only allow you to write data to 'X'.
     """
+
+    if compression:
+        compression = 'gzip'
+        compression_opts = 4
+    else:
+        compression = None
+        compression_opts = None
+
     if dst_grp != 'X':
         raise NotImplementedError(
             "amalgamate_csr_to_x cannot write to layers other than 'X'")
@@ -487,16 +498,22 @@ def amalgamate_csr_to_x(
             'data',
             shape=(n_valid,),
             chunks=min(n_valid, 2000),
-            dtype=data_dtype)
+            dtype=data_dtype,
+            compression=compression,
+            compression_opts=compression_opts)
         dst_indices = grp.create_dataset(
             'indices',
             shape=(n_valid,),
             chunks=min(n_valid, 2000),
-            dtype=index_dtype)
+            dtype=index_dtype,
+            compression=compression,
+            compression_opts=compression_opts)
         dst_indptr = grp.create_dataset(
             'indptr',
             shape=(n_indptr,),
-            dtype=index_dtype)
+            dtype=index_dtype,
+            compression=compression,
+            compression_opts=compression_opts)
 
         indptr0 = 0
         indptr_offset = 0
@@ -519,7 +536,8 @@ def amalgamate_dense_to_x(
         src_path_list,
         dst_path,
         final_shape,
-        dst_grp='X'):
+        dst_grp='X',
+        compression=False):
     """
     Iterate over a list of HDF5 files that store dense matrices in
     'data'. Combine the matrices into a single dense matrix stored
@@ -537,6 +555,8 @@ def amalgamate_dense_to_x(
     dst_grp:
         The HDF5 group in which to store the data (e.g. 'X' or
         'layers/my_layer')
+    compression:
+        A boolean. If True, use gzip with opts=4
 
     Note
     ----
@@ -546,6 +566,14 @@ def amalgamate_dense_to_x(
 
     This code will actually only allow you to write data to 'X'.
     """
+
+    if compression:
+        compression = 'gzip'
+        compression_opts = 4
+    else:
+        compression = None
+        compression_opts = None
+
     if dst_grp != 'X':
         raise NotImplementedError(
             "amalgamate_ense_to_x cannot write to layers other than 'X'")
@@ -577,7 +605,9 @@ def amalgamate_dense_to_x(
             dst_grp,
             shape=(n_rows, n_cols),
             chunks=(min(n_rows, 1000), min(n_cols, 1000)),
-            dtype=data_dtype)
+            dtype=data_dtype,
+            compression=compression,
+            compression_opts=compression_opts)
         dst_data.attrs.create(
             name='encoding-type', data='array')
         dst_data.attrs.create(
