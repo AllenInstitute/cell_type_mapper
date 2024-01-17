@@ -79,7 +79,8 @@ def run_mapping(config, output_path, log_path=None):
         safe_config.pop('extended_result_dir')
         safe_config.pop('tmp_dir')
 
-    print('=== Running Hierarchical Mapping with config ===\n'
+    print('=== Running Hierarchical Mapping '
+          f'{cell_type_mapper.__version__} with config ===\n'
           f'{json.dumps(safe_config, indent=2)}')
 
     log = CommandLog()
