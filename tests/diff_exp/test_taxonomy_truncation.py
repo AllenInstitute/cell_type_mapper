@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import json
 import numpy as np
 import pandas as pd
 import scipy.sparse
@@ -281,6 +282,34 @@ def test_truncation(
     new_tree = TaxonomyTree.from_precomputed_stats(output_path)
     assert expected_tree == new_tree
 
+    not_arrays = (
+        'metadata',
+        'cluster_to_row',
+        'col_names',
+        'taxonomy_tree'
+    )
+
     with h5py.File(expected_path, 'r') as expected:
+        expected_cluster_to_row = json.loads(
+            expected['cluster_to_row'][()].decode('utf-8'))
         with h5py.File(output_path, 'r') as actual:
             assert expected['col_names'][()] == actual['col_names'][()]
+            actual_cluster_to_row = json.loads(
+                actual['cluster_to_row'][()].decode('utf-8'))
+
+            assert set(expected_cluster_to_row.keys()) == set(
+                actual_cluster_to_row.keys())
+
+            for dataset in expected:
+                if dataset in not_arrays:
+                    continue
+                expected_data = expected[dataset][()]
+                actual_data = actual[dataset][()]
+                for leaf in expected_cluster_to_row.keys():
+                    e_leaf = expected_data[expected_cluster_to_row[leaf]]
+                    a_leaf = actual_data[actual_cluster_to_row[leaf]]
+                    np.testing.assert_allclose(
+                        e_leaf,
+                        a_leaf,
+                        atol=0.0,
+                        rtol=1.0e-6)

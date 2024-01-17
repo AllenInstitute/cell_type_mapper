@@ -1,5 +1,7 @@
 import copy
 import h5py
+import json
+import numpy as np
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -71,7 +73,40 @@ def truncate_precomputed_stats_file(
 
     del src_tree
 
+    same_leaves = False
+    if new_tree.leaf_level == old_tree.leaf_level:
+        same_leaves = True
+
+    if not same_leaves:
+        new_leaf_to_row = {
+            leaf: ii for ii, leaf in enumerate(new_tree.all_leaves)
+        }
+
+        new_leaf_to_old_leaves = dict()
+        for old_leaf in old_tree.all_leaves:
+            parents = old_tree.parents(
+                old_tree.leaf_level,
+                node=old_leaf)
+            new_leaf = parents[new_tree.leaf_level]
+            if new_leaf not in new_leaf_to_old_leaves:
+                new_leaf_to_old_leaves[new_leaf] = []
+            new_leaf_to_old_leaves[new_leaf].append(old_leaf)
+
+        not_arrays = (
+            'metadata',
+            'cluster_to_row',
+            'col_names',
+            'taxonomy_tree'
+        )
+    else:
+        not_to_copy = ('metadata', 'taxonomy_tree', 'col_names')
+
     with h5py.File(src_path, 'r') as src:
+
+        if not same_leaves:
+            old_leaf_to_row = json.loads(
+                src['cluster_to_row'][()].decode('utf-8'))
+
         with h5py.File(dst_path, 'w') as dst:
             dst.create_dataset(
                 'taxonomy_tree',
@@ -79,3 +114,90 @@ def truncate_precomputed_stats_file(
             dst.create_dataset(
                 'col_names',
                 data=src['col_names'][()])
+
+            if same_leaves:
+                for dataset in src.keys():
+                    if dataset in not_to_copy:
+                        continue
+
+                    src_dataset = src[dataset]
+
+                    dst.create_dataset(
+                        dataset,
+                        data=src_dataset[()],
+                        chunks=src_dataset.chunks)
+            else:
+                dst.create_dataset(
+                    'cluster_to_row',
+                    data=json.dumps(new_leaf_to_row).encode('utf-8'))
+
+                for dataset in src.keys():
+                    if dataset in not_arrays:
+                        continue
+
+                    src_dataset = src[dataset]
+
+                    new_data = _convert_to_new_leaves(
+                        data_array=src_dataset[()],
+                        old_leaf_to_row=old_leaf_to_row,
+                        new_leaf_to_row=new_leaf_to_row,
+                        new_leaf_to_old_leaves=new_leaf_to_old_leaves)
+
+                    chunks = None
+                    if src_dataset.chunks is not None:
+                        if len(src_dataset.shape) == 2:
+                            chunks = (1, src_dataset.chunks[1])
+
+                    dst.create_dataset(
+                        dataset,
+                        data=new_data,
+                        chunks=chunks)
+
+
+def _convert_to_new_leaves(
+        data_array,
+        old_leaf_to_row,
+        new_leaf_to_row,
+        new_leaf_to_old_leaves):
+    """
+    Sum together the rows in a precomputed_stats data array
+    to reflect the results of truncating data to a new taxonomy.
+
+    Parameters
+    -----------
+    data_array:
+        The array being aggregated
+    old_leaf_to_row:
+        Old mapping from leaf nodes to row in data_array
+    new_leaf_to_row:
+        New mapping from leaf_nodes_to_row in data_array
+    new_leaf_to_old_leaves:
+        Dict mapping new leaf nodes to lists of the old
+        leaf nodes that comprise them
+
+    Return
+    ------
+    A numpy array summed according to the new taxonomy
+    """
+    if len(data_array.shape) == 2:
+        new_array = np.zeros(
+            (len(new_leaf_to_row), data_array.shape[1]),
+            dtype=data_array.dtype)
+    else:
+        new_array = np.zeros(
+            len(new_leaf_to_row),
+            dtype=data_array.dtype)
+
+    for new_leaf in new_leaf_to_old_leaves:
+        dst_row = new_leaf_to_row[new_leaf]
+        src_rows = [old_leaf_to_row[old_leaf]
+                    for old_leaf in new_leaf_to_old_leaves[new_leaf]]
+        src_rows.sort()
+        src_rows = np.array(src_rows)
+        if len(data_array.shape) == 2:
+            new_row = data_array[src_rows, :].sum(axis=0)
+            new_array[dst_row, :] = new_row
+        else:
+            new_row = data_array[src_rows].sum()
+            new_array[dst_row] = new_row
+    return new_array
