@@ -20,6 +20,10 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
 
+from cell_type_mapper.diff_exp.truncate_precompute import (
+    truncate_precomputed_stats_file
+)
+
 from cell_type_mapper.data.mouse_gene_id_lookup import (
     mouse_gene_id_lookup)
 
@@ -348,3 +352,77 @@ def test_summary_from_validated_file(
     assert len(mapping_df) == len(src_obs)
     np.testing.assert_array_equal(
         mapping_df.cell_id.values, src_obs.index.values)
+
+
+
+@pytest.mark.parametrize(
+    'hierarchy',
+    [
+        ('class',),
+        ('class', 'subclass'),
+        ('subclass',),
+        ('class', 'cluster'),
+        ('subclass', 'cluster'),
+        ('cluster',)
+    ])
+def test_cli_on_truncated_precompute(
+        taxonomy_tree_fixture,
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture,
+        n_extra_genes_fixture,
+        hierarchy):
+    """
+    Run a smoke test on FromSpecifiedMarkersRunner using a
+    precomputed stats file that has been truncated
+    """
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='outptut_',
+        suffix='.json')
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_',
+        suffix='.json')
+
+    new_precompute_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_',
+        suffix='.h5')
+
+    truncate_precomputed_stats_file(
+        src_path=precomputed_stats_fixture,
+        dst_path=new_precompute_path,
+        new_hierarchy=hierarchy)
+
+    config = {
+        'precomputed_stats': {
+            'path': str(new_precompute_path)
+        },
+        'query_markers': {
+            'serialized_lookup': str(marker_lookup_fixture)
+        },
+        'query_path': str(query_h5ad_fixture),
+        'extended_result_path': str(output_path),
+        'summary_metadata_path': metadata_path,
+        'map_to_ensembl': True,
+        'type_assignment': {
+            'normalization': 'log2CPM',
+            'bootstrap_iteration': 10,
+            'bootstrap_factor': 0.9,
+            'n_runners_up': 2,
+            'rng_seed': 5513,
+            'chunk_size': 50,
+            'n_processors': 3
+        }
+    }
+
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+    actual = json.load(open(output_path, 'rb'))
+    assert 'RAN SUCCESSFULLY' in actual['log'][-2]
