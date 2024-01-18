@@ -393,8 +393,8 @@ def test_cli_on_truncated_precompute(
         suffix='.h5')
 
     truncate_precomputed_stats_file(
-        src_path=precomputed_stats_fixture,
-        dst_path=new_precompute_path,
+        input_path=precomputed_stats_fixture,
+        output_path=new_precompute_path,
         new_hierarchy=hierarchy)
 
     config = {

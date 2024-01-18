@@ -2,25 +2,33 @@ import copy
 import h5py
 import json
 import numpy as np
+import pathlib
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
 def truncate_precomputed_stats_file(
-        src_path,
-        dst_path,
+        input_path,
+        output_path,
         new_hierarchy):
     """
-    Read in the precomputed_stats file at src path.
+    Read in the precomputed_stats file at input_path.
     Truncate its taxonomy tree so that the hierarchy looks like
-    new_hierarchy. Write the result to dst_path.
+    new_hierarchy. Write the result to output_path.
     """
-    old_tree = TaxonomyTree.from_precomputed_stats(src_path)
+
+    metadata = {
+        'input_path': str(pathlib.Path(input_path).absolute().resolve()),
+        'output_path': str(pathlib.Path(output_path).absolute().resolve()),
+        'new_hierarchy': list(new_hierarchy)
+    }
+
+    old_tree = TaxonomyTree.from_precomputed_stats(input_path)
 
     if new_hierarchy == old_tree.hierarchy:
         msg = (
-            f"{src_path}\nalready conforms to the requested "
+            f"{input_path}\nalready conforms to the requested "
             "taxonomic hierarchy."
         )
         raise RuntimeError(msg)
@@ -32,7 +40,7 @@ def truncate_precomputed_stats_file(
     if len(bad_levels) > 0:
         msg = (
             f"Levels\n{bad_levels}\nare not in "
-            f"the taxonomy of\n{src_path}\n"
+            f"the taxonomy of\n{input_path}\n"
             f"Unclear how to proceed."
         )
         raise RuntimeError(msg)
@@ -101,13 +109,16 @@ def truncate_precomputed_stats_file(
     else:
         not_to_copy = ('metadata', 'taxonomy_tree', 'col_names')
 
-    with h5py.File(src_path, 'r') as src:
+    with h5py.File(input_path, 'r') as src:
 
         if not same_leaves:
             old_leaf_to_row = json.loads(
                 src['cluster_to_row'][()].decode('utf-8'))
 
-        with h5py.File(dst_path, 'w') as dst:
+        with h5py.File(output_path, 'w') as dst:
+            dst.create_dataset(
+                'metadata',
+                data=json.dumps(metadata).encode('utf-8'))
             dst.create_dataset(
                 'taxonomy_tree',
                 data=new_tree.to_str().encode('utf-8'))

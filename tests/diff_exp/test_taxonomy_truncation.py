@@ -199,8 +199,8 @@ def test_order_of_truncation(
     msg = "You cannot shuffle the order"
     with pytest.raises(RuntimeError, match=msg):
         truncate_precomputed_stats_file(
-            src_path=orig_path,
-            dst_path=None,
+            input_path=orig_path,
+            output_path='None',
             new_hierarchy=["subclass", "class", "supertype"])
 
 
@@ -218,8 +218,8 @@ def test_nonsense_level_truncation(
     msg = "are not in the taxonomy"
     with pytest.raises(RuntimeError, match=msg):
         truncate_precomputed_stats_file(
-            src_path=orig_path,
-            dst_path=None,
+            input_path=orig_path,
+            output_path='None',
             new_hierarchy=["class", "bob", "supertype"])
 
 
@@ -236,8 +236,8 @@ def test_no_op_truncation(
     msg = "already conforms to the requested taxonomic hierarchy"
     with pytest.raises(RuntimeError, match=msg):
         truncate_precomputed_stats_file(
-            src_path=orig_path,
-            dst_path=None,
+            input_path=orig_path,
+            output_path='None',
             new_hierarchy=["class",
                            "subclass",
                            "supertype",
@@ -283,7 +283,7 @@ def test_truncation(
         config = {
             'input_path': orig_path,
             'output_path': output_path,
-            'hierarchy': list(hierarchy)
+            'new_hierarchy': list(hierarchy)
         }
         runner = TaxonomyTruncationRunner(
             args=[],
@@ -291,8 +291,8 @@ def test_truncation(
         runner.run()
     else:
         truncate_precomputed_stats_file(
-            src_path=orig_path,
-            dst_path=output_path,
+            input_path=orig_path,
+            output_path=output_path,
             new_hierarchy=hierarchy)
 
     expected_tree = TaxonomyTree.from_precomputed_stats(expected_path)
@@ -306,10 +306,19 @@ def test_truncation(
         'taxonomy_tree'
     )
 
+    expected_metadata = {
+        'input_path': orig_path,
+        'output_path': output_path,
+        'new_hierarchy': list(hierarchy)
+    }
+
     with h5py.File(expected_path, 'r') as expected:
         expected_cluster_to_row = json.loads(
             expected['cluster_to_row'][()].decode('utf-8'))
         with h5py.File(output_path, 'r') as actual:
+            actual_metadata = json.loads(
+                actual['metadata'][()].decode('utf-8'))
+            assert actual_metadata == expected_metadata
             assert expected['col_names'][()] == actual['col_names'][()]
             actual_cluster_to_row = json.loads(
                 actual['cluster_to_row'][()].decode('utf-8'))

@@ -29,7 +29,7 @@ class TruncationSchema(argschema.ArgSchema):
             "Path to the precomputed_stats file to be written."
         ))
 
-    hierarchy = argschema.fields.List(
+    new_hierarchy = argschema.fields.List(
         argschema.fields.String,
         required=True,
         default=None,
@@ -48,9 +48,9 @@ class TaxonomyTruncationRunner(argschema.ArgSchemaParser):
 
     def run(self):
         truncate_precomputed_stats_file(
-            src_path=self.args['input_path'],
-            dst_path=self.args['output_path'],
-            new_hierarchy=self.args['hierarchy'])
+            input_path=self.args['input_path'],
+            output_path=self.args['output_path'],
+            new_hierarchy=self.args['new_hierarchy'])
 
 
 def main():
