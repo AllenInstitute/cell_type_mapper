@@ -159,7 +159,8 @@ def find_markers_for_all_taxonomy_pairs_v2(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
 
     shutil.move(
         src=tmp_thinned_path,
