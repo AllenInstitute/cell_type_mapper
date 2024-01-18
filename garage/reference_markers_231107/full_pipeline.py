@@ -147,7 +147,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         log2_fold_min_th=log2_fold_min_th,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
-        max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)),
+        max_bytes=10*1024**3,
         exact_penetrance=exact_penetrance,
         n_valid=n_valid,
         gene_list=gene_list)
