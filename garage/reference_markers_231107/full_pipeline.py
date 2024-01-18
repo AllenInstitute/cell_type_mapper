@@ -134,6 +134,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
     if drop_level is not None and drop_level in taxonomy_tree.hierarchy:
         taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
+    t0 = time.time()
     tmp_thinned_path = create_sparse_by_pair_marker_file_v2(
         precomputed_stats_path=precomputed_stats_path,
         p_value_mask_path=p_value_mask_path,
@@ -150,17 +151,20 @@ def find_markers_for_all_taxonomy_pairs_v2(
         exact_penetrance=exact_penetrance,
         n_valid=n_valid,
         gene_list=gene_list)
+    print(f'===== initial creation took {time.time()-t0:.2e} =====')
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
 
+    t0 = time.time()
     add_sparse_by_gene_markers_to_file(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
         tmp_dir=tmp_dir,
         n_processors=n_processors)
+    print(f'===== transposition took {time.time()-t0:.2e} ====='
 
     shutil.move(
         src=tmp_thinned_path,
