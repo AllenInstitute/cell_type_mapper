@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -19,6 +20,9 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.diff_exp.truncate_precompute import (
     truncate_precomputed_stats_file)
+
+from cell_type_mapper.cli.truncate_precomputed_taxonomy import (
+    TaxonomyTruncationRunner)
 
 
 @pytest.fixture(scope='module')
@@ -241,7 +245,8 @@ def test_no_op_truncation(
 
 
 @pytest.mark.parametrize(
-    'hierarchy',
+    'hierarchy,use_cli',
+    itertools.product(
     [('class', 'subclass', 'cluster'),
      ('class', 'cluster'),
      ('class', 'subclass', 'supertype'),
@@ -253,10 +258,11 @@ def test_no_op_truncation(
      ('subclass',),
      ('supertype',),
      ('cluster',)
-    ])
+    ], [True, False]))
 def test_truncation(
         precomputed_stats_fixture,
         hierarchy,
+        use_cli,
         tmp_dir_fixture):
     """
     Test function that truncates a precomputed_stats file to a new
@@ -273,10 +279,21 @@ def test_truncation(
 
     expected_path = precomputed_stats_fixture[hierarchy]
 
-    truncate_precomputed_stats_file(
-        src_path=orig_path,
-        dst_path=output_path,
-        new_hierarchy=hierarchy)
+    if use_cli:
+        config = {
+            'input_path': orig_path,
+            'output_path': output_path,
+            'hierarchy': list(hierarchy)
+        }
+        runner = TaxonomyTruncationRunner(
+            args=[],
+            input_data=config)
+        runner.run()
+    else:
+        truncate_precomputed_stats_file(
+            src_path=orig_path,
+            dst_path=output_path,
+            new_hierarchy=hierarchy)
 
     expected_tree = TaxonomyTree.from_precomputed_stats(expected_path)
     new_tree = TaxonomyTree.from_precomputed_stats(output_path)
