@@ -41,7 +41,9 @@ def truncate_precomputed_stats_file(
         msg = (
             f"Levels\n{bad_levels}\nare not in "
             f"the taxonomy of\n{input_path}\n"
-            f"Unclear how to proceed."
+            "Unclear how to proceed.\n"
+            "Note: valid levels in the "
+            f"original taxonomy are\n{old_tree.hierarchy}\n"
         )
         raise RuntimeError(msg)
 
