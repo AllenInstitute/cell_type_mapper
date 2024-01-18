@@ -88,6 +88,9 @@ def precompute_summary_stats_from_h5ad(
         raise RuntimeError(
             "Cannot specify taxonomy_tree and column_hierarchy")
 
+    if column_hierarchy is not None:
+        column_hierarchy = list(column_hierarchy)
+
     if taxonomy_tree is None:
         taxonomy_tree = TaxonomyTree.from_h5ad(
             h5ad_path=data_path,

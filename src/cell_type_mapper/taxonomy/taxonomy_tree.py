@@ -308,12 +308,12 @@ class TaxonomyTree(object):
             new_data.pop(level)
         return TaxonomyTree(data=new_data)
 
-    def drop_level(self, level_to_drop):
+    def _drop_level(self, level_to_drop, allow_leaf=False):
         """
         Return a new taxonomy tree which has dropped the specified
         level from its hierarchy.
 
-        Will not drop leaf levels from tree.
+        Only allowed to drop leaf leave if allow_leaf is True
         """
 
         if len(self.hierarchy) == 1:
@@ -327,10 +327,11 @@ class TaxonomyTree(object):
                 "That level is not in the hierarchy\n"
                 f"hierarchy={self.hierarchy}")
 
-        if level_to_drop == self.leaf_level:
-            raise RuntimeError(
-                f"Cannot drop level '{level_to_drop}' from this tree. "
-                "That is the leaf level.")
+        if not allow_leaf:
+            if level_to_drop == self.leaf_level:
+                raise RuntimeError(
+                    f"Cannot drop level '{level_to_drop}' from this tree. "
+                    "That is the leaf level.")
 
         new_data = copy.deepcopy(self._data)
         if 'metadata' in new_data:
@@ -362,6 +363,21 @@ class TaxonomyTree(object):
         new_data[parent_level] = new_parent
         new_data['hierarchy'].pop(level_idx)
         return TaxonomyTree(data=new_data)
+
+    def drop_level(self, level_to_drop):
+        """
+        Return a new taxonomy tree which has dropped the specified
+        level from its hierarchy.
+
+        Will not drop leaf level.
+        """
+        return self._drop_level(level_to_drop, allow_leaf=False)
+
+    def drop_leaf_level(self):
+        """
+        Drop leaf level from tree.
+        """
+        return self._drop_level(self.leaf_level, allow_leaf=True)
 
     @property
     def hierarchy(self):
