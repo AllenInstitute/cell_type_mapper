@@ -124,7 +124,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         gene_1 is the second best discrminator, and gene_101 is the worst
         discriminator
     """
-
+    full_t0 = time.time()
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
@@ -164,13 +164,16 @@ def find_markers_for_all_taxonomy_pairs_v2(
         max_gb=max_gb,
         tmp_dir=tmp_dir,
         n_processors=n_processors)
-    print(f'===== transposition took {time.time()-t0:.2e} ====='
+    print(f'===== transposition took {time.time()-t0:.2e} =====')
 
+    t0 = time.time()
     shutil.move(
         src=tmp_thinned_path,
         dst=output_path)
 
     _clean_up(tmp_dir)
+    print(f'======= copying and cleaning took {time.time()-t0:.2e} =====')
+    print(f'======= full thing {time.time()-full_t0:.2e} =======')
 
 
 def create_sparse_by_pair_marker_file_v2(
