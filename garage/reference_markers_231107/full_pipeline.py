@@ -163,7 +163,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         n_genes=n_genes,
         max_gb=max_gb,
         tmp_dir=tmp_dir,
-        n_processors=n_processors)
+        n_processors=1)
     print(f'===== transposition took {time.time()-t0:.2e} =====')
 
     t0 = time.time()
