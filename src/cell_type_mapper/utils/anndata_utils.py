@@ -479,7 +479,7 @@ def amalgamate_csr_to_x(
             if this_max > indices_max:
                 indices_max = this_max
 
-    cutoff = 2**32
+    cutoff = np.iinfo(np.int32).max
     if indices_max >= cutoff or n_valid >= cutoff:
         index_dtype = np.int64
     else:
