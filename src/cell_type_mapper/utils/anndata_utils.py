@@ -524,11 +524,13 @@ def amalgamate_csr_to_x(
                 dst_data[data0:data0+n_data] = src['data'][()]
                 dst_indices[data0:data0+n_data] = src['indices'][()]
                 n_rows = src['indptr'].shape[0]-1
-                dst_indptr[indptr0:indptr0+n_rows] = (src['indptr'][:-1]
-                                                      + indptr_offset)
+                dst_indptr[indptr0:indptr0+n_rows] = (
+                    src['indptr'][:-1].astype(index_dtype)
+                    + indptr_offset)
                 indptr0 += n_rows
                 data0 += n_data
-                indptr_offset = src['indptr'][-1] + indptr_offset
+                indptr_offset = (src['indptr'][-1].astype(index_dtype)
+                                 + indptr_offset)
         dst_indptr[-1] = n_valid
 
 
