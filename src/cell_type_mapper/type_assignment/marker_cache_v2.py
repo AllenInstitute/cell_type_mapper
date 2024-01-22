@@ -558,12 +558,30 @@ def validate_marker_lookup(
         if parent_str in marker_lookup:
             markers = set(marker_lookup[parent_str])
             if len(markers) == 0:
-                error_msg += (f"'{parent_str}' has no valid markers "
-                              "in marker_lookup\n")
-                continue
+                warning_msg = (f"'{parent_str}' has no valid markers "
+                               "in marker_lookup\n")
+
+                if parent_str == 'None':
+                    error_msg += warning_msg
+                    continue
+
+                if log is not None:
+                    log.warn(warning_msg)
+                else:
+                    warnings.warn(warning_msg)
         else:
-            error_msg += f"'{parent_str}' not listed in marker lookup\n"
-            continue
+            warning_msg = f"'{parent_str}' not listed in marker lookup\n"
+
+            if parent_str == 'None':
+                error_msg += warning_msg
+                continue
+
+            if log is not None:
+                log.warn(warning_msg)
+            else:
+                warnings.warn(warning_msg)
+            marker_lookup[parent_str] = []
+            markers = set()
 
         if len(query_gene_names.intersection(markers)) == 0:
 

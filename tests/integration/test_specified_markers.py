@@ -415,7 +415,7 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
         use_gpu):
     """
     Test what happens when one element in the marker lookup
-    contains no marker genes. Should raise an exception.
+    contains no marker genes. Should emit an error.
     """
 
     if use_gpu and not is_torch_available():
@@ -472,7 +472,7 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
         input_data=config)
 
     msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
-    with pytest.raises(RuntimeError, match=msg):
+    with pytest.warns(UserWarning, match=msg):
         runner.run()
 
     os.environ[env_var] = ''

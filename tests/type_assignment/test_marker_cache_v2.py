@@ -91,11 +91,19 @@ def test_validate_marker_lookup(
     for to_drop in ('None', 'class/A', 'subclass/d'):
         lookup = copy.deepcopy(complete_lookup_fixture)
         lookup.pop(to_drop)
-        with pytest.raises(RuntimeError, match="not listed in marker lookup"):
-            validate_marker_lookup(
-                marker_lookup=lookup,
-                taxonomy_tree=taxonomy_tree_fixture,
-                query_gene_names=query_gene_fixture)
+        msg = "not listed in marker lookup"
+        if to_drop == 'None':
+            with pytest.raises(RuntimeError, match=msg):
+                validate_marker_lookup(
+                    marker_lookup=lookup,
+                    taxonomy_tree=taxonomy_tree_fixture,
+                    query_gene_names=query_gene_fixture)
+        else:
+            with pytest.warns(UserWarning, match=msg):
+                validate_marker_lookup(
+                    marker_lookup=lookup,
+                    taxonomy_tree=taxonomy_tree_fixture,
+                    query_gene_names=query_gene_fixture)
 
     # test case where a parent has no valid markers in query gene set
     for to_drop in ('None', ):
@@ -169,12 +177,19 @@ def test_validate_marker_lookup(
         lookup = copy.deepcopy(complete_lookup_fixture)
         lookup.pop(to_drop)
         lookup[to_drop] = []
-        with pytest.raises(RuntimeError,
-                           match="has no valid markers in marker_lookup"):
-            validate_marker_lookup(
-                marker_lookup=lookup,
-                taxonomy_tree=taxonomy_tree_fixture,
-                query_gene_names=query_gene_fixture)
+        msg = "has no valid markers in marker_lookup"
+        if to_drop == 'None':
+            with pytest.raises(RuntimeError, match=msg):
+                validate_marker_lookup(
+                    marker_lookup=lookup,
+                    taxonomy_tree=taxonomy_tree_fixture,
+                    query_gene_names=query_gene_fixture)
+        else:
+            with pytest.warns(UserWarning, match=msg):
+                validate_marker_lookup(
+                    marker_lookup=lookup,
+                    taxonomy_tree=taxonomy_tree_fixture,
+                    query_gene_names=query_gene_fixture)
 
     # test all failures together
     lookup = copy.deepcopy(complete_lookup_fixture)
