@@ -12,6 +12,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -342,7 +343,14 @@ def test_summary_from_validated_file(
     metadata = json.load(open(metadata_path, 'rb'))
     assert 'n_mapped_cells' in metadata
     assert 'n_mapped_genes' in metadata
-    query_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+
+    # need to copy query file into another path
+    # otherwise there is a swmr conflict with
+    # tests run in parallel
+    query_h5ad_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.h5ad')
+    shutil.copy(src=query_h5ad_fixture, dst=query_h5ad_path)
+
+    query_data = anndata.read_h5ad(query_h5ad_path, backed='r')
     assert metadata['n_mapped_cells'] == len(query_data.obs)
     assert metadata['n_mapped_genes'] == (len(query_data.var)
                                           -n_extra_genes_fixture)
