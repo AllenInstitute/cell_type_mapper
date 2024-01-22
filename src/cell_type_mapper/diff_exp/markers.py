@@ -494,7 +494,7 @@ def add_sparse_by_gene_markers_to_file(
             prefix='transposed_',
             suffix='.h5')
 
-        if n_processors == 1:
+        if True:  # n_processors == 1:
             with h5py.File(h5_path, 'r') as src:
                 transpose_sparse_matrix_on_disk(
                     indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
