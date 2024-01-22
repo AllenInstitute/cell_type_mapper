@@ -126,16 +126,16 @@ def test_validate_marker_lookup(
                 marker_lookup=lookup,
                 taxonomy_tree=taxonomy_tree_fixture,
                 query_gene_names=query_gene_fixture,
-                log=log)
+                log=log,
+                min_markers=1)
 
         if to_drop == 'class/A':
-            assert new_lookup['class/A'] == lookup['None']
+            assert set(new_lookup['class/A']) == set(lookup['None'])
         else:
-            assert new_lookup['subclass/f'] == lookup['class/C']
-        expected = f"'{to_drop}' had no markers in query set; replacing"
+            assert set(new_lookup['subclass/f']) == set(lookup['class/C'])
+        expected = f"'{to_drop}' had too few markers in query set; augmenting"
         found = False
         for msg in log.log:
-            print(msg)
             if expected in msg:
                 found = True
                 break
@@ -154,17 +154,17 @@ def test_validate_marker_lookup(
                 query_gene_names=query_gene_fixture,
                 log=log)
 
-    assert new_lookup['class/C'] == lookup['None']
-    assert new_lookup['subclass/f'] == lookup['None']
-    assert new_lookup['subclass/e'] != lookup['None']
+    assert set(new_lookup['class/C']) == set(lookup['None'])
+    assert set(new_lookup['subclass/f']) == set(lookup['None'])
+    assert set(new_lookup['subclass/e']) != set(lookup['None'])
 
     for to_drop in ('class/C', 'subclass/f'):
         if to_drop == 'class/C':
-            the_patch = 'None'
+            the_patch = f"{['None']}"
         else:
-            the_patch = 'class/C'
-        expected = (f"'{to_drop}' had no markers in query set; "
-                    f"replacing with markers from '{the_patch}'")
+            the_patch = f"{['class/C']}"
+        expected = (f"'{to_drop}' had too few markers in query set; "
+                    "augmenting with markers from")
         found = False
         for msg in log.log:
             if expected in msg:
@@ -201,3 +201,79 @@ def test_validate_marker_lookup(
             marker_lookup=lookup,
             taxonomy_tree=taxonomy_tree_fixture,
             query_gene_names=query_gene_fixture)
+
+
+def test_patching_of_marker_lookup():
+    """
+    Test simple cases of patching up taxonomic nodes that have
+    too few markers.
+    """
+
+    taxonomy_tree_data = {
+        'hierarchy': ['class', 'subclass', 'cluster'],
+        'class': {
+            'A': ['a', 'b'],
+            'B': ['c', 'd', 'e']
+        },
+        'subclass': {
+            'a': ['1', '2', '3'],
+            'b': ['4'],
+            'c': ['5', '6'],
+            'd': ['7', '8'],
+            'e': ['9', '10']
+        },
+        'cluster':{
+            str(k): [] for k in range(1, 11, 1)
+        }
+    }
+
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_data)
+
+    marker_lookup = {
+        'None': ['g0', 'g1', 'g2'],
+        'class/A': ['g3', 'g4'],
+        'class/B': ['g5'],
+        'subclass/a': ['g6', 'g7'],
+        'subclass/d': [],
+        'subclass/e': ['g8']
+    }
+
+    query_gene_names = [f'g{ii}' for ii in range(9)]
+    actual = validate_marker_lookup(
+        marker_lookup=marker_lookup,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        min_markers=1)
+
+    expected = {
+        'None': ['g0', 'g1', 'g2'],
+        'class/A': ['g3', 'g4'],
+        'class/B': ['g5'],
+        'subclass/a': ['g6', 'g7'],
+        'subclass/c': ['g5'],
+        'subclass/d': ['g5'],
+        'subclass/e': ['g8']
+    }
+
+    assert actual == expected
+    assert marker_lookup != expected
+
+    return
+    actual = validate_marker_lookup(
+        marker_lookup=marker_lookup,
+        query_gene_names=query_gene_names,
+        taxonomy_tree=taxonomy_tree,
+        min_markers=2)
+
+    expected = {
+        'None': ['g0', 'g1', 'g2'],
+        'class/A': ['g3', 'g4'],
+        'class/B': ['g0', 'g1', 'g2', 'g5'],
+        'subclass/a': ['g6', 'g7'],
+        'subclass/c': ['g0', 'g1', 'g2', 'g5'],
+        'subclass/d': ['g0', 'g1', 'g2', 'g5'],
+        'subclass/e': ['g5', 'g8']
+    }
+
+    assert actual == expected
+    assert marker_lookup != expected

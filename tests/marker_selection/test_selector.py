@@ -717,7 +717,8 @@ def test_marker_serialization_roundtrip(
                 reference_gene_names=reference_gene_names,
                 output_cache_path=round_trip_path,
                 log=log,
-                taxonomy_tree=taxonomy_tree)
+                taxonomy_tree=taxonomy_tree,
+                min_markers=1)
         if use_log:
             found_warning = False
             for l in log._log:
@@ -730,7 +731,8 @@ def test_marker_serialization_roundtrip(
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
             output_cache_path=round_trip_path,
-            taxonomy_tree=taxonomy_tree)
+            taxonomy_tree=taxonomy_tree,
+            min_markers=1)
 
     with h5py.File(baseline_path, 'r') as src:
         baseline_dataset_list = get_all_datasets(src)
