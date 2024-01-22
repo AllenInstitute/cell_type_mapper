@@ -265,6 +265,7 @@ def score_differential_genes(
         big_nu=None,
         exact_penetrance=False,
         n_valid=30,
+        n_valid_min=10,
         valid_gene_idx=None):
     """
     Rank genes according to their ability to differentiate between
@@ -321,6 +322,12 @@ def score_differential_genes(
     n_valid:
         Number of markers to try for when using approximate
         penetrance test
+
+    n_valid_min:
+        If the number of markers is less than this and exact_penetrance
+        is False, re-rerun marker finding with a slightly more relaxed
+        criterion (namely, take passage of p-value test into consideration
+        when applying penetrance test).
 
     valid_gene_idx:
         Optional numpy array of indexes of genes that can be considered
@@ -379,23 +386,55 @@ def score_differential_genes(
 
     pvalue_valid = (pvalues < p_th)
 
-    penetrance_mask = penetrance_from_stats(
-        node_1=node_1,
-        node_2=node_2,
-        precomputed_stats=precomputed_stats,
-        q1_th=q1_th,
-        q1_min_th=q1_min_th,
-        qdiff_th=qdiff_th,
-        qdiff_min_th=qdiff_min_th,
-        log2_fold_th=log2_fold_th,
-        log2_fold_min_th=log2_fold_min_th,
-        valid_gene_idx=valid_gene_idx,
-        exact_penetrance=exact_penetrance,
-        n_valid=n_valid)
+    keep_going = True
+    n_iteration = 0
 
-    validity_mask = np.logical_and(
-        pvalue_valid,
-        penetrance_mask)
+    while keep_going:
+        n_iteration += 1
+        penetrance_mask = penetrance_from_stats(
+            node_1=node_1,
+            node_2=node_2,
+            precomputed_stats=precomputed_stats,
+            q1_th=q1_th,
+            q1_min_th=q1_min_th,
+            qdiff_th=qdiff_th,
+            qdiff_min_th=qdiff_min_th,
+            log2_fold_th=log2_fold_th,
+            log2_fold_min_th=log2_fold_min_th,
+            valid_gene_idx=valid_gene_idx,
+            exact_penetrance=exact_penetrance,
+            n_valid=n_valid)
+
+        validity_mask = np.logical_and(
+            pvalue_valid,
+            penetrance_mask)
+
+        # If not enough markers were found, try setting
+        # valid_gene_idx so that it takes account of genes
+        # that we know will pass the p-value test.
+        # However, we will only make one more pass through.
+
+        if validity_mask.sum() >= n_valid_min:
+            keep_going = False
+        if exact_penetrance:
+            keep_going = False
+        if n_iteration > 1:
+            keep_going = False
+
+        if keep_going:
+            if valid_gene_idx is None:
+                gene_mask = np.ones(
+                        stats_1['mean'].shape,
+                        dtype=bool)
+            else:
+                gene_mask = np.zeros(
+                        stats_1['mean'].shape,
+                        dtype=bool)
+                gene_mask[valid_gene_idx] = True
+            valid_gene_idx = np.where(
+                np.logical_and(
+                    gene_mask,
+                    pvalue_valid))[0]
 
     up_mask = np.zeros(stats_1["mean"].shape, dtype=np.uint8)
     up_mask[stats_2["mean"] > stats_1["mean"]] = 1
