@@ -118,7 +118,8 @@ def transpose_sparse_matrix_on_disk(
         indices_max,
         max_gb,
         output_path,
-        verbose=True):
+        verbose=True,
+        indices_slice=None):
 
     use_data_array = (data_handle is not None)
 
@@ -130,10 +131,14 @@ def transpose_sparse_matrix_on_disk(
         indices_handle=indices_handle,
         indices_max=indices_max,
         max_gb=max_gb,
-        verbose=verbose)
+        verbose=verbose,
+        indices_slice=indices_slice)
 
     col_dtype = _get_uint_dtype(indptr_handle.shape[0]-1)
-    row_dtype = _get_uint_dtype(indices_max)
+    if indices_slice is None:
+        row_dtype = _get_uint_dtype(indices_max)
+    else:
+        row_dtype = _get_uint_dtype(indices_slice[1]-indices_slice[0])
 
     if use_data_array:
         data_dtype = data_handle.dtype
@@ -163,7 +168,6 @@ def transpose_sparse_matrix_on_disk(
 
     next_idx = np.copy(csr_indptr)
     csc_indptr = indptr_handle[()]
-    row_group = indices_handle
 
     if use_data_array:
         data_group = data_handle
@@ -209,10 +213,21 @@ def transpose_sparse_matrix_on_disk(
 
         index_buffer = np.zeros(d1-d0, dtype=col_dtype)
 
-        for i0 in range(0, n_non_zero, load_chunk_size):
-            i1 = min(n_non_zero, i0+load_chunk_size)
+        n_indices = indices_handle.shape[0]
+        for i0 in range(0, n_indices, load_chunk_size):
+            indices_filter = None
 
-            row_chunk = row_group[i0:i1].astype(row_dtype)
+            i1 = min(n_indices, i0+load_chunk_size)
+
+            row_chunk = indices_handle[i0:i1].astype(row_dtype)
+
+            if indices_slice is not None:
+                indices_filter = np.logical_and(
+                    row_chunk >= indices_slice[0],
+                    row_chunk < indices_slice[1])
+                row_chunk = row_chunk[indices_filter]
+                row_chunk -= indices_slice[0]
+
             sorted_dex = np.argsort(row_chunk)
             row_chunk = row_chunk[sorted_dex]
 
@@ -232,17 +247,22 @@ def transpose_sparse_matrix_on_disk(
                 np.arange(i0, i1, dtype=int),
                 side='right')
             col_chunk -= 1
+
+            if indices_filter is not None:
+                col_chunk = col_chunk[indices_filter]
+
             col_chunk = col_chunk[sorted_dex]
 
             if use_data_array:
                 data_chunk = data_group[i0:i1]
+                if indices_filter is not None:
+                    data_chunk = data_chunk[indices_filter]
                 data_chunk = data_chunk[sorted_dex]
 
             del sorted_dex
 
             unq_val_arr = unq_val_arr[valid_dex]
             unq_ct_arr = unq_ct_arr[valid_dex]
-
             for unq_val, unq_ct in zip(unq_val_arr, unq_ct_arr):
                 j0 = np.searchsorted(row_chunk, unq_val, side='left')
 
@@ -278,7 +298,13 @@ def _calculate_csr_indptr(
         indices_handle,
         indices_max,
         max_gb,
-        verbose=True):
+        verbose=True,
+        indices_slice=None):
+
+    n_non_zero = 0
+
+    if indices_slice is not None:
+        indices_max = indices_slice[1]-indices_slice[0]
 
     bytes_per = _get_bytes_for_type(indices_handle.dtype)
     load_chunk_size = np.round(max_gb*1024**3).astype(int)//bytes_per
@@ -293,12 +319,20 @@ def _calculate_csr_indptr(
     for i0 in range(0, n_indices, load_chunk_size):
         i1 = min(n_indices, i0+load_chunk_size)
         chunk = indices_handle[i0:i1]
+
+        if indices_slice is not None:
+            valid = np.logical_and(
+                chunk >= indices_slice[0],
+                chunk < indices_slice[1])
+            chunk = chunk[valid]
+            chunk -= indices_slice[0]
+
+        n_non_zero += len(chunk)
         unq_val, unq_ct = np.unique(chunk, return_counts=True)
         cumulative_count[unq_val] += unq_ct
+
     csr_indptr = np.cumsum(cumulative_count)
     csr_indptr = np.concatenate([np.array([0], dtype=int), csr_indptr])
-
-    n_non_zero = n_indices
 
     return csr_indptr, n_non_zero
 
