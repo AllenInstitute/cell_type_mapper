@@ -717,7 +717,8 @@ def test_marker_serialization_roundtrip(
                 reference_gene_names=reference_gene_names,
                 output_cache_path=round_trip_path,
                 log=log,
-                taxonomy_tree=taxonomy_tree)
+                taxonomy_tree=taxonomy_tree,
+                min_markers=1)
         if use_log:
             found_warning = False
             for l in log._log:
@@ -730,7 +731,8 @@ def test_marker_serialization_roundtrip(
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
             output_cache_path=round_trip_path,
-            taxonomy_tree=taxonomy_tree)
+            taxonomy_tree=taxonomy_tree,
+            min_markers=1)
 
     with h5py.File(baseline_path, 'r') as src:
         baseline_dataset_list = get_all_datasets(src)
@@ -774,8 +776,8 @@ def test_specified_marker_failure():
 def test_specified_marker_parent_failure(tmp_dir_fixture):
     """
     Test that if a non-trivial parent node has no markers,
-    create_marker_cache_from_specified_markers will raise an
-    exception.
+    create_marker_cache_from_specified_markers will issue a
+    warning.
     """
     tree = TaxonomyTree(
         data={
@@ -809,7 +811,8 @@ def test_specified_marker_parent_failure(tmp_dir_fixture):
         'subclass/d': ['g_2', 'g_1', 'g_11'],
         'subclass/f': ['g_17', 'g_20']
     }
-    with pytest.raises(RuntimeError, match='validating marker lookup'):
+    msg = 'has no valid markers in marker_lookup'
+    with pytest.warns(UserWarning, match=msg):
         create_marker_cache_from_specified_markers(
              marker_lookup=marker_lookup,
              query_gene_names=query_gene_names,

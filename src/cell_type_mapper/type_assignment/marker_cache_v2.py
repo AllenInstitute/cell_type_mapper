@@ -72,7 +72,8 @@ def create_marker_cache_from_specified_markers(
         query_gene_names,
         output_cache_path,
         taxonomy_tree=None,
-        log=None):
+        log=None,
+        min_markers=10):
     """
     Write marker genes to HDF5 file
 
@@ -93,6 +94,9 @@ def create_marker_cache_from_specified_markers(
         throwing an error if any do not.
     log:
         Optional object to log messages/warnings for CLI
+    min_markers:
+        If a parent node has fewer markers than this,
+        augment it with the markers from it's parent node.
 
     Notes
     -----
@@ -107,7 +111,8 @@ def create_marker_cache_from_specified_markers(
             marker_lookup=marker_lookup,
             query_gene_names=query_gene_names,
             taxonomy_tree=taxonomy_tree,
-            log=log)
+            log=log,
+            min_markers=min_markers)
 
     query_gene_set = set(query_gene_names)
     reference_gene_set = set(reference_gene_names)
@@ -502,7 +507,8 @@ def validate_marker_lookup(
         marker_lookup,
         query_gene_names,
         taxonomy_tree,
-        log=None):
+        log=None,
+        min_markers=10):
     """
     Verify that downselecting the specified marker lookup to include only the
     genes in query_gene_names will produce a set of markers for
@@ -520,6 +526,9 @@ def validate_marker_lookup(
         A TaxonomyTree
     log:
         Optional object to log messages/warnings for CLI
+    min_markers:
+        If a parent node has fewer markers than this,
+        augment it with the markers from it's parent node.
 
     Returns
     -------
@@ -530,7 +539,9 @@ def validate_marker_lookup(
     marker_lookup = copy.deepcopy(marker_lookup)
 
     query_gene_names = set(query_gene_names)
-    all_parents = taxonomy_tree.all_parents
+    all_parents = copy.deepcopy(taxonomy_tree.all_parents)
+    all_parents.reverse()
+
     error_msg = ''
 
     bad_parent_ct = 0  # parents who lack markers in the query set
@@ -558,14 +569,35 @@ def validate_marker_lookup(
         if parent_str in marker_lookup:
             markers = set(marker_lookup[parent_str])
             if len(markers) == 0:
-                error_msg += (f"'{parent_str}' has no valid markers "
-                              "in marker_lookup\n")
-                continue
-        else:
-            error_msg += f"'{parent_str}' not listed in marker lookup\n"
-            continue
+                warning_msg = (f"'{parent_str}' has no valid markers "
+                               "in marker_lookup\n")
 
-        if len(query_gene_names.intersection(markers)) == 0:
+                if parent_str == 'None':
+                    error_msg += warning_msg
+                    continue
+
+                if log is not None:
+                    log.warn(warning_msg)
+                else:
+                    warnings.warn(warning_msg)
+        else:
+            warning_msg = f"'{parent_str}' not listed in marker lookup\n"
+
+            if parent_str == 'None':
+                error_msg += warning_msg
+                continue
+
+            if log is not None:
+                log.warn(warning_msg)
+            else:
+                warnings.warn(warning_msg)
+            marker_lookup[parent_str] = []
+            markers = set()
+
+        reverse_hier = copy.deepcopy(taxonomy_tree.hierarchy)
+        reverse_hier.reverse()
+
+        if len(query_gene_names.intersection(markers)) < min_markers:
 
             # try patching with markers from levels above this level
 
@@ -573,31 +605,43 @@ def validate_marker_lookup(
                 ancestors = taxonomy_tree.parents(
                     level=parent[0],
                     node=parent[1])
-                reverse_hier = copy.deepcopy(taxonomy_tree.hierarchy)
-                reverse_hier.reverse()
-                patched_with = None
+
+                new_markers = set(markers)
+                patched_with = []
+
                 for ancestor_level in reverse_hier:
                     if ancestor_level in ancestors:
                         ancestor_str = (
                             f'{ancestor_level}/{ancestors[ancestor_level]}')
                         if ancestor_str not in marker_lookup:
                             continue
-                        new_markers = marker_lookup[ancestor_str]
+
+                        new_markers = new_markers.union(
+                            set(marker_lookup[ancestor_str]))
+
+                        patched_with.append(ancestor_str)
+
                         if len(query_gene_names.intersection(
-                                    set(new_markers))) > 0:
-                            marker_lookup[parent_str] = new_markers
-                            patched_with = ancestor_str
+                                    set(new_markers))) > min_markers:
                             break
 
-                if len(query_gene_names.intersection(
-                            set(marker_lookup[parent_str]))) == 0:
-                    marker_lookup[parent_str] = marker_lookup['None']
-                    patched_with = 'None'
+                if len(query_gene_names.intersection(new_markers)) \
+                        < min_markers:
+                    if 'None' in marker_lookup:
+                        new_markers = new_markers.union(
+                            set(marker_lookup['None']))
+                        patched_with.append('None')
+
+                if len(patched_with) > 0:
+                    new_markers = query_gene_names.intersection(new_markers)
+                    new_markers = list(new_markers)
+                    new_markers.sort()
+                    marker_lookup[parent_str] = new_markers
 
                 warning_msg = (
-                     f"parent node '{parent_str}' had no markers in "
-                     "query set; replacing with markers from "
-                     f"'{patched_with}'")
+                     f"parent node '{parent_str}' had too few markers in "
+                     "query set; augmenting with markers from "
+                     f"{patched_with}")
                 if log is not None:
                     log.warn(warning_msg)
                 else:
