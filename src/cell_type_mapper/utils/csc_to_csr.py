@@ -43,7 +43,7 @@ def csc_to_csr_on_disk(
         indices_handle=csc_group['indices'],
         indptr_handle=csc_group['indptr'],
         data_handle=data_handle,
-        n_indices=array_shape[0],
+        indices_max=array_shape[0],
         max_gb=max_gb,
         output_path=csr_path)
 
@@ -51,7 +51,7 @@ def csc_to_csr_on_disk(
 def transpose_by_way_of_disk(
         indices,
         indptr,
-        n_indices,
+        indices_max,
         max_gb=10,
         tmp_dir=None):
     """
@@ -62,7 +62,7 @@ def transpose_by_way_of_disk(
 
     (presently ignore 'data' since that's how we are using this tool)
 
-    (n_indices is the size of the array dimension encoded by the
+    (indices_max is the size of the array dimension encoded by the
     old indices value)
     """
     tmp_dir = pathlib.Path(
@@ -99,7 +99,7 @@ def transpose_by_way_of_disk(
             indices_handle=src['indices'],
             indptr_handle=src['indptr'],
             data_handle=None,
-            n_indices=n_indices,
+            indices_max=indices_max,
             max_gb=max_gb,
             output_path=dst_path,
             verbose=False)
@@ -115,7 +115,7 @@ def transpose_sparse_matrix_on_disk(
         indices_handle,
         indptr_handle,
         data_handle,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
         verbose=True):
@@ -129,7 +129,7 @@ def transpose_sparse_matrix_on_disk(
 
     n_indptr = indptr_handle.shape[0]-1
     col_dtype = _get_uint_dtype(n_indptr)
-    row_dtype = _get_uint_dtype(n_indices)
+    row_dtype = _get_uint_dtype(indices_max)
 
     if use_data_array:
         data_dtype = data_handle.dtype
@@ -155,7 +155,7 @@ def transpose_sparse_matrix_on_disk(
 
     csr_indptr = _calculate_csr_indptr(
         indices_handle=indices_handle,
-        n_indices=n_indices,
+        indices_max=indices_max,
         n_non_zero=n_non_zero,
         max_gb=max_gb,
         verbose=verbose)
@@ -279,7 +279,7 @@ def transpose_sparse_matrix_on_disk(
 
 def _calculate_csr_indptr(
         indices_handle,
-        n_indices,
+        indices_max,
         n_non_zero,
         max_gb,
         verbose=True):
@@ -290,7 +290,7 @@ def _calculate_csr_indptr(
 
     load_chunk_size = max(100, load_chunk_size)
 
-    cumulative_count = np.zeros(n_indices, dtype=int)
+    cumulative_count = np.zeros(indices_max, dtype=int)
 
     for i0 in range(0, n_non_zero, load_chunk_size):
         i1 = min(n_non_zero, i0+load_chunk_size)
