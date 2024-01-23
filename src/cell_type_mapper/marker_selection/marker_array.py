@@ -218,7 +218,7 @@ class MarkerGeneArray(object):
          by_pair_indices) = transpose_by_way_of_disk(
              indices=up_by_gene.indices,
              indptr=up_by_gene.indptr,
-             n_indices=n_pairs,
+             indices_max=n_pairs,
              max_gb=30,
              tmp_dir=tmp_dir)
 
@@ -240,7 +240,7 @@ class MarkerGeneArray(object):
          by_pair_indices) = transpose_by_way_of_disk(
              indices=down_by_gene.indices,
              indptr=down_by_gene.indptr,
-             n_indices=n_pairs,
+             indices_max=n_pairs,
              max_gb=30,
              tmp_dir=tmp_dir)
 
@@ -292,7 +292,7 @@ class MarkerGeneArray(object):
          by_gene_pair) = transpose_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
-             n_indices=self.n_genes,
+             indices_max=self.n_genes,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -314,7 +314,7 @@ class MarkerGeneArray(object):
          by_gene_pair) = transpose_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
-             n_indices=self.n_genes,
+             indices_max=self.n_genes,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -358,7 +358,7 @@ class MarkerGeneArray(object):
          by_pair_gene) = transpose_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
-             n_indices=self.n_pairs,
+             indices_max=self.n_pairs,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -380,7 +380,7 @@ class MarkerGeneArray(object):
          by_pair_gene) = transpose_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
-             n_indices=self.n_pairs,
+             indices_max=self.n_pairs,
              max_gb=10,
              tmp_dir=tmp_dir)
 

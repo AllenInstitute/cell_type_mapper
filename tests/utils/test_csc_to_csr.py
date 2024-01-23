@@ -159,7 +159,7 @@ def test_transpose_sparse_matrix_on_disk(
                     indptr_handle=original['X/indptr'],
                     data_handle=data_handle,
                     output_path=output_path,
-                    n_indices=x_array_fixture.shape[0],
+                    indices_max=x_array_fixture.shape[0],
                     max_gb=max_gb)
     else:
         if use_data:
@@ -173,7 +173,7 @@ def test_transpose_sparse_matrix_on_disk(
             indptr_tag='X/indptr',
             data_tag=data_tag,
             output_path=output_path,
-            n_indices=x_array_fixture.shape[0],
+            indices_max=x_array_fixture.shape[0],
             max_gb=max_gb,
             tmp_dir=tmp_dir_fixture)
 

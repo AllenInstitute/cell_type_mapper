@@ -502,7 +502,7 @@ def add_sparse_by_gene_markers_to_file(
                     indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
                     indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
                     data_handle=None,
-                    n_indices=n_genes,
+                    indices_max=n_genes,
                     max_gb=max_gb,
                     output_path=transposed_path)
         else:
@@ -511,7 +511,7 @@ def add_sparse_by_gene_markers_to_file(
                 indices_tag=f'sparse_by_pair/{direction}_gene_idx',
                 indptr_tag=f'sparse_by_pair/{direction}_pair_idx',
                 data_tag=None,
-                n_indices=n_genes,
+                indices_max=n_genes,
                 max_gb=max_gb,
                 output_path=transposed_path,
                 verbose=False,

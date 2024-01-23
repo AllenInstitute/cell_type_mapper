@@ -18,14 +18,14 @@ def transpose_sparse_matrix_on_disk_v2(
         indices_tag,
         indptr_tag,
         data_tag,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
         verbose=False,
         tmp_dir=None,
         n_processors=4):
     """
-    n_indices is the number of unique indices values in original array
+    indices_max is the number of unique indices values in original array
     """
 
     tmp_dir = tempfile.mkdtemp(
@@ -38,7 +38,7 @@ def transpose_sparse_matrix_on_disk_v2(
             indices_tag=indices_tag,
             indptr_tag=indptr_tag,
             data_tag=data_tag,
-            n_indices=n_indices,
+            indices_max=indices_max,
             max_gb=max_gb,
             output_path=output_path,
             verbose=verbose,
@@ -53,7 +53,7 @@ def _transpose_sparse_matrix_on_disk_v2(
         indices_tag,
         indptr_tag,
         data_tag,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
         verbose=False,
@@ -76,12 +76,12 @@ def _transpose_sparse_matrix_on_disk_v2(
     if chunk_size > n_raw_indices:
         chunk_size = n_raw_indices
 
-    indices_chunk_size = np.round(n_indices/n_processors).astype(int)
+    indices_chunk_size = np.round(indices_max/n_processors).astype(int)
 
     path_list = []
     process_list = []
-    for i0 in range(0, n_indices, indices_chunk_size):
-        i1 = min(n_indices, i0+indices_chunk_size)
+    for i0 in range(0, indices_max, indices_chunk_size):
+        i1 = min(indices_max, i0+indices_chunk_size)
 
         tmp_path = pathlib.Path(
                 mkstemp_clean(
