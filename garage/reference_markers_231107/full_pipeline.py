@@ -163,7 +163,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         n_genes=n_genes,
         max_gb=max_gb,
         tmp_dir=tmp_dir,
-        n_processors=1)
+        n_processors=n_processors)
     print(f'===== transposition took {time.time()-t0:.2e} =====')
 
     t0 = time.time()
@@ -419,7 +419,8 @@ def create_sparse_by_pair_marker_file_v2(
         dst_grp.create_dataset(
             'up_gene_idx',
             shape=(n_up_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(n_up_indices, 1000000),))
         dst_grp.create_dataset(
             'down_pair_idx',
             shape=(n_pairs+1,),
@@ -427,7 +428,8 @@ def create_sparse_by_pair_marker_file_v2(
         dst_grp.create_dataset(
             'down_gene_idx',
             shape=(n_down_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(n_down_indices, 1000000),))
 
         col0_values = list(tmp_path_dict.keys())
         col0_values.sort()
