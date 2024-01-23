@@ -125,10 +125,14 @@ def transpose_sparse_matrix_on_disk(
     # to account for phantom overhead in numpy
     max_gb = 0.8*max_gb
 
-    n_non_zero = indices_handle.shape[0]
+    (csr_indptr,
+     n_non_zero) = _calculate_csr_indptr(
+        indices_handle=indices_handle,
+        indices_max=indices_max,
+        max_gb=max_gb,
+        verbose=verbose)
 
-    n_indptr = indptr_handle.shape[0]-1
-    col_dtype = _get_uint_dtype(n_indptr)
+    col_dtype = _get_uint_dtype(indptr_handle.shape[0]-1)
     row_dtype = _get_uint_dtype(indices_max)
 
     if use_data_array:
@@ -152,13 +156,6 @@ def transpose_sparse_matrix_on_disk(
             shape=n_non_zero,
             dtype=col_dtype,
             chunks=chunks)
-
-    csr_indptr = _calculate_csr_indptr(
-        indices_handle=indices_handle,
-        indices_max=indices_max,
-        n_non_zero=n_non_zero,
-        max_gb=max_gb,
-        verbose=verbose)
 
     with h5py.File(output_path, 'a') as dst:
         dst.create_dataset(
@@ -280,7 +277,6 @@ def transpose_sparse_matrix_on_disk(
 def _calculate_csr_indptr(
         indices_handle,
         indices_max,
-        n_non_zero,
         max_gb,
         verbose=True):
 
@@ -292,14 +288,19 @@ def _calculate_csr_indptr(
 
     cumulative_count = np.zeros(indices_max, dtype=int)
 
-    for i0 in range(0, n_non_zero, load_chunk_size):
-        i1 = min(n_non_zero, i0+load_chunk_size)
+    n_indices = indices_handle.shape[0]
+
+    for i0 in range(0, n_indices, load_chunk_size):
+        i1 = min(n_indices, i0+load_chunk_size)
         chunk = indices_handle[i0:i1]
         unq_val, unq_ct = np.unique(chunk, return_counts=True)
         cumulative_count[unq_val] += unq_ct
     csr_indptr = np.cumsum(cumulative_count)
     csr_indptr = np.concatenate([np.array([0], dtype=int), csr_indptr])
-    return csr_indptr
+
+    n_non_zero = n_indices
+
+    return csr_indptr, n_non_zero
 
 
 def _get_uint_dtype(max_value):
