@@ -414,7 +414,8 @@ def create_sparse_by_pair_marker_file(
         dst_grp.create_dataset(
             'up_gene_idx',
             shape=(n_up_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(1000000, n_up_indices),))
         dst_grp.create_dataset(
             'down_pair_idx',
             shape=(n_pairs+1,),
@@ -422,7 +423,8 @@ def create_sparse_by_pair_marker_file(
         dst_grp.create_dataset(
             'down_gene_idx',
             shape=(n_down_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(1000000, n_down_indices),))
 
         col0_values = list(tmp_path_dict.keys())
         col0_values.sort()
