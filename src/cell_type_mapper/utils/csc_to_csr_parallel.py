@@ -124,7 +124,7 @@ def _transpose_sparse_matrix_on_disk_v2(
         indices = dst.create_dataset(
             'indices',
             shape=(indices_size,),
-            chunks=(min(indptr_size, 10000),),
+            chunks=(min(indptr_size, 1000000),),
             dtype=indices_dtype)
         indptr = dst.create_dataset(
             'indptr',
@@ -135,7 +135,7 @@ def _transpose_sparse_matrix_on_disk_v2(
             data = dst.create_dataset(
                 'data',
                 shape=(indices_size,),
-                chunks=(min(indptr_size, 10000),),
+                chunks=(min(indptr_size, 1000000),),
                 dtype=data_dtype)
 
         for path in path_list:
