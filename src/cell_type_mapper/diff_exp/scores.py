@@ -12,7 +12,8 @@ from cell_type_mapper.utils.stats_utils import (
     approx_correct_ttest)
 
 from cell_type_mapper.diff_exp.score_utils import (
-    q_score_from_pij)
+    q_score_from_pij,
+    pij_from_stats)
 
 
 def _get_this_cluster_stats(
@@ -634,12 +635,13 @@ def penetrance_from_stats(
     An (n_genes,) array of booleans indicating which genes
     passed the penetrance tests.
     """
-    stats_1 = precomputed_stats[node_1]
-    stats_2 = precomputed_stats[node_2]
 
-    pij_1 = stats_1['ge1']/max(1, stats_1['n_cells'])
-    pij_2 = stats_2['ge1']/max(1, stats_2['n_cells'])
-    log2_fold = np.abs(stats_1['mean']-stats_2['mean'])
+    (pij_1,
+     pij_2,
+     log2_fold) = pij_from_stats(
+             cluster_stats=precomputed_stats,
+             node_1=node_1,
+             node_2=node_2)
 
     if valid_gene_idx is not None:
         invalid_mask = np.zeros(pij_1.shape, dtype=bool)
