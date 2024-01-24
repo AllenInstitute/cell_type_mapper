@@ -526,7 +526,8 @@ def _find_markers_worker_v2(
         Optional array of gene indices indicating which genes
         can be considered valid markers
     """
-
+    full_t0 = time.time()
+    t_work = 0.0
     print(f'worker starting process {os.getpid()}')
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
     n_pairs = len(idx_to_pair)
@@ -585,13 +586,13 @@ def _find_markers_worker_v2(
                 f"{p_i0}:{p_i1}; {idx_min} {idx_max}")
         these_indices = p_indices[p_indptr[ct]:p_indptr[ct+1]]
         p_mask[these_indices] = True
+
+        t0 = time.time()
         penetrance_dist[these_indices] = sparse_dist[p_indptr[ct]:p_indptr[ct+1]].astype(float)
         penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
         bad_dist = penetrance_dist.max()+100.0
         penetrance_dist[np.logical_not(p_mask)] = bad_dist
-
         invalid = (penetrance_dist >= 100.0)
-
         abs_valid = (penetrance_dist<eps)
         validity_mask = np.logical_and(
             p_mask,
@@ -606,6 +607,7 @@ def _find_markers_worker_v2(
             validity_mask = np.logical_and(
                 p_mask,
                 penetrance_mask)
+        t_work += time.time()-t0
 
         stats_1 = cluster_stats[node_1]
         stats_2 = cluster_stats[node_2]
@@ -658,3 +660,6 @@ def _find_markers_worker_v2(
 
         out_file.create_dataset(
             'n_up_indices', data=n_up_indices)
+
+    t_total = time.time()-full_t0
+    print(f'====work {t_work:.2e} of {t_total:.2e}===')
