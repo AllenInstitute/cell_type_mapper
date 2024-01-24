@@ -801,23 +801,6 @@ def approx_penetrance_test(
     if absolutely_valid.sum() >= n_valid:
         valid = absolutely_valid
     else:
-        invalid = np.logical_or(
-                q1_score < q1_min_th,
-                np.logical_or(
-                    qdiff_score < qdiff_min_th,
-                    log2_fold < log2_fold_min_th))
-
-        # alter distances so that we do not choose
-        # genes that are going to be labeled automatically
-        # invalid anyway
-        bad_dist = max(
-            qdiff_dist.max(),
-            q1_dist.max(),
-            fold_dist.max()) + 100.0
-
-        qdiff_dist[invalid] = bad_dist
-        q1_dist[invalid] = bad_dist
-        fold_dist[invalid] = bad_dist
 
         qdiff_dex = np.argsort(qdiff_dist)
         q1_dex = np.argsort(q1_dist)
@@ -837,7 +820,7 @@ def approx_penetrance_test(
 
         valid = np.zeros(len(absolutely_valid), dtype=bool)
         valid[to_use] = True
-        valid[invalid] = False
+        valid[distances['invalid']] = False
 
     return valid
 
@@ -858,7 +841,8 @@ def penetrance_parameter_distance(
          'wgt': weighted distance_sq
          'q1': q1_distance_sq
          'qdiff': qdiff_distance_sq
-         'fold': fold_distance_sq}
+         'fold': fold_distance_sq,
+         'invalid': mask marking genes that are invalid by min_th}
     """
 
     if len(q1_score) != len(qdiff_score) or len(q1_score) != len(log2_fold):
@@ -900,6 +884,24 @@ def penetrance_parameter_distance(
     q1_dist = qdiff_term+1.5*q1_term+fold_term
     fold_dist = qdiff_term+q1_term+1.5*fold_term
 
+    invalid = np.logical_or(
+            q1_score < q1_min_th,
+            np.logical_or(
+                qdiff_score < qdiff_min_th,
+                log2_fold < log2_fold_min_th))
+
+    # alter distances so that we do not choose
+    # genes that are going to be labeled automatically
+    # invalid anyway
+    bad_dist = max(
+        qdiff_dist.max(),
+        q1_dist.max(),
+        fold_dist.max()) + 100.0
+
+    qdiff_dist[invalid] = bad_dist
+    q1_dist[invalid] = bad_dist
+    fold_dist[invalid] = bad_dist
+
     wgt = qdiff_dist
     wgt = np.where(
         wgt < q1_dist,
@@ -915,7 +917,8 @@ def penetrance_parameter_distance(
         'q1': q1_dist,
         'qdiff': qdiff_dist,
         'fold': fold_dist,
-        'wgt': wgt
+        'wgt': wgt,
+        'invalid': invalid
     }
 
 
