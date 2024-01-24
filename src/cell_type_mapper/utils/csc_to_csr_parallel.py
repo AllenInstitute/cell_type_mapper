@@ -138,7 +138,7 @@ def _transpose_sparse_matrix_on_disk_v2(
                 chunks=(min(indptr_size, 1000000),),
                 dtype=data_dtype)
 
-        chunk_size = 10000
+        chunk_size = 1000000
         for path in path_list:
             with h5py.File(path, 'r') as src:
                 src_indices = src['indices']
