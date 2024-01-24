@@ -768,39 +768,24 @@ def approx_penetrance_test(
     Use an approximate cut on q1, qdiff to set genes as valid
     markers if they come close to meeting the penetrance criteria.
     """
+
     n_valid = min(n_valid, len(q1_score))
 
-    if len(q1_score) != len(qdiff_score) or len(q1_score) != len(log2_fold):
-        raise RuntimeError(
-            "q1_score, qdiff_score, and log2_fold must all have same shape; "
-            f"you have {len(q1_score)}, {len(qdiff_score)}, {len(log2_fold)}")
+    distances = penetrance_parameter_distance(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=q1_th,
+        q1_min_th=q1_min_th,
+        qdiff_th=qdiff_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_th=log2_fold_th,
+        log2_fold_min_th=log2_fold_min_th)
 
-    if q1_th <= q1_min_th:
-        raise RuntimeError(
-            "q1_th must be > q1_min_th; you have "
-            f"q1_th={q1_th:.2e}, q1_min_th={q1_min_th}")
-
-    if qdiff_th <= qdiff_min_th:
-        raise RuntimeError(
-            "qdiff_th must be > qdiff_min_th; you have "
-            f"qdiff_th={qdiff_th:.2e}, qdiff_min_th={qdiff_min_th}")
-
-    if log2_fold_th <= log2_fold_min_th:
-        raise RuntimeError(
-            "log2_fold_th must be > log2_fold_min_th; you have "
-            f"log2_fold_th={log2_fold_th:.2e}, "
-            f"log2_fold_min_th={log2_fold_min_th}")
-
-    q1_term = (q1_score-q1_th)**2
-    q1_term[q1_score > q1_th] = 0.0
-
-    qdiff_term = (qdiff_score-qdiff_th)**2
-    qdiff_term[qdiff_score > qdiff_th] = 0.0
-
-    fold_term = (log2_fold-log2_fold_th)**2
-    fold_term[log2_fold > log2_fold_th] = 0.0
-
-    distance_sq = qdiff_term+q1_term+fold_term
+    distance_sq = distances['true']
+    qdiff_dist = distances['qdiff']
+    q1_dist = distances['q1']
+    fold_dist = distances['fold']
 
     # find the genes that really do meet the criteria
     eps = 1.0e-10
@@ -817,13 +802,6 @@ def approx_penetrance_test(
                 np.logical_or(
                     qdiff_score < qdiff_min_th,
                     log2_fold < log2_fold_min_th))
-
-        # alternatively upweight the metrics so that one
-        # does not predominate
-
-        qdiff_dist = 1.5*qdiff_term+q1_term+fold_term
-        q1_dist = qdiff_term+1.5*q1_term+fold_term
-        fold_dist = qdiff_term+q1_term+1.5*fold_term
 
         # alter distances so that we do not choose
         # genes that are going to be labeled automatically
@@ -858,6 +836,83 @@ def approx_penetrance_test(
         valid[invalid] = False
 
     return valid
+
+
+def penetrance_parameter_distance(
+        q1_score,
+        qdiff_score,
+        log2_fold,
+        q1_th,
+        q1_min_th,
+        qdiff_th,
+        qdiff_min_th,
+        log2_fold_th,
+        log2_fold_min_th):
+    """
+    Return a dict with
+        {'true': true distance_sq
+         'wgt': weighted distance_sq
+         'q1': q1_distance_sq
+         'qdiff': qdiff_distance_sq
+         'fold': fold_distance_sq}
+    """
+
+    if len(q1_score) != len(qdiff_score) or len(q1_score) != len(log2_fold):
+        raise RuntimeError(
+            "q1_score, qdiff_score, and log2_fold must all have same shape; "
+            f"you have {len(q1_score)}, {len(qdiff_score)}, {len(log2_fold)}")
+
+    if q1_th <= q1_min_th:
+        raise RuntimeError(
+            "q1_th must be > q1_min_th; you have "
+            f"q1_th={q1_th:.2e}, q1_min_th={q1_min_th}")
+
+    if qdiff_th <= qdiff_min_th:
+        raise RuntimeError(
+            "qdiff_th must be > qdiff_min_th; you have "
+            f"qdiff_th={qdiff_th:.2e}, qdiff_min_th={qdiff_min_th}")
+
+    if log2_fold_th <= log2_fold_min_th:
+        raise RuntimeError(
+            "log2_fold_th must be > log2_fold_min_th; you have "
+            f"log2_fold_th={log2_fold_th:.2e}, "
+            f"log2_fold_min_th={log2_fold_min_th}")
+
+    q1_term = (q1_score-q1_th)**2
+    q1_term[q1_score > q1_th] = 0.0
+
+    qdiff_term = (qdiff_score-qdiff_th)**2
+    qdiff_term[qdiff_score > qdiff_th] = 0.0
+
+    fold_term = (log2_fold-log2_fold_th)**2
+    fold_term[log2_fold > log2_fold_th] = 0.0
+
+    distance_sq = qdiff_term+q1_term+fold_term
+
+    # alternatively upweight the metrics so that one
+    # does not predominate
+
+    qdiff_dist = 1.5*qdiff_term+q1_term+fold_term
+    q1_dist = qdiff_term+1.5*q1_term+fold_term
+    fold_dist = qdiff_term+q1_term+1.5*fold_term
+
+    wgt = qdiff_dist
+    wgt = np.where(
+        wgt < q1_dist,
+        wgt,
+        q1_dist)
+    wgt = np.where(
+        wgt < fold_dist,
+        wgt,
+        fold_dist)
+
+    return {
+        'true': distance_sq,
+        'q1': q1_dist,
+        'qdiff': qdiff_dist,
+        'fold': fold_dist,
+        'wgt': wgt
+    }
 
 
 def diffexp_score(
