@@ -174,8 +174,9 @@ def test_transpose_sparse_matrix_on_disk(
             data_tag=data_tag,
             output_path=output_path,
             indices_max=x_array_fixture.shape[0],
-            max_gb=max_gb,
-            tmp_dir=tmp_dir_fixture)
+            max_gb=16,
+            tmp_dir=tmp_dir_fixture,
+            n_processors=4)
 
     expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
     with h5py.File(output_path, 'r') as src:
