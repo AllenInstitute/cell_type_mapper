@@ -7,6 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import scipy.sparse
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -326,7 +327,7 @@ def ref_marker_path_fixture(
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=0.006)
+        max_gb=2)
 
     metadata = {
         'precomputed_path': str(precomputed_path_fixture)
