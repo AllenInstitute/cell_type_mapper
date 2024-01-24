@@ -18,10 +18,15 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 from cell_type_mapper.utils.stats_utils import (
     boring_t_from_p_value)
 
+from cell_type_mapper.diff_exp.score_utils import (
+    pij_from_stats,
+    q_score_from_pij)
+
 from cell_type_mapper.diff_exp.scores import (
     read_precomputed_stats,
     _get_this_cluster_stats,
-    diffexp_p_values_from_stats)
+    diffexp_p_values_from_stats,
+    penetrance_parameter_distance)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -35,7 +40,13 @@ def create_p_value_mask_file(
         tmp_dir=None,
         max_bytes=6*1024**3,
         gene_list=None,
-        drop_level=None):
+        drop_level=None,
+        q1_th=0.5,
+        q1_min_th=0.1,
+        qdiff_th=0.7,
+        qdiff_min_th=0.1,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.8):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -153,7 +164,13 @@ def create_p_value_mask_file(
                     'n_genes': n_genes,
                     'p_th': p_th,
                     'tmp_path': tmp_path,
-                    'valid_gene_idx': valid_gene_idx})
+                    'valid_gene_idx': valid_gene_idx,
+                    'q1_th': q1_th,
+                    'q1_min_th': q1_min_th,
+                    'qdiff_th': qdiff_th,
+                    'qdiff_min_th': qdiff_min_th,
+                    'log2_fold_th': log2_fold_th,
+                    'log2_fold_min_th': log2_fold_min_th})
         p.start()
         process_dict[col0] = p
         while len(process_dict) >= n_processors:
@@ -187,7 +204,7 @@ def create_p_value_mask_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    # do the joining spock
+    # do the joining
     _merge_masks(
         src_path_list=tmp_path_list,
         dst_path=dst_path)
@@ -200,7 +217,13 @@ def _p_values_worker(
         n_genes,
         p_th,
         tmp_path,
-        valid_gene_idx=None):
+        valid_gene_idx=None,
+        q1_th=0.5,
+        q1_min_th=0.1,
+        qdiff_th=0.7,
+        qdiff_min_th=0.1,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.8):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -254,28 +277,66 @@ def _p_values_worker(
             f"col0 ({col0}) is not an integer multiple of 8")
 
     n_pairs = len(idx_values)
-    dense_mask = np.zeros((n_pairs, n_genes), dtype=np.uint8)
+    dense_mask = np.zeros((n_pairs, n_genes), dtype=np.float16)
 
     for pair_ct, idx in enumerate(idx_values):
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
-        node1 = sibling_pair[1]
-        node2 = sibling_pair[2]
+        node_1 = f'{level}/{sibling_pair[1]}'
+        node_2 = f'{level}/{sibling_pair[2]}'
 
         p_values = diffexp_p_values_from_stats(
-            node_1=f'{level}/{node1}',
-            node_2=f'{level}/{node2}',
+            node_1=node_1,
+            node_2=node_2,
             precomputed_stats=cluster_stats,
             p_th=p_th,
             boring_t=boring_t,
             big_nu=None)
 
-        dense_mask[pair_ct, :] = (p_values < p_th)
+        (pij_1,
+         pij_2,
+         log2_fold) = pij_from_stats(
+             cluster_stats=cluster_stats,
+             node_1=node_1,
+             node_2=node_2)
+
+        (q1_score,
+         qdiff_score) = q_score_from_pij(
+             pij_1=pij_1,
+             pij_2=pij_2)
+
+        distances = penetrance_parameter_distance(
+            q1_score=q1_score,
+            qdiff_score=qdiff_score,
+            log2_fold=log2_fold,
+            q1_th=q1_th,
+            q1_min_th=q1_min_th,
+            qdiff_th=qdiff_th,
+            qdiff_min_th=qdiff_min_th,
+            log2_fold_th=log2_fold_th,
+            log2_fold_min_th=log2_fold_min_th)
+
+        wgt = distances['wgt']
+        wgt = np.clip(
+            a=wgt,
+            a_min=0.0,
+            a_max=np.finfo(np.float16).max-1)
+
+        # so that genes with weighted distance == 0 get kept
+        # in the sparse matrix
+        wgt[wgt==0.0] = -1.0
+        eps = np.finfo(np.float16).resolution
+        wgt[np.abs(wgt)<eps] = eps
+
+        valid = (p_values < p_th)
+
+        dense_mask[pair_ct, valid] = wgt[valid].astype(np.float16)
 
     sparse_mask = scipy_sparse.csr_matrix(dense_mask)
 
     indices = np.copy(sparse_mask.indices)
     indptr = np.copy(sparse_mask.indptr).astype(np.int64)
+    data = np.copy(sparse_mask.data).astype(np.float16)
     del sparse_mask
     indices = indices.astype(idx_dtype)
 
@@ -291,6 +352,8 @@ def _p_values_worker(
             'indices', data=indices, dtype=idx_dtype)
         out_file.create_dataset(
             'indptr', data=indptr, dtype=np.int64)
+        out_file.create_dataset(
+            'data', data=data, dtype=np.float16)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
 
@@ -367,6 +430,9 @@ def _merge_masks(
     """
     Merge the temporary files created to store chunks of p-value masks
     """
+    compression = 'gzip'
+    compression_opts = 4
+    data_dtype = np.float16
     n_genes = None
     n_indices = 0
     n_indptr = 0
@@ -393,7 +459,18 @@ def _merge_masks(
             'indices',
             shape=(n_indices,),
             dtype=indices_dtype,
-            chunks=(min(n_indices, 1000),))
+            chunks=(min(n_indices, 1000000),),
+            compression=compression,
+            compression_opts=compression_opts)
+
+        dst_data = dst.create_dataset(
+            'data',
+            shape=(n_indices,),
+            dtype=data_dtype,
+            chunks=(min(n_indices, 1000000),),
+            compression=compression,
+            compression_opts=compression_opts)
+
         dst_indptr = dst.create_dataset(
             'indptr',
             shape=(n_indptr+1,),
@@ -407,9 +484,11 @@ def _merge_masks(
             with h5py.File(src_path, 'r') as src:
                 indices = src['indices'][()].astype(indices_dtype)
                 indptr = src['indptr'][()]
+                data = src['data'][()].astype(data_dtype)
                 assert indptr.min() >= 0
                 indptr += idx_0
                 dst_indices[idx_0:idx_0+len(indices)] = indices
+                dst_data[idx_0:idx_0+len(indices)] = data
                 dst_indptr[indptr_0:indptr_0+len(indptr)-1] = indptr[:-1]
                 idx_0 += len(indices)
                 indptr_0 += len(indptr)-1
