@@ -559,13 +559,15 @@ def _find_markers_worker_v2(
         p_i0 = p_indptr[idx_min]
         p_i1 = p_indptr[idx_max+1]
         p_indices = src['indices'][p_i0:p_i1]
+        sparse_dist = src['data'][p_i0:p_i1]
 
     p_indptr = p_indptr[idx_min:idx_max+2]
     p_indptr -= p_indptr[0]
     assert len(p_indptr) == len(idx_values)+1
 
-    #print(f'n_genes {n_genes} p_indptr {len(p_indptr)} {idx_min} {idx_max}')
+    eps = 1.0e-6
     p_mask = np.zeros(n_genes, dtype=bool)
+    penetrance_dist = np.zeros(n_genes, dtype=float)
     for ct, idx in enumerate(idx_values):
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
@@ -574,32 +576,36 @@ def _find_markers_worker_v2(
 
         # mask indicating which genes passed the p-value test
         p_mask[:] = False
+        penetrance_dist[:] = 0.0
         assert ct+1 <= len(p_indptr)
         if not p_indptr[ct+1] <= len(p_indices):
             raise RuntimeError(
                 f"last p_indptr {p_indptr[ct+1]}; "
                 f"len(p_indices) {len(p_indices)}; "
                 f"{p_i0}:{p_i1}; {idx_min} {idx_max}")
-        p_mask[p_indices[p_indptr[ct]:p_indptr[ct+1]]] = True
+        these_indices = p_indices[p_indptr[ct]:p_indptr[ct+1]]
+        p_mask[these_indices] = True
+        penetrance_dist[these_indices] = sparse_dist[p_indptr[ct]:p_indptr[ct+1]].astype(float)
+        penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
+        bad_dist = penetrance_dist.max()+100.0
+        penetrance_dist[np.logical_not(p_mask)] = bad_dist
 
-        penetrance_mask = penetrance_from_stats(
-            node_1=node_1,
-            node_2=node_2,
-            precomputed_stats=cluster_stats,
-            q1_th=q1_th,
-            qdiff_th=qdiff_th,
-            log2_fold_th=log2_fold_th,
-            q1_min_th=q1_min_th,
-            qdiff_min_th=qdiff_min_th,
-            log2_fold_min_th=log2_fold_min_th,
-            exact_penetrance=exact_penetrance,
-            n_valid=n_valid,
-            valid_gene_idx=valid_gene_idx)
+        invalid = (penetrance_dist >= 100.0)
 
-
+        abs_valid = (penetrance_dist<eps)
         validity_mask = np.logical_and(
-            penetrance_mask,
-            p_mask)
+            p_mask,
+            abs_valid)
+
+        if validity_mask.sum() < n_valid:
+            sorted_dex = np.argsort(penetrance_dist)
+            cutoff = penetrance_dist[sorted_dex[n_valid-1]]
+            penetrance_mask = (penetrance_dist <= cutoff)
+            penetrance_mask[invalid] = False
+            penetrance_mask[abs_valid] = True
+            validity_mask = np.logical_and(
+                p_mask,
+                penetrance_mask)
 
         stats_1 = cluster_stats[node_1]
         stats_2 = cluster_stats[node_2]
