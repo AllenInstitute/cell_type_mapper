@@ -11,6 +11,9 @@ from cell_type_mapper.utils.stats_utils import (
     correct_ttest,
     approx_correct_ttest)
 
+from cell_type_mapper.diff_exp.score_utils import (
+    q_score_from_pij)
+
 
 def _get_this_cluster_stats(
         cluster_stats,
@@ -713,11 +716,10 @@ def penetrance_tests(
         (n_genes,) array of booleans that pass both tests
     """
 
-    q1_score = np.where(pij_1 > pij_2, pij_1, pij_2)
-
-    denom = np.where(pij_1 > pij_2, pij_1, pij_2)
-    denom = np.where(denom > 0.0, denom, 1.0)
-    qdiff_score = np.abs(pij_1-pij_2)/denom
+    (q1_score,
+     qdiff_score) = q_score_from_pij(
+                         pij_1=pij_1,
+                         pij_2=pij_2)
 
     if exact:
         raw_penetrance = exact_penetrance_test(
