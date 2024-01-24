@@ -72,7 +72,7 @@ def _transpose_sparse_matrix_on_disk_v2(
         if use_data:
             data_dtype = src[data_tag].dtype
 
-    gb_per_process = 0.8 * max_gb // n_processors
+    gb_per_process = 0.8 * max_gb / n_processors
     indices_chunk_size = np.ceil(indices_max / n_processors).astype(int)
 
     path_list = []
