@@ -135,10 +135,6 @@ def transpose_sparse_matrix_on_disk(
         indices_slice=indices_slice)
 
     col_dtype = _get_uint_dtype(indptr_handle.shape[0]-1)
-    if indices_slice is None:
-        row_dtype = _get_uint_dtype(indices_max)
-    else:
-        row_dtype = _get_uint_dtype(indices_slice[1]-indices_slice[0])
 
     if use_data_array:
         data_dtype = data_handle.dtype
@@ -171,28 +167,27 @@ def transpose_sparse_matrix_on_disk(
 
     if use_data_array:
         data_group = data_handle
-        data_bytes = _get_bytes_for_type(data_dtype)
+        data_bytes = _get_bytes_for_type(data_handle.dtype)
     else:
         data_bytes = 0
 
-    col_bytes = _get_bytes_for_type(col_dtype)
-    row_bytes = _get_bytes_for_type(row_dtype)
+    indptr_bytes = _get_bytes_for_type(indptr_handle.dtype)
+    indices_bytes = _get_bytes_for_type(indices_handle.dtype)
     dex_bytes = 8
 
     max_load_gb = max_gb / 3
     max_el_gb = max_gb - max_load_gb
 
-    load_bytes = int(data_bytes+col_bytes+row_bytes+dex_bytes)
+    load_bytes = int(data_bytes+indptr_bytes+indices_bytes+dex_bytes)
     load_chunk_size = np.round(max_load_gb*1024**3).astype(int)//(load_bytes)
 
-    el_bytes = int(data_bytes+col_bytes)
+    el_bytes = int(data_bytes+max(indices_bytes, indptr_bytes))
     elements_at_a_time = np.round(max_el_gb*1024**3).astype(int)//el_bytes
 
     load_chunk_size = max(100, load_chunk_size)
     elements_at_a_time = max(100, elements_at_a_time)
 
     r0 = 0
-
     while True:
         r1 = None
         e0 = csr_indptr[r0]
@@ -211,7 +206,7 @@ def transpose_sparse_matrix_on_disk(
         if use_data_array:
             data_buffer = np.zeros(d1-d0, dtype=data_dtype)
 
-        index_buffer = np.zeros(d1-d0, dtype=col_dtype)
+        index_buffer = np.zeros(d1-d0, dtype=int)
 
         n_indices = indices_handle.shape[0]
         for i0 in range(0, n_indices, load_chunk_size):
@@ -219,7 +214,7 @@ def transpose_sparse_matrix_on_disk(
 
             i1 = min(n_indices, i0+load_chunk_size)
 
-            row_chunk = indices_handle[i0:i1].astype(row_dtype)
+            row_chunk = indices_handle[i0:i1]
 
             if indices_slice is not None:
                 indices_filter = np.logical_and(
@@ -289,8 +284,8 @@ def transpose_sparse_matrix_on_disk(
 
         with h5py.File(output_path, 'a') as dst:
             if use_data_array:
-                dst['data'][d0:d1] = data_buffer
-            dst['indices'][d0:d1] = index_buffer
+                dst['data'][d0:d1] = data_buffer.astype(data_dtype)
+            dst['indices'][d0:d1] = index_buffer.astype(col_dtype)
         r0 = r1
 
 

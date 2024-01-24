@@ -69,7 +69,6 @@ def _transpose_sparse_matrix_on_disk_v2(
     use_data = (data_tag is not None)
 
     with h5py.File(h5_path, 'r') as src:
-        n_raw_indices = src[indices_tag].shape[0]
         if use_data:
             data_dtype = src[data_tag].dtype
 
