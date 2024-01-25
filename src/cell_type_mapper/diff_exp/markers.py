@@ -19,9 +19,11 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 from cell_type_mapper.utils.stats_utils import (
     boring_t_from_p_value)
 
-from cell_type_mapper.diff_exp.scores import (
+from cell_type_mapper.diff_exp.score_utils import (
     read_precomputed_stats,
-    _get_this_cluster_stats,
+    _get_this_cluster_stats)
+
+from cell_type_mapper.diff_exp.scores import (
     score_differential_genes)
 
 from cell_type_mapper.utils.csc_to_csr import (

@@ -2,7 +2,7 @@ import h5py
 import json
 import numpy as np
 
-from cell_type_mapper.diff_exp.scores import (
+from cell_type_mapper.diff_exp.score_utils import (
     read_precomputed_stats)
 
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
