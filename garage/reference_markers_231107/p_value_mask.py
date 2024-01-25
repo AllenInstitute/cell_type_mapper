@@ -331,6 +331,11 @@ def _p_values_worker(
 
         valid = (p_values < p_th)
 
+        # so that invalid genes (according to penetrance min
+        # thresholds do not get carried over into the sparse
+        # matrix
+        valid[distances['invalid']] = False
+
         dense_mask[pair_ct, valid] = wgt[valid].astype(np.float16)
 
     sparse_mask = scipy_sparse.csr_matrix(dense_mask)
