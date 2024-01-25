@@ -19,12 +19,12 @@ from cell_type_mapper.utils.stats_utils import (
     boring_t_from_p_value)
 
 from cell_type_mapper.diff_exp.score_utils import (
+    read_precomputed_stats,
+    _get_this_cluster_stats,
     pij_from_stats,
     q_score_from_pij)
 
 from cell_type_mapper.diff_exp.scores import (
-    read_precomputed_stats,
-    _get_this_cluster_stats,
     diffexp_p_values_from_stats,
     penetrance_parameter_distance)
 
