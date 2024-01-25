@@ -13,8 +13,10 @@ import tempfile
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
+from cell_type_mapper.diff_exp.score_utils import (
+    read_precomputed_stats)
+
 from cell_type_mapper.diff_exp.scores import (
-    read_precomputed_stats,
     score_differential_genes)
 
 from cell_type_mapper.diff_exp.markers import (
