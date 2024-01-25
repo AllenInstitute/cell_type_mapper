@@ -130,7 +130,7 @@ def create_p_value_mask_file(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    n_per = min(100000, n_pairs//(2*n_processors))
+    n_per = min(40000, n_pairs//(2*n_processors))
     n_per -= (n_per % 8)
     n_per = max(8, n_per)
     t0 = time.time()
@@ -277,6 +277,7 @@ def _p_values_worker(
             f"col0 ({col0}) is not an integer multiple of 8")
 
     n_pairs = len(idx_values)
+    print(f'creating dense_mask ({n_pairs}, {n_genes})')
     dense_mask = np.zeros((n_pairs, n_genes), dtype=np.float16)
 
     for pair_ct, idx in enumerate(idx_values):
@@ -430,6 +431,7 @@ def _merge_masks(
     """
     Merge the temporary files created to store chunks of p-value masks
     """
+    print('starting merge')
     compression = 'gzip'
     compression_opts = 4
     data_dtype = np.float16
@@ -484,13 +486,14 @@ def _merge_masks(
             with h5py.File(src_path, 'r') as src:
                 indices = src['indices'][()].astype(indices_dtype)
                 indptr = src['indptr'][()]
-                data = src['data'][()].astype(data_dtype)
-                assert indptr.min() >= 0
                 indptr += idx_0
-                dst_indices[idx_0:idx_0+len(indices)] = indices
-                dst_data[idx_0:idx_0+len(indices)] = data
+                n_this = len(indices)
+                dst_indices[idx_0:idx_0+n_this] = indices
+                del indices
+                dst_data[idx_0:idx_0+n_this] = src['data'][()].astype(data_dtype)
+                assert indptr.min() >= 0
                 dst_indptr[indptr_0:indptr_0+len(indptr)-1] = indptr[:-1]
-                idx_0 += len(indices)
+                idx_0 += n_this 
                 indptr_0 += len(indptr)-1
                 assert idx_0 > 0
                 assert indptr_0 > 0
