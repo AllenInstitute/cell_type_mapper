@@ -1,5 +1,7 @@
+import copy
 import json
 import h5py
+import itertools
 import multiprocessing
 import numpy as np
 import pathlib
@@ -702,7 +704,12 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-    siblings = taxonomy_tree.siblings
+    leaves = copy.deepcopy(taxonomy_tree.all_leaves)
+    leaves.sort()
+    siblings = []
+    for pair in itertools.combinations(leaves, 2):
+        siblings.append(
+           (taxonomy_tree.leaf_level, pair[0], pair[1]))
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()

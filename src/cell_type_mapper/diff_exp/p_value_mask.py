@@ -1,7 +1,4 @@
-import copy
-import json
 import h5py
-import itertools
 import multiprocessing
 import numpy as np
 import scipy.sparse as scipy_sparse
@@ -29,6 +26,9 @@ from cell_type_mapper.diff_exp.score_utils import (
 from cell_type_mapper.diff_exp.scores import (
     diffexp_p_values_from_stats,
     penetrance_parameter_distance)
+
+from cell_type_mapper.diff_exp.markers import (
+    _prep_output_file)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -361,77 +361,6 @@ def _p_values_worker(
             'data', data=data, dtype=np.float16)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
-
-
-def _prep_output_file(
-       output_path,
-       taxonomy_tree,
-       gene_names):
-    """
-    Create the HDF5 file where the differential gene scoring stats
-    will be stored.
-
-    Parameters
-    ----------
-    output_path:
-        Path to the HDF5 file
-    taxonomy_tree:
-        instance of
-        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
-    gene_names:
-        Ordered list of gene names for entire dataset
-
-    Returns
-    -------
-    idx_to_pair:
-        Dict mapping the row index of a sibling pair
-        in the final output file to that sibling pair's
-        (level, node1, node2) specification.
-
-    Notes
-    -----
-    This method also creates the file at output_path with
-    empty datasets for the stats that need to be saved.
-    """
-    leaves = copy.deepcopy(taxonomy_tree.all_leaves)
-    leaves.sort()
-    siblings = []
-    for pair in itertools.combinations(leaves, 2):
-        siblings.append(
-           (taxonomy_tree.leaf_level, pair[0], pair[1]))
-
-    idx_to_pair = dict()
-    pair_to_idx_out = dict()
-    for idx, sibling_pair in enumerate(siblings):
-        level = sibling_pair[0]
-        node1 = sibling_pair[1]
-        node2 = sibling_pair[2]
-        idx_to_pair[idx] = sibling_pair
-
-        if level not in pair_to_idx_out:
-            pair_to_idx_out[level] = dict()
-        if node1 not in pair_to_idx_out[level]:
-            pair_to_idx_out[level][node1] = dict()
-        if node2 not in pair_to_idx_out[level]:
-            pair_to_idx_out[level][node2] = dict()
-
-        pair_to_idx_out[level][node1][node2] = idx
-
-    with h5py.File(output_path, 'w') as out_file:
-        out_file.create_dataset(
-            'gene_names',
-            data=json.dumps(gene_names).encode('utf-8'))
-
-        out_file.create_dataset(
-            'pair_to_idx',
-            data=json.dumps(pair_to_idx_out).encode('utf-8'))
-
-        out_file.create_dataset(
-            'n_pairs',
-            data=len(idx_to_pair))
-
-    return idx_to_pair
 
 
 def _merge_masks(
