@@ -165,6 +165,7 @@ def test_marker_finding_pipeline(
 
     n_processors = 3
     siblings = get_all_pairs(tree_fixture)
+    siblings = [s for s in siblings if s[0] == taxonomy_tree.leaf_level]
     n_pairs = len(siblings)
 
     find_markers_for_all_taxonomy_pairs(
