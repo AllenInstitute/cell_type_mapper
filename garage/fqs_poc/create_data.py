@@ -60,14 +60,13 @@ def create_data(
     print(f'wrote {output_path}')
 
 
-
 def main():
     rng = np.random.default_rng(22313)
-
+    data_dir = '/allen/scratch/aibstemp/danielsf/fqs_poc'
     ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
     salt_list = ['a', 'b', 'a', 'b', 'a', 'b']
     for n, salt in zip(ncells, salt_list):
-        output_path = f'data/cells_{n//1000}k_{salt}.h5ad'
+        output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
         create_data(
             n_cells=n,
             output_path=output_path,
