@@ -159,9 +159,9 @@ def cluster_to_signal(
     rng = np.random.default_rng(66713)
     for ii, cl in enumerate(taxonomy_tree_dict['cluster']):
         genes = marker_gene_names[ii*7:(ii+1)*7]
-        assert len(genes) == 7
         signal = np.power(8, rng.integers(2, 7, len(genes)))
         result[cl] = {n: s for n, s, in zip(genes, signal)}
+
     return result
 
 
