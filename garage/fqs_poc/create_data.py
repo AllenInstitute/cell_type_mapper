@@ -12,7 +12,7 @@ def create_data(
         rng):
 
     data_dtype = np.float32
-    indices_dtype = np.int32
+    indices_dtype = np.int64
     n_genes = 32000
     ntot = n_cells*n_genes
     var = pd.DataFrame(
