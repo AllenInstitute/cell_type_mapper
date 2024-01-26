@@ -1,8 +1,9 @@
+import copy
 import json
 import h5py
+import itertools
 import multiprocessing
 import numpy as np
-import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
 import time
@@ -10,7 +11,8 @@ import time
 from cell_type_mapper.utils.utils import (
     print_timing,
     mkstemp_clean,
-    choose_int_dtype)
+    choose_int_dtype,
+    _clean_up)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
@@ -38,9 +40,6 @@ def create_p_value_mask_file(
         p_th=0.01,
         n_processors=4,
         tmp_dir=None,
-        max_bytes=6*1024**3,
-        gene_list=None,
-        drop_level=None,
         q1_th=0.5,
         q1_min_th=0.1,
         qdiff_th=0.7,
@@ -66,16 +65,6 @@ def create_p_value_mask_file(
     n_processors:
         Number of independent worker processes to spin out
 
-    max_bytes:
-        Maximum number of bytes to load when thinning marker file
-
-    gene_list:
-        Optional list limiting the genes that can be considered
-        as markers.
-
-    drop_level:
-        Optional level to drop from taxonomy tree
-
     Returns
     --------
     Path to a file in tmp_dir where the data is stored
@@ -85,14 +74,39 @@ def create_p_value_mask_file(
     This method stores the markers as sparse arrays with taxonomic
     pairs as the indptr axis.
     """
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    try:
+        _create_p_value_mask_file(
+            precomputed_stats_path=precomputed_stats_path,
+            dst_path=dst_path,
+            p_th=p_th,
+            n_processors=n_processors,
+            tmp_dir=tmp_dir,
+            q1_th=q1_th,
+            q1_min_th=q1_min_th,
+            qdiff_th=qdiff_th,
+            qdiff_min_th=qdiff_min_th,
+            log2_fold_th=log2_fold_th,
+            log2_fold_min_th=log2_fold_min_th)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _create_p_value_mask_file(
+        precomputed_stats_path,
+        dst_path,
+        p_th=0.01,
+        n_processors=4,
+        tmp_dir=None,
+        q1_th=0.5,
+        q1_min_th=0.1,
+        qdiff_th=0.7,
+        qdiff_min_th=0.1,
+        log2_fold_th=1.0,
+        log2_fold_min_th=0.8):
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(
         precomputed_stats_path)
-
-    if drop_level is not None and drop_level in taxonomy_tree.hierarchy:
-        taxonomy_tree = taxonomy_tree.drop_level(drop_level)
-
-    inner_tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
 
     tree_as_leaves = taxonomy_tree.as_leaves
 
@@ -105,15 +119,6 @@ def create_p_value_mask_file(
     gene_names = precomputed_stats['gene_names']
 
     del precomputed_stats
-
-    if gene_list is not None:
-        gene_set = set(gene_list)
-        valid_gene_idx = np.array([
-            idx for idx, g in enumerate(gene_names)
-            if g in gene_set
-        ])
-    else:
-        valid_gene_idx = None
 
     n_genes = len(gene_names)
 
@@ -139,7 +144,7 @@ def create_p_value_mask_file(
     for col0 in range(0, n_pairs, n_per):
         col1 = col0+n_per
         tmp_path = mkstemp_clean(
-            dir=inner_tmp_dir,
+            dir=tmp_dir,
             prefix=f'columns_{col0}_{col1}_',
             suffix='.h5')
         tmp_path_list.append(tmp_path)
@@ -164,7 +169,6 @@ def create_p_value_mask_file(
                     'n_genes': n_genes,
                     'p_th': p_th,
                     'tmp_path': tmp_path,
-                    'valid_gene_idx': valid_gene_idx,
                     'q1_th': q1_th,
                     'q1_min_th': q1_min_th,
                     'qdiff_th': qdiff_th,
@@ -217,7 +221,6 @@ def _p_values_worker(
         n_genes,
         p_th,
         tmp_path,
-        valid_gene_idx=None,
         q1_th=0.5,
         q1_min_th=0.1,
         qdiff_th=0.7,
@@ -251,9 +254,6 @@ def _p_values_worker(
     exact_penetrance:
         If False, allow genes that technically fail penetrance
         and fold-change thresholds to be marker genes.
-    valid_gene_idx:
-        Optional array of gene indices indicating which genes
-        can be considered valid markers
     """
 
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
@@ -277,7 +277,6 @@ def _p_values_worker(
             f"col0 ({col0}) is not an integer multiple of 8")
 
     n_pairs = len(idx_values)
-    print(f'creating dense_mask ({n_pairs}, {n_genes})')
     dense_mask = np.zeros((n_pairs, n_genes), dtype=np.float16)
 
     for pair_ct, idx in enumerate(idx_values):
@@ -325,9 +324,9 @@ def _p_values_worker(
 
         # so that genes with weighted distance == 0 get kept
         # in the sparse matrix
-        wgt[wgt==0.0] = -1.0
+        wgt[wgt == 0.0] = -1.0
         eps = np.finfo(np.float16).resolution
-        wgt[np.abs(wgt)<eps] = eps
+        wgt[np.abs(wgt) < eps] = eps
 
         valid = (p_values < p_th)
 
@@ -395,7 +394,12 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-    siblings = taxonomy_tree.siblings
+    leaves = copy.deepcopy(taxonomy_tree.all_leaves)
+    leaves.sort()
+    siblings = []
+    for pair in itertools.combinations(leaves, 2):
+        siblings.append(
+           (taxonomy_tree.leaf_level, pair[0], pair[1]))
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()
@@ -436,7 +440,6 @@ def _merge_masks(
     """
     Merge the temporary files created to store chunks of p-value masks
     """
-    print('starting merge')
     compression = 'gzip'
     compression_opts = 4
     data_dtype = np.float16
@@ -460,7 +463,7 @@ def _merge_masks(
     idx_values = list(idx_to_path.keys())
     idx_values.sort()
 
-    indices_dtype = choose_int_dtype((0, n_genes))
+    indices_dtype = choose_int_dtype((0, max(n_indices, n_genes)))
     with h5py.File(dst_path, 'a') as dst:
         dst_indices = dst.create_dataset(
             'indices',
@@ -481,7 +484,7 @@ def _merge_masks(
         dst_indptr = dst.create_dataset(
             'indptr',
             shape=(n_indptr+1,),
-            dtype=np.int64)
+            dtype=indices_dtype)
 
         idx_0 = 0
         indptr_0 = 0
@@ -495,11 +498,9 @@ def _merge_masks(
                 n_this = len(indices)
                 dst_indices[idx_0:idx_0+n_this] = indices
                 del indices
-                dst_data[idx_0:idx_0+n_this] = src['data'][()].astype(data_dtype)
-                assert indptr.min() >= 0
+                dst_data[idx_0:
+                         idx_0+n_this] = src['data'][()].astype(data_dtype)
                 dst_indptr[indptr_0:indptr_0+len(indptr)-1] = indptr[:-1]
-                idx_0 += n_this 
+                idx_0 += n_this
                 indptr_0 += len(indptr)-1
-                assert idx_0 > 0
-                assert indptr_0 > 0
         dst_indptr[-1] = n_indices
