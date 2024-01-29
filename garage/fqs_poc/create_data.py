@@ -54,7 +54,7 @@ def create_data(
         file_path = file_path_list[i_file]
         obs = read_df_from_h5ad(file_path, df_name='obs')
         these_records = obs.reset_index().to_dict(orient='records')
-        valid = np.where(file_arr==i_file)[0]
+        valid = row_arr[np.where(file_arr==i_file)]
         obs_records += [these_records[ir] for ir in valid]
 
     obs = pd.DataFrame(obs_records).set_index('cell_label')
