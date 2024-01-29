@@ -21,7 +21,7 @@ def read_df_from_h5ad(h5ad_path, df_name):
     Read the dataframe df_name (probably 'obs' or 'var')
     from the h5ad file at h5ad_path
     """
-    with h5py.File(h5ad_path, 'r') as src:
+    with h5py.File(h5ad_path, 'r', swmr=True) as src:
         return read_elem(src[df_name])
 
 
@@ -42,7 +42,7 @@ def read_uns_from_h5ad(h5ad_path):
     Read the unstructured metadata dict
     from the h5ad file at h5ad_path
     """
-    with h5py.File(h5ad_path, 'r') as src:
+    with h5py.File(h5ad_path, 'r', swmr=True) as src:
         if 'uns' not in src:
             return dict()
         return read_elem(src['uns'])
@@ -92,7 +92,7 @@ def does_obsm_have_key(h5ad_path, obsm_key):
     Return a boolean assessing whether or not obsm has
     the specified key
     """
-    with h5py.File(h5ad_path, 'r') as src:
+    with h5py.File(h5ad_path, 'r', swmr=True) as src:
         k_list = set(src['obsm'].keys())
     return obsm_key in k_list
 
@@ -170,7 +170,7 @@ def copy_layer_to_x(
     var = read_df_from_h5ad(original_h5ad_path, 'var')
     output = anndata.AnnData(obs=obs, var=var)
     output.write_h5ad(new_h5ad_path)
-    with h5py.File(original_h5ad_path, 'r') as src:
+    with h5py.File(original_h5ad_path, 'r', swmr=True) as src:
         attrs = dict(src[layer_key].attrs)
 
     if 'encoding-type' in attrs:
@@ -202,7 +202,7 @@ def _copy_layer_to_x_dense(
         original_h5ad_path,
         new_h5ad_path,
         layer_key):
-    with h5py.File(original_h5ad_path) as src:
+    with h5py.File(original_h5ad_path, 'r', swmr=True) as src:
         data = src[layer_key]
         attrs = dict(src[layer_key].attrs)
         chunks = data.chunks
@@ -252,7 +252,7 @@ def _copy_layer_to_x_sparse(
         original_h5ad_path,
         new_h5ad_path,
         layer_key):
-    with h5py.File(original_h5ad_path) as src:
+    with h5py.File(original_h5ad_patj, 'r', swmr=True) as src:
         src_grp = src[layer_key]
         attrs = dict(src_grp.attrs)
         with h5py.File(new_h5ad_path, 'a') as dst:
@@ -359,7 +359,7 @@ def _amalgamate_h5ad(
             layer = 'X'
         else:
             layer = f'layers/{packet["layer"]}'
-        with h5py.File(packet['path'], 'r') as src:
+        with h5py.File(packet['path'], 'r', swmr=True) as src:
             attrs = dict(src[layer].attrs)
             if attrs['encoding-type'] == 'array':
                 data_dtype_map[packet['path']] = src[layer].dtype
@@ -479,7 +479,7 @@ def amalgamate_csr_to_x(
     data_dtype = None
     indices_max = 0
     for src_path in src_path_list:
-        with h5py.File(src_path, 'r') as src:
+        with h5py.File(src_path, 'r', swmr=True) as src:
             n_valid += src['data'].shape[0]
             if data_dtype is None:
                 data_dtype = src['data'].dtype
@@ -527,7 +527,7 @@ def amalgamate_csr_to_x(
         indptr_offset = 0
         data0 = 0
         for src_path in src_path_list:
-            with h5py.File(src_path, 'r') as src:
+            with h5py.File(src_path, 'r', swmr=True) as src:
                 n_data = src['data'].shape[0]
                 dst_data[data0:data0+n_data] = src['data'][()]
                 dst_indices[data0:data0+n_data] = src['indices'][()]
@@ -592,7 +592,7 @@ def amalgamate_dense_to_x(
     n_cols = 0
     data_dtype = None
     for src_path in src_path_list:
-        with h5py.File(src_path, 'r') as src:
+        with h5py.File(src_path, 'r', swmr=True) as src:
             shape = src['data'].shape
             n_rows += shape[0]
             if n_cols == 0:
@@ -627,7 +627,7 @@ def amalgamate_dense_to_x(
 
         r0 = 0
         for src_path in src_path_list:
-            with h5py.File(src_path, 'r') as src:
+            with h5py.File(src_path, 'r', swmr=True) as src:
                 shape = src['data'].shape
                 r1 = r0 + shape[0]
                 dst_data[r0:r1, :] = src['data'][()]

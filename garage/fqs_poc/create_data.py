@@ -1,8 +1,7 @@
+import multiprocessing
 import numpy as np
 import pandas as pd
 import pathlib
-
-import scipy.sparse
 
 from cell_type_mapper.utils.anndata_utils import (
     amalgamate_h5ad,
@@ -102,15 +101,27 @@ def main():
     #ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
     ncells= [1000, 2000, 3000]
     salt_list = ['a', 'b', 'a', 'b', 'a', 'b']
+    process_list = []
+    chunk_size = 100
     for n, salt in zip(ncells, salt_list):
         output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
-        create_data(
-            n_cells=n,
-            output_path=output_path,
-            salt=salt,
-            rng=rng,
-            tmp_dir='/local1/scott_daniel/scratch',
-            chunk_size=100)
+        config = {
+            'n_cells': n,
+            'output_path': output_path,
+            'salt': salt,
+            'rng': np.default_rng(rng.integers(8,2**32)),
+            'tmp_dir': '/local1/scott_daniel/scratch',
+            'chunk_size': chunk_size
+        }
+        p = multiprocessing.Process(
+            target='create_data',
+            kwargs=config)
+        p.start()
+        process_list.append(p)
+
+    for p in process_list:
+        p.join()
+    print('=======ALL DONE=======')
 
 if __name__ == "__main__":
     main()
