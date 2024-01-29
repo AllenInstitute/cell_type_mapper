@@ -1,69 +1,105 @@
 import numpy as np
 import pandas as pd
-
-import anndata
+import pathlib
 
 import scipy.sparse
+
+from cell_type_mapper.utils.anndata_utils import (
+    amalgamate_h5ad,
+    read_df_from_h5ad)
 
 def create_data(
         n_cells,
         output_path,
         salt,
-        rng):
+        rng,
+        chunk_size=100000,
+        tmp_dir=None):
 
-    data_dtype = np.float32
-    indices_dtype = np.int64
-    n_genes = 32000
-    ntot = n_cells*n_genes
-    var = pd.DataFrame(
-        [{'gene_id': f'g_{ii}'}
-         for ii in range(n_genes)]).set_index('gene_id')
+    lydia_dir = pathlib.Path(
+        '/allen/programs/celltypes/workgroups/rnaseqanalysis/lydian')
+    _assert_dir(lydia_dir)
+    abc_dir = lydia_dir / 'ABC_handoff'
+    _assert_dir(abc_dir)
+    data_dir = abc_dir / 'expression_matrices/WMB-10Xv3/20230630'
+    _assert_dir(data_dir)
 
-    obs = pd.DataFrame(
-        [{'cell_id': f'{salt}_{ii}'}
-         for ii in range(n_cells)]).set_index('cell_id')
+    file_path_list = = [n for n in data_dir.rglob('*raw\.h5ad')
+    file_path_list.sort()
+    file_arr =[]
+    row_arr = []
+    for ii in range(len(file_path_list)):
+        obs = read_df_from_h5ad(file_path_list[ii])
+        n_obs = len(obs)
+        file_arr += [ii]*n_obs
+        row_arr += list(range(n_obs))
+    file_arr = np.array(file_arr)
+    row_arr = np.array(row_arr)
 
-    n_non_zero = 0
-    cell_to_n = dict()
-    nmin = np.round(0.05*n_genes).astype(int)
-    nmax = np.round(0.35*n_genes).astype(int)
-    for i_cell in range(n_cells):
-        n = rng.integers(nmin, nmax)
-        n_non_zero += n
-        cell_to_n[i_cell] = n
-    print(f'{n_non_zero:.2e} non_zero {n_non_zero/ntot}')
-    data = rng.random(n_non_zero).astype(data_dtype)+0.01
+    print(f'{len(cell_arr)} cells')
 
-    indices = np.zeros(n_non_zero, dtype=indices_dtype)
-    indptr = np.zeros(n_cells+1, dtype=indices_dtype)
+    chosen = rng.choice(np.arange(len(file_arr)), n_cells, replace=False)
+    chosen = np.sort(chosen)
+    file_arr = file_arr[chosen]
+    row_arr = row_arr[chosen]
+
+    delta = np.diff(file_arr)
+    assert delta.min() >= 0
+    delta = np.diff(row_arr)
+    assert delta.min() >= 0
+
+    obs_records = []
+    for i_file in np.unique(file_arr):
+        file_path = file_path_list[i_file]
+        obs = read_df_from_h5ad(file_path, df_name='obs')
+        these_records = obs.reset_index().to_dict(orient='records')
+        valid = np.where(file_arr==i_file)[0]
+        obs_records += [these_records[ir] for ir in valid]
+
+    obs = pd.DataFrame(obs_records).set_index('cell_label')
+
+    var = read_df_from_h5ad(
+        file_path_list[file_arr[0]],
+        df_name='var')
+
+    src_rows = []
     i0 = 0
-    for i_cell in range(n_cells):
-        indptr[i_cell] = i0
-        this = rng.choice(np.arange(n_genes),
-                          cell_to_n[i_cell],
-                          replace=False)
-        this = np.sort(this)
-        indices[i0:i0+len(this)] = this
-        i0 += len(this)
+    same = None
+    same_i = None
+    while i0 < len(chosen):
+        this_chosen = chosen[i0]
+        this_file = file_arr[this_chosen]
+        if same is None or this_file != same_i:
+            same = np.where(file_arr==this_file)[0]
+            same_i = this_file
+        i1 = min(i0+chunk_size, same.max())
+        entry = {
+            'path': file_path_list[file_arr[i0]]
+            'layer': 'X',
+            'rows': row_arr[i0:i1]
+        }
+        src_rows.append(entry)
 
-    indptr[-1] = n_non_zero
+    amalgamate_h5ad(
+        src_rows=src_rows,
+        dst_path=output_path,
+        dst_obs=obs,
+        dst_var=var,
+        dst_sparse=True,
+        tmp_dir=tmp_dir,
+        compression=True)
 
-    data = scipy.sparse.csr_matrix(
-        (data, indices, indptr),
-        shape=(n_cells, n_genes))
 
-    print('created sparse matrix')
-    a = anndata.AnnData(X=data, obs=obs, var=var)
-    a.write_h5ad(output_path,
-                 compression='gzip',
-                 compression_opts=4)
-    print(f'wrote {output_path}')
-
+def _assert_dir(dir_path):
+    if not dir_path.is_dir():
+        raise RuntimeError(
+            f'{dir_path}\nis not a dir')
 
 def main():
     rng = np.random.default_rng(22313)
     data_dir = '/allen/scratch/aibstemp/danielsf/fqs_poc'
-    ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
+    #ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
+    n_cells= [1000, 2000, 3000]
     salt_list = ['a', 'b', 'a', 'b', 'a', 'b']
     for n, salt in zip(ncells, salt_list):
         output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
@@ -71,7 +107,9 @@ def main():
             n_cells=n,
             output_path=output_path,
             salt=salt,
-            rng=rng)
+            rng=rng,
+            tmp_dir='/local1/scott_daniel/scratch',
+            chunk_size=100)
 
 if __name__ == "__main__":
     main()
