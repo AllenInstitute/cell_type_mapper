@@ -24,19 +24,19 @@ def create_data(
     data_dir = abc_dir / 'expression_matrices/WMB-10Xv3/20230630'
     _assert_dir(data_dir)
 
-    file_path_list = = [n for n in data_dir.rglob('*raw\.h5ad')
+    file_path_list = [n for n in data_dir.rglob('*raw.h5ad')]
     file_path_list.sort()
     file_arr =[]
     row_arr = []
     for ii in range(len(file_path_list)):
-        obs = read_df_from_h5ad(file_path_list[ii])
+        obs = read_df_from_h5ad(file_path_list[ii], df_name='obs')
         n_obs = len(obs)
         file_arr += [ii]*n_obs
         row_arr += list(range(n_obs))
     file_arr = np.array(file_arr)
     row_arr = np.array(row_arr)
 
-    print(f'{len(cell_arr)} cells')
+    print(f'{len(file_arr)} cells ({len(row_arr)})')
 
     chosen = rng.choice(np.arange(len(file_arr)), n_cells, replace=False)
     chosen = np.sort(chosen)
@@ -45,8 +45,8 @@ def create_data(
 
     delta = np.diff(file_arr)
     assert delta.min() >= 0
-    delta = np.diff(row_arr)
-    assert delta.min() >= 0
+    #delta = np.diff(row_arr)
+    #assert delta.min() >= 0
 
     obs_records = []
     for i_file in np.unique(file_arr):
@@ -67,14 +67,15 @@ def create_data(
     same = None
     same_i = None
     while i0 < len(chosen):
-        this_chosen = chosen[i0]
-        this_file = file_arr[this_chosen]
+        this_file = file_arr[i0]
         if same is None or this_file != same_i:
             same = np.where(file_arr==this_file)[0]
             same_i = this_file
         i1 = min(i0+chunk_size, same.max())
+        np.testing.assert_array_equal(
+            file_arr[i0:i1], this_file*np.ones(i1-i0))
         entry = {
-            'path': file_path_list[file_arr[i0]]
+            'path': file_path_list[file_arr[i0]],
             'layer': 'X',
             'rows': row_arr[i0:i1]
         }
@@ -99,7 +100,7 @@ def main():
     rng = np.random.default_rng(22313)
     data_dir = '/allen/scratch/aibstemp/danielsf/fqs_poc'
     #ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
-    n_cells= [1000, 2000, 3000]
+    ncells= [1000, 2000, 3000]
     salt_list = ['a', 'b', 'a', 'b', 'a', 'b']
     for n, salt in zip(ncells, salt_list):
         output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
