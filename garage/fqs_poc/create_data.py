@@ -109,12 +109,12 @@ def main():
             'n_cells': n,
             'output_path': output_path,
             'salt': salt,
-            'rng': np.default_rng(rng.integers(8,2**32)),
+            'rng': np.random.default_rng(rng.integers(8,2**32)),
             'tmp_dir': '/local1/scott_daniel/scratch',
             'chunk_size': chunk_size
         }
         p = multiprocessing.Process(
-            target='create_data',
+            target=create_data,
             kwargs=config)
         p.start()
         process_list.append(p)
