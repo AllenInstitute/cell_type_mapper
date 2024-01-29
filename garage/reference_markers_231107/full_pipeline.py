@@ -19,9 +19,11 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
-from cell_type_mapper.diff_exp.scores import (
+from cell_type_mapper.diff_exp.score_utils import (
     read_precomputed_stats,
-    _get_this_cluster_stats,
+    _get_this_cluster_stats)
+
+from cell_type_mapper.diff_exp.scores import (
     penetrance_from_stats)
 
 from cell_type_mapper.utils.csc_to_csr import (
@@ -35,7 +37,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
-def find_markers_for_all_taxonomy_pairs_v2(
+def find_markers_for_all_taxonomy_pairs_from_pmask(
         precomputed_stats_path,
         p_value_mask_path,
         output_path,
@@ -135,7 +137,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
     t0 = time.time()
-    tmp_thinned_path = create_sparse_by_pair_marker_file_v2(
+    tmp_thinned_path = create_sparse_by_pair_marker_file_from_pmask(
         precomputed_stats_path=precomputed_stats_path,
         p_value_mask_path=p_value_mask_path,
         taxonomy_tree=taxonomy_tree,
@@ -176,7 +178,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
     print(f'======= full thing {time.time()-full_t0:.2e} =======')
 
 
-def create_sparse_by_pair_marker_file_v2(
+def create_sparse_by_pair_marker_file_from_pmask(
         precomputed_stats_path,
         p_value_mask_path,
         taxonomy_tree,
@@ -344,7 +346,7 @@ def create_sparse_by_pair_marker_file_v2(
             tree_as_leaves=tree_as_leaves)
 
         p = multiprocessing.Process(
-                target=_find_markers_worker_v2,
+                target=_find_markers_worker_from_pmask,
                 kwargs={
                     'p_value_mask_path': p_value_mask_path,
                     'cluster_stats': this_cluster_stats,
@@ -479,7 +481,7 @@ def create_sparse_by_pair_marker_file_v2(
     return tmp_output_path
 
 
-def _find_markers_worker_v2(
+def _find_markers_worker_from_pmask(
         p_value_mask_path,
         cluster_stats,
         tree_as_leaves,
