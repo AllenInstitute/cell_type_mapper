@@ -29,10 +29,22 @@ def main():
             help='path to the first h5ad file to be correlated')
 
     parser.add_argument(
+            '--norm0',
+            type=str,
+            default='raw',
+            help='normalization (either "raw" or "log2CPM") of file0')
+
+    parser.add_argument(
             '--file1',
             type=str,
             default=file1,
             help='path to the second h5ad file to be correlated')
+
+    parser.add_argument(
+            '--norm1',
+            type=str,
+            default='raw',
+            help='normalization (either "raw" or "log2CPM") of file1')
 
     parser.add_argument(
             '--result_file',
@@ -58,23 +70,18 @@ def main():
         default=None,
         help='path to directory where scratch files can be written')
 
-    parser.add_argument(
-        '--normalization',
-        type=str,
-        default='raw',
-        help='normalization of input files (either "raw" or "log2CPM")')
-
     args = parser.parse_args()
 
     t0 = time.time()
     correlate_cells(
         anndata_path_0=args.file0,
+        norm0=args.norm0,
         anndata_path_1=args.file1,
+        norm1=args.norm1,
         n_processors=args.n_processors,
         cells_at_a_time=args.cells_at_a_time,
         output_path=args.result_file,
-        tmp_dir=args.tmp_dir,
-        normalization=args.normalization)
+        tmp_dir=args.tmp_dir)
     dur = time.time()-t0
 
     print(f"====ALL DONE {dur:.2e} seconds for processing====")

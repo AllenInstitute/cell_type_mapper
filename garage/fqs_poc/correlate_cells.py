@@ -24,12 +24,13 @@ from cell_type_mapper.cell_by_gene.cell_by_gene import (
 
 def correlate_cells(
         anndata_path_0,
+        norm0,
         anndata_path_1,
+        norm1,
         n_processors,
         cells_at_a_time,
         output_path,
-        tmp_dir=None,
-        normalization='log2CPM'):
+        tmp_dir=None):
     """
     Correlate all of the cells in one h5ad file against all of the cells
     in another h5ad file in gene space. Save the results to an HDF5 file.
@@ -38,8 +39,14 @@ def correlate_cells(
     ----------
     anndata_path_0:
         Path to first h5ad file
+    norm0:
+        Normalization (either "raw" or "log2CPM") of the
+        data in anndata_path_0
     anndata_path_1:
         Path to second h5ad file
+    norm1:
+        Normalization (either "raw" or "log2CPM") of the
+        data in anndata_path_1
     n_processors:
         Number of worker processes to spin up at once
     cells_at_a_time:
@@ -58,24 +65,26 @@ def correlate_cells(
     try:
         _correlate_cells(
             anndata_path_0=anndata_path_0,
+            norm0=norm0,
             anndata_path_1=anndata_path_1,
+            norm1=norm1,
             n_processors=n_processors,
             cells_at_a_time=cells_at_a_time,
             output_path=output_path,
-            tmp_dir=tmp_dir,
-            normalization=normalization)
+            tmp_dir=tmp_dir)
     finally:
         _clean_up(tmp_dir)
 
 
 def _correlate_cells(
         anndata_path_0,
+        norm0,
         anndata_path_1,
+        norm1,
         n_processors,
         cells_at_a_time,
         output_path,
-        tmp_dir,
-        normalization):
+        tmp_dir):
 
     n1 = len(read_df_from_h5ad(anndata_path_1, df_name='obs'))
     genes = read_df_from_h5ad(anndata_path_1, df_name='var').index.values
@@ -105,7 +114,7 @@ def _correlate_cells(
         chunk0 = CellByGeneMatrix(
                      data=chunk0[0],
                      gene_identifiers=genes,
-                     normalization=normalization)
+                     normalization=norm0)
 
         for r0 in range(0, n1, cells_at_a_time):
 
@@ -121,7 +130,7 @@ def _correlate_cells(
             chunk1 = CellByGeneMatrix(
                         data=data1.get_chunk(r0=r0, r1=r1)[0],
                         gene_identifiers=genes,
-                        normalization=normalization)
+                        normalization=norm1)
             config = {
                 'cell_by_gene_0': chunk0,
                 'cell_by_gene_1': chunk1,
