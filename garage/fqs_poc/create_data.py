@@ -1,5 +1,7 @@
+import itertools
 import multiprocessing
 import numpy as np
+import os
 import pandas as pd
 import pathlib
 
@@ -70,7 +72,7 @@ def create_data(
         if same is None or this_file != same_i:
             same = np.where(file_arr==this_file)[0]
             same_i = this_file
-        i1 = min(i0+chunk_size, same.max())
+        i1 = min(i0+chunk_size, same.max()+1)
         np.testing.assert_array_equal(
             file_arr[i0:i1], this_file*np.ones(i1-i0))
         entry = {
@@ -79,7 +81,9 @@ def create_data(
             'rows': row_arr[i0:i1]
         }
         src_rows.append(entry)
+        i0 = i1
 
+    print(f'{os.getpid()} running')
     amalgamate_h5ad(
         src_rows=src_rows,
         dst_path=output_path,
@@ -98,12 +102,9 @@ def _assert_dir(dir_path):
 def main():
     rng = np.random.default_rng(22313)
     data_dir = '/allen/scratch/aibstemp/danielsf/fqs_poc'
-    #ncells = [100000, 100000, 500000, 500000, 1000000, 1000000]
-    ncells= [1000, 2000, 3000]
-    salt_list = ['a', 'b', 'a', 'b', 'a', 'b']
     process_list = []
-    chunk_size = 100
-    for n, salt in zip(ncells, salt_list):
+    chunk_size = 10000
+    for n, salt in itertools.product((100000, 500000, 1000000), ('a', 'b')):
         output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
         config = {
             'n_cells': n,

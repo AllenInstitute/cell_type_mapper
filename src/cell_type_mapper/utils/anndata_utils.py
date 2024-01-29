@@ -377,7 +377,6 @@ def _amalgamate_h5ad(
 
     tmp_path_list = []
     for packet in src_rows:
-
         tmp_path = mkstemp_clean(
             dir=tmp_dir,
             suffix='.h5')
