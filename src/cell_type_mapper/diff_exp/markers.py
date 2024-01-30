@@ -629,6 +629,35 @@ def _find_markers_worker(
             np.logical_and(validity_mask,
                            np.logical_not(up_mask)))[0].astype(idx_dtype)
 
+    _write_to_tmp_file(
+        up_reg_lookup=up_reg_lookup,
+        down_reg_lookup=down_reg_lookup,
+        output_path=tmp_path,
+        idx_dtype=idx_dtype)
+
+
+def _write_to_tmp_file(
+        up_reg_lookup,
+        down_reg_lookup,
+        output_path,
+        idx_dtype):
+    """
+    Write a subset of sparse-by-pair marker data to an HDF5 file
+
+    Parameters
+    ----------
+    up_reg_lookup:
+        A dict mapping the row index of a cluster pair to a mask
+        of marker genes that are up-regulated
+    down_reg_lookup:
+        A dict mapping the row index of a cluster pair to a mask
+        of marker genes that are down-regulated
+    output_path:
+        The path to the temporary HDF5 file that is being written
+    idx_dtype:
+        The dtype of valid_gene_idx as recorded in output_path
+    """
+
     (up_pair_idx,
      up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
 
@@ -644,7 +673,7 @@ def _find_markers_worker(
 
     pair_idx_values = list(up_reg_lookup.keys())
     pair_idx_values.sort()
-    with h5py.File(tmp_path, 'a') as out_file:
+    with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
             'pair_idx_values',
             data=json.dumps(pair_idx_values).encode('utf-8'))
