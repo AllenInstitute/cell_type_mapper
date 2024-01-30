@@ -1,7 +1,7 @@
 import argschema
 
 
-class ReferenceMarkerParamMixin(object):
+class ReferenceMarkerStatsParamMixin(object):
 
     p_th = argschema.fields.Float(
         required=False,
@@ -61,7 +61,7 @@ class ReferenceMarkerParamMixin(object):
 
 
 class ReferenceFinderConfigMixin(
-        ReferenceMarkerParamMixin):
+        ReferenceMarkerStatsParamMixin):
 
     exact_penetrance = argschema.fields.Boolean(
         required=False,
