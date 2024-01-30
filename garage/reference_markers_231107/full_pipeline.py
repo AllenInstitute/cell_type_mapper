@@ -503,8 +503,8 @@ def _find_markers_worker_from_pmask(
         validity_mask = _get_validity_mask(
             n_valid=n_valid,
             n_genes=n_genes,
-            these_indices=these_indices,
-            these_distances=these_distances)
+            gene_indices=these_indices,
+            raw_distances=these_distances)
         t_work += time.time()-t0
 
         # determine if a gene is up- or down-regulated in this
@@ -536,17 +536,38 @@ def _find_markers_worker_from_pmask(
 def _get_validity_mask(
         n_valid,
         n_genes,
-        these_indices,
-        these_distances):
+        gene_indices,
+        raw_distances):
+    """
+    Get the validity mask for the reference marker
+    genes corresponding to one cluster pair.
+
+    Parameters
+    ----------
+    n_valid:
+        The number of desired valid reference markers
+    n_genes:
+        The number of genes in the dataset
+    gene_indices:
+        The indices of genes that passed the p-value test
+    raw_distances:
+        The penetrance parameter space distances corresponding
+        to the genes in gene_indices
+
+    Returns
+    -------
+    A numpy array of booleans indicating which genes
+    are valid markers for this cluster pair
+    """
 
     eps = 1.0e-6
     p_mask = np.zeros(n_genes, dtype=bool)
     penetrance_dist = np.zeros(n_genes, dtype=float)
 
-    p_mask[these_indices] = True
+    p_mask[gene_indices] = True
 
     t0 = time.time()
-    penetrance_dist[these_indices] = these_distances
+    penetrance_dist[gene_indices] = raw_distances
     penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
     bad_dist = penetrance_dist.max()+100.0
     penetrance_dist[np.logical_not(p_mask)] = bad_dist
