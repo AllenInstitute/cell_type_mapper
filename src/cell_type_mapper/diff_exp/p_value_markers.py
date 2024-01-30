@@ -46,7 +46,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
         n_processors=4,
         tmp_dir=None,
         max_gb=20,
-        exact_penetrance=False,
         n_valid=30,
         gene_list=None,
         drop_level=None):
@@ -76,10 +75,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
 
     max_gb:
         maximum number of GB to load at once
-
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
 
     n_valid:
         The number of markers to find per pair (when using
@@ -131,7 +126,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
         n_processors=n_processors,
         tmp_dir=tmp_dir,
         max_bytes=10*1024**3,
-        exact_penetrance=exact_penetrance,
         n_valid=n_valid,
         gene_list=gene_list)
     print(f'===== initial creation took {time.time()-t0:.2e} =====')
@@ -166,7 +160,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
         n_processors=4,
         tmp_dir=None,
         max_bytes=6*1024**3,
-        exact_penetrance=False,
         n_valid=30,
         gene_list=None):
     """
@@ -192,10 +185,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
 
     max_bytes:
         Maximum number of bytes to load when thinning marker file
-
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
 
     n_valid:
         The number of markers to find per pair (when using
@@ -320,7 +309,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
                     'idx_to_pair': this_idx_to_pair,
                     'n_genes': n_genes,
                     'tmp_path': tmp_path,
-                    'exact_penetrance': exact_penetrance,
                     'n_valid': n_valid,
                     'valid_gene_idx': valid_gene_idx})
         p.start()
@@ -371,7 +359,6 @@ def _find_markers_from_pmask_worker(
         idx_to_pair,
         n_genes,
         tmp_path,
-        exact_penetrance=False,
         n_valid=30,
         valid_gene_idx=None):
     """
@@ -395,9 +382,6 @@ def _find_markers_from_pmask_worker(
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates that file)
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
     valid_gene_idx:
         Optional array of gene indices indicating which genes
         can be considered valid markers
@@ -533,7 +517,7 @@ def _get_validity_mask(
     penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
 
     good_dist = penetrance_dist.max()
-    bad_dist = 2.0*good_dist
+    bad_dist = 2.0*(good_dist+1.0)
 
     penetrance_dist[np.logical_not(p_mask)] = 1.5*bad_dist
 
@@ -554,6 +538,7 @@ def _get_validity_mask(
         cutoff = penetrance_dist[sorted_dex[n_valid-1]]
 
         penetrance_mask = (penetrance_dist <= cutoff)
+        print(f'using cutoff {cutoff} {penetrance_dist.max()}')
         penetrance_mask[invalid] = False
         penetrance_mask[abs_valid] = True
 
