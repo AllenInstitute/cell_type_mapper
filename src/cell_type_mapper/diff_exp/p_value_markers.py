@@ -504,7 +504,8 @@ def _find_markers_worker_from_pmask(
             n_valid=n_valid,
             n_genes=n_genes,
             gene_indices=these_indices,
-            raw_distances=these_distances)
+            raw_distances=these_distances,
+            valid_gene_idx=valid_gene_idx)
         t_work += time.time()-t0
 
         # determine if a gene is up- or down-regulated in this
@@ -537,7 +538,8 @@ def _get_validity_mask(
         n_valid,
         n_genes,
         gene_indices,
-        raw_distances):
+        raw_distances,
+        valid_gene_idx=None):
     """
     Get the validity mask for the reference marker
     genes corresponding to one cluster pair.
@@ -553,12 +555,18 @@ def _get_validity_mask(
     raw_distances:
         The penetrance parameter space distances corresponding
         to the genes in gene_indices
+    valid_gene_idx:
+        Indexes of genes that are acceptable as markers.
+        If None, all genes are acceptable as markers.
 
     Returns
     -------
     A numpy array of booleans indicating which genes
     are valid markers for this cluster pair
     """
+    if valid_gene_idx is not None:
+        prior_invalid_genes = np.ones(n_genes, dtype=bool)
+        prior_invalid_genes[valid_gene_idx] = False
 
     eps = 1.0e-6
     p_mask = np.zeros(n_genes, dtype=bool)
@@ -569,10 +577,20 @@ def _get_validity_mask(
     t0 = time.time()
     penetrance_dist[gene_indices] = raw_distances
     penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
-    bad_dist = penetrance_dist.max()+100.0
-    penetrance_dist[np.logical_not(p_mask)] = bad_dist
-    invalid = (penetrance_dist >= 100.0)
+
+    good_dist = penetrance_dist.max()
+    bad_dist = 2.0*good_dist
+
+    penetrance_dist[np.logical_not(p_mask)] = 1.5*bad_dist
+
+    # make sure that genes which are marked as invalid
+    # a priori fail the penetrance distance check.
+    if valid_gene_idx is not None:
+        penetrance_dist[prior_invalid_genes] = 1.5*bad_dist
+
+    invalid = (penetrance_dist >= bad_dist)
     abs_valid = (penetrance_dist<eps)
+
     validity_mask = np.logical_and(
         p_mask,
         abs_valid)
@@ -580,10 +598,13 @@ def _get_validity_mask(
     if validity_mask.sum() < n_valid:
         sorted_dex = np.argsort(penetrance_dist)
         cutoff = penetrance_dist[sorted_dex[n_valid-1]]
+
         penetrance_mask = (penetrance_dist <= cutoff)
         penetrance_mask[invalid] = False
         penetrance_mask[abs_valid] = True
+
         validity_mask = np.logical_and(
             p_mask,
             penetrance_mask)
+
     return validity_mask
