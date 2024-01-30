@@ -27,8 +27,9 @@ from cell_type_mapper.diff_exp.p_value_mask import (
     create_p_value_mask_file)
 
 from cell_type_mapper.diff_exp.p_value_markers import (
-    _find_markers_from_pmask_worker,
-    _get_validity_mask)
+    _find_markers_from_p_mask_worker,
+    _get_validity_mask,
+    find_markers_for_all_taxonomy_pairs_from_p_mask)
 
 
 @pytest.fixture(scope='module')
@@ -315,7 +316,7 @@ def test_p_mask_marker_worker(
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
-        prefix='pmask_worker_',
+        prefix='p_mask_worker_',
         suffix='.h5')
 
     with h5py.File(p_mask_path, 'r') as src:
@@ -342,7 +343,7 @@ def test_p_mask_marker_worker(
         for idx in these_idx_values
     }
 
-    _find_markers_from_pmask_worker(
+    _find_markers_from_p_mask_worker(
         p_value_mask_path=p_mask_path,
         cluster_stats=cluster_stats,
         tree_as_leaves=taxonomy_tree_fixture.as_leaves,
@@ -429,3 +430,121 @@ def test_p_mask_marker_worker(
         assert set(used_genes) == set(raw_valid_gene_idx)
     else:
         assert len(set(used_genes)) > len(set(raw_valid_gene_idx))
+
+
+
+@pytest.mark.parametrize(
+    "n_valid, use_valid_gene_idx, q_min, n_processors, drop_level",
+    itertools.product(
+       (5, 30),
+       (True, False),
+       (0.0, 0.1),
+       (1, 3),
+       (None, 'subclass')
+    )
+)
+def test_p_mask_marker_smoke(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        taxonomy_tree_fixture,
+        cluster_pair_fixture,
+        n_valid,
+        use_valid_gene_idx,
+        q_min,
+        n_processors,
+        drop_level):
+    """
+    smoke test for marker selection from p-value mask
+    """
+    n_pairs = len(cluster_pair_fixture)
+    raw_valid_gene_idx = np.array(
+                       [7, 11, 14, 21, 26, 31, 32, 34, 85,
+                        86, 90, 92, 94, 104, 106, 107, 110,
+                        111, 112, 115, 118, 119, 120, 122,
+                        123, 125, 126, 183, 186, 191, 193,
+                        195, 209, 211, 213, 214, 217, 228,
+                        230, 232, 250, 254, 256, 260, 261,
+                        262, 265, 270, 272])
+
+
+    cluster_stats = read_precomputed_stats(
+        precomputed_stats_path=precomputed_path_fixture,
+        taxonomy_tree=taxonomy_tree_fixture,
+        for_marker_selection=True)
+
+    gene_names = cluster_stats['gene_names']
+    cluster_stats = cluster_stats['cluster_stats']
+
+    if use_valid_gene_idx:
+        gene_list = [
+            gene_names[ii]
+            for ii in raw_valid_gene_idx]
+    else:
+        gene_list = None
+
+    q1_th = 0.5
+    qdiff_th = 0.7
+    log2_fold_th = 1.0
+
+    # these need to be so low because of how the test
+    # data is constructed. These low thresholds give a difference
+    # between n_valid = 10 and n_valid = 30
+    p_th = 0.01
+    q1_min_th = q_min
+    qdiff_min_th = q_min
+    log2_fold_min_th = 0.01
+
+    p_mask_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_mask_for_markers_',
+        suffix='.h5')
+
+    create_p_value_mask_file(
+        precomputed_stats_path=precomputed_path_fixture,
+        dst_path=p_mask_path,
+        p_th=p_th,
+        q1_th=q1_th,
+        q1_min_th=q1_min_th,
+        qdiff_th=qdiff_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_th=log2_fold_th,
+        log2_fold_min_th=log2_fold_min_th,
+        tmp_dir=tmp_dir_fixture,
+        n_processors=2)
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_mask_pipeline_',
+        suffix='.h5')
+
+    find_markers_for_all_taxonomy_pairs_from_p_mask(
+        precomputed_stats_path=precomputed_path_fixture,
+        p_value_mask_path=p_mask_path,
+        output_path=output_path,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir_fixture,
+        max_gb=10,
+        n_valid=n_valid,
+        gene_list=gene_list,
+        drop_level=drop_level)
+
+    # check that some markers were found
+    with h5py.File(output_path, 'r') as src:
+        for direction in ('up', 'down'):
+            for axis in ('pair', 'gene'):
+                if axis == 'pair':
+                    other = 'gene'
+                    sparse_class = scipy.sparse.csr_array
+                else:
+                    other = 'pair'
+                    sparse_class = scipy.sparse.csc_array
+                grp = src[f'sparse_by_{axis}']
+                indices = grp[f'{direction}_{other}_idx'][()]
+                indptr = grp[f'{direction}_{axis}_idx'][()]
+                data = np.ones(indices.shape)
+                arr = sparse_class(
+                    (data,
+                     indices.astype(int),
+                     indptr.astype(int)),
+                    shape=(n_pairs, len(gene_names))).toarray()
+                assert arr.sum() > 0.0

@@ -39,7 +39,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
-def find_markers_for_all_taxonomy_pairs_from_pmask(
+def find_markers_for_all_taxonomy_pairs_from_p_mask(
         precomputed_stats_path,
         p_value_mask_path,
         output_path,
@@ -119,7 +119,7 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
         taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
     t0 = time.time()
-    tmp_thinned_path = create_sparse_by_pair_marker_file_from_pmask(
+    tmp_thinned_path = create_sparse_by_pair_marker_file_from_p_mask(
         precomputed_stats_path=precomputed_stats_path,
         p_value_mask_path=p_value_mask_path,
         taxonomy_tree=taxonomy_tree,
@@ -153,7 +153,7 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
     print(f'======= full thing {time.time()-full_t0:.2e} =======')
 
 
-def create_sparse_by_pair_marker_file_from_pmask(
+def create_sparse_by_pair_marker_file_from_p_mask(
         precomputed_stats_path,
         p_value_mask_path,
         taxonomy_tree,
@@ -298,7 +298,7 @@ def create_sparse_by_pair_marker_file_from_pmask(
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
 
         p = multiprocessing.Process(
-                target=_find_markers_from_pmask_worker,
+                target=_find_markers_from_p_mask_worker,
                 kwargs={
                     'p_value_mask_path': p_value_mask_path,
                     'cluster_stats': this_cluster_stats,
@@ -349,7 +349,7 @@ def create_sparse_by_pair_marker_file_from_pmask(
     return tmp_output_path
 
 
-def _find_markers_from_pmask_worker(
+def _find_markers_from_p_mask_worker(
         p_value_mask_path,
         cluster_stats,
         tree_as_leaves,
