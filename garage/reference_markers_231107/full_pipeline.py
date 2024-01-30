@@ -31,7 +31,7 @@ from cell_type_mapper.utils.csc_to_csr import (
 
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file,
-    _lookup_to_sparse)
+    _write_to_tmp_file)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -603,47 +603,11 @@ def _find_markers_worker_from_pmask(
         down_reg_lookup[idx] = np.where(
             np.logical_and(validity_mask, np.logical_not(up_mask)))[0]
 
-
-    (up_pair_idx,
-     up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
-
-    (down_pair_idx,
-     down_gene_idx) = _lookup_to_sparse(down_reg_lookup)
-
-    valid_gene_idx = set(up_gene_idx)
-    valid_gene_idx = valid_gene_idx.union(
-        set(down_gene_idx))
-
-    n_up_indices = len(up_gene_idx)
-    n_down_indices = len(down_gene_idx)
-
-    with h5py.File(tmp_path, 'a') as out_file:
-        out_file.create_dataset(
-            'pair_idx_values',
-            data=json.dumps(idx_values).encode('utf-8'))
-
-        out_file.create_dataset(
-            'up_pair_idx', data=up_pair_idx, dtype=up_pair_idx.dtype)
-
-        out_file.create_dataset(
-            'up_gene_idx', data=up_gene_idx, dtype=up_gene_idx.dtype)
-
-        out_file.create_dataset(
-            'down_pair_idx', data=down_pair_idx, dtype=down_pair_idx.dtype)
-
-        out_file.create_dataset(
-            'down_gene_idx', data=down_gene_idx, dtype=down_gene_idx.dtype)
-
-        out_file.create_dataset(
-            'valid_gene_idx',
-            data=np.array(list(valid_gene_idx)).astype(idx_dtype),
-            dtype=idx_dtype)
-
-        out_file.create_dataset(
-            'n_down_indices', data=n_down_indices)
-
-        out_file.create_dataset(
-            'n_up_indices', data=n_up_indices)
+    _write_to_tmp_file(
+        up_reg_lookup=up_reg_lookup,
+        down_reg_lookup=down_reg_lookup,
+        output_path=tmp_path,
+        idx_dtype=idx_dtype)
 
     t_total = time.time()-full_t0
     print(f'====work {t_work:.2e} of {t_total:.2e}===')
