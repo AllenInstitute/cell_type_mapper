@@ -1,8 +1,11 @@
 import argschema
 from marshmallow import post_load
 
+from cell_type_mapper.schemas.output_file import (
+    OutFileWithClobberMixin)
 
-class PrecomputedStatsSchemaMixin(object):
+
+class PrecomputedStatsSchemaMixin(OutFileWithClobberMixin):
 
     clobber = argschema.fields.Boolean(
         required=False,
