@@ -38,14 +38,14 @@ def create_p_value_mask_file(
         precomputed_stats_path,
         dst_path,
         p_th=0.01,
-        n_processors=4,
-        tmp_dir=None,
         q1_th=0.5,
         q1_min_th=0.1,
         qdiff_th=0.7,
         qdiff_min_th=0.1,
         log2_fold_th=1.0,
-        log2_fold_min_th=0.8):
+        log2_fold_min_th=0.8,
+        n_processors=4,
+        tmp_dir=None):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a

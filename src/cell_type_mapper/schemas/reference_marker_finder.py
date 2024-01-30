@@ -1,15 +1,7 @@
 import argschema
 
 
-class ReferenceFinderConfigMixin(object):
-
-    exact_penetrance = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=("If False, allow genes that technically fail "
-                     "penetrance and fold-change thresholds to pass "
-                     "through as reference genes."))
+class ReferenceMarkerParamMixin(object):
 
     p_th = argschema.fields.Float(
         required=False,
@@ -66,6 +58,18 @@ class ReferenceFinderConfigMixin(object):
         description=("If the log2 fold change of a gene between two "
                      "clusters is less than this value, that gene cannot "
                      "be a marker, even if exact_penetrance is False"))
+
+
+class ReferenceFinderConfigMixin(
+        ReferenceMarkerParamMixin):
+
+    exact_penetrance = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=("If False, allow genes that technically fail "
+                     "penetrance and fold-change thresholds to pass "
+                     "through as reference genes."))
 
     n_valid = argschema.fields.Int(
         required=False,
