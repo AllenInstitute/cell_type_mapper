@@ -43,12 +43,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
         precomputed_stats_path,
         p_value_mask_path,
         output_path,
-        q1_th=0.5,
-        qdiff_th=0.7,
-        log2_fold_th=1.0,
-        q1_min_th=0.1,
-        qdiff_min_th=0.1,
-        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
         max_gb=20,
@@ -76,15 +70,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
 
     output_path:
         Path to the HDF5 file where results will be stored
-
-    q1_th/qdiff_th/log2_fold_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
-
-    q1_min_th/qdiff_min_th/log2_fold_min_th
-        Minimum thresholds below which genes will not be
-        considered marker genes. See Notes under
-        score_differential_genes.
 
     n_processors:
         Number of independent worker processes to spin out
@@ -143,12 +128,6 @@ def find_markers_for_all_taxonomy_pairs_from_pmask(
         precomputed_stats_path=precomputed_stats_path,
         p_value_mask_path=p_value_mask_path,
         taxonomy_tree=taxonomy_tree,
-        q1_th=q1_th,
-        qdiff_th=qdiff_th,
-        log2_fold_th=log2_fold_th,
-        q1_min_th=q1_min_th,
-        qdiff_min_th=qdiff_min_th,
-        log2_fold_min_th=log2_fold_min_th,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
         max_bytes=10*1024**3,
@@ -184,12 +163,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
         precomputed_stats_path,
         p_value_mask_path,
         taxonomy_tree,
-        q1_th=0.5,
-        qdiff_th=0.7,
-        log2_fold_th=1.0,
-        q1_min_th=0.1,
-        qdiff_min_th=0.1,
-        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
         max_bytes=6*1024**3,
@@ -213,10 +186,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
         instance of
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
         ecoding the taxonomy tree
-
-    q1_th/qdiff_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
 
     n_processors:
         Number of independent worker processes to spin out
@@ -343,19 +312,13 @@ def create_sparse_by_pair_marker_file_from_pmask(
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
 
         p = multiprocessing.Process(
-                target=_find_markers_worker_from_pmask,
+                target=_find_markers_from_pmask_worker,
                 kwargs={
                     'p_value_mask_path': p_value_mask_path,
                     'cluster_stats': this_cluster_stats,
                     'tree_as_leaves': this_tree_as_leaves,
                     'idx_to_pair': this_idx_to_pair,
                     'n_genes': n_genes,
-                    'q1_th': q1_th,
-                    'qdiff_th': qdiff_th,
-                    'log2_fold_th': log2_fold_th,
-                    'q1_min_th': q1_min_th,
-                    'qdiff_min_th': qdiff_min_th,
-                    'log2_fold_min_th': log2_fold_min_th,
                     'tmp_path': tmp_path,
                     'exact_penetrance': exact_penetrance,
                     'n_valid': n_valid,
@@ -401,18 +364,12 @@ def create_sparse_by_pair_marker_file_from_pmask(
     return tmp_output_path
 
 
-def _find_markers_worker_from_pmask(
+def _find_markers_from_pmask_worker(
         p_value_mask_path,
         cluster_stats,
         tree_as_leaves,
         idx_to_pair,
         n_genes,
-        q1_th,
-        qdiff_th,
-        log2_fold_th,
-        q1_min_th,
-        qdiff_min_th,
-        log2_fold_min_th,
         tmp_path,
         exact_penetrance=False,
         n_valid=30,
@@ -435,9 +392,6 @@ def _find_markers_worker_from_pmask(
         [Just the columns that this worker is responsible for]
     n_genes:
         Number of genes in dataset
-    q1_th/qdiff_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates that file)
