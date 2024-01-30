@@ -3,12 +3,9 @@ import h5py
 import multiprocessing
 import numpy as np
 import pathlib
-import scipy.sparse as scipy_sparse
 import shutil
 import tempfile
 import time
-
-import os
 
 from cell_type_mapper.utils.utils import (
     print_timing,
@@ -20,14 +17,7 @@ from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
 from cell_type_mapper.diff_exp.score_utils import (
-    read_precomputed_stats,
-    _get_this_cluster_stats)
-
-from cell_type_mapper.diff_exp.scores import (
-    penetrance_from_stats)
-
-from cell_type_mapper.utils.csc_to_csr import (
-    transpose_sparse_matrix_on_disk)
+    read_precomputed_stats)
 
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file,
@@ -248,7 +238,8 @@ def create_sparse_by_pair_marker_file_from_p_mask(
 
     if src_gene_names != gene_names:
         raise RuntimeError(
-            "gene names mismatch between p-value file and precomputed_stats file")
+            "gene names mismatch between p-value file "
+            "and precomputed_stats file")
 
     idx_to_pair = dict()
     for level in pair_to_idx:
@@ -384,7 +375,6 @@ def _find_markers_from_p_mask_worker(
         can be considered valid markers
     """
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
-    n_pairs = len(idx_to_pair)
     idx_dtype = choose_int_dtype((0, n_genes))
 
     idx_values = list(idx_to_pair.keys())
@@ -427,7 +417,8 @@ def _find_markers_from_p_mask_worker(
                 f"len(p_indices) {len(p_indices)}; "
                 f"{p_i0}:{p_i1}; {idx_min} {idx_max}")
         these_indices = p_indices[p_indptr[ct]:p_indptr[ct+1]]
-        these_distances = sparse_dist[p_indptr[ct]:p_indptr[ct+1]].astype(float)
+        these_distances = sparse_dist[
+                p_indptr[ct]:p_indptr[ct+1]].astype(float)
 
         validity_mask = _get_validity_mask(
             n_valid=n_valid,
@@ -499,7 +490,6 @@ def _get_validity_mask(
 
     p_mask[gene_indices] = True
 
-    t0 = time.time()
     penetrance_dist[gene_indices] = raw_distances
     penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
 
@@ -514,7 +504,7 @@ def _get_validity_mask(
         penetrance_dist[prior_invalid_genes] = 1.5*bad_dist
 
     invalid = (penetrance_dist >= bad_dist)
-    abs_valid = (penetrance_dist<eps)
+    abs_valid = (penetrance_dist < eps)
 
     validity_mask = np.logical_and(
         p_mask,
