@@ -3,12 +3,12 @@ from marshmallow import post_load
 import pathlib
 
 from cell_type_mapper.schemas.reference_marker_finder import (
-    ReferenceMarkerParamMixin)
+    ReferenceMarkerStatsParamMixin)
 
 
 class PValueMaskSchema(
         argschema.ArgSchema,
-        ReferenceMarkerParamMixin):
+        ReferenceMarkerStatsParamMixin):
 
     precomputed_stats_path = argschema.fields.InputFile(
         required=True,

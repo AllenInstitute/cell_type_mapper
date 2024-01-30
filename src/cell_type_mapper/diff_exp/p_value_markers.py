@@ -115,7 +115,7 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         taxonomy_tree=taxonomy_tree,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
-        max_bytes=10*1024**3,
+        max_gb=10,
         n_valid=n_valid,
         gene_list=gene_list)
     print(f'===== initial creation took {time.time()-t0:.2e} =====')
@@ -149,7 +149,7 @@ def create_sparse_by_pair_marker_file_from_p_mask(
         taxonomy_tree,
         n_processors=4,
         tmp_dir=None,
-        max_bytes=6*1024**3,
+        max_gb=6,
         n_valid=30,
         gene_list=None):
     """
@@ -173,8 +173,8 @@ def create_sparse_by_pair_marker_file_from_p_mask(
     n_processors:
         Number of independent worker processes to spin out
 
-    max_bytes:
-        Maximum number of bytes to load when thinning marker file
+    max_gb:
+        Maximum number of GB to load when thinning marker file
 
     n_valid:
         The number of markers to find per pair (when using
@@ -258,6 +258,7 @@ def create_sparse_by_pair_marker_file_from_p_mask(
 
     # how many pairs to run per proceess
     bytes_per_pair = n_genes*3
+    max_bytes = max_gb*1024**3
     n_per = max_bytes//bytes_per_pair
 
     if n_per > n_pairs//(2*n_processors):
