@@ -1,10 +1,12 @@
 import pytest
 
+import anndata
 import copy
 import h5py
 import itertools
 import json
 import numpy as np
+import pandas as pd
 import scipy.sparse
 
 from cell_type_mapper.utils.utils import (
@@ -33,6 +35,9 @@ from cell_type_mapper.diff_exp.p_value_markers import (
 
 from cell_type_mapper.cli.compute_p_value_mask import (
     PValueRunner)
+
+from cell_type_mapper.cli.reference_markers_from_p_value_mask import (
+    PValueMarkersRunner)
 
 
 @pytest.fixture(scope='module')
@@ -460,13 +465,14 @@ def test_p_mask_marker_worker(
 
 
 @pytest.mark.parametrize(
-    "n_valid, use_valid_gene_idx, q_min, n_processors, drop_level",
+    "n_valid, use_valid_gene_idx, q_min, n_processors, drop_level, use_cli",
     itertools.product(
        (5, 30),
        (True, False),
        (0.0, 0.1),
        (1, 3),
-       (None, 'subclass')
+       (None, 'subclass'),
+       (True, False)
     )
 )
 def test_p_mask_marker_smoke(
@@ -478,7 +484,8 @@ def test_p_mask_marker_smoke(
         use_valid_gene_idx,
         q_min,
         n_processors,
-        drop_level):
+        drop_level,
+        use_cli):
     """
     smoke test for marker selection from p-value mask
     """
@@ -543,16 +550,48 @@ def test_p_mask_marker_smoke(
         prefix='p_mask_pipeline_',
         suffix='.h5')
 
-    find_markers_for_all_taxonomy_pairs_from_p_mask(
-        precomputed_stats_path=precomputed_path_fixture,
-        p_value_mask_path=p_mask_path,
-        output_path=output_path,
-        n_processors=n_processors,
-        tmp_dir=tmp_dir_fixture,
-        max_gb=10,
-        n_valid=n_valid,
-        gene_list=gene_list,
-        drop_level=drop_level)
+    if use_cli:
+        if gene_list is not None:
+            var = pd.DataFrame(
+                    [{'gene_id': g}
+                     for g in gene_names]).set_index('gene_id')
+            query_path = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.h5ad')
+            adata = anndata.AnnData(var=var)
+            adata.write_h5ad(query_path)
+        else:
+            query_path = None
+
+        config = {
+            'precomputed_stats_path': precomputed_path_fixture,
+            'p_value_mask_path': p_mask_path,
+            'output_path': output_path,
+            'n_processors': n_processors,
+            'tmp_dir': str(tmp_dir_fixture),
+            'max_gb': 10,
+            'query_path': query_path,
+            'drop_level': drop_level,
+            'clobber': True
+        }
+
+        runner = PValueMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
+
+    else:
+        find_markers_for_all_taxonomy_pairs_from_p_mask(
+            precomputed_stats_path=precomputed_path_fixture,
+            p_value_mask_path=p_mask_path,
+            output_path=output_path,
+            n_processors=n_processors,
+            tmp_dir=tmp_dir_fixture,
+            max_gb=10,
+            n_valid=n_valid,
+            gene_list=gene_list,
+            drop_level=drop_level)
 
     # check that some markers were found
     with h5py.File(output_path, 'r') as src:
