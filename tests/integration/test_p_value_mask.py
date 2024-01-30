@@ -31,6 +31,9 @@ from cell_type_mapper.diff_exp.p_value_markers import (
     _get_validity_mask,
     find_markers_for_all_taxonomy_pairs_from_p_mask)
 
+from cell_type_mapper.cli.compute_p_value_mask import (
+    PValueRunner)
+
 
 @pytest.fixture(scope='module')
 def tmp_dir(tmp_path_factory):
@@ -125,13 +128,14 @@ def get_marker_stats(
 
 
 @pytest.mark.parametrize(
-    "q1_min_th, qdiff_min_th, log2_fold_min_th, p_th, n_processors",
+    "q1_min_th, qdiff_min_th, log2_fold_min_th, p_th, n_processors, use_cli",
     itertools.product(
         (0.0, 0.1),
         (0.0, 0.1),
         (0.0, 0.2, 0.8),
         (0.05, 0.01),
-        (1, 3)
+        (1, 3),
+        (True, False)
     ))
 def test_dummy_p_value_mask(
         tmp_dir_fixture,
@@ -142,7 +146,8 @@ def test_dummy_p_value_mask(
         qdiff_min_th,
         log2_fold_min_th,
         p_th,
-        n_processors):
+        n_processors,
+        use_cli):
 
     marker_stats = get_marker_stats(
         precomputed_path=precomputed_path_fixture,
@@ -191,18 +196,39 @@ def test_dummy_p_value_mask(
         prefix='p_mask_',
         suffix='.h5')
 
-    create_p_value_mask_file(
-        precomputed_stats_path=precomputed_path_fixture,
-        dst_path=p_mask_path,
-        p_th=p_th,
-        q1_th=q1_th,
-        q1_min_th=q1_min_th,
-        qdiff_th=qdiff_th,
-        qdiff_min_th=qdiff_min_th,
-        log2_fold_th=log2_fold_th,
-        log2_fold_min_th=log2_fold_min_th,
-        tmp_dir=tmp_dir_fixture,
-        n_processors=n_processors)
+    if use_cli:
+        config = {
+            'precomputed_stats_path': precomputed_path_fixture,
+            'output_path': p_mask_path,
+            'p_th': p_th,
+            'q1_th': q1_th,
+            'q1_min_th': q1_min_th,
+            'qdiff_th': qdiff_th,
+            'qdiff_min_th': qdiff_min_th,
+            'log2_fold_th': log2_fold_th,
+            'log2_fold_min_th': log2_fold_min_th,
+            'n_processors': n_processors,
+            'tmp_dir': str(tmp_dir),
+            'clobber': True
+        }
+        runner = PValueRunner(
+                    args=[],
+                    input_data=config)
+        runner.run()
+
+    else:
+        create_p_value_mask_file(
+            precomputed_stats_path=precomputed_path_fixture,
+            dst_path=p_mask_path,
+            p_th=p_th,
+            q1_th=q1_th,
+            q1_min_th=q1_min_th,
+            qdiff_th=qdiff_th,
+            qdiff_min_th=qdiff_min_th,
+            log2_fold_th=log2_fold_th,
+            log2_fold_min_th=log2_fold_min_th,
+            tmp_dir=tmp_dir_fixture,
+            n_processors=n_processors)
 
     with h5py.File(p_mask_path, 'r') as src:
         gene_names = json.loads(src['gene_names'][()].decode('utf-8'))
