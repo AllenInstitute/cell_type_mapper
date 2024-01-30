@@ -31,7 +31,8 @@ from cell_type_mapper.utils.csc_to_csr import (
 
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file,
-    _write_to_tmp_file)
+    _write_to_tmp_file,
+    _prep_chunk)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -324,26 +325,21 @@ def create_sparse_by_pair_marker_file_from_pmask(
     print(f'running with n_per {n_per}')
 
     for col0 in range(0, n_pairs, n_per):
-        col1 = col0+n_per
 
-        print(f'starting job for {col0}:{col1}')
+        (col1,
+         this_idx_to_pair,
+         this_cluster_stats,
+         this_tree_as_leaves,
+         tmp_path) = _prep_chunk(
+                            col0=col0,
+                            n_per=n_per,
+                            idx_values=idx_values,
+                            idx_to_pair=idx_to_pair,
+                            cluster_stats=cluster_stats,
+                            tree_as_leaves=tree_as_leaves,
+                            tmp_dir=inner_tmp_dir)
 
-        tmp_path = mkstemp_clean(
-            dir=inner_tmp_dir,
-            prefix=f'columns_{col0}_{col1}_',
-            suffix='.h5')
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
-
-        this_idx_values = idx_values[col0:col1]
-        this_idx_to_pair = {
-            ii: idx_to_pair.pop(ii)
-            for ii in this_idx_values}
-
-        (this_cluster_stats,
-         this_tree_as_leaves) = _get_this_cluster_stats(
-            cluster_stats=cluster_stats,
-            idx_to_pair=this_idx_to_pair,
-            tree_as_leaves=tree_as_leaves)
 
         p = multiprocessing.Process(
                 target=_find_markers_worker_from_pmask,
@@ -380,7 +376,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
     del cluster_stats
     del tree_as_leaves
     del this_cluster_stats
-    del this_idx_values
     del this_idx_to_pair
     del this_tree_as_leaves
 
