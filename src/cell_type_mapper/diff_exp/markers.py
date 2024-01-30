@@ -390,6 +390,37 @@ def create_sparse_by_pair_marker_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
+    _merge_sparse_by_pair_files(
+        tmp_path_dict=tmp_path_dict,
+        n_genes=n_genes,
+        n_pairs=n_pairs,
+        output_path=tmp_output_path)
+
+    return tmp_output_path
+
+
+def _merge_sparse_by_pair_files(
+        tmp_path_dict,
+        n_genes,
+        n_pairs,
+        output_path):
+    """
+    Merge the disparate chunks of the sparse_by_pairs marker file
+    into one file.
+
+    Parameters
+    ----------
+    tmp_path_dict:
+        A dict mapping the index of the first cluster pair to the
+        temporary file containing the data for that chunk
+    n_genes:
+        int; the number of genes in the dataset
+    n_pairs:
+        int; the total number of cluster pairs in the taxonomy
+    output_path:
+        The path to the HDF5 file this function will write
+    """
+
     n_up_indices = 0
     n_down_indices = 0
     for col0 in tmp_path_dict:
@@ -404,7 +435,7 @@ def create_sparse_by_pair_marker_file(
 
     up_pair_offset = 0
     down_pair_offset = 0
-    with h5py.File(tmp_output_path, 'a') as dst:
+    with h5py.File(output_path, 'a') as dst:
 
         dst_grp = dst.create_group('sparse_by_pair')
 
@@ -470,8 +501,6 @@ def create_sparse_by_pair_marker_file(
 
         dst_grp['up_pair_idx'][-1] = n_up_indices
         dst_grp['down_pair_idx'][-1] = n_down_indices
-
-    return tmp_output_path
 
 
 def add_sparse_by_gene_markers_to_file(
