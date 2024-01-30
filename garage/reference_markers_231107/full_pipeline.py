@@ -32,7 +32,8 @@ from cell_type_mapper.utils.csc_to_csr import (
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file,
     _write_to_tmp_file,
-    _prep_chunk)
+    _prep_chunk,
+    _merge_sparse_by_pair_files)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -391,87 +392,11 @@ def create_sparse_by_pair_marker_file_from_pmask(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    n_up_indices = 0
-    n_down_indices = 0
-    for col0 in tmp_path_dict:
-        tmp_path = tmp_path_dict[col0]
-        with h5py.File(tmp_path, 'r') as src:
-            n_up_indices += src['n_up_indices'][()]
-            n_down_indices += src['n_down_indices'][()]
-
-    gene_idx_dtype = choose_int_dtype((0, n_genes))
-    up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
-    down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
-
-    up_pair_offset = 0
-    down_pair_offset = 0
-    with h5py.File(tmp_output_path, 'a') as dst:
-
-        dst_grp = dst.create_group('sparse_by_pair')
-
-        dst_grp.create_dataset(
-            'up_pair_idx',
-            shape=(n_pairs+1,),
-            dtype=up_pair_idx_dtype)
-        dst_grp.create_dataset(
-            'up_gene_idx',
-            shape=(n_up_indices,),
-            dtype=gene_idx_dtype,
-            chunks=(min(n_up_indices, 1000000),))
-        dst_grp.create_dataset(
-            'down_pair_idx',
-            shape=(n_pairs+1,),
-            dtype=down_pair_idx_dtype)
-        dst_grp.create_dataset(
-            'down_gene_idx',
-            shape=(n_down_indices,),
-            dtype=gene_idx_dtype,
-            chunks=(min(n_down_indices, 1000000),))
-
-        col0_values = list(tmp_path_dict.keys())
-        col0_values.sort()
-        for col0 in col0_values:
-            tmp_path = tmp_path_dict[col0]
-            with h5py.File(tmp_path, 'r') as src:
-                pair_idx_values = json.loads(
-                    src['pair_idx_values'][()].decode('utf-8'))
-                pair_idx_values.sort()
-
-                up_gene_idx = \
-                    src['up_gene_idx'][()].astype(
-                        gene_idx_dtype)
-
-                down_gene_idx = \
-                    src['down_gene_idx'][()].astype(
-                        gene_idx_dtype)
-
-                up_pair_idx = \
-                    src['up_pair_idx'][()].astype(up_pair_idx_dtype) \
-                    + up_pair_offset
-
-                down_pair_idx = \
-                    src['down_pair_idx'][()].astype(down_pair_idx_dtype) \
-                    + down_pair_offset
-
-                i0 = min(pair_idx_values)
-                i1 = i0 + len(pair_idx_values)
-
-                dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
-                dst_grp['down_pair_idx'][i0:i1] = down_pair_idx[:-1]
-
-                i0 = up_pair_idx[0]
-                i1 = i0 + len(up_gene_idx)
-                dst_grp['up_gene_idx'][i0:i1] = up_gene_idx
-
-                i0 = down_pair_idx[0]
-                i1 = i0 + len(down_gene_idx)
-                dst_grp['down_gene_idx'][i0:i1] = down_gene_idx
-
-                up_pair_offset += len(up_gene_idx)
-                down_pair_offset += len(down_gene_idx)
-
-        dst_grp['up_pair_idx'][-1] = n_up_indices
-        dst_grp['down_pair_idx'][-1] = n_down_indices
+    _merge_sparse_by_pair_files(
+        tmp_path_dict=tmp_path_dict,
+        n_genes=n_genes,
+        n_pairs=n_pairs,
+        output_path=tmp_output_path)
 
     return tmp_output_path
 
