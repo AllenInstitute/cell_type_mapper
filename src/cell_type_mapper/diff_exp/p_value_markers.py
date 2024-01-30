@@ -280,9 +280,6 @@ def create_sparse_by_pair_marker_file_from_pmask(
     t0 = time.time()
     ct_complete = 0
 
-    print(f'parent process {os.getpid()}')
-    print(f'running with n_per {n_per}')
-
     for col0 in range(0, n_pairs, n_per):
 
         (col1,
@@ -386,9 +383,6 @@ def _find_markers_from_pmask_worker(
         Optional array of gene indices indicating which genes
         can be considered valid markers
     """
-    full_t0 = time.time()
-    t_work = 0.0
-    print(f'worker starting process {os.getpid()}')
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
     n_pairs = len(idx_to_pair)
     idx_dtype = choose_int_dtype((0, n_genes))
@@ -424,11 +418,9 @@ def _find_markers_from_pmask_worker(
 
     p_indptr = p_indptr[idx_min:idx_max+2]
     p_indptr -= p_indptr[0]
-    assert len(p_indptr) == len(idx_values)+1
 
     for ct, idx in enumerate(idx_values):
 
-        assert ct+1 <= len(p_indptr)
         if not p_indptr[ct+1] <= len(p_indices):
             raise RuntimeError(
                 f"last p_indptr {p_indptr[ct+1]}; "
@@ -437,14 +429,12 @@ def _find_markers_from_pmask_worker(
         these_indices = p_indices[p_indptr[ct]:p_indptr[ct+1]]
         these_distances = sparse_dist[p_indptr[ct]:p_indptr[ct+1]].astype(float)
 
-        t0 = time.time()
         validity_mask = _get_validity_mask(
             n_valid=n_valid,
             n_genes=n_genes,
             gene_indices=these_indices,
             raw_distances=these_distances,
             valid_gene_idx=valid_gene_idx)
-        t_work += time.time()-t0
 
         # determine if a gene is up- or down-regulated in this
         # taxon pair
@@ -467,9 +457,6 @@ def _find_markers_from_pmask_worker(
         down_reg_lookup=down_reg_lookup,
         output_path=tmp_path,
         idx_dtype=idx_dtype)
-
-    t_total = time.time()-full_t0
-    print(f'====work {t_work:.2e} of {t_total:.2e}===')
 
 
 def _get_validity_mask(
@@ -536,9 +523,7 @@ def _get_validity_mask(
     if validity_mask.sum() < n_valid:
         sorted_dex = np.argsort(penetrance_dist)
         cutoff = penetrance_dist[sorted_dex[n_valid-1]]
-
         penetrance_mask = (penetrance_dist <= cutoff)
-        print(f'using cutoff {cutoff} {penetrance_dist.max()}')
         penetrance_mask[invalid] = False
         penetrance_mask[abs_valid] = True
 
