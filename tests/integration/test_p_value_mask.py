@@ -245,10 +245,11 @@ def test_dummy_p_value_mask(
 
 
 @pytest.mark.parametrize(
-    "n_valid, use_valid_gene_idx",
+    "n_valid, use_valid_gene_idx, q_min",
     itertools.product(
-       (10, 30),
-       (True, False)
+       (5, 30),
+       (True, False),
+       (0.0, 0.1)
     )
 )
 def test_p_mask_marker_worker(
@@ -257,7 +258,8 @@ def test_p_mask_marker_worker(
         taxonomy_tree_fixture,
         cluster_pair_fixture,
         n_valid,
-        use_valid_gene_idx):
+        use_valid_gene_idx,
+        q_min):
 
     raw_valid_gene_idx = np.array(
                        [7, 11, 14, 21, 26, 31, 32, 34, 85,
@@ -289,8 +291,8 @@ def test_p_mask_marker_worker(
     # data is constructed. These low thresholds give a difference
     # between n_valid = 10 and n_valid = 30
     p_th = 0.01
-    q1_min_th = 0.001
-    qdiff_min_th = 0.01
+    q1_min_th = q_min
+    qdiff_min_th = q_min
     log2_fold_min_th = 0.01
 
     p_mask_path = mkstemp_clean(
@@ -426,4 +428,4 @@ def test_p_mask_marker_worker(
     if use_valid_gene_idx:
         assert set(used_genes) == set(raw_valid_gene_idx)
     else:
-        assert set(used_genes) != set(raw_valid_gene_idx)
+        assert len(set(used_genes)) > len(set(raw_valid_gene_idx))
