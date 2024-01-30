@@ -324,23 +324,21 @@ def create_sparse_by_pair_marker_file(
     ct_complete = 0
 
     for col0 in range(0, n_pairs, n_per):
-        col1 = col0+n_per
-        tmp_path = mkstemp_clean(
-            dir=inner_tmp_dir,
-            prefix=f'columns_{col0}_{col1}_',
-            suffix='.h5')
+
+        (col1,
+         this_idx_to_pair,
+         this_cluster_stats,
+         this_tree_as_leaves,
+         tmp_path) = _prep_chunk(
+                            col0=col0,
+                            n_per=n_per,
+                            idx_values=idx_values,
+                            idx_to_pair=idx_to_pair,
+                            cluster_stats=cluster_stats,
+                            tree_as_leaves=tree_as_leaves,
+                            tmp_dir=inner_tmp_dir)
+
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
-
-        this_idx_values = idx_values[col0:col1]
-        this_idx_to_pair = {
-            ii: idx_to_pair.pop(ii)
-            for ii in this_idx_values}
-
-        (this_cluster_stats,
-         this_tree_as_leaves) = _get_this_cluster_stats(
-            cluster_stats=cluster_stats,
-            idx_to_pair=this_idx_to_pair,
-            tree_as_leaves=tree_as_leaves)
 
         p = multiprocessing.Process(
                 target=_find_markers_worker,
@@ -377,7 +375,6 @@ def create_sparse_by_pair_marker_file(
     del cluster_stats
     del tree_as_leaves
     del this_cluster_stats
-    del this_idx_values
     del this_idx_to_pair
     del this_tree_as_leaves
 
@@ -803,3 +800,70 @@ def _lookup_to_sparse(
     indptr[-1] = n_indices
 
     return indptr, indices
+
+
+def _prep_chunk(
+        col0,
+        n_per,
+        idx_values,
+        idx_to_pair,
+        cluster_stats,
+        tree_as_leaves,
+        tmp_dir):
+    """
+    Prepare a chunk of data for processing.
+
+    Parameters
+    ----------
+    col0:
+        The index of the cluster pair this chunk starts with
+    n_per:
+        Number of cluster pairs to run per process
+    idx_values:
+        Sorted list of row indexes in the reference marker file
+    idx_to_pair:
+        Dict mapping row index to cluster pair
+    cluster_stats:
+        Result of runnng read_precomputed_stats on precomputed
+        stats file
+    tree_as_leaves:
+        Result of running TaxonomyTree.as_leaves
+    tmp_dir:
+        Directory where scratch files may be written
+
+    Returns
+    -------
+    col1:
+        Index of the last cluster pair this chunk will process
+    this_idx_to_pair:
+        Subset of idx_to_pair to be processed by this chunk
+    this_cluster_stats:
+        Subset of cluster_stats needed for this chunk
+    this_tree_as_leaves:
+        Subset of tree_as_leaves needed for this chunk
+    tmp_path:
+        Path to temporary file to which this chunk will be
+        written.
+    """
+    col1 = col0+n_per
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix=f'columns_{col0}_{col1}_',
+        suffix='.h5')
+
+    this_idx_values = idx_values[col0:col1]
+    this_idx_to_pair = {
+        ii: idx_to_pair.pop(ii)
+        for ii in this_idx_values}
+
+    (this_cluster_stats,
+     this_tree_as_leaves) = _get_this_cluster_stats(
+        cluster_stats=cluster_stats,
+        idx_to_pair=this_idx_to_pair,
+        tree_as_leaves=tree_as_leaves)
+
+    return (col1,
+            this_idx_to_pair,
+            this_cluster_stats,
+            this_tree_as_leaves,
+            tmp_path)
