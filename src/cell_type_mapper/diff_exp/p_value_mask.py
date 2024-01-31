@@ -45,7 +45,8 @@ def create_p_value_mask_file(
         log2_fold_th=1.0,
         log2_fold_min_th=0.8,
         n_processors=4,
-        tmp_dir=None):
+        tmp_dir=None,
+        n_per=10000):
     """
     Create differential expression scores and validity masks
     for differential genes between all relevant pairs in a
@@ -65,6 +66,9 @@ def create_p_value_mask_file(
     n_processors:
         Number of independent worker processes to spin out
 
+    n_per:
+        Number of rows to load at a time (per worker)
+
     Returns
     --------
     Path to a file in tmp_dir where the data is stored
@@ -82,6 +86,7 @@ def create_p_value_mask_file(
             p_th=p_th,
             n_processors=n_processors,
             tmp_dir=tmp_dir,
+            n_per=n_per,
             q1_th=q1_th,
             q1_min_th=q1_min_th,
             qdiff_th=qdiff_th,
@@ -98,6 +103,7 @@ def _create_p_value_mask_file(
         p_th=0.01,
         n_processors=4,
         tmp_dir=None,
+        n_per=10000,
         q1_th=0.5,
         q1_min_th=0.1,
         qdiff_th=0.7,
@@ -135,7 +141,6 @@ def _create_p_value_mask_file(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    n_per = min(10000, n_pairs//(2*n_processors))
     n_per -= (n_per % 8)
     n_per = max(8, n_per)
     t0 = time.time()

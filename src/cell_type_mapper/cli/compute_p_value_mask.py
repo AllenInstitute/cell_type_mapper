@@ -32,7 +32,8 @@ class PValueRunner(argschema.ArgSchemaParser):
             log2_fold_th=self.args['log2_fold_th'],
             log2_fold_min_th=self.args['log2_fold_min_th'],
             n_processors=self.args['n_processors'],
-            tmp_dir=self.args['tmp_dir'])
+            tmp_dir=self.args['tmp_dir'],
+            n_per=self.args['rows_at_a_time'])
 
         duration = time.time()-t0
         metadata['duration'] = duration
