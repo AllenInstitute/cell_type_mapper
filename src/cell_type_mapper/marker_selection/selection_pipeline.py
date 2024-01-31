@@ -1,5 +1,4 @@
 import multiprocessing
-import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
@@ -66,7 +65,7 @@ def select_all_markers(
     A dict mapping parent node names to string summarizing the
     performance of query marker selection
     """
-    print("in select_all_markers")
+
     parent_to_leaves = dict()
 
     if parent_list is None:
@@ -85,13 +84,11 @@ def select_all_markers(
             behemoth_parents.append(parent)
         else:
             smaller_parents.append(parent)
-    t0 = time.time()
-    print("creating marker array")
+
     parent_marker_cache = MarkerGeneArray.from_cache_path(
         cache_path=marker_cache_path,
         query_gene_names=query_gene_names,
         tmp_dir=tmp_dir)
-    print(f"got marker array {time.time()-t0:.2e}")
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
@@ -125,8 +122,6 @@ def select_all_markers(
                     have_chosen_parent = True
                     break
 
-        print(f'have_chosen {have_chosen_parent} {chosen_parent}')
-
         if have_chosen_parent:
             started_parents.add(chosen_parent)
             leaves = parent_to_leaves[chosen_parent]
@@ -140,26 +135,20 @@ def select_all_markers(
                     'msg': 'Skipping; no leaf nodes to compare'}
                 output_dict[chosen_parent] = []
                 completed_parents.add(chosen_parent)
-                print('no leaves')
             else:
                 if is_behemoth:
-                    print('behemoth')
                     marker_gene_array = parent_marker_cache.spawn_copy()
                 else:
-                    t0 = time.time()
-                    print('downsampling')
                     marker_gene_array = \
                         parent_marker_cache.downsample_pairs_to_other(
                             only_keep_pairs=leaves,
                             tmp_dir=tmp_dir)
-                    print(f'downsampling took {time.time()-t0:.2e}')
 
                 this_n_per = n_per_utility
                 if n_per_utility_override is not None:
                     if chosen_parent in n_per_utility_override:
                         this_n_per = n_per_utility_override[chosen_parent]
 
-                print(f"spawning {chosen_parent}")
                 p = multiprocessing.Process(
                         target=_marker_selection_worker,
                         kwargs={
