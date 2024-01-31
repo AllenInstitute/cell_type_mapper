@@ -77,7 +77,7 @@ documented here.](input_data_files/marker_gene_lookup.md)
 - `drop_level`: a level to drop from the cell type taxonomy before doing the mapping. This is
 necessary because the Allen Institute taxonomy includes a "supertype" level that is not actually
 used during hierarchical mapping.
-- `flatten`: a boolean. If `true`, then flatten the cell type taxonomy and fit directly to the
+- `flatten`: a boolean. If `True`, then flatten the cell type taxonomy and fit directly to the
 leaf level nodes without traversing the tree.
 - `type_assignment.normalization`: either 'raw' or 'log2CPM'. Indicates the normalization of
 the cell by gene data in `query_path`. If 'raw', the code will convert it to `log2(CPM+1)`
@@ -124,7 +124,7 @@ python -m cell_type_mapper.cli.from_specified_markers --input_json path/to/confi
 To run the `MapMyCells` Correlation Mapping algorithm (i.e. mapping onto a tree with only one taxonomic
 level; no bootstrapping), run the above code with
 ```
---flatten true
+--flatten True
 --type_assignment.bootstrap_iteration 1
 --type_assignment.bootstrap_factor 1.0
 ```
@@ -133,7 +133,7 @@ are many fewer nearest neighbor searches to do.
 
 To run "legacy" flat mapping (flat mapping that uses bootstrapping) run with
 ```
---flatten true
+--flatten True
 --type_assignment.bootstrap_iteration 100
 --type_assignment.bootstrap_factor 0.9
 ```
