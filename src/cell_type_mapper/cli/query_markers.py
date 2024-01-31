@@ -59,7 +59,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             n_per_utility=self.args['n_per_utility'],
             n_per_utility_override=n_per_utility_override,
             n_processors=self.args['n_processors'],
-            behemoth_cutoff=5000000,
+            behemoth_cutoff=1000000,
             tmp_dir=self.args['tmp_dir'],
             drop_level=self.args['drop_level'])
 
