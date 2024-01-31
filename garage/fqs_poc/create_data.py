@@ -100,11 +100,11 @@ def _assert_dir(dir_path):
             f'{dir_path}\nis not a dir')
 
 def main():
-    rng = np.random.default_rng(22313)
+    rng = np.random.default_rng(32441772)
     data_dir = '/allen/scratch/aibstemp/danielsf/fqs_poc'
     process_list = []
     chunk_size = 10000
-    for n, salt in itertools.product((100000, 500000, 1000000), ('a', 'b')):
+    for n, salt in itertools.product((10000, 50000), ('a', 'b')):
         output_path = f'{data_dir}/cells_{n//1000}k_{salt}.h5ad'
         config = {
             'n_cells': n,
