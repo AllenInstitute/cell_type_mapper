@@ -115,7 +115,7 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         taxonomy_tree=taxonomy_tree,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
-        max_gb=10,
+        max_gb=0.5*max_gb,
         n_valid=n_valid,
         gene_list=gene_list)
     print(f'===== initial creation took {time.time()-t0:.2e} =====')
