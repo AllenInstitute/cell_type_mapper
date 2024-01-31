@@ -135,7 +135,7 @@ def _create_p_value_mask_file(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    n_per = min(40000, n_pairs//(2*n_processors))
+    n_per = min(10000, n_pairs//(2*n_processors))
     n_per -= (n_per % 8)
     n_per = max(8, n_per)
     t0 = time.time()
