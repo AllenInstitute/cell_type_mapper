@@ -257,12 +257,14 @@ def create_sparse_by_pair_marker_file_from_p_mask(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    bytes_per_pair = n_genes*3
+    bytes_per_pair = n_genes*20
     max_bytes = max_gb*1024**3
-    n_per = max_bytes//bytes_per_pair
+    n_per = np.round(max_bytes/bytes_per_pair).astype(int)
 
     if n_per > n_pairs//(2*n_processors):
         n_per = n_pairs//(2*n_processors)
+
+    print(f'running with n_per {n_per}')
 
     if n_per == 0:
         n_per = 10000
