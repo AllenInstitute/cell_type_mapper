@@ -30,7 +30,8 @@ class PValueMarkersRunner(argschema.ArgSchemaParser):
         else:
             gene_list = None
 
-        metadata = {'config': copy.deepcopy(self.args)}
+        metadata = {'config': copy.deepcopy(self.args),
+                    'precomputed_path': self.args['precomputed_stats_path']}
 
         t0 = time.time()
         find_markers_for_all_taxonomy_pairs_from_p_mask(
