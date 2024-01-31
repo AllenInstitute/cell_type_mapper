@@ -46,6 +46,9 @@ class PValueRunner(argschema.ArgSchemaParser):
                 'metadata',
                 data=json.dumps(metadata).encode('utf-8'))
 
+        duration = time.time()-t0
+        print(f"======RAN SUCCESSFULLY in {duration/3600.0:.2e} hrs======")
+
 
 def main():
     runner = PValueRunner()
