@@ -322,7 +322,8 @@ def test_mapping_from_markers(
     else:
         all_markers = set()
         for k in expected['marker_genes']:
-            all_markers = all_markers.union(set(expected['marker_genes'][k]))
+            if k not in ('metadata', 'log'):
+                all_markers = all_markers.union(set(expected['marker_genes'][k]))
 
         assert set(actual['marker_genes']['None']) == all_markers
         assert len(actual['marker_genes']['None']) == len(all_markers)

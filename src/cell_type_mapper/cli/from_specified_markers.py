@@ -276,9 +276,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
         all_markers = set()
         for k in marker_lookup:
-            if k == 'metadata':
-                continue
-            all_markers = all_markers.union(set(marker_lookup[k]))
+            if k not in ('log', 'metadata'):
+                all_markers = all_markers.union(set(marker_lookup[k]))
         all_markers = list(all_markers)
         all_markers.sort()
         marker_lookup = {'None': all_markers}
