@@ -2,10 +2,10 @@ import argschema
 import copy
 import h5py
 import json
-import pathlib
 import time
 
-import cell_type_mapper
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.diff_exp.p_value_mask import (
     create_p_value_mask_file)
@@ -36,13 +36,10 @@ class PValueRunner(argschema.ArgSchemaParser):
             tmp_dir=self.args['tmp_dir'],
             n_per=self.args['rows_at_a_time'])
 
-        duration = time.time()-t0
-        metadata['duration'] = duration
-        metadata['version'] = cell_type_mapper.__version__
-
-        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
-        module = pathlib.Path(__file__).relative_to(ctm_parent)
-        metadata['module'] = str(module)
+        metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=t0))
 
         with h5py.File(self.args['output_path'], 'a') as dst:
             dst.create_dataset(
