@@ -66,6 +66,15 @@ def select_all_markers(
     performance of query marker selection
     """
 
+    parent_marker_cache = MarkerGeneArray.from_cache_path(
+        cache_path=marker_cache_path,
+        query_gene_names=query_gene_names,
+        tmp_dir=tmp_dir)
+
+    behemoth_cutoff = min(
+        behemoth_cutoff,
+        parent_marker_cache.n_pairs//2)
+
     parent_to_leaves = dict()
 
     if parent_list is None:
@@ -84,11 +93,6 @@ def select_all_markers(
             behemoth_parents.append(parent)
         else:
             smaller_parents.append(parent)
-
-    parent_marker_cache = MarkerGeneArray.from_cache_path(
-        cache_path=marker_cache_path,
-        query_gene_names=query_gene_names,
-        tmp_dir=tmp_dir)
 
     mgr = multiprocessing.Manager()
     output_dict = mgr.dict()
