@@ -1,7 +1,15 @@
 import argschema
 import copy
+import json
 import pathlib
 import tempfile
+import time
+
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
+
+from cell_type_mapper.utils.cloud_utils import (
+    sanitize_paths)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
@@ -80,11 +88,37 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
     default_schema = MapperSchema_OTF
 
     def run(self):
+        t0 = time.time()
         log = CommandLog()
         tmp_dir = tempfile.mkdtemp(
             dir=self.args['tmp_dir'])
         try:
             self._run(tmp_dir=tmp_dir, log=log)
+
+            # modify metadata to reflect that the code was
+            # actually run with this module, rather than
+            # the from_specified_markers module
+            output_path = self.args['extended_result_path']
+            if output_path is not None:
+                metadata_config = copy.deepcopy(self.args)
+                if self.args['cloud_safe']:
+                    metadata_config = sanitize_paths(metadata_config)
+                    metadata_config.pop('extended_result_dir')
+                    metadata_config.pop('tmp_dir')
+
+                with open(output_path, 'rb') as src:
+                    results = json.load(src)
+
+                results.pop('config')
+                results['config'] = metadata_config
+                results.pop('metadata')
+                results['metadata'] = get_execution_metadata(
+                    module_file=__file__,
+                    t0=t0)
+
+                with open(output_path, 'w') as dst:
+                    dst.write(json.dumps(results, indent=2))
+
         finally:
             _clean_up(tmp_dir)
 
