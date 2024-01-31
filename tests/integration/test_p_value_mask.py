@@ -134,7 +134,7 @@ def get_marker_stats(
 
 @pytest.mark.parametrize(
     "q1_min_th, qdiff_min_th, log2_fold_min_th, p_th, n_processors, use_cli",
-    itertools.product(
+        itertools.product(
         (0.0, 0.1),
         (0.0, 0.1),
         (0.0, 0.2, 0.8),
@@ -153,6 +153,8 @@ def test_dummy_p_value_mask(
         p_th,
         n_processors,
         use_cli):
+
+    n_per = len(cluster_pair_fixture)//5
 
     marker_stats = get_marker_stats(
         precomputed_path=precomputed_path_fixture,
@@ -214,7 +216,8 @@ def test_dummy_p_value_mask(
             'log2_fold_min_th': log2_fold_min_th,
             'n_processors': n_processors,
             'tmp_dir': str(tmp_dir),
-            'clobber': True
+            'clobber': True,
+            'rows_at_a_time': n_per
         }
         runner = PValueRunner(
                     args=[],
@@ -233,7 +236,8 @@ def test_dummy_p_value_mask(
             log2_fold_th=log2_fold_th,
             log2_fold_min_th=log2_fold_min_th,
             tmp_dir=tmp_dir_fixture,
-            n_processors=n_processors)
+            n_processors=n_processors,
+            n_per=n_per)
 
     with h5py.File(p_mask_path, 'r') as src:
         gene_names = json.loads(src['gene_names'][()].decode('utf-8'))

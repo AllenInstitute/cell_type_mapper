@@ -37,6 +37,15 @@ class PValueMaskSchema(
             "Number of worker processes to spin up."
         ))
 
+    rows_at_a_time = argschema.fields.Integer(
+        required=False,
+        default=10000,
+        allow_none=False,
+        description=(
+            "Number of cluster pairs each worker should "
+            "process at a time."
+        ))
+
     tmp_dir = argschema.fields.OutputDir(
         required=False,
         default=None,
