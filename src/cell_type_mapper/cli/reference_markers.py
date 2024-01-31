@@ -5,9 +5,8 @@ import json
 import pathlib
 import time
 
-import cell_type_mapper
-
-from cell_type_mapper.utils.utils import get_timestamp
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -36,15 +35,13 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
         parent_metadata = {
             'config': copy.deepcopy(self.args),
-            'timestamp': get_timestamp(),
             'input_to_output_map': input_to_output,
         }
 
-        parent_metadata['version'] = cell_type_mapper.__version__
-
-        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
-        module = pathlib.Path(__file__).relative_to(ctm_parent)
-        parent_metadata['module'] = str(module)
+        parent_metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=None))
 
         taxonomy_tree = None
 

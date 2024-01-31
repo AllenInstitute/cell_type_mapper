@@ -1,8 +1,12 @@
 import json
 import pandas as pd
 import pathlib
+import time
 
 import cell_type_mapper
+
+from cell_type_mapper.utils.utils import (
+    get_timestamp)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -198,3 +202,37 @@ def blob_to_df(
             df[col] = df[col].astype('category')
 
     return df
+
+
+def get_execution_metadata(
+        module_file,
+        t0):
+    """
+    Parameters
+    ----------
+    module_file:
+        Result of __file__ in whatever piece of code
+        is calling this function
+    t0:
+       The start time for duration calculation.
+       If None, ignore duration calculation
+
+    Return a dict containing
+        timestamp  -- the time at which this function was called
+        duration -- how long the code took to run in seconds
+        module -- what module was run
+        codebase -- the code repository
+        version -- version of cell_type_mapper that was run
+
+    """
+    metadata = dict()
+    metadata['timestamp'] = get_timestamp()
+    if t0 is not None:
+        metadata['duration'] = time.time()-t0
+
+    ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
+    module = pathlib.Path(module_file).relative_to(ctm_parent)
+    metadata['module'] = str(module)
+    metadata['version'] = cell_type_mapper.__version__
+    metadata['codebase'] = cell_type_mapper.__repository__
+    return metadata

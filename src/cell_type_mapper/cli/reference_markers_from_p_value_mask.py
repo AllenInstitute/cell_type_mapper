@@ -2,10 +2,10 @@ import argschema
 import copy
 import h5py
 import json
-import pathlib
 import time
 
-import cell_type_mapper
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -44,13 +44,10 @@ class PValueMarkersRunner(argschema.ArgSchemaParser):
             gene_list=gene_list,
             drop_level=self.args['drop_level'])
 
-        duration = time.time()-t0
-        metadata['duration'] = duration
-        metadata['version'] = cell_type_mapper.__version__
-
-        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
-        module = pathlib.Path(__file__).relative_to(ctm_parent)
-        metadata['module'] = str(module)
+        metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=t0))
 
         with h5py.File(self.args['output_path'], 'a') as dst:
             dst.create_dataset(
