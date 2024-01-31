@@ -4,10 +4,8 @@ import h5py
 import json
 import time
 
-import cell_type_mapper
-
-from cell_type_mapper.utils.utils import (
-    get_timestamp)
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.utils.anndata_utils import (
      read_df_from_h5ad)
@@ -65,13 +63,13 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             tmp_dir=self.args['tmp_dir'],
             drop_level=self.args['drop_level'])
 
-        dur = time.time()-t0
+        metadata = {'config': copy.deepcopy(self.args)}
+        metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=t0))
 
-        marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
-        marker_lookup['metadata']['timestamp'] = get_timestamp()
-        marker_lookup['metadata']['cell_type_mapper_version'] = \
-            cell_type_mapper.__version__
-        marker_lookup['metadata']['duration'] = dur
+        marker_lookup['metadata'] = metadata
 
         with open(self.args['output_path'], 'w') as dst:
             dst.write(

@@ -24,8 +24,10 @@ from cell_type_mapper.taxonomy.utils import (
     get_all_pairs,
     convert_tree_to_leaves)
 
+from cell_type_mapper.diff_exp.score_utils import (
+    read_precomputed_stats)
+
 from cell_type_mapper.diff_exp.scores import (
-    read_precomputed_stats,
     score_differential_genes)
 
 from cell_type_mapper.diff_exp.markers import (
@@ -163,6 +165,7 @@ def test_marker_finding_pipeline(
 
     n_processors = 3
     siblings = get_all_pairs(tree_fixture)
+    siblings = [s for s in siblings if s[0] == taxonomy_tree.leaf_level]
     n_pairs = len(siblings)
 
     find_markers_for_all_taxonomy_pairs(

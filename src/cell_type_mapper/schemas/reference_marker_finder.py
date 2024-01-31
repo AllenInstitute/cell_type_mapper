@@ -1,15 +1,7 @@
 import argschema
 
 
-class ReferenceFinderConfigMixin(object):
-
-    exact_penetrance = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=("If False, allow genes that technically fail "
-                     "penetrance and fold-change thresholds to pass "
-                     "through as reference genes."))
+class ReferenceMarkerStatsParamMixin(object):
 
     p_th = argschema.fields.Float(
         required=False,
@@ -67,12 +59,28 @@ class ReferenceFinderConfigMixin(object):
                      "clusters is less than this value, that gene cannot "
                      "be a marker, even if exact_penetrance is False"))
 
+
+class NValidMixin(object):
+
     n_valid = argschema.fields.Int(
         required=False,
         default=30,
         allow_none=False,
         description=("Try to find this many marker genes per pair. "
                      "Used only if exact_penetrance is False."))
+
+
+class ReferenceFinderConfigMixin(
+        ReferenceMarkerStatsParamMixin,
+        NValidMixin):
+
+    exact_penetrance = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=("If False, allow genes that technically fail "
+                     "penetrance and fold-change thresholds to pass "
+                     "through as reference genes."))
 
     cloud_safe = argschema.fields.Boolean(
         required=False,
@@ -81,19 +89,7 @@ class ReferenceFinderConfigMixin(object):
         description="If True, full file paths not recorded in log")
 
 
-class ReferenceMarkerFinderSchema(
-        argschema.ArgSchema,
-        ReferenceFinderConfigMixin):
-
-    precomputed_path_list = argschema.fields.List(
-        argschema.fields.InputFile,
-        required=True,
-        default=None,
-        allow_none=False,
-        cli_as_single_argument=True,
-        description=(
-            "List of paths to precomputed stats files "
-            "for which reference markers will be computed"))
+class ReferenceRunnerConfigMixin(object):
 
     query_path = argschema.fields.InputFile(
         required=False,
@@ -104,22 +100,6 @@ class ReferenceMarkerFinderSchema(
             "to assemble list of genes that are acceptable "
             "as markers."
         ))
-
-    output_dir = argschema.fields.OutputDir(
-        required=True,
-        default=None,
-        allow_none=False,
-        description=(
-            "Path to directory where refernce marker files "
-            "will be written. Specific file names will be inferred "
-            "from precomputed stats files."))
-
-    clobber = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=("If False, do not allow overwrite of existing "
-                     "output files."))
 
     drop_level = argschema.fields.String(
         required=False,
@@ -148,3 +128,35 @@ class ReferenceMarkerFinderSchema(
             "Total amount of memory (in GB) the process is "
             "allowed to consume (approximate)."
         ))
+
+
+class ReferenceMarkerFinderSchema(
+        argschema.ArgSchema,
+        ReferenceFinderConfigMixin,
+        ReferenceRunnerConfigMixin):
+
+    precomputed_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
+        required=True,
+        default=None,
+        allow_none=False,
+        cli_as_single_argument=True,
+        description=(
+            "List of paths to precomputed stats files "
+            "for which reference markers will be computed"))
+
+    output_dir = argschema.fields.OutputDir(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to directory where refernce marker files "
+            "will be written. Specific file names will be inferred "
+            "from precomputed stats files."))
+
+    clobber = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=("If False, do not allow overwrite of existing "
+                     "output files."))

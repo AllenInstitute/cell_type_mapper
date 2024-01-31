@@ -43,7 +43,7 @@ def csc_to_csr_on_disk(
         indices_handle=csc_group['indices'],
         indptr_handle=csc_group['indptr'],
         data_handle=data_handle,
-        n_indices=array_shape[0],
+        indices_max=array_shape[0],
         max_gb=max_gb,
         output_path=csr_path)
 
@@ -51,7 +51,7 @@ def csc_to_csr_on_disk(
 def transpose_by_way_of_disk(
         indices,
         indptr,
-        n_indices,
+        indices_max,
         max_gb=10,
         tmp_dir=None):
     """
@@ -62,7 +62,7 @@ def transpose_by_way_of_disk(
 
     (presently ignore 'data' since that's how we are using this tool)
 
-    (n_indices is the size of the array dimension encoded by the
+    (indices_max is the size of the array dimension encoded by the
     old indices value)
     """
     tmp_dir = pathlib.Path(
@@ -99,7 +99,7 @@ def transpose_by_way_of_disk(
             indices_handle=src['indices'],
             indptr_handle=src['indptr'],
             data_handle=None,
-            n_indices=n_indices,
+            indices_max=indices_max,
             max_gb=max_gb,
             output_path=dst_path,
             verbose=False)
@@ -115,21 +115,26 @@ def transpose_sparse_matrix_on_disk(
         indices_handle,
         indptr_handle,
         data_handle,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
-        verbose=True):
+        verbose=True,
+        indices_slice=None):
 
     use_data_array = (data_handle is not None)
 
     # to account for phantom overhead in numpy
     max_gb = 0.8*max_gb
 
-    n_non_zero = indices_handle.shape[0]
+    (csr_indptr,
+     n_non_zero) = _calculate_csr_indptr(
+        indices_handle=indices_handle,
+        indices_max=indices_max,
+        max_gb=max_gb,
+        verbose=verbose,
+        indices_slice=indices_slice)
 
-    n_indptr = indptr_handle.shape[0]-1
-    col_dtype = _get_uint_dtype(n_indptr)
-    row_dtype = _get_uint_dtype(n_indices)
+    col_dtype = _get_uint_dtype(indptr_handle.shape[0]-1)
 
     if use_data_array:
         data_dtype = data_handle.dtype
@@ -141,10 +146,10 @@ def transpose_sparse_matrix_on_disk(
                 'data',
                 shape=n_non_zero,
                 dtype=data_dtype,
-                chunks=(min(n_non_zero, n_indptr),))
+                chunks=(min(n_non_zero, 1000000),))
 
         if n_non_zero > 0:
-            chunks = (min(n_non_zero, n_indptr),)
+            chunks = (min(n_non_zero, 1000000),)
         else:
             chunks = None
         dst.create_dataset(
@@ -153,45 +158,36 @@ def transpose_sparse_matrix_on_disk(
             dtype=col_dtype,
             chunks=chunks)
 
-    csr_indptr = _calculate_csr_indptr(
-        indices_handle=indices_handle,
-        n_indices=n_indices,
-        n_non_zero=n_non_zero,
-        max_gb=max_gb,
-        verbose=verbose)
-
     with h5py.File(output_path, 'a') as dst:
         dst.create_dataset(
             'indptr', data=csr_indptr)
 
     next_idx = np.copy(csr_indptr)
     csc_indptr = indptr_handle[()]
-    row_group = indices_handle
 
     if use_data_array:
         data_group = data_handle
-        data_bytes = _get_bytes_for_type(data_dtype)
+        data_bytes = _get_bytes_for_type(data_handle.dtype)
     else:
         data_bytes = 0
 
-    col_bytes = _get_bytes_for_type(col_dtype)
-    row_bytes = _get_bytes_for_type(row_dtype)
+    indptr_bytes = _get_bytes_for_type(indptr_handle.dtype)
+    indices_bytes = _get_bytes_for_type(indices_handle.dtype)
     dex_bytes = 8
 
     max_load_gb = max_gb / 3
     max_el_gb = max_gb - max_load_gb
 
-    load_bytes = int(data_bytes+col_bytes+row_bytes+dex_bytes)
+    load_bytes = int(data_bytes+indptr_bytes+indices_bytes+dex_bytes)
     load_chunk_size = np.round(max_load_gb*1024**3).astype(int)//(load_bytes)
 
-    el_bytes = int(data_bytes+col_bytes)
+    el_bytes = int(data_bytes+max(indices_bytes, indptr_bytes))
     elements_at_a_time = np.round(max_el_gb*1024**3).astype(int)//el_bytes
 
     load_chunk_size = max(100, load_chunk_size)
     elements_at_a_time = max(100, elements_at_a_time)
 
     r0 = 0
-
     while True:
         r1 = None
         e0 = csr_indptr[r0]
@@ -210,12 +206,23 @@ def transpose_sparse_matrix_on_disk(
         if use_data_array:
             data_buffer = np.zeros(d1-d0, dtype=data_dtype)
 
-        index_buffer = np.zeros(d1-d0, dtype=col_dtype)
+        index_buffer = np.zeros(d1-d0, dtype=int)
 
-        for i0 in range(0, n_non_zero, load_chunk_size):
-            i1 = min(n_non_zero, i0+load_chunk_size)
+        n_indices = indices_handle.shape[0]
+        for i0 in range(0, n_indices, load_chunk_size):
+            indices_filter = None
 
-            row_chunk = row_group[i0:i1].astype(row_dtype)
+            i1 = min(n_indices, i0+load_chunk_size)
+
+            row_chunk = indices_handle[i0:i1]
+
+            if indices_slice is not None:
+                indices_filter = np.logical_and(
+                    row_chunk >= indices_slice[0],
+                    row_chunk < indices_slice[1])
+                row_chunk = row_chunk[indices_filter]
+                row_chunk -= indices_slice[0]
+
             sorted_dex = np.argsort(row_chunk)
             row_chunk = row_chunk[sorted_dex]
 
@@ -235,17 +242,22 @@ def transpose_sparse_matrix_on_disk(
                 np.arange(i0, i1, dtype=int),
                 side='right')
             col_chunk -= 1
+
+            if indices_filter is not None:
+                col_chunk = col_chunk[indices_filter]
+
             col_chunk = col_chunk[sorted_dex]
 
             if use_data_array:
                 data_chunk = data_group[i0:i1]
+                if indices_filter is not None:
+                    data_chunk = data_chunk[indices_filter]
                 data_chunk = data_chunk[sorted_dex]
 
             del sorted_dex
 
             unq_val_arr = unq_val_arr[valid_dex]
             unq_ct_arr = unq_ct_arr[valid_dex]
-
             for unq_val, unq_ct in zip(unq_val_arr, unq_ct_arr):
                 j0 = np.searchsorted(row_chunk, unq_val, side='left')
 
@@ -272,17 +284,22 @@ def transpose_sparse_matrix_on_disk(
 
         with h5py.File(output_path, 'a') as dst:
             if use_data_array:
-                dst['data'][d0:d1] = data_buffer
-            dst['indices'][d0:d1] = index_buffer
+                dst['data'][d0:d1] = data_buffer.astype(data_dtype)
+            dst['indices'][d0:d1] = index_buffer.astype(col_dtype)
         r0 = r1
 
 
 def _calculate_csr_indptr(
         indices_handle,
-        n_indices,
-        n_non_zero,
+        indices_max,
         max_gb,
-        verbose=True):
+        verbose=True,
+        indices_slice=None):
+
+    n_non_zero = 0
+
+    if indices_slice is not None:
+        indices_max = indices_slice[1]-indices_slice[0]
 
     bytes_per = _get_bytes_for_type(indices_handle.dtype)
     load_chunk_size = np.round(max_gb*1024**3).astype(int)//bytes_per
@@ -290,16 +307,29 @@ def _calculate_csr_indptr(
 
     load_chunk_size = max(100, load_chunk_size)
 
-    cumulative_count = np.zeros(n_indices, dtype=int)
+    cumulative_count = np.zeros(indices_max, dtype=int)
 
-    for i0 in range(0, n_non_zero, load_chunk_size):
-        i1 = min(n_non_zero, i0+load_chunk_size)
+    n_indices = indices_handle.shape[0]
+
+    for i0 in range(0, n_indices, load_chunk_size):
+        i1 = min(n_indices, i0+load_chunk_size)
         chunk = indices_handle[i0:i1]
+
+        if indices_slice is not None:
+            valid = np.logical_and(
+                chunk >= indices_slice[0],
+                chunk < indices_slice[1])
+            chunk = chunk[valid]
+            chunk -= indices_slice[0]
+
+        n_non_zero += len(chunk)
         unq_val, unq_ct = np.unique(chunk, return_counts=True)
         cumulative_count[unq_val] += unq_ct
+
     csr_indptr = np.cumsum(cumulative_count)
     csr_indptr = np.concatenate([np.array([0], dtype=int), csr_indptr])
-    return csr_indptr
+
+    return csr_indptr, n_non_zero
 
 
 def _get_uint_dtype(max_value):

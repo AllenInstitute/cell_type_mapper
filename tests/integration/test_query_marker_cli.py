@@ -4,14 +4,18 @@ Test the CLI tool for finding query markers
 import pytest
 
 import anndata
+import h5py
 import itertools
 import json
 import numpy as np
 import pandas as pd
-
+import scipy.sparse
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
+
+from cell_type_mapper.utils.csc_to_csr_parallel import (
+    transpose_sparse_matrix_on_disk_v2)
 
 from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
@@ -135,3 +139,73 @@ def test_query_marker_cli_tool(
     for k in config:
         assert k in actual['metadata']['config']
         assert actual['metadata']['config'][k] == config[k]
+
+
+def test_transposing_markers(
+        ref_marker_path_fixture,
+        tmp_dir_fixture):
+    """
+    Test transposition of sparse array using 'realistic'
+    reference marker data.
+    """
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    with h5py.File(ref_marker_path_fixture, 'r') as src:
+        n_rows = src['n_pairs'][()]
+        n_cols = len(json.loads(src['gene_names'][()].decode('utf-8')))
+        indices = src['sparse_by_pair/up_gene_idx'][()]
+        indptr = src['sparse_by_pair/up_pair_idx'][()]
+
+    data = (indices+1)**2
+    csr = scipy.sparse.csr_array(
+        (data, indices, indptr),
+        shape=(n_rows, n_cols))
+
+    expected_csc = scipy.sparse.csc_array(
+        csr.toarray())
+
+    with h5py.File(src_path, 'w') as dst:
+        dst.create_dataset('data', data=data, chunks=(1000,))
+        dst.create_dataset('indices', data=indices, chunks=(1000,))
+        dst.create_dataset('indptr', data=indptr)
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    transpose_sparse_matrix_on_disk_v2(
+        h5_path=src_path,
+        indices_tag='indices',
+        indptr_tag='indptr',
+        data_tag='data',
+        indices_max=n_cols,
+        max_gb=1,
+        n_processors=3,
+        output_path=dst_path,
+        verbose=False,
+        tmp_dir=tmp_dir_fixture)
+
+    with h5py.File(dst_path, 'r') as src:
+        actual_data = src['data'][()]
+        actual_indices = src['indices'][()]
+        actual_indptr = src['indptr'][()]
+
+    assert actual_indices.shape == expected_csc.indices.shape
+
+    np.testing.assert_array_equal(
+        actual_indptr,
+        expected_csc.indptr)
+
+    np.testing.assert_array_equal(
+        actual_indices[-10:],
+        expected_csc.indices[-10:])
+
+    actual_csc = scipy.sparse.csc_matrix(
+        (actual_data, actual_indices, actual_indptr),
+        shape=(n_rows,n_cols))
+
+    np.testing.assert_array_equal(
+        csr.toarray(), actual_csc.toarray())

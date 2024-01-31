@@ -3,12 +3,9 @@ import h5py
 import multiprocessing
 import numpy as np
 import pathlib
-import scipy.sparse as scipy_sparse
 import shutil
 import tempfile
 import time
-
-import os
 
 from cell_type_mapper.utils.utils import (
     print_timing,
@@ -19,36 +16,26 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
 
-from cell_type_mapper.diff_exp.scores import (
-    read_precomputed_stats,
-    _get_this_cluster_stats,
-    penetrance_from_stats)
-
-from cell_type_mapper.utils.csc_to_csr import (
-    transpose_sparse_matrix_on_disk)
+from cell_type_mapper.diff_exp.score_utils import (
+    read_precomputed_stats)
 
 from cell_type_mapper.diff_exp.markers import (
     add_sparse_by_gene_markers_to_file,
-    _lookup_to_sparse)
+    _write_to_tmp_file,
+    _prep_chunk,
+    _merge_sparse_by_pair_files)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 
-def find_markers_for_all_taxonomy_pairs_v2(
+def find_markers_for_all_taxonomy_pairs_from_p_mask(
         precomputed_stats_path,
         p_value_mask_path,
         output_path,
-        q1_th=0.5,
-        qdiff_th=0.7,
-        log2_fold_th=1.0,
-        q1_min_th=0.1,
-        qdiff_min_th=0.1,
-        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
         max_gb=20,
-        exact_penetrance=False,
         n_valid=30,
         gene_list=None,
         drop_level=None):
@@ -73,24 +60,11 @@ def find_markers_for_all_taxonomy_pairs_v2(
     output_path:
         Path to the HDF5 file where results will be stored
 
-    q1_th/qdiff_th/log2_fold_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
-
-    q1_min_th/qdiff_min_th/log2_fold_min_th
-        Minimum thresholds below which genes will not be
-        considered marker genes. See Notes under
-        score_differential_genes.
-
     n_processors:
         Number of independent worker processes to spin out
 
     max_gb:
         maximum number of GB to load at once
-
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
 
     n_valid:
         The number of markers to find per pair (when using
@@ -124,7 +98,7 @@ def find_markers_for_all_taxonomy_pairs_v2(
         gene_1 is the second best discrminator, and gene_101 is the worst
         discriminator
     """
-
+    full_t0 = time.time()
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
 
@@ -134,54 +108,48 @@ def find_markers_for_all_taxonomy_pairs_v2(
     if drop_level is not None and drop_level in taxonomy_tree.hierarchy:
         taxonomy_tree = taxonomy_tree.drop_level(drop_level)
 
-    tmp_thinned_path = create_sparse_by_pair_marker_file_v2(
+    t0 = time.time()
+    tmp_thinned_path = create_sparse_by_pair_marker_file_from_p_mask(
         precomputed_stats_path=precomputed_stats_path,
         p_value_mask_path=p_value_mask_path,
         taxonomy_tree=taxonomy_tree,
-        q1_th=q1_th,
-        qdiff_th=qdiff_th,
-        log2_fold_th=log2_fold_th,
-        q1_min_th=q1_min_th,
-        qdiff_min_th=qdiff_min_th,
-        log2_fold_min_th=log2_fold_min_th,
         n_processors=n_processors,
         tmp_dir=tmp_dir,
-        max_bytes=max(1024**2, np.round(max_gb*1024**3).astype(int)),
-        exact_penetrance=exact_penetrance,
+        max_gb=0.5*max_gb,
         n_valid=n_valid,
         gene_list=gene_list)
+    print(f'===== initial creation took {time.time()-t0:.2e} =====')
 
     with h5py.File(precomputed_stats_path, 'r') as in_file:
         n_genes = len(json.loads(
             in_file['col_names'][()].decode('utf-8')))
 
+    t0 = time.time()
     add_sparse_by_gene_markers_to_file(
         h5_path=tmp_thinned_path,
         n_genes=n_genes,
         max_gb=max_gb,
-        tmp_dir=tmp_dir)
+        tmp_dir=tmp_dir,
+        n_processors=n_processors)
+    print(f'===== transposition took {time.time()-t0:.2e} =====')
 
+    t0 = time.time()
     shutil.move(
         src=tmp_thinned_path,
         dst=output_path)
 
     _clean_up(tmp_dir)
+    print(f'======= copying and cleaning took {time.time()-t0:.2e} =====')
+    print(f'======= full thing {time.time()-full_t0:.2e} =======')
 
 
-def create_sparse_by_pair_marker_file_v2(
+def create_sparse_by_pair_marker_file_from_p_mask(
         precomputed_stats_path,
         p_value_mask_path,
         taxonomy_tree,
-        q1_th=0.5,
-        qdiff_th=0.7,
-        log2_fold_th=1.0,
-        q1_min_th=0.1,
-        qdiff_min_th=0.1,
-        log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
-        max_bytes=6*1024**3,
-        exact_penetrance=False,
+        max_gb=6,
         n_valid=30,
         gene_list=None):
     """
@@ -202,19 +170,11 @@ def create_sparse_by_pair_marker_file_v2(
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
         ecoding the taxonomy tree
 
-    q1_th/qdiff_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
-
     n_processors:
         Number of independent worker processes to spin out
 
-    max_bytes:
-        Maximum number of bytes to load when thinning marker file
-
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
+    max_gb:
+        Maximum number of GB to load when thinning marker file
 
     n_valid:
         The number of markers to find per pair (when using
@@ -278,7 +238,8 @@ def create_sparse_by_pair_marker_file_v2(
 
     if src_gene_names != gene_names:
         raise RuntimeError(
-            "gene names mismatch between p-value file and precomputed_stats file")
+            "gene names mismatch between p-value file "
+            "and precomputed_stats file")
 
     idx_to_pair = dict()
     for level in pair_to_idx:
@@ -296,11 +257,14 @@ def create_sparse_by_pair_marker_file_v2(
     n_pairs = len(idx_to_pair)
 
     # how many pairs to run per proceess
-    bytes_per_pair = n_genes*3
-    n_per = max_bytes//bytes_per_pair
+    bytes_per_pair = n_genes*20
+    max_bytes = max_gb*1024**3
+    n_per = np.round(max_bytes/bytes_per_pair).astype(int)
 
     if n_per > n_pairs//(2*n_processors):
         n_per = n_pairs//(2*n_processors)
+
+    print(f'running with n_per {n_per}')
 
     if n_per == 0:
         n_per = 10000
@@ -310,47 +274,32 @@ def create_sparse_by_pair_marker_file_v2(
     t0 = time.time()
     ct_complete = 0
 
-    print(f'parent process {os.getpid()}')
-    print(f'running with n_per {n_per}')
-
     for col0 in range(0, n_pairs, n_per):
-        col1 = col0+n_per
 
-        print(f'starting job for {col0}:{col1}')
+        (col1,
+         this_idx_to_pair,
+         this_cluster_stats,
+         this_tree_as_leaves,
+         tmp_path) = _prep_chunk(
+                            col0=col0,
+                            n_per=n_per,
+                            idx_values=idx_values,
+                            idx_to_pair=idx_to_pair,
+                            cluster_stats=cluster_stats,
+                            tree_as_leaves=tree_as_leaves,
+                            tmp_dir=inner_tmp_dir)
 
-        tmp_path = mkstemp_clean(
-            dir=inner_tmp_dir,
-            prefix=f'columns_{col0}_{col1}_',
-            suffix='.h5')
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
 
-        this_idx_values = idx_values[col0:col1]
-        this_idx_to_pair = {
-            ii: idx_to_pair.pop(ii)
-            for ii in this_idx_values}
-
-        (this_cluster_stats,
-         this_tree_as_leaves) = _get_this_cluster_stats(
-            cluster_stats=cluster_stats,
-            idx_to_pair=this_idx_to_pair,
-            tree_as_leaves=tree_as_leaves)
-
         p = multiprocessing.Process(
-                target=_find_markers_worker_v2,
+                target=_find_markers_from_p_mask_worker,
                 kwargs={
                     'p_value_mask_path': p_value_mask_path,
                     'cluster_stats': this_cluster_stats,
                     'tree_as_leaves': this_tree_as_leaves,
                     'idx_to_pair': this_idx_to_pair,
                     'n_genes': n_genes,
-                    'q1_th': q1_th,
-                    'qdiff_th': qdiff_th,
-                    'log2_fold_th': log2_fold_th,
-                    'q1_min_th': q1_min_th,
-                    'qdiff_min_th': qdiff_min_th,
-                    'log2_fold_min_th': log2_fold_min_th,
                     'tmp_path': tmp_path,
-                    'exact_penetrance': exact_penetrance,
                     'n_valid': n_valid,
                     'valid_gene_idx': valid_gene_idx})
         p.start()
@@ -370,7 +319,6 @@ def create_sparse_by_pair_marker_file_v2(
     del cluster_stats
     del tree_as_leaves
     del this_cluster_stats
-    del this_idx_values
     del this_idx_to_pair
     del this_tree_as_leaves
 
@@ -386,103 +334,22 @@ def create_sparse_by_pair_marker_file_v2(
                 tot_chunks=n_pairs,
                 unit='hr')
 
-    n_up_indices = 0
-    n_down_indices = 0
-    for col0 in tmp_path_dict:
-        tmp_path = tmp_path_dict[col0]
-        with h5py.File(tmp_path, 'r') as src:
-            n_up_indices += src['n_up_indices'][()]
-            n_down_indices += src['n_down_indices'][()]
-
-    gene_idx_dtype = choose_int_dtype((0, n_genes))
-    up_pair_idx_dtype = choose_int_dtype((0, n_up_indices))
-    down_pair_idx_dtype = choose_int_dtype((0, n_down_indices))
-
-    up_pair_offset = 0
-    down_pair_offset = 0
-    with h5py.File(tmp_output_path, 'a') as dst:
-
-        dst_grp = dst.create_group('sparse_by_pair')
-
-        dst_grp.create_dataset(
-            'up_pair_idx',
-            shape=(n_pairs+1,),
-            dtype=up_pair_idx_dtype)
-        dst_grp.create_dataset(
-            'up_gene_idx',
-            shape=(n_up_indices,),
-            dtype=gene_idx_dtype)
-        dst_grp.create_dataset(
-            'down_pair_idx',
-            shape=(n_pairs+1,),
-            dtype=down_pair_idx_dtype)
-        dst_grp.create_dataset(
-            'down_gene_idx',
-            shape=(n_down_indices,),
-            dtype=gene_idx_dtype)
-
-        col0_values = list(tmp_path_dict.keys())
-        col0_values.sort()
-        for col0 in col0_values:
-            tmp_path = tmp_path_dict[col0]
-            with h5py.File(tmp_path, 'r') as src:
-                pair_idx_values = json.loads(
-                    src['pair_idx_values'][()].decode('utf-8'))
-                pair_idx_values.sort()
-
-                up_gene_idx = \
-                    src['up_gene_idx'][()].astype(
-                        gene_idx_dtype)
-
-                down_gene_idx = \
-                    src['down_gene_idx'][()].astype(
-                        gene_idx_dtype)
-
-                up_pair_idx = \
-                    src['up_pair_idx'][()].astype(up_pair_idx_dtype) \
-                    + up_pair_offset
-
-                down_pair_idx = \
-                    src['down_pair_idx'][()].astype(down_pair_idx_dtype) \
-                    + down_pair_offset
-
-                i0 = min(pair_idx_values)
-                i1 = i0 + len(pair_idx_values)
-
-                dst_grp['up_pair_idx'][i0:i1] = up_pair_idx[:-1]
-                dst_grp['down_pair_idx'][i0:i1] = down_pair_idx[:-1]
-
-                i0 = up_pair_idx[0]
-                i1 = i0 + len(up_gene_idx)
-                dst_grp['up_gene_idx'][i0:i1] = up_gene_idx
-
-                i0 = down_pair_idx[0]
-                i1 = i0 + len(down_gene_idx)
-                dst_grp['down_gene_idx'][i0:i1] = down_gene_idx
-
-                up_pair_offset += len(up_gene_idx)
-                down_pair_offset += len(down_gene_idx)
-
-        dst_grp['up_pair_idx'][-1] = n_up_indices
-        dst_grp['down_pair_idx'][-1] = n_down_indices
+    _merge_sparse_by_pair_files(
+        tmp_path_dict=tmp_path_dict,
+        n_genes=n_genes,
+        n_pairs=n_pairs,
+        output_path=tmp_output_path)
 
     return tmp_output_path
 
 
-def _find_markers_worker_v2(
+def _find_markers_from_p_mask_worker(
         p_value_mask_path,
         cluster_stats,
         tree_as_leaves,
         idx_to_pair,
         n_genes,
-        q1_th,
-        qdiff_th,
-        log2_fold_th,
-        q1_min_th,
-        qdiff_min_th,
-        log2_fold_min_th,
         tmp_path,
-        exact_penetrance=False,
         n_valid=30,
         valid_gene_idx=None):
     """
@@ -503,23 +370,14 @@ def _find_markers_worker_v2(
         [Just the columns that this worker is responsible for]
     n_genes:
         Number of genes in dataset
-    q1_th/qdiff_th
-        Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates that file)
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
     valid_gene_idx:
         Optional array of gene indices indicating which genes
         can be considered valid markers
     """
-
-    print(f'worker starting process {os.getpid()}')
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
-    n_pairs = len(idx_to_pair)
     idx_dtype = choose_int_dtype((0, n_genes))
 
     idx_values = list(idx_to_pair.keys())
@@ -549,48 +407,35 @@ def _find_markers_worker_v2(
         p_i0 = p_indptr[idx_min]
         p_i1 = p_indptr[idx_max+1]
         p_indices = src['indices'][p_i0:p_i1]
+        sparse_dist = src['data'][p_i0:p_i1]
 
     p_indptr = p_indptr[idx_min:idx_max+2]
     p_indptr -= p_indptr[0]
-    assert len(p_indptr) == len(idx_values)+1
 
-    #print(f'n_genes {n_genes} p_indptr {len(p_indptr)} {idx_min} {idx_max}')
-    p_mask = np.zeros(n_genes, dtype=bool)
     for ct, idx in enumerate(idx_values):
-        sibling_pair = idx_to_pair[idx]
-        level = sibling_pair[0]
-        node_1 = f'{level}/{sibling_pair[1]}'
-        node_2 = f'{level}/{sibling_pair[2]}'
 
-        # mask indicating which genes passed the p-value test
-        p_mask[:] = False
-        assert ct+1 <= len(p_indptr)
         if not p_indptr[ct+1] <= len(p_indices):
             raise RuntimeError(
                 f"last p_indptr {p_indptr[ct+1]}; "
                 f"len(p_indices) {len(p_indices)}; "
                 f"{p_i0}:{p_i1}; {idx_min} {idx_max}")
-        p_mask[p_indices[p_indptr[ct]:p_indptr[ct+1]]] = True
+        these_indices = p_indices[p_indptr[ct]:p_indptr[ct+1]]
+        these_distances = sparse_dist[
+                p_indptr[ct]:p_indptr[ct+1]].astype(float)
 
-        penetrance_mask = penetrance_from_stats(
-            node_1=node_1,
-            node_2=node_2,
-            precomputed_stats=cluster_stats,
-            q1_th=q1_th,
-            qdiff_th=qdiff_th,
-            log2_fold_th=log2_fold_th,
-            q1_min_th=q1_min_th,
-            qdiff_min_th=qdiff_min_th,
-            log2_fold_min_th=log2_fold_min_th,
-            exact_penetrance=exact_penetrance,
+        validity_mask = _get_validity_mask(
             n_valid=n_valid,
+            n_genes=n_genes,
+            gene_indices=these_indices,
+            raw_distances=these_distances,
             valid_gene_idx=valid_gene_idx)
 
-
-        validity_mask = np.logical_and(
-            penetrance_mask,
-            p_mask)
-
+        # determine if a gene is up- or down-regulated in this
+        # taxon pair
+        sibling_pair = idx_to_pair[idx]
+        level = sibling_pair[0]
+        node_1 = f'{level}/{sibling_pair[1]}'
+        node_2 = f'{level}/{sibling_pair[2]}'
         stats_1 = cluster_stats[node_1]
         stats_2 = cluster_stats[node_2]
         up_mask[:] = False
@@ -601,44 +446,82 @@ def _find_markers_worker_v2(
         down_reg_lookup[idx] = np.where(
             np.logical_and(validity_mask, np.logical_not(up_mask)))[0]
 
+    _write_to_tmp_file(
+        up_reg_lookup=up_reg_lookup,
+        down_reg_lookup=down_reg_lookup,
+        output_path=tmp_path,
+        idx_dtype=idx_dtype)
 
-    (up_pair_idx,
-     up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
 
-    (down_pair_idx,
-     down_gene_idx) = _lookup_to_sparse(down_reg_lookup)
+def _get_validity_mask(
+        n_valid,
+        n_genes,
+        gene_indices,
+        raw_distances,
+        valid_gene_idx=None):
+    """
+    Get the validity mask for the reference marker
+    genes corresponding to one cluster pair.
 
-    valid_gene_idx = set(up_gene_idx)
-    valid_gene_idx = valid_gene_idx.union(
-        set(down_gene_idx))
+    Parameters
+    ----------
+    n_valid:
+        The number of desired valid reference markers
+    n_genes:
+        The number of genes in the dataset
+    gene_indices:
+        The indices of genes that passed the p-value test
+    raw_distances:
+        The penetrance parameter space distances corresponding
+        to the genes in gene_indices
+    valid_gene_idx:
+        Indexes of genes that are acceptable as markers.
+        If None, all genes are acceptable as markers.
 
-    n_up_indices = len(up_gene_idx)
-    n_down_indices = len(down_gene_idx)
+    Returns
+    -------
+    A numpy array of booleans indicating which genes
+    are valid markers for this cluster pair
+    """
+    if valid_gene_idx is not None:
+        prior_invalid_genes = np.ones(n_genes, dtype=bool)
+        prior_invalid_genes[valid_gene_idx] = False
 
-    with h5py.File(tmp_path, 'a') as out_file:
-        out_file.create_dataset(
-            'pair_idx_values',
-            data=json.dumps(idx_values).encode('utf-8'))
+    eps = 1.0e-6
+    p_mask = np.zeros(n_genes, dtype=bool)
+    penetrance_dist = np.zeros(n_genes, dtype=float)
 
-        out_file.create_dataset(
-            'up_pair_idx', data=up_pair_idx, dtype=up_pair_idx.dtype)
+    p_mask[gene_indices] = True
 
-        out_file.create_dataset(
-            'up_gene_idx', data=up_gene_idx, dtype=up_gene_idx.dtype)
+    penetrance_dist[gene_indices] = raw_distances
+    penetrance_dist = np.clip(penetrance_dist, a_min=0.0, a_max=None)
 
-        out_file.create_dataset(
-            'down_pair_idx', data=down_pair_idx, dtype=down_pair_idx.dtype)
+    good_dist = penetrance_dist.max()
+    bad_dist = 2.0*(good_dist+1.0)
 
-        out_file.create_dataset(
-            'down_gene_idx', data=down_gene_idx, dtype=down_gene_idx.dtype)
+    penetrance_dist[np.logical_not(p_mask)] = 1.5*bad_dist
 
-        out_file.create_dataset(
-            'valid_gene_idx',
-            data=np.array(list(valid_gene_idx)).astype(idx_dtype),
-            dtype=idx_dtype)
+    # make sure that genes which are marked as invalid
+    # a priori fail the penetrance distance check.
+    if valid_gene_idx is not None:
+        penetrance_dist[prior_invalid_genes] = 1.5*bad_dist
 
-        out_file.create_dataset(
-            'n_down_indices', data=n_down_indices)
+    invalid = (penetrance_dist >= bad_dist)
+    abs_valid = (penetrance_dist < eps)
 
-        out_file.create_dataset(
-            'n_up_indices', data=n_up_indices)
+    validity_mask = np.logical_and(
+        p_mask,
+        abs_valid)
+
+    if validity_mask.sum() < n_valid:
+        sorted_dex = np.argsort(penetrance_dist)
+        cutoff = penetrance_dist[sorted_dex[n_valid-1]]
+        penetrance_mask = (penetrance_dist <= cutoff)
+        penetrance_mask[invalid] = False
+        penetrance_mask[abs_valid] = True
+
+        validity_mask = np.logical_and(
+            p_mask,
+            penetrance_mask)
+
+    return validity_mask

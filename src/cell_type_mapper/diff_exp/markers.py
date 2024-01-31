@@ -1,5 +1,7 @@
+import copy
 import json
 import h5py
+import itertools
 import multiprocessing
 import numpy as np
 import pathlib
@@ -19,9 +21,11 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 from cell_type_mapper.utils.stats_utils import (
     boring_t_from_p_value)
 
-from cell_type_mapper.diff_exp.scores import (
+from cell_type_mapper.diff_exp.score_utils import (
     read_precomputed_stats,
-    _get_this_cluster_stats,
+    _get_this_cluster_stats)
+
+from cell_type_mapper.diff_exp.scores import (
     score_differential_genes)
 
 from cell_type_mapper.utils.csc_to_csr import (
@@ -320,23 +324,21 @@ def create_sparse_by_pair_marker_file(
     ct_complete = 0
 
     for col0 in range(0, n_pairs, n_per):
-        col1 = col0+n_per
-        tmp_path = mkstemp_clean(
-            dir=inner_tmp_dir,
-            prefix=f'columns_{col0}_{col1}_',
-            suffix='.h5')
+
+        (col1,
+         this_idx_to_pair,
+         this_cluster_stats,
+         this_tree_as_leaves,
+         tmp_path) = _prep_chunk(
+                            col0=col0,
+                            n_per=n_per,
+                            idx_values=idx_values,
+                            idx_to_pair=idx_to_pair,
+                            cluster_stats=cluster_stats,
+                            tree_as_leaves=tree_as_leaves,
+                            tmp_dir=inner_tmp_dir)
+
         tmp_path_dict[col0] = pathlib.Path(tmp_path)
-
-        this_idx_values = idx_values[col0:col1]
-        this_idx_to_pair = {
-            ii: idx_to_pair.pop(ii)
-            for ii in this_idx_values}
-
-        (this_cluster_stats,
-         this_tree_as_leaves) = _get_this_cluster_stats(
-            cluster_stats=cluster_stats,
-            idx_to_pair=this_idx_to_pair,
-            tree_as_leaves=tree_as_leaves)
 
         p = multiprocessing.Process(
                 target=_find_markers_worker,
@@ -373,7 +375,6 @@ def create_sparse_by_pair_marker_file(
     del cluster_stats
     del tree_as_leaves
     del this_cluster_stats
-    del this_idx_values
     del this_idx_to_pair
     del this_tree_as_leaves
 
@@ -389,6 +390,37 @@ def create_sparse_by_pair_marker_file(
                 tot_chunks=n_pairs,
                 unit='hr')
 
+    _merge_sparse_by_pair_files(
+        tmp_path_dict=tmp_path_dict,
+        n_genes=n_genes,
+        n_pairs=n_pairs,
+        output_path=tmp_output_path)
+
+    return tmp_output_path
+
+
+def _merge_sparse_by_pair_files(
+        tmp_path_dict,
+        n_genes,
+        n_pairs,
+        output_path):
+    """
+    Merge the disparate chunks of the sparse_by_pairs marker file
+    into one file.
+
+    Parameters
+    ----------
+    tmp_path_dict:
+        A dict mapping the index of the first cluster pair to the
+        temporary file containing the data for that chunk
+    n_genes:
+        int; the number of genes in the dataset
+    n_pairs:
+        int; the total number of cluster pairs in the taxonomy
+    output_path:
+        The path to the HDF5 file this function will write
+    """
+
     n_up_indices = 0
     n_down_indices = 0
     for col0 in tmp_path_dict:
@@ -403,7 +435,7 @@ def create_sparse_by_pair_marker_file(
 
     up_pair_offset = 0
     down_pair_offset = 0
-    with h5py.File(tmp_output_path, 'a') as dst:
+    with h5py.File(output_path, 'a') as dst:
 
         dst_grp = dst.create_group('sparse_by_pair')
 
@@ -414,7 +446,8 @@ def create_sparse_by_pair_marker_file(
         dst_grp.create_dataset(
             'up_gene_idx',
             shape=(n_up_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(1000000, n_up_indices),))
         dst_grp.create_dataset(
             'down_pair_idx',
             shape=(n_pairs+1,),
@@ -422,7 +455,8 @@ def create_sparse_by_pair_marker_file(
         dst_grp.create_dataset(
             'down_gene_idx',
             shape=(n_down_indices,),
-            dtype=gene_idx_dtype)
+            dtype=gene_idx_dtype,
+            chunks=(min(1000000, n_down_indices),))
 
         col0_values = list(tmp_path_dict.keys())
         col0_values.sort()
@@ -468,8 +502,6 @@ def create_sparse_by_pair_marker_file(
         dst_grp['up_pair_idx'][-1] = n_up_indices
         dst_grp['down_pair_idx'][-1] = n_down_indices
 
-    return tmp_output_path
-
 
 def add_sparse_by_gene_markers_to_file(
         h5_path,
@@ -494,13 +526,13 @@ def add_sparse_by_gene_markers_to_file(
             prefix='transposed_',
             suffix='.h5')
 
-        if True:  # n_processors == 1:
+        if n_processors == 1:
             with h5py.File(h5_path, 'r') as src:
                 transpose_sparse_matrix_on_disk(
                     indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
                     indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
                     data_handle=None,
-                    n_indices=n_genes,
+                    indices_max=n_genes,
                     max_gb=max_gb,
                     output_path=transposed_path)
         else:
@@ -509,7 +541,7 @@ def add_sparse_by_gene_markers_to_file(
                 indices_tag=f'sparse_by_pair/{direction}_gene_idx',
                 indptr_tag=f'sparse_by_pair/{direction}_pair_idx',
                 data_tag=None,
-                n_indices=n_genes,
+                indices_max=n_genes,
                 max_gb=max_gb,
                 output_path=transposed_path,
                 verbose=False,
@@ -623,6 +655,35 @@ def _find_markers_worker(
             np.logical_and(validity_mask,
                            np.logical_not(up_mask)))[0].astype(idx_dtype)
 
+    _write_to_tmp_file(
+        up_reg_lookup=up_reg_lookup,
+        down_reg_lookup=down_reg_lookup,
+        output_path=tmp_path,
+        idx_dtype=idx_dtype)
+
+
+def _write_to_tmp_file(
+        up_reg_lookup,
+        down_reg_lookup,
+        output_path,
+        idx_dtype):
+    """
+    Write a subset of sparse-by-pair marker data to an HDF5 file
+
+    Parameters
+    ----------
+    up_reg_lookup:
+        A dict mapping the row index of a cluster pair to a mask
+        of marker genes that are up-regulated
+    down_reg_lookup:
+        A dict mapping the row index of a cluster pair to a mask
+        of marker genes that are down-regulated
+    output_path:
+        The path to the temporary HDF5 file that is being written
+    idx_dtype:
+        The dtype of valid_gene_idx as recorded in output_path
+    """
+
     (up_pair_idx,
      up_gene_idx) = _lookup_to_sparse(up_reg_lookup)
 
@@ -638,7 +699,7 @@ def _find_markers_worker(
 
     pair_idx_values = list(up_reg_lookup.keys())
     pair_idx_values.sort()
-    with h5py.File(tmp_path, 'a') as out_file:
+    with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
             'pair_idx_values',
             data=json.dumps(pair_idx_values).encode('utf-8'))
@@ -698,7 +759,12 @@ def _prep_output_file(
     This method also creates the file at output_path with
     empty datasets for the stats that need to be saved.
     """
-    siblings = taxonomy_tree.siblings
+    leaves = copy.deepcopy(taxonomy_tree.all_leaves)
+    leaves.sort()
+    siblings = []
+    for pair in itertools.combinations(leaves, 2):
+        siblings.append(
+           (taxonomy_tree.leaf_level, pair[0], pair[1]))
 
     idx_to_pair = dict()
     pair_to_idx_out = dict()
@@ -763,3 +829,70 @@ def _lookup_to_sparse(
     indptr[-1] = n_indices
 
     return indptr, indices
+
+
+def _prep_chunk(
+        col0,
+        n_per,
+        idx_values,
+        idx_to_pair,
+        cluster_stats,
+        tree_as_leaves,
+        tmp_dir):
+    """
+    Prepare a chunk of data for processing.
+
+    Parameters
+    ----------
+    col0:
+        The index of the cluster pair this chunk starts with
+    n_per:
+        Number of cluster pairs to run per process
+    idx_values:
+        Sorted list of row indexes in the reference marker file
+    idx_to_pair:
+        Dict mapping row index to cluster pair
+    cluster_stats:
+        Result of runnng read_precomputed_stats on precomputed
+        stats file
+    tree_as_leaves:
+        Result of running TaxonomyTree.as_leaves
+    tmp_dir:
+        Directory where scratch files may be written
+
+    Returns
+    -------
+    col1:
+        Index of the last cluster pair this chunk will process
+    this_idx_to_pair:
+        Subset of idx_to_pair to be processed by this chunk
+    this_cluster_stats:
+        Subset of cluster_stats needed for this chunk
+    this_tree_as_leaves:
+        Subset of tree_as_leaves needed for this chunk
+    tmp_path:
+        Path to temporary file to which this chunk will be
+        written.
+    """
+    col1 = col0+n_per
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix=f'columns_{col0}_{col1}_',
+        suffix='.h5')
+
+    this_idx_values = idx_values[col0:col1]
+    this_idx_to_pair = {
+        ii: idx_to_pair.pop(ii)
+        for ii in this_idx_values}
+
+    (this_cluster_stats,
+     this_tree_as_leaves) = _get_this_cluster_stats(
+        cluster_stats=cluster_stats,
+        idx_to_pair=this_idx_to_pair,
+        tree_as_leaves=tree_as_leaves)
+
+    return (col1,
+            this_idx_to_pair,
+            this_cluster_stats,
+            this_tree_as_leaves,
+            tmp_path)

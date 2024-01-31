@@ -159,7 +159,7 @@ def test_transpose_sparse_matrix_on_disk(
                     indptr_handle=original['X/indptr'],
                     data_handle=data_handle,
                     output_path=output_path,
-                    n_indices=x_array_fixture.shape[0],
+                    indices_max=x_array_fixture.shape[0],
                     max_gb=max_gb)
     else:
         if use_data:
@@ -173,9 +173,10 @@ def test_transpose_sparse_matrix_on_disk(
             indptr_tag='X/indptr',
             data_tag=data_tag,
             output_path=output_path,
-            n_indices=x_array_fixture.shape[0],
-            max_gb=max_gb,
-            tmp_dir=tmp_dir_fixture)
+            indices_max=x_array_fixture.shape[0],
+            max_gb=16,
+            tmp_dir=tmp_dir_fixture,
+            n_processors=4)
 
     expected_csr = scipy_sparse.csr_matrix(x_array_fixture)
     with h5py.File(output_path, 'r') as src:
@@ -233,3 +234,89 @@ def test_csc_to_csr_on_disk_without_data_array(
             src['indptr'][()], expected_csr.indptr)
         np.testing.assert_array_equal(
             src['indices'][()], expected_csr.indices)
+
+
+@pytest.mark.parametrize(
+    "indices_slice",
+    [
+        (0, 155),
+        (10, 56),
+        (2, 100),
+        (56, 155),
+        (0, 97)
+    ]
+)
+def test_transpose_subset_of_matrix(
+        indices_slice,
+        tmp_dir_fixture):
+    """
+    Test transposing sparse matrix on disk, but only keeping a
+    slice of indices contents
+    """
+    rng = np.random.default_rng(77123)
+    nrows = 155
+    ncols = 245
+    ntot = nrows*ncols
+    data = np.zeros(ntot, dtype=np.uint8)
+    chosen = rng.choice(np.arange(ntot), ntot//5, replace=False)
+    data[chosen] = rng.integers(1, 255, len(chosen))
+    data = data.reshape(nrows, ncols)
+    data_csc = scipy_sparse.csc_array(data)
+
+    csc_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csc_',
+        suffix='.h5')
+
+    with h5py.File(csc_path, 'w') as dst:
+        dst.create_dataset(
+            'data',
+            data=data_csc.data,
+            chunks=(1000,))
+        dst.create_dataset(
+            'indices',
+            data=data_csc.indices,
+            chunks=(1000,))
+        dst.create_dataset(
+            'indptr',
+            data=data_csc.indptr)
+
+    csr_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csr_',
+        suffix='.h5')
+
+    with h5py.File(csc_path, 'r') as src:
+        transpose_sparse_matrix_on_disk(
+            indices_handle=src['indices'],
+            indptr_handle=src['indptr'],
+            data_handle=src['data'],
+            indices_max=nrows,
+            max_gb=0.001,
+            output_path=csr_path,
+            indices_slice=indices_slice)
+
+    with h5py.File(csr_path, 'r') as src:
+        actual = scipy_sparse.csr_array(
+            (src['data'][()], src['indices'][()], src['indptr'][()]),
+            shape=(indices_slice[1]-indices_slice[0], ncols))
+
+    expected = scipy_sparse.csr_array(
+        data[indices_slice[0]:indices_slice[1], :])
+
+    np.testing.assert_array_equal(
+        actual.indptr,
+        expected.indptr)
+
+    np.testing.assert_array_equal(
+        actual.indices,
+        expected.indices)
+
+    np.testing.assert_array_equal(
+        actual.data,
+        expected.data)
+
+    actual = actual.toarray()
+    np.testing.assert_array_equal(
+        actual,
+        data[indices_slice[0]:indices_slice[1], :])

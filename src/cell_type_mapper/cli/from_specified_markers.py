@@ -31,7 +31,8 @@ from cell_type_mapper.utils.anndata_utils import (
 
 from cell_type_mapper.utils.output_utils import (
     blob_to_csv,
-    blob_to_df)
+    blob_to_df,
+    get_execution_metadata)
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
@@ -72,7 +73,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
 
 def run_mapping(config, output_path, log_path=None):
-
+    t0 = time.time()
     safe_config = copy.deepcopy(config)
     if config['cloud_safe']:
         safe_config = sanitize_paths(safe_config)
@@ -185,7 +186,11 @@ def run_mapping(config, output_path, log_path=None):
         if config['cloud_safe']:
             output_log = sanitize_paths(output_log)
         output["log"] = output_log
-        output["cell_type_mapper_version"] = cell_type_mapper.__version__
+
+        metadata = get_execution_metadata(
+            module_file=__file__,
+            t0=t0)
+        output['metadata'] = metadata
 
         uns = read_uns_from_h5ad(config["query_path"])
         if "AIBS_CDM_gene_mapping" in uns:
@@ -197,7 +202,6 @@ def run_mapping(config, output_path, log_path=None):
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
-
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
         log.env(f"is_cuda_available: {is_cuda_available()}")

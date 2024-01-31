@@ -376,9 +376,9 @@ def test_precompute_scrattch_cli_clobber(
             'clobber': False
         }
 
-        runner = PrecomputationScrattchRunner(
-            args=[],
-            input_data=config)
-
-        with pytest.raises(RuntimeError, match='already exists; run with clobber'):
+        msg = 'already exists. To overwrite, run with clobber=True'
+        with pytest.raises(RuntimeError, match=msg):
+            runner = PrecomputationScrattchRunner(
+                args=[],
+                input_data=config)
             runner.run()
