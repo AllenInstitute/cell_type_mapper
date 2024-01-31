@@ -1,6 +1,6 @@
 import argparse
 
-from p_value_mask import (
+from cell_type_mapper.diff_exp.p_value_mask import (
     create_p_value_mask_file)
 
 def main():

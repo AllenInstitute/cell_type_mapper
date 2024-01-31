@@ -185,7 +185,11 @@ def run_mapping(config, output_path, log_path=None):
         if config['cloud_safe']:
             output_log = sanitize_paths(output_log)
         output["log"] = output_log
-        output["cell_type_mapper_version"] = cell_type_mapper.__version__
+
+        output['version'] = cell_type_mapper.__version__
+        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
+        module = pathlib.Path(__file__).relative_to(ctm_parent)
+        output['module'] = str(module)
 
         uns = read_uns_from_h5ad(config["query_path"])
         if "AIBS_CDM_gene_mapping" in uns:
