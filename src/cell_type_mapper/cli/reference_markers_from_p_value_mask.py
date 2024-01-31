@@ -2,6 +2,7 @@ import argschema
 import copy
 import h5py
 import json
+import pathlib
 import time
 
 import cell_type_mapper
@@ -46,6 +47,11 @@ class PValueMarkersRunner(argschema.ArgSchemaParser):
         duration = time.time()-t0
         metadata['duration'] = duration
         metadata['version'] = cell_type_mapper.__version__
+
+        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
+        module = pathlib.Path(__file__).relative_to(ctm_parent)
+        metadata['module'] = str(module)
+
         with h5py.File(self.args['output_path'], 'a') as dst:
             dst.create_dataset(
                 'metadata',

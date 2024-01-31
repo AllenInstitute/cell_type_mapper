@@ -2,6 +2,7 @@ import argschema
 import copy
 import h5py
 import json
+import pathlib
 import time
 
 import cell_type_mapper
@@ -65,13 +66,18 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             tmp_dir=self.args['tmp_dir'],
             drop_level=self.args['drop_level'])
 
-        dur = time.time()-t0
+        duration = time.time()-t0
 
-        marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
-        marker_lookup['metadata']['timestamp'] = get_timestamp()
-        marker_lookup['metadata']['cell_type_mapper_version'] = \
-            cell_type_mapper.__version__
-        marker_lookup['metadata']['duration'] = dur
+        metadata = {'config': copy.deepcopy(self.args)}
+        metadata['timestamp'] = get_timestamp()
+        metadata['duration'] = duration
+        metadata['version'] = cell_type_mapper.__version__
+
+        ctm_parent = pathlib.Path(cell_type_mapper.__file__).parent.parent
+        module = pathlib.Path(__file__).relative_to(ctm_parent)
+        metadata['module'] = str(module)
+
+        marker_lookup['metadata'] = metadata
 
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
