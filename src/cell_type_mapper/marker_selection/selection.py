@@ -606,12 +606,15 @@ def recalculate_utility_array_batch(
     -----
     This method also alters utility_array in place
     """
-    for pair_idx, sign in zip(pair_batch, sign_batch):
-        utility_array = recalculate_utility_array(
-            utility_array=utility_array,
-            marker_gene_array=marker_gene_array,
-            pair_idx=pair_idx,
-            sign=sign)
+    pair_batch = np.array(pair_batch)
+    sign_batch = np.array(sign_batch)
+
+    utility_array -= marker_gene_array.up_mask_from_pair_idx_batch(
+                        pair_batch[sign_batch > 0])
+
+    utility_array -= marker_gene_array.down_mask_from_pair_idx_batch(
+                        pair_batch[sign_batch < 0])
+
     return utility_array
 
 
