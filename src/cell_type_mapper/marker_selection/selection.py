@@ -497,13 +497,17 @@ def _update_been_filled(
     # already have their full complement of marker genes do not
     # contribute to the utility score of genes
     if len(newly_full[0]) > 0:
+        sign_batch = [{0: -1, 1: 1}[raw_sign]
+                      for raw_sign in newly_full[1]]
+        pair_batch = [taxonomy_idx_array[pair_idx]
+                      for pair_idx in newly_full[0]]
+        utility_array = recalculate_utility_array_batch(
+            utility_array=utility_array,
+            marker_gene_array=marker_gene_array,
+            pair_batch=pair_batch,
+            sign_batch=sign_batch)
+
         for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
-            sign = {0: -1, 1: 1}[raw_sign]
-            utility_array = recalculate_utility_array(
-                utility_array=utility_array,
-                marker_gene_array=marker_gene_array,
-                pair_idx=taxonomy_idx_array[pair_idx],
-                sign=sign)
             been_filled[pair_idx, raw_sign] = True
 
     if len(newly_full[0]) > 0 or sorted_utility_idx is None:
@@ -573,6 +577,41 @@ def recalculate_utility_array(
         full_mask = marker_gene_array.down_mask_from_pair_idx(
                             pair_idx=pair_idx)
     utility_array[full_mask] -= 1
+    return utility_array
+
+
+def recalculate_utility_array_batch(
+        utility_array,
+        marker_gene_array,
+        pair_batch,
+        sign_batch):
+    """
+    utility_array is existing utility array
+
+    marker_gene_array is a MarkerGeneArray
+
+    pair_batch is a list of the indices of the taxonomy pairs
+    that have been fulfilled
+
+    sign_batch is (+1, -1), indicating which node in the pairs
+    is up-regulated in the gene
+
+
+    Returns
+    -------
+    utility array with the necessary rows (those that were markers
+    for the given (taxonomy_idx, sign) pair) decremented.
+
+    Notes
+    -----
+    This method also alters utility_array in place
+    """
+    for pair_idx, sign in zip(pair_batch, sign_batch):
+        utility_array = recalculate_utility_array(
+            utility_array=utility_array,
+            marker_gene_array=marker_gene_array,
+            pair_idx=pair_idx,
+            sign=sign)
     return utility_array
 
 
