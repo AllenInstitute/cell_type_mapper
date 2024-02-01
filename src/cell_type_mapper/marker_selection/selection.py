@@ -1,6 +1,9 @@
 import numpy as np
 import time
 
+from cell_type_mapper.utils.utils import (
+    choose_int_dtype)
+
 from cell_type_mapper.utils.multiprocessing_utils import (
     DummyLock)
 
@@ -156,11 +159,14 @@ def _run_selection(
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
+
+    ct_dtype = choose_int_dtype((0, marker_gene_array.n_genes))
+
     marker_counts = {
         'marker_counts': np.zeros((len(taxonomy_idx_array), 2),
-                                  dtype=np.uint8),
+                                  dtype=ct_dtype),
         'aggregate': np.zeros(len(taxonomy_idx_array),
-                              dtype=np.uint16)
+                              dtype=ct_dtype)
     }
 
     been_filled = np.zeros((len(taxonomy_idx_array), 2), dtype=bool)
