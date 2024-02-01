@@ -156,7 +156,13 @@ def _run_selection(
 
     # tally how many markers are chosen for each taxonomy pair
     # (the 2 columns are for up/down distinctions)
-    marker_counts = np.zeros((len(taxonomy_idx_array), 2), dtype=np.uint8)
+    marker_counts = {
+        'marker_counts': np.zeros((len(taxonomy_idx_array), 2),
+                                  dtype=np.uint8),
+        'aggregate': np.zeros(len(taxonomy_idx_array),
+                              dtype=np.uint16)
+    }
+
     been_filled = np.zeros((len(taxonomy_idx_array), 2), dtype=bool)
     been_filled_size = been_filled.size
 
@@ -256,8 +262,8 @@ def _run_selection(
     n_th_values.sort()
 
     for n_th in n_th_values:
-        fewer_down = (marker_counts[:, 0] < n_th).sum()
-        fewer_up = (marker_counts[:, 1] < n_th).sum()
+        fewer_down = (marker_counts['marker_counts'][:, 0] < n_th).sum()
+        fewer_up = (marker_counts['marker_counts'][:, 1] < n_th).sum()
         marker_dist[f'lt_{n_th}'] = {
             'up': int(fewer_up),
             'down': int(fewer_down)}
@@ -398,9 +404,11 @@ def _update_marker_counts(
     up_mask = up_mask[taxonomy_idx_array]
 
     full_mask = np.logical_and(marker_mask, up_mask)
-    marker_counts[full_mask, 1] += 1
+    marker_counts['marker_counts'][full_mask, 1] += 1
+    marker_counts['aggregate'][full_mask] += 1
     full_mask = np.logical_and(marker_mask, np.logical_not(up_mask))
-    marker_counts[full_mask, 0] += 1
+    marker_counts['marker_counts'][full_mask, 0] += 1
+    marker_counts['aggregate'][full_mask] += 1
 
     return marker_counts
 
@@ -529,7 +537,7 @@ def _get_newly_full_mask(
         are_possible):
     # see if we have completed the desired complement of genes
     # for any taxonomy pair
-    raw_full_mask = (marker_counts >= n_per_utility)
+    raw_full_mask = (marker_counts['marker_counts'] >= n_per_utility)
     newly_full_mask = np.copy(raw_full_mask)
 
     # only flag those for which it was possible to fill it
@@ -544,11 +552,11 @@ def _get_maxed_out(
         marker_census,
         n_per_utility):
     # check cases where we have grabbed all the markers we can
-    maxed_out = (marker_counts == marker_census)
+    maxed_out = (marker_counts['marker_counts'] == marker_census)
 
     # also cases where we have the total number of desired markers
     # for the taxon pair, regardless of their up/down distribution
-    tot_counts = marker_counts.sum(axis=1)
+    tot_counts = marker_counts['aggregate']
     tot_maxed = (tot_counts >= 2*n_per_utility)
     maxed_out[:, 0] = np.logical_or(maxed_out[:, 0], tot_maxed)
     maxed_out[:, 1] = np.logical_or(maxed_out[:, 1], tot_maxed)
@@ -660,7 +668,7 @@ def recalculate_utility_array_batch(
 def _stats_from_marker_counts(
         marker_counts):
 
-    genes_per_pair = marker_counts.sum(axis=1)
+    genes_per_pair = marker_counts['aggregate']
 
     # these stats are by pair, *not* by utility set
     # (i.e. up_ and down_regulated markers are lumped together
