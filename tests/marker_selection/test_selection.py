@@ -213,7 +213,7 @@ def test_recalculate_utilty_array(
             pair_idx=4,
             sign=3)
 
-def test_recaulculate_utility_array_batch(
+def test_recalculate_utility_array_batch(
         marker_cache_fixture,
         n_genes):
     """
