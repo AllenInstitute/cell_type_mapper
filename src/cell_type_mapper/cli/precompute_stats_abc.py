@@ -23,8 +23,8 @@ import time
 from cell_type_mapper.schemas.precomputation_schema import (
     PrecomputedStatsABCSchema)
 
-from cell_type_mapper.utils.utils import (
-    get_timestamp)
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -46,11 +46,10 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
         dataset_to_output = self.create_dataset_to_output_map()
 
-        metadata = {
+        parent_metadata = {
             'config': copy.deepcopy(self.args),
             'dataset_to_output_map': dataset_to_output
         }
-        assert 'timestamp' not in metadata
 
         taxonomy_tree = TaxonomyTree.from_data_release(
            cell_metadata_path=self.args['cell_metadata_path'],
@@ -91,9 +90,12 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 n_processors=self.args['n_processors'],
                 tmp_dir=self.args['tmp_dir'])
 
-            metadata['timestamp'] = get_timestamp()
+            metadata = copy.deepcopy(parent_metadata)
             metadata['dataset'] = dataset
-            metadata['duration'] = time.time()-local_t0
+            metadata.update(
+                get_execution_metadata(
+                    module_file=__file__,
+                    t0=local_t0))
 
             with h5py.File(output_path, 'a') as out_file:
                 out_file.create_dataset(
@@ -110,9 +112,12 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
             merge_precompute_files(
                 precompute_path_list=files_to_merge,
                 output_path=merged_path)
-            metadata.pop('dataset')
-            metadata['timestamp'] = get_timestamp()
-            metadata['duration'] = time.time()-local_t0
+
+            metadata = copy.deepcopy(parent_metadata)
+            metadata.update(
+                get_execution_metadata(
+                    module_file=__file__,
+                    t0=local_t0))
 
             with h5py.File(merged_path, 'a') as dst:
                 dst.create_dataset(
