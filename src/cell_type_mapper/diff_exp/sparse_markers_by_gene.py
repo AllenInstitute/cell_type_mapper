@@ -26,8 +26,8 @@ class SparseMarkersByGene(SparseMarkersAbstract):
            gene_idx,
            pair_idx):
         super().__init__(
-            indices=np.copy(pair_idx),
-            indptr=np.copy(gene_idx))
+            indices=pair_idx,
+            indptr=gene_idx)
 
     @property
     def gene_idx(self):
@@ -47,8 +47,8 @@ class SparseMarkersByGene(SparseMarkersAbstract):
             return None
         else:
             other = SparseMarkersByGene(
-                gene_idx=self.gene_idx,
-                pair_idx=self.pair_idx)
+                gene_idx=np.copy(self.gene_idx),
+                pair_idx=np.copy(self.pair_idx))
             other.keep_only_indptr(indptr_to_keep=genes_to_keep)
             return other
 
@@ -64,8 +64,8 @@ class SparseMarkersByGene(SparseMarkersAbstract):
             return None
         else:
             other = SparseMarkersByGene(
-                gene_idx=self.gene_idx,
-                pair_idx=self.pair_idx)
+                gene_idx=np.copy(self.gene_idx),
+                pair_idx=np.copy(self.pair_idx))
             other.keep_only_indices(
                 indices_to_keep=pairs_to_keep)
             return other
