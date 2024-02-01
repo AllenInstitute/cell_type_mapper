@@ -458,28 +458,19 @@ def _update_been_filled(
 
     # which taxons can even hope to fill n_per_utility
     # markers in both directions
-    are_possible = (marker_census >= n_per_utility)
-    are_possible = are_possible.sum(axis=1)
-    are_possible = (are_possible == 2)
+    are_possible = _get_are_possible(
+        marker_census=marker_census,
+        n_per_utility=n_per_utility)
 
-    # see if we have completed the desired complement of genes
-    # for any taxonomy pair
-    raw_full_mask = (marker_counts >= n_per_utility)
-    newly_full_mask = np.copy(raw_full_mask)
+    newly_full_mask = _get_newly_full_mask(
+        marker_counts=marker_counts,
+        n_per_utility=n_per_utility,
+        are_possible=are_possible)
 
-    # only flag those for which it was possible to fill it
-    newly_full_mask[:, 0] = np.logical_and(newly_full_mask[:, 0], are_possible)
-    newly_full_mask[:, 1] = np.logical_and(newly_full_mask[:, 1], are_possible)
-
-    # check cases where we have grabbed all the markers we can
-    maxed_out = (marker_counts == marker_census)
-
-    # also cases where we have the total number of desired markers
-    # for the taxon pair, regardless of their up/down distribution
-    tot_counts = marker_counts.sum(axis=1)
-    tot_maxed = (tot_counts >= 2*n_per_utility)
-    maxed_out[:, 0] = np.logical_or(maxed_out[:, 0], tot_maxed)
-    maxed_out[:, 1] = np.logical_or(maxed_out[:, 1], tot_maxed)
+    maxed_out = _get_maxed_out(
+        marker_counts=marker_counts,
+        marker_census=marker_census,
+        n_per_utility=n_per_utility)
 
     newly_full_mask = np.logical_or(
         newly_full_mask,
@@ -514,6 +505,47 @@ def _update_been_filled(
         sorted_utility_idx = list(np.argsort(utility_array))
 
     return (been_filled, utility_array, sorted_utility_idx)
+
+
+def _get_are_possible(
+        marker_census,
+        n_per_utility):
+    are_possible = (marker_census >= n_per_utility)
+    are_possible = are_possible.sum(axis=1)
+    are_possible = (are_possible == 2)
+    return are_possible
+
+
+def _get_newly_full_mask(
+        marker_counts,
+        n_per_utility,
+        are_possible):
+    # see if we have completed the desired complement of genes
+    # for any taxonomy pair
+    raw_full_mask = (marker_counts >= n_per_utility)
+    newly_full_mask = np.copy(raw_full_mask)
+
+    # only flag those for which it was possible to fill it
+    newly_full_mask[:, 0] = np.logical_and(newly_full_mask[:, 0], are_possible)
+    newly_full_mask[:, 1] = np.logical_and(newly_full_mask[:, 1], are_possible)
+
+    return newly_full_mask
+
+
+def _get_maxed_out(
+        marker_counts,
+        marker_census,
+        n_per_utility):
+    # check cases where we have grabbed all the markers we can
+    maxed_out = (marker_counts == marker_census)
+
+    # also cases where we have the total number of desired markers
+    # for the taxon pair, regardless of their up/down distribution
+    tot_counts = marker_counts.sum(axis=1)
+    tot_maxed = (tot_counts >= 2*n_per_utility)
+    maxed_out[:, 0] = np.logical_or(maxed_out[:, 0], tot_maxed)
+    maxed_out[:, 1] = np.logical_or(maxed_out[:, 1], tot_maxed)
+    return maxed_out
 
 
 def _get_taxonomy_idx(
