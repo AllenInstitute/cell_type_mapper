@@ -517,18 +517,21 @@ def _update_been_filled(
     # already have their full complement of marker genes do not
     # contribute to the utility score of genes
     if len(newly_full[0]) > 0:
-        sign_batch = [{0: -1, 1: 1}[raw_sign]
-                      for raw_sign in newly_full[1]]
-        pair_batch = [taxonomy_idx_array[pair_idx]
-                      for pair_idx in newly_full[0]]
+
+        sign_batch = np.array(
+            [{0: -1, 1: 1}[raw_sign]
+             for raw_sign in newly_full[1]])
+        pair_batch = np.array(
+            [taxonomy_idx_array[pair_idx]
+             for pair_idx in newly_full[0]])
+
         utility_array = recalculate_utility_array_batch(
             utility_array=utility_array,
             marker_gene_array=marker_gene_array,
             pair_batch=pair_batch,
             sign_batch=sign_batch)
 
-        for pair_idx, raw_sign in zip(newly_full[0], newly_full[1]):
-            been_filled[pair_idx, raw_sign] = True
+        been_filled[newly_full[0], newly_full[1]] = True
 
     if len(newly_full[0]) > 0 or sorted_utility_idx is None:
         sorted_utility_idx = list(np.argsort(utility_array))
