@@ -69,45 +69,47 @@ def transpose_by_way_of_disk(
         tempfile.mkdtemp(
             dir=tmp_dir,
             prefix='transposing_sparse_matrix_'))
+    try:
+        src_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir,
+                prefix='src_',
+                suffix='.h5'))
 
-    src_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix='src_',
-            suffix='.h5'))
+        dst_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir,
+                prefix='dst_',
+                suffix='.h5'))
 
-    dst_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix='dst_',
-            suffix='.h5'))
+        with h5py.File(src_path, 'w') as dst:
+            chunks = min(len(indices), 10000)
+            if chunks == 0:
+                chunks = None
+            dst.create_dataset(
+                'indices',
+                data=indices,
+                chunks=chunks)
+            dst.create_dataset(
+                'indptr',
+                data=indptr)
 
-    with h5py.File(src_path, 'w') as dst:
-        chunks = min(len(indices), 10000)
-        if chunks == 0:
-            chunks = None
-        dst.create_dataset(
-            'indices',
-            data=indices,
-            chunks=chunks)
-        dst.create_dataset(
-            'indptr',
-            data=indptr)
+        with h5py.File(src_path, 'r') as src:
+            transpose_sparse_matrix_on_disk(
+                indices_handle=src['indices'],
+                indptr_handle=src['indptr'],
+                data_handle=None,
+                indices_max=indices_max,
+                max_gb=max_gb,
+                output_path=dst_path,
+                verbose=False)
+        with h5py.File(dst_path, 'r') as src:
+            indptr = src['indptr'][()]
+            indices = src['indices'][()]
 
-    with h5py.File(src_path, 'r') as src:
-        transpose_sparse_matrix_on_disk(
-            indices_handle=src['indices'],
-            indptr_handle=src['indptr'],
-            data_handle=None,
-            indices_max=indices_max,
-            max_gb=max_gb,
-            output_path=dst_path,
-            verbose=False)
-    with h5py.File(dst_path, 'r') as src:
-        indptr = src['indptr'][()]
-        indices = src['indices'][()]
+    finally:
+        _clean_up(tmp_dir)
 
-    _clean_up(tmp_dir)
     return indptr, indices
 
 
