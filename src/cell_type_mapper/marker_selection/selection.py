@@ -387,8 +387,13 @@ def _update_marker_counts(
         Array of pair_idx indicating which taxonomy pairs we need
         to contrast.
     marker_counts:
-        A (n_pairs, 2) array indicating how many genes have been
-        chosen for each (taxonomy_pair, sign) combination
+        A dict with keys
+            'marker_counts':
+                A (n_pairs, 2) array indicating how many genes have been
+                chosen for each (taxonomy_pair, sign) combination
+            'aggregate':
+                A (n_pairs,) array that is the sum of the two columns
+                in 'marker_counts'
 
     Returns
     -------
@@ -431,8 +436,13 @@ def _update_been_filled(
     Parameters
     ----------
     marker_counts:
-        (n_pairs, 2) array indicating how many genes have been
-        selected for each (taxonomy_pair, sign) combination
+        A dict with keys
+            'marker_counts':
+                A (n_pairs, 2) array indicating how many genes have been
+                chosen for each (taxonomy_pair, sign) combination
+            'aggregate':
+                A (n_pairs,) array that is the sum of the two columns
+                in 'marker_counts'
     been_filled:
         (n_pairs, 2) array of booleans indicating which
         (taxonomy_pair, sign) combinations have had their
