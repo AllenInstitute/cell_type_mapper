@@ -139,6 +139,10 @@ def _run_selection(
         parent_node,
         lock=None):
 
+    are_possible = _get_are_possible(
+        marker_census=marker_census,
+        n_per_utility=n_per_utility)
+
     # how many total marker genes were there originally
     # (for logging purposes)
     n_useful_0 = (utility_array > 0).sum()
@@ -165,6 +169,7 @@ def _run_selection(
              been_filled=been_filled,
              utility_array=utility_array,
              marker_census=marker_census,
+             are_possible=are_possible,
              sorted_utility_idx=None,
              n_per_utility=n_per_utility,
              marker_gene_array=marker_gene_array,
@@ -199,6 +204,7 @@ def _run_selection(
                  been_filled=been_filled,
                  utility_array=utility_array,
                  marker_census=marker_census,
+                 are_possible=are_possible,
                  sorted_utility_idx=sorted_utility_idx,
                  n_per_utility=n_per_utility,
                  marker_gene_array=marker_gene_array,
@@ -404,6 +410,7 @@ def _update_been_filled(
         been_filled,
         utility_array,
         marker_census,
+        are_possible,
         sorted_utility_idx,
         n_per_utility,
         marker_gene_array,
@@ -430,6 +437,10 @@ def _update_been_filled(
         (n_pairs, 2) array of integers indicating how many
         markers can be expected for each (taxon_pair, sign)
         combination
+    are_possible:
+        (n_pairs,) boolean mask indicating for which pairs
+        it is even possible to fill the full complement of
+        markers
     sorted_utility_idx:
         Sorted indices of utility_array
     n_per_utility:
@@ -455,12 +466,6 @@ def _update_been_filled(
     sorted_utility_array_idx:
         sorted idices of the utility array
     """
-
-    # which taxons can even hope to fill n_per_utility
-    # markers in both directions
-    are_possible = _get_are_possible(
-        marker_census=marker_census,
-        n_per_utility=n_per_utility)
 
     newly_full_mask = _get_newly_full_mask(
         marker_counts=marker_counts,
@@ -510,6 +515,8 @@ def _update_been_filled(
 def _get_are_possible(
         marker_census,
         n_per_utility):
+    # which taxons can even hope to fill n_per_utility
+    # markers in both directions
     are_possible = (marker_census >= n_per_utility)
     are_possible = are_possible.sum(axis=1)
     are_possible = (are_possible == 2)
