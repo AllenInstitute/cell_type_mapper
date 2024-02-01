@@ -69,10 +69,15 @@ def create_utility_array(
          down_genes) = down_markers.get_sparse_genes_for_pair_array(
              pair_idx)
 
-        up_idx, up_ct = np.unique(up_genes, return_counts=True)
-        utility_sum[up_idx] += up_ct
-        down_idx, down_ct = np.unique(down_genes, return_counts=True)
-        utility_sum[down_idx] += down_ct
+        utility_sum += marker_gene_array.up_mask_from_pair_idx_batch(
+            pair_idx)
+        utility_sum += marker_gene_array.down_mask_from_pair_idx_batch(
+            pair_idx)
+
+        #up_idx, up_ct = np.unique(up_genes, return_counts=True)
+        #utility_sum[up_idx] += up_ct
+        #down_idx, down_ct = np.unique(down_genes, return_counts=True)
+        #utility_sum[down_idx] += down_ct
 
         marker_census[pair0:pair1, 0] += down_pairs[1:]-down_pairs[:-1]
         marker_census[pair0:pair1, 1] += up_pairs[1:]-up_pairs[:-1]
