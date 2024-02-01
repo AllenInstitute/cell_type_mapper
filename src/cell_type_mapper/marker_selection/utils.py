@@ -58,23 +58,21 @@ def create_utility_array(
     for pair0 in range(0, n_taxon, batch_size):
         pair1 = min(n_pairs, pair0+batch_size)
         if taxonomy_mask is None:
-            pair_idx = np.arange(pair0, pair1)
+            pair_batch = np.arange(pair0, pair1)
         else:
-            pair_idx = taxonomy_mask[pair0:pair1]
-
-        (up_pairs,
-         up_genes) = up_markers.get_sparse_genes_for_pair_array(
-            pair_idx)
-        (down_pairs,
-         down_genes) = down_markers.get_sparse_genes_for_pair_array(
-             pair_idx)
+            pair_batch = taxonomy_mask[pair0:pair1]
 
         utility_sum += marker_gene_array.up_mask_from_pair_idx_batch(
-            pair_idx)
+            pair_batch)
         utility_sum += marker_gene_array.down_mask_from_pair_idx_batch(
-            pair_idx)
+            pair_batch)
 
-        marker_census[pair0:pair1, 0] += down_pairs[1:]-down_pairs[:-1]
-        marker_census[pair0:pair1, 1] += up_pairs[1:]-up_pairs[:-1]
+        idx0 = down_markers.indptr[pair_batch]
+        idx1 = down_markers.indptr[pair_batch+1]
+        marker_census[pair0:pair1, 0] += idx1-idx0
+
+        idx0 = up_markers.indptr[pair_batch]
+        idx1 = up_markers.indptr[pair_batch+1]
+        marker_census[pair0:pair1, 1] += idx1-idx0
 
     return utility_sum, marker_census
