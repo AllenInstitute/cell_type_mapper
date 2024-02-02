@@ -514,7 +514,6 @@ def add_sparse_by_gene_markers_to_file(
     a marker file that already contains the
     "sparse_by_pairs" representation.
     """
-
     tmp_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir))
 
     with h5py.File(h5_path, 'a') as dst:
@@ -546,7 +545,8 @@ def add_sparse_by_gene_markers_to_file(
                 output_path=transposed_path,
                 verbose=False,
                 tmp_dir=tmp_dir,
-                n_processors=n_processors)
+                n_processors=n_processors,
+                uint_ok=True)
 
         with h5py.File(transposed_path, 'r') as src:
             with h5py.File(h5_path, 'a') as dst:
