@@ -17,6 +17,7 @@ def select_all_markers(
         n_per_utility=15,
         n_processors=4,
         behemoth_cutoff=1000000,
+        genes_at_a_time=1,
         n_per_utility_override=None,
         parent_list=None,
         tmp_dir=None):
@@ -43,6 +44,11 @@ def select_all_markers(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
     n_per_utility_override:
         Optional dict mapping parent node to an alternative
         value of n_per_utility
@@ -159,6 +165,7 @@ def select_all_markers(
                             'marker_gene_array':
                                 marker_gene_array,
                             'query_gene_names': query_gene_names,
+                            'genes_at_a_time': genes_at_a_time,
                             'taxonomy_tree': taxonomy_tree,
                             'parent_node': chosen_parent,
                             'n_per_utility': this_n_per,
@@ -191,6 +198,7 @@ def select_all_markers(
 def _marker_selection_worker(
         marker_gene_array,
         query_gene_names,
+        genes_at_a_time,
         taxonomy_tree,
         parent_node,
         n_per_utility,
@@ -219,6 +227,7 @@ def _marker_selection_worker(
     marker_genes = select_marker_genes_v2(
         marker_gene_array=marker_gene_array,
         query_gene_names=query_gene_names,
+        genes_at_a_time=genes_at_a_time,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node,
         n_per_utility=n_per_utility,

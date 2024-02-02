@@ -20,6 +20,7 @@ def select_marker_genes_v2(
         taxonomy_tree,
         parent_node,
         n_per_utility=15,
+        genes_at_a_time=1,
         lock=None,
         summary_log=None,
         tmp_dir=None):
@@ -61,6 +62,12 @@ def select_marker_genes_v2(
     n_per_utility:
         Number of marker genes to select per (node1, node2, +/-) set
         (+/- indicates which node the gene is more prominent in)
+
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
 
     lock:
        Optional multiprocessing lock to prevent stdout prints from
@@ -119,7 +126,8 @@ def select_marker_genes_v2(
         taxonomy_idx_array=taxonomy_idx_array,
         n_per_utility=n_per_utility,
         parent_node=parent_node,
-        lock=lock)
+        lock=lock,
+        genes_at_a_time=genes_at_a_time)
 
     if summary_log is not None:
         duration = time.time()-t0
@@ -140,7 +148,8 @@ def _run_selection(
         taxonomy_idx_array,
         n_per_utility,
         parent_node,
-        lock=None):
+        lock=None,
+        genes_at_a_time=1):
 
     are_possible = _get_are_possible(
         marker_census=marker_census,
@@ -247,7 +256,7 @@ def _run_selection(
              marker_counts=marker_counts,
              taxonomy_idx_array=taxonomy_idx_array,
              chosen_idx=None,
-             genes_at_a_time=1)
+             genes_at_a_time=genes_at_a_time)
 
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
@@ -276,8 +285,10 @@ def _run_selection(
             'down': int(fewer_down)}
 
     stat_dict['marker_distribution'] = marker_dist
+    stat_dict['genes_at_a_time'] = genes_at_a_time
 
     return marker_gene_name_list, stat_dict
+
 
 def _choose_gene(
         marker_gene_idx_set,
