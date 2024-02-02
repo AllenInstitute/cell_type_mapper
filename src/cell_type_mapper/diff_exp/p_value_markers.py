@@ -98,11 +98,30 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         gene_1 is the second best discrminator, and gene_101 is the worst
         discriminator
     """
+
+    # if tmp_dir is specified, assume it is a faster drive
+    # than where p-value-mask normally lives
+    copy_data = False
+    if tmp_dir is not None:
+        copy_data = True
+
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
+
     try:
+        p_path = p_value_mask_path
+
+        if copy_data:
+            p_path = mkstemp_clean(
+                dir=tmp_dir,
+                suffix='.h5')
+
+            shutil.copy(
+                src=p_value_mask_path,
+                dst=p_path)
+
         _find_markers_for_all_taxonomy_pairs_from_p_mask(
             precomputed_stats_path=precomputed_stats_path,
-            p_value_mask_path=p_value_mask_path,
+            p_value_mask_path=p_path,
             output_path=output_path,
             n_processors=n_processors,
             tmp_dir=tmp_dir,
