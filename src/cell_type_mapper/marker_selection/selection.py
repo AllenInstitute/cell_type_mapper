@@ -246,7 +246,8 @@ def _run_selection(
              marker_gene_array=marker_gene_array,
              marker_counts=marker_counts,
              taxonomy_idx_array=taxonomy_idx_array,
-             chosen_idx=None)
+             chosen_idx=None,
+             genes_at_a_time=10)
 
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
@@ -278,8 +279,40 @@ def _run_selection(
 
     return marker_gene_name_list, stat_dict
 
-
 def _choose_gene(
+        marker_gene_idx_set,
+        marker_gene_name_list,
+        utility_array,
+        sorted_utility_idx,
+        marker_gene_array,
+        marker_counts,
+        taxonomy_idx_array,
+        chosen_idx=None,
+        genes_at_a_time=1):
+
+    for ii in range(genes_at_a_time):
+        (marker_gene_idx_set,
+         marker_gene_name_list,
+         utility_array,
+         sorted_utility_idx,
+         marker_counts) = _choose_one_gene(
+            marker_gene_idx_set=marker_gene_idx_set,
+            marker_gene_name_list=marker_gene_name_list,
+            utility_array=utility_array,
+            sorted_utility_idx=sorted_utility_idx,
+            marker_gene_array=marker_gene_array,
+            marker_counts=marker_counts,
+            taxonomy_idx_array=taxonomy_idx_array,
+            chosen_idx=chosen_idx)
+
+    return (marker_gene_idx_set,
+            marker_gene_name_list,
+            utility_array,
+            sorted_utility_idx,
+            marker_counts)
+
+
+def _choose_one_gene(
         marker_gene_idx_set,
         marker_gene_name_list,
         utility_array,
@@ -365,7 +398,8 @@ def _choose_desperate_markers(
                     marker_gene_array=marker_gene_array,
                     marker_counts=marker_counts,
                     taxonomy_idx_array=taxonomy_idx_array,
-                    chosen_idx=gene_idx)
+                    chosen_idx=gene_idx,
+                    genes_at_a_time=1)
 
     return (marker_gene_idx_set,
             marker_gene_name_list,
