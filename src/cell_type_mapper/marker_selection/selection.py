@@ -247,7 +247,7 @@ def _run_selection(
              marker_counts=marker_counts,
              taxonomy_idx_array=taxonomy_idx_array,
              chosen_idx=None,
-             genes_at_a_time=10)
+             genes_at_a_time=1)
 
     assert len(marker_gene_idx_set) == len(marker_gene_name_list)
 
