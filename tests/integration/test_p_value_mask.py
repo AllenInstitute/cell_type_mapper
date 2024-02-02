@@ -41,7 +41,7 @@ from cell_type_mapper.cli.reference_markers_from_p_value_mask import (
 
 
 @pytest.fixture(scope='module')
-def tmp_dir(tmp_path_factory):
+def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = tmp_path_factory.mktemp('p_mask_markers_')
     yield tmp_dir
     _clean_up(tmp_dir)
@@ -215,7 +215,7 @@ def test_dummy_p_value_mask(
             'log2_fold_th': log2_fold_th,
             'log2_fold_min_th': log2_fold_min_th,
             'n_processors': n_processors,
-            'tmp_dir': str(tmp_dir),
+            'tmp_dir': str(tmp_dir_fixture),
             'clobber': True,
             'rows_at_a_time': n_per
         }
