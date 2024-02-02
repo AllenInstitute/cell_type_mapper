@@ -25,6 +25,18 @@ class QueryFinderConfigMixin(object):
             "list of ('parent_node', n_per_utility) tuples."
         ))
 
+    genes_at_a_time = argschema.fields.Int(
+        required=False,
+        default=1,
+        allow_none=False,
+        description=(
+            "Number of marker genes to choose in a single pass "
+            "before updating the statistics governing marker "
+            "gene selection. Higher numbers will cause the "
+            "code to run faster, but may result in more markers "
+            "being selected than are strictly necessary."
+        ))
+
 
 class QueryMarkerFinderSchema(
         argschema.ArgSchema,
