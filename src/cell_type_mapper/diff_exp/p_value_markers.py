@@ -98,9 +98,33 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         gene_1 is the second best discrminator, and gene_101 is the worst
         discriminator
     """
-    full_t0 = time.time()
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
-    tmp_dir = pathlib.Path(tmp_dir)
+    try:
+        _find_markers_for_all_taxonomy_pairs_from_p_mask(
+            precomputed_stats_path=precomputed_stats_path,
+            p_value_mask_path=p_value_mask_path,
+            output_path=output_path,
+            n_processors=n_processors,
+            tmp_dir=tmp_dir,
+            max_gb=max_gb,
+            n_valid=n_valid,
+            gene_list=gene_list,
+            drop_level=drop_level)
+    finally:
+        _clean_up(tmp_dir)
+
+
+def _find_markers_for_all_taxonomy_pairs_from_p_mask(
+        precomputed_stats_path,
+        p_value_mask_path,
+        output_path,
+        n_processors=4,
+        tmp_dir=None,
+        max_gb=20,
+        n_valid=30,
+        gene_list=None,
+        drop_level=None):
+    full_t0 = time.time()
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(
         precomputed_stats_path)
@@ -138,8 +162,7 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         src=tmp_thinned_path,
         dst=output_path)
 
-    _clean_up(tmp_dir)
-    print(f'======= copying and cleaning took {time.time()-t0:.2e} =====')
+    print(f'======= copying took {time.time()-t0:.2e} =====')
     print(f'======= full thing {time.time()-full_t0:.2e} =======')
 
 
