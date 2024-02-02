@@ -7,7 +7,8 @@ import time
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
-    _clean_up)
+    _clean_up,
+    choose_int_dtype)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -27,9 +28,16 @@ def transpose_sparse_matrix_on_disk_v2(
         output_path,
         verbose=False,
         tmp_dir=None,
-        n_processors=4):
+        n_processors=4,
+        uint_ok=False):
     """
     indices_max is the number of unique indices values in original array
+
+    if uint_ok is True, allow uints for the dtypes of indptr and indices
+    in final array (also allow them to have different dtypes).
+
+    This is not generally acceptable for arrays that will be read in as
+    scipy.sparse arrays.
     """
 
     tmp_dir = tempfile.mkdtemp(
@@ -47,7 +55,8 @@ def transpose_sparse_matrix_on_disk_v2(
             output_path=output_path,
             verbose=verbose,
             tmp_dir=tmp_dir,
-            n_processors=n_processors)
+            n_processors=n_processors,
+            uint_ok=uint_ok)
     finally:
         _clean_up(tmp_dir)
 
@@ -62,15 +71,15 @@ def _transpose_sparse_matrix_on_disk_v2(
         output_path,
         verbose=False,
         tmp_dir=None,
-        n_processors=4):
-
-    indices_dtype = int
+        n_processors=4,
+        uint_ok=False):
 
     use_data = (data_tag is not None)
 
     with h5py.File(h5_path, 'r') as src:
         if use_data:
             data_dtype = src[data_tag].dtype
+        n_orig_indptr = src[indptr_tag].shape[0]
 
     gb_per_process = 0.8 * max_gb / n_processors
     indices_chunk_size = np.ceil(indices_max / n_processors).astype(int)
@@ -117,6 +126,20 @@ def _transpose_sparse_matrix_on_disk_v2(
             indptr_size += src['indptr'].shape[0]-1
     indptr_size += 1
 
+    if uint_ok:
+        indices_dtype = choose_int_dtype(
+            (0, n_orig_indptr))
+        indptr_dtype = choose_int_dtype(
+            (0, indices_size))
+    else:
+        max_val = max(n_orig_indptr, indices_size)
+        cutoff = np.iinfo(np.int32).max
+        if max_val >= cutoff:
+            indices_dtype = np.int64
+        else:
+            indices_dtype = np.int32
+        indptr_dtype = indices_dtype
+
     t0 = time.time()
     indptr_idx = 0
     indices_idx = 0
@@ -130,7 +153,7 @@ def _transpose_sparse_matrix_on_disk_v2(
             'indptr',
             shape=(indptr_size,),
             chunks=None,
-            dtype=int)
+            dtype=indptr_dtype)
         if use_data:
             data = dst.create_dataset(
                 'data',
