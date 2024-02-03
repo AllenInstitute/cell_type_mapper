@@ -1,7 +1,8 @@
 import argschema
 
-from cell_type_mapper.schemas.output_file import (
-    OutFileWithClobberMixin)
+from cell_type_mapper.schemas.mixins import (
+    OutFileWithClobberMixin,
+    TmpDirMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceMarkerStatsParamMixin)
@@ -10,7 +11,8 @@ from cell_type_mapper.schemas.reference_marker_finder import (
 class PValueMaskSchema(
         argschema.ArgSchema,
         ReferenceMarkerStatsParamMixin,
-        OutFileWithClobberMixin):
+        OutFileWithClobberMixin,
+        TmpDirMixin):
 
     output_path = argschema.fields.OutputFile(
        required=True,
@@ -44,12 +46,4 @@ class PValueMaskSchema(
         description=(
             "Number of cluster pairs each worker should "
             "process at a time."
-        ))
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "Directory where temprorary scratch files will be written out."
         ))

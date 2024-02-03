@@ -1,5 +1,8 @@
 import argschema
 
+from cell_type_mapper.schemas.mixins import (
+    TmpDirMixin)
+
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
 
@@ -7,15 +10,7 @@ from cell_type_mapper.schemas.hierarchical_type_assignment import (
     HierarchicalTypeAssignmentSchema)
 
 
-class SearchSchemaMixin(object):
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="Optional temporary directory into which data "
-        "will be copied for faster access (e.g. if the data "
-        "naturally lives on a slow NFS drive)")
+class SearchSchemaMixin(TmpDirMixin):
 
     query_path = argschema.fields.InputFile(
         required=True,

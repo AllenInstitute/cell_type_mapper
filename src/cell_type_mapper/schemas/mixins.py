@@ -3,6 +3,16 @@ from marshmallow import post_load
 import pathlib
 
 
+class TmpDirMixin(object):
+
+    tmp_dir = argschema.fields.OutputDir(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=("Temporary directory for writing out "
+                     "scratch files"))
+
+
 class OutFileWithClobberMixin(object):
 
     output_path = argschema.fields.OutputFile(

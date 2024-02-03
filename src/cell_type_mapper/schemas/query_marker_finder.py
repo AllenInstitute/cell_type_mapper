@@ -1,5 +1,8 @@
 import argschema
 
+from cell_type_mapper.schemas.mixins import (
+    TmpDirMixin)
+
 
 class QueryFinderConfigMixin(object):
 
@@ -40,7 +43,8 @@ class QueryFinderConfigMixin(object):
 
 class QueryMarkerFinderSchema(
         argschema.ArgSchema,
-        QueryFinderConfigMixin):
+        QueryFinderConfigMixin,
+        TmpDirMixin):
 
     query_path = argschema.fields.InputFile(
         required=False,
@@ -87,9 +91,3 @@ class QueryMarkerFinderSchema(
         allow_none=False,
         description="Path to the JSON file that will contain "
         "the marker gene lookup for the query dataset.")
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="Optional temporary directory for scratch files.")

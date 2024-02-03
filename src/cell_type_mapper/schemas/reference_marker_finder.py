@@ -1,5 +1,8 @@
 import argschema
 
+from cell_type_mapper.schemas.mixins import (
+    TmpDirMixin)
+
 
 class ReferenceMarkerStatsParamMixin(object):
 
@@ -107,13 +110,6 @@ class ReferenceRunnerConfigMixin(object):
         allow_none=True,
         description=("Optional level to drop from taxonomy"))
 
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Temporary directory for writing out "
-                     "scratch files"))
-
     n_processors = argschema.fields.Int(
         required=False,
         default=32,
@@ -133,7 +129,8 @@ class ReferenceRunnerConfigMixin(object):
 class ReferenceMarkerFinderSchema(
         argschema.ArgSchema,
         ReferenceFinderConfigMixin,
-        ReferenceRunnerConfigMixin):
+        ReferenceRunnerConfigMixin,
+        TmpDirMixin):
 
     precomputed_path_list = argschema.fields.List(
         argschema.fields.InputFile,
