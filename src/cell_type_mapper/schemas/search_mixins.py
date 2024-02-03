@@ -1,7 +1,8 @@
 import argschema
 
 from cell_type_mapper.schemas.mixins import (
-    TmpDirMixin)
+    TmpDirMixin,
+    DropLevelMixin)
 
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
@@ -10,7 +11,9 @@ from cell_type_mapper.schemas.hierarchical_type_assignment import (
     HierarchicalTypeAssignmentSchema)
 
 
-class SearchSchemaMixin(TmpDirMixin):
+class SearchSchemaMixin(
+        TmpDirMixin,
+        DropLevelMixin):
 
     query_path = argschema.fields.InputFile(
         required=True,
@@ -49,16 +52,6 @@ class SearchSchemaMixin(TmpDirMixin):
             "metadata (e.g. number of mapped genes and number "
             "of mapped cells) will be stored")
         )
-
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="If this level exists in the taxonomy, drop "
-        "it before doing type assignment (this is to accommmodate "
-        "the fact that the official taxonomy includes the "
-        "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
 
     flatten = argschema.fields.Boolean(
         required=False,

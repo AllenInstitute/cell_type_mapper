@@ -2,7 +2,8 @@ import argschema
 
 from cell_type_mapper.schemas.mixins import (
     OutFileWithClobberMixin,
-    TmpDirMixin)
+    TmpDirMixin,
+    DropLevelMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     NValidMixin,
@@ -14,7 +15,8 @@ class PValueMarkersSchema(
         OutFileWithClobberMixin,
         NValidMixin,
         ReferenceRunnerConfigMixin,
-        TmpDirMixin):
+        TmpDirMixin,
+        DropLevelMixin):
 
     precomputed_stats_path = argschema.fields.InputFile(
         required=True,
