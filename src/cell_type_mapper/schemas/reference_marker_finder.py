@@ -1,7 +1,8 @@
 import argschema
 
 from cell_type_mapper.schemas.mixins import (
-    TmpDirMixin)
+    TmpDirMixin,
+    DropLevelMixin)
 
 
 class ReferenceMarkerStatsParamMixin(object):
@@ -104,12 +105,6 @@ class ReferenceRunnerConfigMixin(object):
             "as markers."
         ))
 
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Optional level to drop from taxonomy"))
-
     n_processors = argschema.fields.Int(
         required=False,
         default=32,
@@ -130,7 +125,8 @@ class ReferenceMarkerFinderSchema(
         argschema.ArgSchema,
         ReferenceFinderConfigMixin,
         ReferenceRunnerConfigMixin,
-        TmpDirMixin):
+        TmpDirMixin,
+        DropLevelMixin):
 
     precomputed_path_list = argschema.fields.List(
         argschema.fields.InputFile,

@@ -1,7 +1,8 @@
 import argschema
 
 from cell_type_mapper.schemas.mixins import (
-    TmpDirMixin)
+    TmpDirMixin,
+    DropLevelMixin)
 
 
 class QueryFinderConfigMixin(object):
@@ -44,7 +45,8 @@ class QueryFinderConfigMixin(object):
 class QueryMarkerFinderSchema(
         argschema.ArgSchema,
         QueryFinderConfigMixin,
-        TmpDirMixin):
+        TmpDirMixin,
+        DropLevelMixin):
 
     query_path = argschema.fields.InputFile(
         required=False,
@@ -74,16 +76,6 @@ class QueryMarkerFinderSchema(
         allow_none=False,
         description="Number of independendent processes to use when "
         "parallelizing work for mapping job")
-
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="If this level exists in the taxonomy, drop "
-        "it before doing type assignment (this is to accommmodate "
-        "the fact that the official taxonomy includes the "
-        "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
 
     output_path = argschema.fields.OutputFile(
         required=True,
