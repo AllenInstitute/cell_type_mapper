@@ -103,7 +103,10 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
     # than where p-value-mask normally lives
     copy_data = False
     if tmp_dir is not None:
-        copy_data = True
+        _tmp_path = pathlib.Path(tmp_dir).resolve()
+        _p_path = pathlib.Path(p_value_mask_path).resolve()
+        if not _p_path.is_relative_to(_tmp_path):
+            copy_data = True
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
 
