@@ -25,6 +25,9 @@ from cell_type_mapper.diff_exp.markers import (
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
+from cell_type_mapper.diff_exp.p_value_mask import (
+    create_p_value_mask_file)
+
 
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(

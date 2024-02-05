@@ -7,6 +7,28 @@ from cell_type_mapper.schemas.mixins import (
     QueryPathMixinForMarkers)
 
 
+class NValidMixin(object):
+
+    n_valid = argschema.fields.Int(
+        required=False,
+        default=30,
+        allow_none=False,
+        description=("Try to find this many marker genes per pair. "
+                     "Used only if exact_penetrance is False."))
+
+
+class MaxGBMixin(object):
+
+    max_gb = argschema.fields.Int(
+        required=False,
+        default=20,
+        allow_none=False,
+        description=(
+            "Total amount of memory (in GB) the process is "
+            "allowed to consume (approximate)."
+        ))
+
+
 class ReferenceMarkerStatsParamMixin(object):
 
     p_th = argschema.fields.Float(
@@ -66,16 +88,6 @@ class ReferenceMarkerStatsParamMixin(object):
                      "be a marker, even if exact_penetrance is False"))
 
 
-class NValidMixin(object):
-
-    n_valid = argschema.fields.Int(
-        required=False,
-        default=30,
-        allow_none=False,
-        description=("Try to find this many marker genes per pair. "
-                     "Used only if exact_penetrance is False."))
-
-
 class ReferenceFinderConfigMixin(
         ReferenceMarkerStatsParamMixin,
         NValidMixin):
@@ -97,16 +109,10 @@ class ReferenceFinderConfigMixin(
 
 class ReferenceRunnerConfigMixin(
         NProcessorsMixin,
-        QueryPathMixinForMarkers):
+        QueryPathMixinForMarkers,
+        MaxGBMixin):
 
-    max_gb = argschema.fields.Int(
-        required=False,
-        default=20,
-        allow_none=False,
-        description=(
-            "Total amount of memory (in GB) the process is "
-            "allowed to consume (approximate)."
-        ))
+    pass
 
 
 class ReferenceMarkerFinderSchema(

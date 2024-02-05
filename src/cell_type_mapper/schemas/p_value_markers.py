@@ -11,14 +11,7 @@ from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceRunnerConfigMixin)
 
 
-class PValueMarkersSchema(
-        argschema.ArgSchema,
-        OutFileWithClobberMixin,
-        NValidMixin,
-        ReferenceRunnerConfigMixin,
-        TmpDirMixin,
-        DropLevelMixin,
-        PrecomputedStatsPathMixin):
+class PValueMaskPathMixin(object):
 
     p_value_mask_path = argschema.fields.InputFile(
         required=True,
@@ -28,6 +21,17 @@ class PValueMarkersSchema(
             "Path to the p-value mask file from which "
             "these markers are being derived."
         ))
+
+
+class PValueMarkersSchema(
+        argschema.ArgSchema,
+        OutFileWithClobberMixin,
+        NValidMixin,
+        ReferenceRunnerConfigMixin,
+        TmpDirMixin,
+        DropLevelMixin,
+        PrecomputedStatsPathMixin,
+        PValueMaskPathMixin):
 
     output_path = argschema.fields.OutputFile(
         required=True,
