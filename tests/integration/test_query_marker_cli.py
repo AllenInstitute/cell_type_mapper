@@ -20,6 +20,11 @@ from cell_type_mapper.utils.csc_to_csr_parallel import (
 from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
+from cell_type_mapper.cli.compute_p_value_mask import (
+    PValueRunner)
+
+from cell_type_mapper.cli.query_markers_from_p_value_mask import(
+    QueryMarkersFromPValueMaskRunner)
 
 
 @pytest.mark.parametrize(
@@ -269,3 +274,91 @@ def test_genes_at_a_time(
             assert test == baseline
         else:
             assert test != baseline
+
+
+@pytest.fixture(scope='module')
+def p_value_path_fixture(
+        precomputed_path_fixture,
+        tmp_dir_fixture):
+
+    p_value_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_value_mask_',
+        suffix='.h5')
+
+    config = {
+        'tmp_dir': str(tmp_dir_fixture),
+        'output_path': p_value_path,
+        'precomputed_stats_path': precomputed_path_fixture,
+        'clobber': True,
+        'n_processors': 3
+    }
+
+    runner = PValueRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+    return p_value_path
+
+
+@pytest.mark.parametrize(
+        "n_per_utility,genes_at_a_time,n_processors,n_valid",
+        itertools.product(
+            (10,),
+            (5,),
+            (3,),
+            (None,)
+        ))
+def test_query_markers_from_p_values(
+        tmp_dir_fixture,
+        p_value_path_fixture,
+        genes_at_a_time,
+        n_per_utility,
+        n_processors,
+        n_valid):
+    """
+    Just a smoke test for the CLI tool that goes straight from
+    p-value mask to query markers.
+    """
+
+    drop_level = None
+    n_per_utility_override = None
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_from_p_values_',
+        suffix='.json')
+
+    config = {
+        'output_path': output_path,
+        'p_value_mask_path': p_value_path_fixture,
+        'max_gb': 5,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': n_processors,
+        'drop_level': drop_level,
+        'clobber': True,
+        'reference_markers': {
+            'n_valid': n_valid
+        },
+        'query_markers':  {
+            'n_per_utility': n_per_utility,
+            'n_per_utility_override': n_per_utility_override,
+            'genes_at_a_time': genes_at_a_time
+        }
+    }
+
+    runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    with open(output_path, 'rb') as src:
+        result = json.load(src)
+    assert len(result) > 2
+    n_markers = 0
+    for k in result:
+        if k in ('log', 'metadata'):
+            continue
+        n_markers += len(result[k])
+    assert n_markers > 0
