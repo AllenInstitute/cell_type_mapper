@@ -3,12 +3,14 @@ from marshmallow import post_load
 
 from cell_type_mapper.schemas.mixins import (
     OutFileWithClobberMixin,
-    TmpDirMixin)
+    TmpDirMixin,
+    NProcessorsMixin)
 
 
 class PrecomputedStatsSchemaMixin(
         OutFileWithClobberMixin,
-        TmpDirMixin):
+        TmpDirMixin,
+        NProcessorsMixin):
 
     clobber = argschema.fields.Boolean(
         required=False,
@@ -41,14 +43,6 @@ class PrecomputedStatsSchemaMixin(
         description="Path to the HDF5 file that will be written with the "
         "precomputed stats. The serialized taxonomy tree will also be "
         "saved here")
-
-    n_processors = argschema.fields.Integer(
-        required=False,
-        default=3,
-        allow_none=False,
-        description=(
-            "Number of worker processes to spin up."
-        ))
 
     @post_load
     def check_norm(self, data, **kwargs):

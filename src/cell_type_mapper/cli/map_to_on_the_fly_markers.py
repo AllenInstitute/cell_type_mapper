@@ -11,6 +11,9 @@ from cell_type_mapper.utils.output_utils import (
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
 
+from cell_type_mapper.schemas.mixins import (
+    NProcessorsMixin)
+
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
 
@@ -65,7 +68,8 @@ class ReferenceMarkerSchema_OTF(
 
 class MapperSchema_OTF(
         argschema.ArgSchema,
-        SearchSchemaMixin):
+        SearchSchemaMixin,
+        NProcessorsMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerSchema_OTF,
@@ -74,13 +78,6 @@ class MapperSchema_OTF(
     reference_markers = argschema.fields.Nested(
         ReferenceMarkerSchema_OTF,
         required=True)
-
-    n_processors = argschema.fields.Int(
-        required=False,
-        default=32,
-        allow_none=False,
-        description="Number of independendent processes to use when "
-        "parallelizing work for mapping job")
 
 
 class OnTheFlyMapper(argschema.ArgSchemaParser):

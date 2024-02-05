@@ -2,7 +2,9 @@ import argschema
 
 from cell_type_mapper.schemas.mixins import (
     TmpDirMixin,
-    DropLevelMixin)
+    DropLevelMixin,
+    NProcessorsMixin,
+    QueryPathMixinForMarkers)
 
 
 class ReferenceMarkerStatsParamMixin(object):
@@ -93,23 +95,9 @@ class ReferenceFinderConfigMixin(
         description="If True, full file paths not recorded in log")
 
 
-class ReferenceRunnerConfigMixin(object):
-
-    query_path = argschema.fields.InputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "Optional path to h5ad file containing query data. Used "
-            "to assemble list of genes that are acceptable "
-            "as markers."
-        ))
-
-    n_processors = argschema.fields.Int(
-        required=False,
-        default=32,
-        allow_none=False,
-        description=("Number of independent processors to spin up."))
+class ReferenceRunnerConfigMixin(
+        NProcessorsMixin,
+        QueryPathMixinForMarkers):
 
     max_gb = argschema.fields.Int(
         required=False,

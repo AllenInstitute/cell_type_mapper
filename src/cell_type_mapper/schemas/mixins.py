@@ -3,6 +3,50 @@ from marshmallow import post_load
 import pathlib
 
 
+class PrecomputedStatsPathMixin(object):
+
+    precomputed_stats_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to the precomputed_stats file for this "
+            "taxonomy."
+        ))
+
+
+class QueryPathMixinForSearch(object):
+
+    query_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description="Path to the h5ad file containing the query "
+        "dataset")
+
+
+class QueryPathMixinForMarkers(object):
+
+    query_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Optional path to h5ad file containing query data. Used "
+            "to assemble list of genes that are acceptable "
+            "as markers."
+        ))
+
+
+class NProcessorsMixin(object):
+
+    n_processors = argschema.fields.Int(
+        required=False,
+        default=32,
+        allow_none=False,
+        description=("Number of independent worker processes to spin up."))
+
+
 class DropLevelMixin(object):
 
     drop_level = argschema.fields.String(

@@ -2,6 +2,9 @@ import argschema
 
 from marshmallow import post_load, ValidationError
 
+from cell_type_mapper.schemas.mixins import (
+    NProcessorsMixin)
+
 
 class HierarchicalConfigMixin(object):
 
@@ -73,11 +76,7 @@ class HierarchicalConfigMixin(object):
 
 class HierarchicalTypeAssignmentSchema(
         argschema.ArgSchema,
-        HierarchicalConfigMixin):
+        HierarchicalConfigMixin,
+        NProcessorsMixin):
 
-    n_processors = argschema.fields.Int(
-        required=False,
-        default=32,
-        allow_none=False,
-        description="Number of independendent processes to use when "
-        "parallelizing work for mapping job")
+    pass

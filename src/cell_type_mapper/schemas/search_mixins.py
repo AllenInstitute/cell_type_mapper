@@ -2,7 +2,8 @@ import argschema
 
 from cell_type_mapper.schemas.mixins import (
     TmpDirMixin,
-    DropLevelMixin)
+    DropLevelMixin,
+    QueryPathMixinForSearch)
 
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
@@ -13,14 +14,8 @@ from cell_type_mapper.schemas.hierarchical_type_assignment import (
 
 class SearchSchemaMixin(
         TmpDirMixin,
-        DropLevelMixin):
-
-    query_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to the h5ad file containing the query "
-        "dataset")
+        DropLevelMixin,
+        QueryPathMixinForSearch):
 
     extended_result_path = argschema.fields.OutputFile(
         required=False,
