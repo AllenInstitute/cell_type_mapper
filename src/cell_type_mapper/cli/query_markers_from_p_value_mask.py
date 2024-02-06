@@ -105,7 +105,7 @@ class QueryMarkersFromPValueMaskRunner(
             args=[],
             input_data=ref_config)
         ref_runner.run()
-        timing_by_stages['reference_markers'] = time.time()-0
+        timing_by_stages['reference_markers'] = time.time()-t0
 
         query_config = {
             'output_path': self.args['output_path'],
