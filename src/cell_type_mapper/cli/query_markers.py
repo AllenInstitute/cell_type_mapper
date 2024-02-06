@@ -61,7 +61,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             n_processors=self.args['n_processors'],
             behemoth_cutoff=5000000,
             tmp_dir=self.args['tmp_dir'],
-            drop_level=self.args['drop_level'])
+            drop_level=self.args['drop_level'],
+            genes_at_a_time=self.args['genes_at_a_time'])
 
         metadata = {'config': copy.deepcopy(self.args)}
         metadata.update(

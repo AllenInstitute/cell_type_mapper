@@ -326,7 +326,8 @@ def test_selection_worker_smoke(
             n_per_utility=5,
             output_dict=output_dict,
             stdout_lock=DummyLock(),
-            summary_log=summary_log)
+            summary_log=summary_log,
+            genes_at_a_time=1)
 
     for k in ['None', 'subclass/e', 'class/aa', 'class/bb']:
         assert k in summary_log

@@ -1,11 +1,16 @@
 import argschema
 from marshmallow import post_load
 
-from cell_type_mapper.schemas.output_file import (
-    OutFileWithClobberMixin)
+from cell_type_mapper.schemas.mixins import (
+    OutFileWithClobberMixin,
+    TmpDirMixin,
+    NProcessorsMixin)
 
 
-class PrecomputedStatsSchemaMixin(OutFileWithClobberMixin):
+class PrecomputedStatsSchemaMixin(
+        OutFileWithClobberMixin,
+        TmpDirMixin,
+        NProcessorsMixin):
 
     clobber = argschema.fields.Boolean(
         required=False,
@@ -38,23 +43,6 @@ class PrecomputedStatsSchemaMixin(OutFileWithClobberMixin):
         description="Path to the HDF5 file that will be written with the "
         "precomputed stats. The serialized taxonomy tree will also be "
         "saved here")
-
-    n_processors = argschema.fields.Integer(
-        required=False,
-        default=3,
-        allow_none=False,
-        description=(
-            "Number of worker processes to spin up."
-        ))
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "Directory where temprorary scratch files will be written out "
-            "if n_processors > 1"
-        ))
 
     @post_load
     def check_norm(self, data, **kwargs):

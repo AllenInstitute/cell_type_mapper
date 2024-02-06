@@ -1,5 +1,33 @@
 import argschema
 
+from cell_type_mapper.schemas.mixins import (
+    TmpDirMixin,
+    DropLevelMixin,
+    NProcessorsMixin,
+    QueryPathMixinForMarkers)
+
+
+class NValidMixin(object):
+
+    n_valid = argschema.fields.Int(
+        required=False,
+        default=30,
+        allow_none=False,
+        description=("Try to find this many marker genes per pair. "
+                     "Used only if exact_penetrance is False."))
+
+
+class MaxGBMixin(object):
+
+    max_gb = argschema.fields.Int(
+        required=False,
+        default=20,
+        allow_none=False,
+        description=(
+            "Total amount of memory (in GB) the process is "
+            "allowed to consume (approximate)."
+        ))
+
 
 class ReferenceMarkerStatsParamMixin(object):
 
@@ -60,16 +88,6 @@ class ReferenceMarkerStatsParamMixin(object):
                      "be a marker, even if exact_penetrance is False"))
 
 
-class NValidMixin(object):
-
-    n_valid = argschema.fields.Int(
-        required=False,
-        default=30,
-        allow_none=False,
-        description=("Try to find this many marker genes per pair. "
-                     "Used only if exact_penetrance is False."))
-
-
 class ReferenceFinderConfigMixin(
         ReferenceMarkerStatsParamMixin,
         NValidMixin):
@@ -89,51 +107,20 @@ class ReferenceFinderConfigMixin(
         description="If True, full file paths not recorded in log")
 
 
-class ReferenceRunnerConfigMixin(object):
+class ReferenceRunnerConfigMixin(
+        NProcessorsMixin,
+        QueryPathMixinForMarkers,
+        MaxGBMixin):
 
-    query_path = argschema.fields.InputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "Optional path to h5ad file containing query data. Used "
-            "to assemble list of genes that are acceptable "
-            "as markers."
-        ))
-
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Optional level to drop from taxonomy"))
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=("Temporary directory for writing out "
-                     "scratch files"))
-
-    n_processors = argschema.fields.Int(
-        required=False,
-        default=32,
-        allow_none=False,
-        description=("Number of independent processors to spin up."))
-
-    max_gb = argschema.fields.Int(
-        required=False,
-        default=20,
-        allow_none=False,
-        description=(
-            "Total amount of memory (in GB) the process is "
-            "allowed to consume (approximate)."
-        ))
+    pass
 
 
 class ReferenceMarkerFinderSchema(
         argschema.ArgSchema,
         ReferenceFinderConfigMixin,
-        ReferenceRunnerConfigMixin):
+        ReferenceRunnerConfigMixin,
+        TmpDirMixin,
+        DropLevelMixin):
 
     precomputed_path_list = argschema.fields.List(
         argschema.fields.InputFile,

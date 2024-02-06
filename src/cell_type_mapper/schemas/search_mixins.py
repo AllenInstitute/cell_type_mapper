@@ -1,5 +1,10 @@
 import argschema
 
+from cell_type_mapper.schemas.mixins import (
+    TmpDirMixin,
+    DropLevelMixin,
+    QueryPathMixinForSearch)
+
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
 
@@ -7,22 +12,10 @@ from cell_type_mapper.schemas.hierarchical_type_assignment import (
     HierarchicalTypeAssignmentSchema)
 
 
-class SearchSchemaMixin(object):
-
-    tmp_dir = argschema.fields.OutputDir(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="Optional temporary directory into which data "
-        "will be copied for faster access (e.g. if the data "
-        "naturally lives on a slow NFS drive)")
-
-    query_path = argschema.fields.InputFile(
-        required=True,
-        default=None,
-        allow_none=False,
-        description="Path to the h5ad file containing the query "
-        "dataset")
+class SearchSchemaMixin(
+        TmpDirMixin,
+        DropLevelMixin,
+        QueryPathMixinForSearch):
 
     extended_result_path = argschema.fields.OutputFile(
         required=False,
@@ -54,16 +47,6 @@ class SearchSchemaMixin(object):
             "metadata (e.g. number of mapped genes and number "
             "of mapped cells) will be stored")
         )
-
-    drop_level = argschema.fields.String(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="If this level exists in the taxonomy, drop "
-        "it before doing type assignment (this is to accommmodate "
-        "the fact that the official taxonomy includes the "
-        "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
 
     flatten = argschema.fields.Boolean(
         required=False,
