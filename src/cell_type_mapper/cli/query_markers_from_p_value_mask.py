@@ -35,7 +35,7 @@ class QueryMarkersFromPValueMaskRunner(
             dir=self.args['tmp_dir'],
             prefix='markers_from_p_values_')
         try:
-            self._run(tmp_dir=tmp_dir)
+            timing_by_stages = self._run(tmp_dir=tmp_dir)
         finally:
             _clean_up(tmp_dir)
 
@@ -43,7 +43,8 @@ class QueryMarkersFromPValueMaskRunner(
         # which CLI tool was actually run
         output_path = pathlib.Path(self.args['output_path'])
         if output_path.exists():
-            metadata = {'config': copy.deepcopy(self.args)}
+            metadata = {'config': copy.deepcopy(self.args),
+                        'duration_by_stages': timing_by_stages}
             metadata.update(
                 get_execution_metadata(
                     module_file=__file__,
@@ -57,6 +58,8 @@ class QueryMarkersFromPValueMaskRunner(
                 dst.write(json.dumps(result, indent=2))
 
     def _run(self, tmp_dir):
+
+        timing_by_stages = dict()
 
         with h5py.File(self.args['p_value_mask_path'], 'r') as src:
             p_value_metadata = json.loads(
@@ -94,10 +97,12 @@ class QueryMarkersFromPValueMaskRunner(
             'n_valid': n_valid
         }
 
+        t0 = time.time()
         ref_runner = PValueMarkersRunner(
             args=[],
             input_data=ref_config)
         ref_runner.run()
+        timing_by_stages['reference_markers'] = time.time()-0
 
         query_config = {
             'output_path': self.args['output_path'],
@@ -114,10 +119,14 @@ class QueryMarkersFromPValueMaskRunner(
                 'query_markers']['genes_at_a_time'],
         }
 
+        t0 = time.time()
         query_runner = QueryMarkerRunner(
             args=[],
             input_data=query_config)
         query_runner.run()
+        timing_by_stages['query_markers'] = time.time()-t0
+
+        return timing_by_stages
 
 
 def main():
