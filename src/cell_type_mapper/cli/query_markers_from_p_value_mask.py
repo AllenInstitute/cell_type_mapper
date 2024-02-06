@@ -65,9 +65,12 @@ class QueryMarkersFromPValueMaskRunner(
             p_value_metadata = json.loads(
                 src['metadata'][()].decode('utf-8'))
 
-        if self.args['reference_markers']['n_valid'] is not None:
-            n_valid = self.args['reference_markers']['n_valid']
-        else:
+        n_valid = None
+        if 'reference_markers' in self.args:
+            if self.args['reference_markers']['n_valid'] is not None:
+                n_valid = self.args['reference_markers']['n_valid']
+
+        if n_valid is None:
             n_valid = self.args['query_markers']['n_per_utility']*2
             if self.args['query_markers'][
                             'n_per_utility_override'] is not None:
