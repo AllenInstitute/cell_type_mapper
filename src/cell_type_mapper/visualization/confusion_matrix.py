@@ -346,7 +346,7 @@ def summary_plots_for_one_file(
                 title=f"{level} normalized by true label",
                 is_log=is_log10,
                 label_x_axis=label_x_axis,
-                label_y_axis=True)
+                label_y_axis=False)
 
             plot_confusion_matrix(
                 figure=fig,
@@ -392,6 +392,9 @@ def summary_plots_for_one_file(
         line_list = split_sentence(line)
         for sub in line_list:
             msg += sub+"\n"
+
+    msg += "\nconfig\n=========\n"
+    msg += json.dumps(results['config'], indent=2, sort_keys=True)
 
     print(msg)
     axis_list[0].text(
