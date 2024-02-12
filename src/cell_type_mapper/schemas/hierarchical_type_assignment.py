@@ -55,7 +55,7 @@ class HierarchicalConfigMixin(object):
 
     min_markers = argschema.fields.Int(
         required=False,
-        default=40,
+        default=10,
         allow_none=False,
         description=(
             "If a parent node has fewer marker genes than this, "
