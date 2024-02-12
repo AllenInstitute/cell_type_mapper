@@ -102,7 +102,8 @@ def ab_initio_assignment_fixture(
         'bootstrap_iteration': 27,
         'rng_seed': 66234,
         'chunk_size': 1000,
-        'normalization': 'raw'}
+        'normalization': 'raw',
+        'min_markers': 10}
 
     assignment_path = pathlib.Path(
             mkstemp_clean(

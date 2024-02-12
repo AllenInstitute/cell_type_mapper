@@ -293,7 +293,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         query_gene_names=query_gene_names,
         output_cache_path=query_marker_tmp,
         log=log,
-        taxonomy_tree=taxonomy_tree)
+        taxonomy_tree=taxonomy_tree,
+        min_markers=config['type_assignment']['min_markers'])
 
     log.benchmark(msg="creating query marker cache",
                   duration=time.time()-t0)

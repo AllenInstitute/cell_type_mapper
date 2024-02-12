@@ -53,6 +53,17 @@ class HierarchicalConfigMixin(object):
         description="The number of runner up node assignments "
         "to record at each level of the taxonomy.")
 
+    min_markers = argschema.fields.Int(
+        required=False,
+        default=40,
+        allow_none=False,
+        description=(
+            "If a parent node has fewer marker genes than this, "
+            "inherit the marker genes from its parent (and so on "
+            "up the tree) until there are at least this many "
+            "markers."
+        ))
+
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):
         """
