@@ -636,7 +636,7 @@ def validate_marker_lookup(
                         patched_with.append(ancestor_str)
 
                         if len(query_gene_names.intersection(
-                                    set(new_markers))) > min_markers:
+                                    set(new_markers))) >= min_markers:
                             break
 
                 if len(query_gene_names.intersection(new_markers)) \
