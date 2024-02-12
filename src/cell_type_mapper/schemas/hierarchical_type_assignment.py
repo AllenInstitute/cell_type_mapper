@@ -50,7 +50,7 @@ class HierarchicalConfigMixin(object):
         required=False,
         default=5,
         allow_none=False,
-        dsecription="The number of runner up node assignments "
+        description="The number of runner up node assignments "
         "to record at each level of the taxonomy.")
 
     @post_load
