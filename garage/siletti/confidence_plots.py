@@ -37,19 +37,22 @@ def main():
         plot_species_comparison(
             mapping_path_list=human_path_list,
             pdf_handle=pdf_handle,
-            drop_level=None)
+            drop_level=None,
+            species='human')
 
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
             pdf_handle=pdf_handle,
-            drop_level='CCN20230722_SUPT')
+            drop_level='CCN20230722_SUPT',
+            species='mouse')
 
 
 def plot_species_comparison(
         mapping_path_list,
         pdf_handle,
         drop_level=None,
-        fontsize=20):
+        fontsize=20,
+        species='mouse'):
     """
     Assumes every mapping in mapping_path_list has the same taxonomy
     tree and query path
@@ -105,11 +108,32 @@ def plot_species_comparison(
                 color=color,
                 legend_label=legend_label)
 
+            axis = axis_lookup[level]['pdf']
+            plot_pdf_comparison(
+                axis=axis,
+                taxonomy_tree=taxonomy_tree,
+                mapping=mapping,
+                truth=truth,
+                level=level,
+                binsize=0.01,
+                color=color,
+                legend_label=legend_label)
+
+
     for level in taxonomy_tree.hierarchy:
         axis = axis_lookup[level]['cdf']
-        axis.set_title(level, fontsize=fontsize)
+        if level == taxonomy_tree.hierarchy[0]:
+            title = f'{species}: {level}'
+        else:
+            title = level
+        axis.set_title(title, fontsize=fontsize)
         axis.set_xlabel('probability', fontsize=fontsize)
         axis.set_ylabel('cumulative distribution', fontsize=fontsize)
+        axis.legend(loc=0, fontsize=fontsize)
+
+        axis = axis_lookup[level]['pdf']
+        axis.set_xlabel('probability', fontsize=fontsize)
+        axis.set_ylabel('distribution', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
 
     fig.tight_layout()
@@ -139,6 +163,28 @@ def plot_cdf_comparison(
     axis.plot(bins, actual, label=legend_label, c=color)
     axis.plot(bins, expected, c=color, linestyle='--')
 
+
+def plot_pdf_comparison(
+        axis,
+        taxonomy_tree,
+        mapping,
+        truth,
+        level,
+        binsize=0.1,
+        color='b',
+        legend_label=None):
+
+    (bins,
+     expected,
+     actual) = get_rate_lookup_pdf(
+        taxonomy_tree=taxonomy_tree,
+        mapping=mapping,
+        truth=truth,
+        level=level,
+        binsize=binsize)
+
+    axis.stairs(bins, actual, label=legend_label, c=color, alpha=0.5)
+    axis.plot(bins, expected, c=color, linestyle='--')
 
 
 def get_rate_lookup_cdf(
@@ -191,6 +237,41 @@ def get_rate_lookup_cdf(
         denom = max(1, this_true+this_false)
         actual.append(this_true/denom)
     return np.array(used_bins), np.array(expected), np.array(actual) 
+
+
+
+def get_rate_lookup_pdf(
+        taxonomy_tree,
+        mapping,
+        truth,
+        level,
+        binsize=0.1):
+
+    bins = np.arange(0.0, 1.0+binsize, binsize)
+
+    true = np.zeros(bins.shape[0]-1, dtype=float)
+    expected = np.zeros(bins.shape[0]-1, dtype=float)
+
+    for cell_id in mapping:
+        is_true = (mapping[cell_id][level]['assignment']
+                   == truth[cell_id][level])
+
+        prob = 1.0
+        for l in taxonomy_tree.hierarchy:
+            prob *= mapping[cell_id][l]['bootstrapping_probability']
+            if l == level:
+                break
+        prob_idx = np.searchsorted(bins, prob)
+
+        if is_true:
+            true_assn[prob_idx] += 1
+        expected[prob_idx] += 1
+
+    for ii in range(len(expected)):
+        v = 0.5*(bins[ii]+bins[ii+1])
+        expected[ii] *= v
+
+    return bins, expected, true
 
 
 
