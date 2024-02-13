@@ -115,7 +115,7 @@ def plot_species_comparison(
                 mapping=mapping,
                 truth=truth,
                 level=level,
-                binsize=0.01,
+                binsize=0.02,
                 color=color,
                 legend_label=legend_label)
 
@@ -127,13 +127,13 @@ def plot_species_comparison(
         else:
             title = level
         axis.set_title(title, fontsize=fontsize)
-        axis.set_xlabel('probability', fontsize=fontsize)
+        axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
         axis.set_ylabel('cumulative distribution', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
 
         axis = axis_lookup[level]['pdf']
-        axis.set_xlabel('probability', fontsize=fontsize)
-        axis.set_ylabel('distribution', fontsize=fontsize)
+        axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
+        axis.set_ylabel('number correct', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
 
     fig.tight_layout()
@@ -183,8 +183,12 @@ def plot_pdf_comparison(
         level=level,
         binsize=binsize)
 
-    axis.stairs(bins, actual, label=legend_label, c=color, alpha=0.5)
-    axis.plot(bins, expected, c=color, linestyle='--')
+    axis.stairs(actual, bins, label=legend_label, color=color, alpha=0.5)
+    x_bins = 0.5*(bins[1:]+bins[:-1])
+    axis.scatter(x_bins, actual, c=color, marker='x', s=15)
+    axis.plot(x_bins, expected, c=color, linestyle='--')
+    axis.scatter(x_bins, expected, c=color, marker='o', s=10)
+    axis.set_yscale('log')
 
 
 def get_rate_lookup_cdf(
@@ -249,8 +253,8 @@ def get_rate_lookup_pdf(
 
     bins = np.arange(0.0, 1.0+binsize, binsize)
 
-    true = np.zeros(bins.shape[0]-1, dtype=float)
-    expected = np.zeros(bins.shape[0]-1, dtype=float)
+    true_assn = np.zeros(bins.shape[0]-1, dtype=float)
+    total = np.zeros(bins.shape[0]-1, dtype=float)
 
     for cell_id in mapping:
         is_true = (mapping[cell_id][level]['assignment']
@@ -261,17 +265,24 @@ def get_rate_lookup_pdf(
             prob *= mapping[cell_id][l]['bootstrapping_probability']
             if l == level:
                 break
-        prob_idx = np.searchsorted(bins, prob)
+
+        prob_idx = np.floor(prob/binsize).astype(int)-1
+        if prob_idx < 0:
+            prob_idx = 0
 
         if is_true:
             true_assn[prob_idx] += 1
-        expected[prob_idx] += 1
+        total[prob_idx] += 1
 
+    expected = np.zeros(total.shape, dtype=float)
     for ii in range(len(expected)):
         v = 0.5*(bins[ii]+bins[ii+1])
-        expected[ii] *= v
+        expected[ii] = v*total[ii]
 
-    return bins, expected, true
+    #denom = np.where(total>0.0, total, 1.0)
+    #true_assn = true_assn/denom
+
+    return bins, expected, true_assn
 
 
 
