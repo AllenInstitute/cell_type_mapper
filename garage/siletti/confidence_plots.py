@@ -48,7 +48,8 @@ def main():
 def plot_species_comparison(
         mapping_path_list,
         pdf_handle,
-        drop_level=None):
+        drop_level=None,
+        fontsize=20):
     """
     Assumes every mapping in mapping_path_list has the same taxonomy
     tree and query path
@@ -78,18 +79,18 @@ def plot_species_comparison(
         for i_k, k in enumerate(('cdf', 'pdf')):
             axis_lookup[level][k] = fig.add_subplot(
                 len(taxonomy_tree.hierarchy), 2,
-                i_level*2 + i_k)
+                1+i_level*2 + i_k)
 
-    for mapping_path, color in enumerate(mapping_path_list, ('r', 'g')):
+    for mapping_path, color in zip(mapping_path_list, ('r', 'g')):
         mapping = json.load(open(mapping_path,'rb'))
         this_config = mapping['config']
-        assert this_config == config['query_path']
+        assert this_config['query_path'] == config['query_path']
         assert this_config[
-            'precompued_stats']['path'] == config['precomputed_stats']['path']
+            'precomputed_stats']['path'] == config['precomputed_stats']['path']
         mapping = {c['cell_id']: c for c in mapping['results']}
 
         legend_label = (
-            f'fraction: {config["type_assignment"]["bootstrap_fraction"]:.2e}'
+            f'fraction: {this_config["type_assignment"]["bootstrap_factor"]:.2e}'
         )
 
         for i_level, level in enumerate(taxonomy_tree.hierarchy):
@@ -103,6 +104,15 @@ def plot_species_comparison(
                 binsize=0.01,
                 color=color,
                 legend_label=legend_label)
+
+    for level in taxonomy_tree.hierarchy:
+        axis = axis_lookup[level]['cdf']
+        axis.set_title(level, fontsize=fontsize)
+        axis.set_xlabel('probability', fontsize=fontsize)
+        axis.set_ylabel('cumulative distribution', fontsize=fontsize)
+        axis.legend(loc=0, fontsize=fontsize)
+
+    fig.tight_layout()
 
     pdf_handle.savefig(fig)
 
