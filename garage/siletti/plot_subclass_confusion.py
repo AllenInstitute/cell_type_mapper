@@ -42,7 +42,7 @@ def plot_confusion(
     with open(mapping_path, 'rb') as src:
         mapping = json.load(src)
 
-    config = mapping)['config']
+    config = mapping['config']
     precomputed_stats_path = config['precomputed_stats']['path']
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(
@@ -64,8 +64,7 @@ def plot_confusion(
         level=taxonomy_tree.hierarchy[1],
         species=species)
 
-    result[level] = fig
-    with PdfPages(f'figures/{species}_{level}.pdf') as dst:
+    with PdfPages(f'bakeoff/{species}_{taxonomy_tree.hierarchy[1]}.pdf') as dst:
         dst.savefig(confusion_fig)
 
     return result
@@ -76,7 +75,8 @@ def get_confusion_fig(
         mapping,
         truth_df,
         level,
-        fontsize=20):
+        fontsize=20,
+        species='mouse'):
 
     node_list = taxonomy_tree.nodes_at_level(level)
     node_list.sort()
@@ -147,7 +147,26 @@ def get_confusion_fig(
 
         assert len(label_order) == len(taxonomy_tree.nodes_at_level(level))
     else:
-        label_order = None
+        alias_list = []
+        name_list = []
+        for leaf in taxonomy_tree.all_leaves:
+            alias = int(taxonomy_tree.label_to_name(
+                level=taxonomy_tree.leaf_level,
+                label=leaf,
+                name_key='alias'))
+            parentage = taxonomy_tree.parents(
+                level=taxonomy_tree.leaf_level,
+                node=leaf)
+            this = parentage[level]
+            name = taxonomy_tree.label_to_name(
+                level=level, label=this)
+            if name not in name_list:
+                name_list.append(name)
+                alias_list.append(alias)
+        alias_list = np.array(alias_list)
+        name_list = np.array(name_list)
+        sorted_dex = np.argsort(alias_list)
+        label_order = name_list[sorted_dex]
 
     plot_confusion_matrix(
         figure=conf_fig,

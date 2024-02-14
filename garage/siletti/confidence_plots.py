@@ -32,7 +32,7 @@ def main():
         bakeoff_dir / "human_f0.25.json"
     ]
 
-    output_path = "figures/confidence_distribution.pdf"
+    output_path = "bakeoff/confidence_distribution.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -130,11 +130,14 @@ def plot_species_comparison(
         axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
         axis.set_ylabel('cumulative distribution', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
+        axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
         axis = axis_lookup[level]['pdf']
         axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
         axis.set_ylabel('number correct', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
+        axis.tick_params(which='both', axis='both', labelsize=fontsize)
+
 
     fig.tight_layout()
 
