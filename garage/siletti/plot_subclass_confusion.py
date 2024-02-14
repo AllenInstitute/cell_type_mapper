@@ -147,25 +147,16 @@ def get_confusion_fig(
 
         assert len(label_order) == len(taxonomy_tree.nodes_at_level(level))
     else:
-        alias_list = []
         name_list = []
-        for leaf in taxonomy_tree.all_leaves:
-            alias = int(taxonomy_tree.label_to_name(
-                level=taxonomy_tree.leaf_level,
-                label=leaf,
-                name_key='alias'))
-            parentage = taxonomy_tree.parents(
-                level=taxonomy_tree.leaf_level,
-                node=leaf)
-            this = parentage[level]
-            name = taxonomy_tree.label_to_name(
-                level=level, label=this)
-            if name not in name_list:
-                name_list.append(name)
-                alias_list.append(alias)
-        alias_list = np.array(alias_list)
+        idx_list = []
+        for node in taxonomy_tree.nodes_at_level(level):
+            name = taxonomy_tree.label_to_name(level=level, label=node)
+            idx = int(name.split()[0])
+            name_list.append(name)
+            idx_list.append(idx)
+        idx_list = np.array(idx_list)
         name_list = np.array(name_list)
-        sorted_dex = np.argsort(alias_list)
+        sorted_dex = np.argsort(idx_list)
         label_order = name_list[sorted_dex]
 
     plot_confusion_matrix(
