@@ -289,7 +289,8 @@ def amalgamate_h5ad(
         dst_obs,
         dst_var,
         dst_sparse=True,
-        tmp_dir=None):
+        tmp_dir=None,
+        compression=True):
 
     """
     Take rows (or columns for csc matrices) from different
@@ -323,6 +324,10 @@ def amalgamate_h5ad(
 
     tmp_dir:
         Directory where temporary files will be written
+
+    compression:
+        A boolean; if True, use gzip with setting 4
+
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     try:
@@ -332,7 +337,8 @@ def amalgamate_h5ad(
             dst_obs=dst_obs,
             dst_var=dst_var,
             dst_sparse=dst_sparse,
-            tmp_dir=tmp_dir)
+            tmp_dir=tmp_dir,
+            compression=compression)
     finally:
         _clean_up(tmp_dir)
 
@@ -343,7 +349,8 @@ def _amalgamate_h5ad(
         dst_obs,
         dst_var,
         dst_sparse,
-        tmp_dir):
+        tmp_dir,
+        compression):
 
     # check that all source files have data stored in
     # the same dtype
@@ -375,7 +382,7 @@ def _amalgamate_h5ad(
         tmp_path = mkstemp_clean(
             dir=tmp_dir,
             suffix='.h5')
-
+        print(f'opening {packet["path"]}')
         iterator = AnnDataRowIterator(
             h5ad_path=packet['path'],
             row_chunk_size=1000,
@@ -410,13 +417,15 @@ def _amalgamate_h5ad(
             src_path_list=tmp_path_list,
             dst_path=dst_path,
             final_shape=(len(dst_obs), len(dst_var)),
-            dst_grp='X')
+            dst_grp='X',
+            compression=compression)
     else:
         amalgamate_dense_to_x(
             src_path_list=tmp_path_list,
             dst_path=dst_path,
             final_shape=(len(dst_obs), len(dst_var)),
-            dst_grp='X')
+            dst_grp='X',
+            compression=compression)
 
 
 def amalgamate_csr_to_x(

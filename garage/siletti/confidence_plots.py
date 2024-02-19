@@ -27,12 +27,21 @@ def main():
         bakeoff_dir / "mouse_f0.25.json",
     ]
 
+    handoff_path_list = [
+        bakeoff_dir / "mouse_f0.9_handoff.json",
+        bakeoff_dir / "mouse_f0.25_handoff.json"
+    ]
+
+    by_hand_path_list = [
+        bakeoff_dir / "mouse_f0.25_by_hand.json"
+    ]
+
     human_path_list = [
         bakeoff_dir / "human_f0.9.json",
         bakeoff_dir / "human_f0.25.json"
     ]
 
-    output_path = "bakeoff/confidence_distribution.pdf"
+    output_path = "bakeoff/confidence_distribution_handoff.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -46,12 +55,26 @@ def main():
             drop_level='CCN20230722_SUPT',
             species='mouse')
 
+        plot_species_comparison(
+            mapping_path_list=by_hand_path_list,
+            pdf_handle=pdf_handle,
+            drop_level='CCN20230722_SUPT',
+            species='mouse_by_hand')
+
+        plot_species_comparison(
+            mapping_path_list=handoff_path_list,
+            pdf_handle=pdf_handle,
+            drop_level='CCN20230722_SUPT',
+            species='mouse_handoff')
+
+
+
 
 def plot_species_comparison(
         mapping_path_list,
         pdf_handle,
         drop_level=None,
-        fontsize=20,
+        fontsize=30,
         species='mouse'):
     """
     Assumes every mapping in mapping_path_list has the same taxonomy
@@ -75,7 +98,7 @@ def plot_species_comparison(
             truth[cell][level] = val
 
     fig = mfig.Figure(
-        figsize=(2*20, len(taxonomy_tree.hierarchy)*20))
+        figsize=(2*20, len(taxonomy_tree.hierarchy)*10))
     axis_lookup = dict()
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         axis_lookup[level] = dict()
