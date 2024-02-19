@@ -98,14 +98,14 @@ def plot_species_comparison(
             truth[cell][level] = val
 
     fig = mfig.Figure(
-        figsize=(2*20, len(taxonomy_tree.hierarchy)*10))
+        figsize=(3*20, len(taxonomy_tree.hierarchy)*10))
     axis_lookup = dict()
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         axis_lookup[level] = dict()
-        for i_k, k in enumerate(('cdf', 'pdf')):
+        for i_k, k in enumerate(('cdf', 'pdf', 'pdf_rate')):
             axis_lookup[level][k] = fig.add_subplot(
-                len(taxonomy_tree.hierarchy), 2,
-                1+i_level*2 + i_k)
+                len(taxonomy_tree.hierarchy), 3,
+                1+i_level*3 + i_k)
 
     for mapping_path, color in zip(mapping_path_list, ('r', 'g')):
         mapping = json.load(open(mapping_path,'rb'))
@@ -131,9 +131,11 @@ def plot_species_comparison(
                 color=color,
                 legend_label=legend_label)
 
-            axis = axis_lookup[level]['pdf']
+            ct_axis = axis_lookup[level]['pdf']
+            rate_axis = axis_lookup[level]['pdf_rate']
             plot_pdf_comparison(
-                axis=axis,
+                ct_axis=ct_axis,
+                rate_axis=rate_axis,
                 taxonomy_tree=taxonomy_tree,
                 mapping=mapping,
                 truth=truth,
@@ -158,6 +160,12 @@ def plot_species_comparison(
         axis = axis_lookup[level]['pdf']
         axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
         axis.set_ylabel('number correct', fontsize=fontsize)
+        axis.legend(loc=0, fontsize=fontsize)
+        axis.tick_params(which='both', axis='both', labelsize=fontsize)
+
+        axis = axis_lookup[level]['pdf_rate']
+        axis.set_xlabel('bootstrapping probability', fontsize=fontsize)
+        axis.set_ylabel('fraction correct', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
@@ -191,7 +199,8 @@ def plot_cdf_comparison(
 
 
 def plot_pdf_comparison(
-        axis,
+        ct_axis,
+        rate_axis,
         taxonomy_tree,
         mapping,
         truth,
@@ -202,19 +211,33 @@ def plot_pdf_comparison(
 
     (bins,
      expected,
-     actual) = get_rate_lookup_pdf(
+     actual,
+     total) = get_rate_lookup_pdf(
         taxonomy_tree=taxonomy_tree,
         mapping=mapping,
         truth=truth,
         level=level,
         binsize=binsize)
 
-    axis.stairs(actual, bins, label=legend_label, color=color, alpha=0.5)
+    ct_axis.stairs(actual, bins, label=legend_label, color=color, alpha=0.5)
     x_bins = 0.5*(bins[1:]+bins[:-1])
-    axis.scatter(x_bins, actual, c=color, marker='x', s=15)
-    axis.plot(x_bins, expected, c=color, linestyle='--')
-    axis.scatter(x_bins, expected, c=color, marker='o', s=10)
-    axis.set_yscale('log')
+    ct_axis.scatter(x_bins, actual, c=color, marker='x', s=15)
+    ct_axis.plot(x_bins, expected, c=color, linestyle='--')
+    ct_axis.scatter(x_bins, expected, c=color, marker='o', s=10)
+    ct_axis.set_yscale('log')
+
+    total[total<1] = 1
+    rate_axis.stairs(actual/total, bins,
+                     label=legend_label, color=color, alpha=0.5)
+    rate_axis.scatter(x_bins, actual/total, c=color, marker='x', s=15)
+    if color == 'g':
+        rate_axis.plot(
+             x_bins,
+             expected/total,
+             c='b',
+             linestyle='--',
+             label='expected')
+    rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
 
 
 def get_rate_lookup_cdf(
@@ -263,10 +286,10 @@ def get_rate_lookup_cdf(
             continue
 
         used_bins.append(b)
-        expected.append(all_prob[expected_mask].sum()/expected_mask.sum())   
+        expected.append(all_prob[expected_mask].sum()/expected_mask.sum())
         denom = max(1, this_true+this_false)
         actual.append(this_true/denom)
-    return np.array(used_bins), np.array(expected), np.array(actual) 
+    return np.array(used_bins), np.array(expected), np.array(actual)
 
 
 
@@ -308,7 +331,7 @@ def get_rate_lookup_pdf(
     #denom = np.where(total>0.0, total, 1.0)
     #true_assn = true_assn/denom
 
-    return bins, expected, true_assn
+    return bins, expected, true_assn, total
 
 
 
