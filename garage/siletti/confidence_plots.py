@@ -69,7 +69,6 @@ def main():
 
 
 
-
 def plot_species_comparison(
         mapping_path_list,
         pdf_handle,
@@ -97,15 +96,16 @@ def plot_species_comparison(
                 truth[cell] = dict()
             truth[cell][level] = val
 
+    n_col = 4
     fig = mfig.Figure(
-        figsize=(3*20, len(taxonomy_tree.hierarchy)*10))
+        figsize=(n_col*10, len(taxonomy_tree.hierarchy)*10))
     axis_lookup = dict()
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         axis_lookup[level] = dict()
-        for i_k, k in enumerate(('cdf', 'pdf', 'pdf_rate')):
+        for i_k, k in enumerate(('cdf', 'pdf', 'pdf_rate', 'roc')):
             axis_lookup[level][k] = fig.add_subplot(
-                len(taxonomy_tree.hierarchy), 3,
-                1+i_level*3 + i_k)
+                len(taxonomy_tree.hierarchy), n_col,
+                1+i_level*n_col + i_k)
 
     for mapping_path, color in zip(mapping_path_list, ('r', 'g')):
         mapping = json.load(open(mapping_path,'rb'))
@@ -133,9 +133,11 @@ def plot_species_comparison(
 
             ct_axis = axis_lookup[level]['pdf']
             rate_axis = axis_lookup[level]['pdf_rate']
+            roc_axis = axis_lookup[level]['roc']
             plot_pdf_comparison(
                 ct_axis=ct_axis,
                 rate_axis=rate_axis,
+                roc_axis=roc_axis,
                 taxonomy_tree=taxonomy_tree,
                 mapping=mapping,
                 truth=truth,
@@ -169,6 +171,11 @@ def plot_species_comparison(
         axis.legend(loc=0, fontsize=fontsize)
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
+        axis = axis_lookup[level]['roc']
+        axis.set_xlabel('False positive rate', fontsize=fontsize)
+        axis.set_ylabel('True positive rate', fontsize=fontsize)
+        axis.legend(loc=0, fontsize=fontsize)
+        axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
     fig.tight_layout()
 
@@ -201,6 +208,7 @@ def plot_cdf_comparison(
 def plot_pdf_comparison(
         ct_axis,
         rate_axis,
+        roc_axis,
         taxonomy_tree,
         mapping,
         truth,
@@ -212,7 +220,9 @@ def plot_pdf_comparison(
     (bins,
      expected,
      actual,
-     total) = get_rate_lookup_pdf(
+     total,
+     tpr,
+     fpr) = get_rate_lookup_pdf(
         taxonomy_tree=taxonomy_tree,
         mapping=mapping,
         truth=truth,
@@ -238,6 +248,12 @@ def plot_pdf_comparison(
              linestyle='--',
              label='expected')
     rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
+
+    tpr = np.concatenate([tpr, [0.0]])
+    fpr = np.concatenate([fpr, [0.0]])
+    sorted_dex = np.argsort(fpr)
+    roc_axis.plot(fpr[sorted_dex], tpr[sorted_dex], color=color,
+                  marker='o', markersize=10, label=legend_label)
 
 
 def get_rate_lookup_cdf(
@@ -305,6 +321,10 @@ def get_rate_lookup_pdf(
     true_assn = np.zeros(bins.shape[0]-1, dtype=float)
     total = np.zeros(bins.shape[0]-1, dtype=float)
 
+    true_pos = np.zeros(bins.shape[0]-1, dtype=float)
+    false_pos = np.zeros(bins.shape[0]-1, dtype=float)
+
+    assert len(truth) == len(mapping)
     for cell_id in mapping:
         is_true = (mapping[cell_id][level]['assignment']
                    == truth[cell_id][level])
@@ -321,7 +341,14 @@ def get_rate_lookup_pdf(
 
         if is_true:
             true_assn[prob_idx] += 1
+            true_pos[:prob_idx+1] += 1
+        else:
+            false_pos[:prob_idx+1] += 1
+        
         total[prob_idx] += 1
+
+    tpr_denom = len(truth)
+    fpr_denom = (len(taxonomy_tree.nodes_at_level(level))-1)*len(truth)
 
     expected = np.zeros(total.shape, dtype=float)
     for ii in range(len(expected)):
@@ -331,7 +358,12 @@ def get_rate_lookup_pdf(
     #denom = np.where(total>0.0, total, 1.0)
     #true_assn = true_assn/denom
 
-    return bins, expected, true_assn, total
+    return (bins,
+            expected,
+            true_assn,
+            total,
+            true_pos/tpr_denom,
+            false_pos/fpr_denom)
 
 
 
