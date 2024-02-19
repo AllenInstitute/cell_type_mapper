@@ -48,7 +48,7 @@ def main():
             pdf_handle=pdf_handle,
             drop_level=None,
             species='human')
-        """
+
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
             pdf_handle=pdf_handle,
@@ -66,7 +66,7 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_handoff')
-       """
+
 
 
 def plot_species_comparison(
@@ -98,7 +98,7 @@ def plot_species_comparison(
 
     n_col = 4
     fig = mfig.Figure(
-        figsize=(n_col*15, len(taxonomy_tree.hierarchy)*10))
+        figsize=(n_col*10, len(taxonomy_tree.hierarchy)*10))
     axis_lookup = dict()
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         axis_lookup[level] = dict()
@@ -172,10 +172,9 @@ def plot_species_comparison(
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
         axis = axis_lookup[level]['roc']
-        axis.set_xlabel('cutoff probability', fontsize=fontsize)
-        axis.set_ylabel('N_(true/false) allowed', fontsize=fontsize)
+        axis.set_xlabel('False positive rate', fontsize=fontsize)
+        axis.set_ylabel('True positive rate', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
-        axis.set_yscale('log')
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
     fig.tight_layout()
@@ -222,8 +221,8 @@ def plot_pdf_comparison(
      expected,
      actual,
      total,
-     n_true_pos,
-     n_false_pos) = get_rate_lookup_pdf(
+     tpr,
+     fpr) = get_rate_lookup_pdf(
         taxonomy_tree=taxonomy_tree,
         mapping=mapping,
         truth=truth,
@@ -250,13 +249,11 @@ def plot_pdf_comparison(
              label='expected')
     rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
 
-    denom = n_true_pos+n_false_pos
-    roc_axis.stairs(
-        n_true_pos/denom, bins, color=color,
-        label=f'{legend_label}: true classifications')
-    roc_axis.stairs(
-        n_false_pos/denom, bins, color=color, linestyle='--',
-        label=f'{legend_label}: false classifications')
+    tpr = np.concatenate([tpr, [0.0]])
+    fpr = np.concatenate([fpr, [0.0]])
+    sorted_dex = np.argsort(fpr)
+    roc_axis.plot(fpr[sorted_dex], tpr[sorted_dex], color=color,
+                  marker='o', markersize=10, label=legend_label)
 
 
 def get_rate_lookup_cdf(
@@ -350,6 +347,9 @@ def get_rate_lookup_pdf(
         
         total[prob_idx] += 1
 
+    tpr_denom = len(truth)
+    fpr_denom = (len(taxonomy_tree.nodes_at_level(level))-1)*len(truth)
+
     expected = np.zeros(total.shape, dtype=float)
     for ii in range(len(expected)):
         v = 0.5*(bins[ii]+bins[ii+1])
@@ -362,8 +362,8 @@ def get_rate_lookup_pdf(
             expected,
             true_assn,
             total,
-            true_pos,
-            false_pos)
+            true_pos/tpr_denom,
+            false_pos/fpr_denom)
 
 
 
