@@ -50,7 +50,6 @@ def main():
             drop_level=None,
             species='human')
 
-        """
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
             pdf_handle=pdf_handle,
@@ -68,8 +67,6 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_handoff')
-        """
-
 
 def plot_species_comparison(
         mapping_path_list,
@@ -109,7 +106,7 @@ def plot_species_comparison(
                 len(taxonomy_tree.hierarchy), n_col,
                 1+i_level*n_col + i_k)
 
-    for mapping_path, color in zip(mapping_path_list, ('r', 'g')):
+    for mapping_path, color in zip(mapping_path_list, ('r', 'b')):
         mapping = json.load(open(mapping_path,'rb'))
         this_config = mapping['config']
         assert this_config['query_path'] == config['query_path']
@@ -239,22 +236,35 @@ def plot_pdf_comparison(
     total[total<1] = 1
     rate_axis.stairs(actual/total, bins,
                      label=legend_label, color=color, linewidth=5)
-    if color == 'g':
+    if color == 'b':
         rate_axis.plot(
              x_bins,
              expected/total,
-             c='b',
+             c='c',
              linestyle='--',
              label='expected',
              linewidth=5)
-    rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
 
     sorted_dex = np.argsort(n_false_pos)
+    if color == 'r':
+        linestyle = '--'
+        zorder = 0
+        marker = 'x'
+        markersize = 20
+    else:
+        linestyle = '-'
+        zorder = 1
+        marker = None
+        markersize = None
     roc_axis.plot(n_false_pos[sorted_dex],
                   n_true_pos[sorted_dex],
                   color=color,
                   label=legend_label,
-                  linewidth=5)
+                  linewidth=5,
+                  linestyle=linestyle,
+                  zorder=zorder,
+                  marker=marker,
+                  markersize=markersize)
 
 
 def get_rate_lookup_cdf(
@@ -351,9 +361,18 @@ def get_rate_lookup_pdf(
         total[prob_idx] += 1
 
 
-    sorted_dex = np.argsort(-1.0*all_prob)
-    true_pos = np.cumsum(true_pos[sorted_dex])
-    false_pos = np.cumsum(false_pos[sorted_dex])
+    unq_prob = np.unique(all_prob)
+    final_tp = []
+    final_fp = []
+    ct = 0
+    for val in unq_prob[::-1]:
+        idx = np.where(all_prob == val)
+        ct += len(idx[0])
+        final_tp.append(true_pos[idx].sum())
+        final_fp.append(false_pos[idx].sum())
+    assert ct == len(all_prob)
+    true_pos = np.cumsum(np.array(final_tp))
+    false_pos = np.cumsum(np.array(final_fp))
 
     expected = np.zeros(total.shape, dtype=float)
     for ii in range(len(expected)):
