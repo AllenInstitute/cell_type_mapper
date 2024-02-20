@@ -33,6 +33,7 @@ def main():
     ]
 
     by_hand_path_list = [
+        bakeoff_dir / "mouse_f0.9_by_hand.json",
         bakeoff_dir / "mouse_f0.25_by_hand.json"
     ]
 
@@ -49,6 +50,7 @@ def main():
             drop_level=None,
             species='human')
 
+        """
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
             pdf_handle=pdf_handle,
@@ -66,7 +68,7 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_handoff')
-
+        """
 
 
 def plot_species_comparison(
@@ -172,8 +174,8 @@ def plot_species_comparison(
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
         axis = axis_lookup[level]['roc']
-        axis.set_xlabel('False positive rate', fontsize=fontsize)
-        axis.set_ylabel('True positive rate', fontsize=fontsize)
+        axis.set_xlabel('N false labels', fontsize=fontsize)
+        axis.set_ylabel('N true labels', fontsize=fontsize)
         axis.legend(loc=0, fontsize=fontsize)
         axis.tick_params(which='both', axis='both', labelsize=fontsize)
 
@@ -201,8 +203,8 @@ def plot_cdf_comparison(
         level=level,
         binsize=binsize)
 
-    axis.plot(bins, actual, label=legend_label, c=color)
-    axis.plot(bins, expected, c=color, linestyle='--')
+    axis.plot(bins, actual, label=legend_label, c=color, linewidth=5)
+    axis.plot(bins, expected, c=color, linestyle='--', linewidth=5)
 
 
 def plot_pdf_comparison(
@@ -221,37 +223,38 @@ def plot_pdf_comparison(
      expected,
      actual,
      total,
-     tpr,
-     fpr) = get_rate_lookup_pdf(
+     n_true_pos,
+     n_false_pos) = get_rate_lookup_pdf(
         taxonomy_tree=taxonomy_tree,
         mapping=mapping,
         truth=truth,
         level=level,
         binsize=binsize)
 
-    ct_axis.stairs(actual, bins, label=legend_label, color=color, alpha=0.5)
+    ct_axis.stairs(actual, bins, label=legend_label, color=color, linewidth=5)
     x_bins = 0.5*(bins[1:]+bins[:-1])
-    ct_axis.scatter(x_bins, actual, c=color, marker='x', s=15)
-    ct_axis.plot(x_bins, expected, c=color, linestyle='--')
-    ct_axis.scatter(x_bins, expected, c=color, marker='o', s=10)
+    ct_axis.plot(x_bins, expected, c=color, linestyle='--', linewidth=5)
     ct_axis.set_yscale('log')
 
     total[total<1] = 1
     rate_axis.stairs(actual/total, bins,
-                     label=legend_label, color=color, alpha=0.5)
-    rate_axis.scatter(x_bins, actual/total, c=color, marker='x', s=15)
+                     label=legend_label, color=color, linewidth=5)
     if color == 'g':
         rate_axis.plot(
              x_bins,
              expected/total,
              c='b',
              linestyle='--',
-             label='expected')
+             label='expected',
+             linewidth=5)
     rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
 
-    sorted_dex = np.argsort(fpr)
-    roc_axis.plot(fpr[sorted_dex], tpr[sorted_dex], color=color,
-                  marker='o', markersize=10, label=legend_label)
+    sorted_dex = np.argsort(n_false_pos)
+    roc_axis.plot(n_false_pos[sorted_dex],
+                  n_true_pos[sorted_dex],
+                  color=color,
+                  label=legend_label,
+                  linewidth=5)
 
 
 def get_rate_lookup_cdf(
@@ -319,11 +322,13 @@ def get_rate_lookup_pdf(
     true_assn = np.zeros(bins.shape[0]-1, dtype=float)
     total = np.zeros(bins.shape[0]-1, dtype=float)
 
-    true_pos = np.zeros(bins.shape[0]-1, dtype=float)
-    false_pos = np.zeros(bins.shape[0]-1, dtype=float)
+    n_cells = len(mapping)
+    true_pos = np.zeros(n_cells, dtype=int)
+    false_pos = np.zeros(n_cells, dtype=int)
+    all_prob = np.zeros(n_cells, dtype=float)
 
     assert len(truth) == len(mapping)
-    for cell_id in mapping:
+    for i_cell, cell_id in enumerate(mapping):
         is_true = (mapping[cell_id][level]['assignment']
                    == truth[cell_id][level])
 
@@ -339,29 +344,28 @@ def get_rate_lookup_pdf(
 
         if is_true:
             true_assn[prob_idx] += 1
-            true_pos[:prob_idx+1] += 1
+            true_pos[i_cell] = 1
         else:
-            false_pos[:prob_idx+1] += 1
-        
+            false_pos[i_cell] = 1
+        all_prob[i_cell] = prob
         total[prob_idx] += 1
 
-    tpr_denom = len(truth)
-    fpr_denom = (len(taxonomy_tree.nodes_at_level(level))-1)*len(truth)
+
+    sorted_dex = np.argsort(-1.0*all_prob)
+    true_pos = np.cumsum(true_pos[sorted_dex])
+    false_pos = np.cumsum(false_pos[sorted_dex])
 
     expected = np.zeros(total.shape, dtype=float)
     for ii in range(len(expected)):
         v = 0.5*(bins[ii]+bins[ii+1])
         expected[ii] = v*total[ii]
 
-    #denom = np.where(total>0.0, total, 1.0)
-    #true_assn = true_assn/denom
-
     return (bins,
             expected,
             true_assn,
             total,
-            true_pos/tpr_denom,
-            false_pos/fpr_denom)
+            true_pos,
+            false_pos)
 
 
 
