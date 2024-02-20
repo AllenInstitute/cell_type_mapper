@@ -98,7 +98,7 @@ def plot_species_comparison(
 
     n_col = 4
     fig = mfig.Figure(
-        figsize=(n_col*10, len(taxonomy_tree.hierarchy)*10))
+        figsize=(n_col*15, len(taxonomy_tree.hierarchy)*10))
     axis_lookup = dict()
     for i_level, level in enumerate(taxonomy_tree.hierarchy):
         axis_lookup[level] = dict()
@@ -249,8 +249,6 @@ def plot_pdf_comparison(
              label='expected')
     rate_axis.scatter(x_bins, expected/total, c=color, marker='o', s=10)
 
-    tpr = np.concatenate([tpr, [0.0]])
-    fpr = np.concatenate([fpr, [0.0]])
     sorted_dex = np.argsort(fpr)
     roc_axis.plot(fpr[sorted_dex], tpr[sorted_dex], color=color,
                   marker='o', markersize=10, label=legend_label)
