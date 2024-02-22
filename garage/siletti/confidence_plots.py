@@ -22,6 +22,10 @@ def main():
         "/allen/aibs/technology/danielsf/knowledge_base/siletti/bakeoff")
     assert bakeoff_dir.is_dir()
 
+    frac_grid_dir = bakeoff_dir.parent / 'frac_grid'
+    assert frac_grid_dir.is_dir()
+
+    """
     mouse_path_list = [
         bakeoff_dir / "mouse_f0.9.json",
         bakeoff_dir / "mouse_f0.25.json",
@@ -41,8 +45,23 @@ def main():
         bakeoff_dir / "human_f0.9.json",
         bakeoff_dir / "human_f0.25.json"
     ]
+    """
 
-    output_path = "bakeoff/confidence_distribution_handoff.pdf"
+    human_path_list = [
+        frac_grid_dir / "human_f0.9.json",
+        frac_grid_dir / "human_f0.8.json",
+        frac_grid_dir / "human_f0.75.json",
+        frac_grid_dir / "human_f0.5.json",
+        bakeoff_dir / "human_f0.25.json"]
+
+    handoff_path_list = [
+        frac_grid_dir / "mouse_f0.9_handoff.json",
+        frac_grid_dir / "mouse_f0.8_handoff.json",
+        frac_grid_dir / "mouse_f0.75_handoff.json",
+        frac_grid_dir / "mouse_f0.5_handoff.json",
+        bakeoff_dir / "mouse_f0.25_handoff.json"]
+
+    output_path = "bakeoff/confidence_distribution_grid.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -50,6 +69,7 @@ def main():
             drop_level=None,
             species='human')
 
+        """
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
             pdf_handle=pdf_handle,
@@ -61,6 +81,7 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_by_hand')
+        """
 
         plot_species_comparison(
             mapping_path_list=handoff_path_list,
@@ -106,7 +127,8 @@ def plot_species_comparison(
                 len(taxonomy_tree.hierarchy), n_col,
                 1+i_level*n_col + i_k)
 
-    for mapping_path, color in zip(mapping_path_list, ('r', 'b')):
+    for mapping_path, color in zip(mapping_path_list, ('r', 'b', 'g',
+           'orange', 'darkorchid')):
         mapping = json.load(open(mapping_path,'rb'))
         this_config = mapping['config']
         assert this_config['query_path'] == config['query_path']
