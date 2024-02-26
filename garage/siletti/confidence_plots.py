@@ -25,6 +25,15 @@ def main():
     frac_grid_dir = bakeoff_dir.parent / 'frac_grid'
     assert frac_grid_dir.is_dir()
 
+    sea_ad_dir = bakeoff_dir.parent / 'sea_ad_genes'
+    assert sea_ad_dir.is_dir()
+
+    small_markers_dir = bakeoff_dir.parent / 'small_markers'
+    assert small_markers_dir.is_dir()
+
+    random_dir = bakeoff_dir.parent / 'random_500'
+    assert random_dir.is_dir()
+
     """
     mouse_path_list = [
         bakeoff_dir / "mouse_f0.9.json",
@@ -45,14 +54,21 @@ def main():
         bakeoff_dir / "human_f0.9.json",
         bakeoff_dir / "human_f0.25.json"
     ]
+
+    human_path_list = [
+        random_dir / "human_f0.9.json",
+        random_dir / "human_f0.8.json",
+        random_dir / "human_f0.75.json",
+        random_dir / "human_f0.5.json",
+        random_dir / "human_f0.25.json"]
     """
 
     human_path_list = [
-        frac_grid_dir / "human_f0.9.json",
-        frac_grid_dir / "human_f0.8.json",
-        frac_grid_dir / "human_f0.75.json",
-        frac_grid_dir / "human_f0.5.json",
-        bakeoff_dir / "human_f0.25.json"]
+        sea_ad_dir / "human_f0.9_n300.json",
+        sea_ad_dir / "human_f0.8_n300.json",
+        sea_ad_dir / "human_f0.75_n300.json",
+        sea_ad_dir / "human_f0.5_n300.json",
+        sea_ad_dir / "human_f0.25_n300.json"]
 
     handoff_path_list = [
         frac_grid_dir / "mouse_f0.9_handoff.json",
@@ -61,7 +77,7 @@ def main():
         frac_grid_dir / "mouse_f0.5_handoff.json",
         bakeoff_dir / "mouse_f0.25_handoff.json"]
 
-    output_path = "bakeoff/confidence_distribution_grid.pdf"
+    output_path = "bakeoff/confidence_distribution_sea_ad_n300.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -81,13 +97,13 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_by_hand')
-        """
 
         plot_species_comparison(
             mapping_path_list=handoff_path_list,
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_handoff')
+        """
 
 def plot_species_comparison(
         mapping_path_list,
