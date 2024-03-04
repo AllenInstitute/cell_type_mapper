@@ -61,23 +61,53 @@ def main():
         random_dir / "human_f0.75.json",
         random_dir / "human_f0.5.json",
         random_dir / "human_f0.25.json"]
-    """
 
     human_path_list = [
-        sea_ad_dir / "human_f0.9_n300.json",
-        sea_ad_dir / "human_f0.8_n300.json",
-        sea_ad_dir / "human_f0.75_n300.json",
-        sea_ad_dir / "human_f0.5_n300.json",
-        sea_ad_dir / "human_f0.25_n300.json"]
+        sea_ad_dir / "human_f0.9_min10.json",
+        sea_ad_dir / "human_f0.8_min10.json",
+        sea_ad_dir / "human_f0.75_min10.json",
+        sea_ad_dir / "human_f0.5_min10.json",
+        sea_ad_dir / "human_f0.25_min10.json"]
+    """
 
     handoff_path_list = [
-        frac_grid_dir / "mouse_f0.9_handoff.json",
-        frac_grid_dir / "mouse_f0.8_handoff.json",
+        #frac_grid_dir / "mouse_f0.9_handoff.json",
+        #frac_grid_dir / "mouse_f0.8_handoff.json",
         frac_grid_dir / "mouse_f0.75_handoff.json",
         frac_grid_dir / "mouse_f0.5_handoff.json",
+        frac_grid_dir / "mouse_f0.4_handoff.json",
+        frac_grid_dir / "mouse_f0.33_handoff.json",
         bakeoff_dir / "mouse_f0.25_handoff.json"]
 
-    output_path = "bakeoff/confidence_distribution_sea_ad_n300.pdf"
+    human_path_list = [
+        #frac_grid_dir / "mouse_f0.9_handoff.json",
+        #frac_grid_dir / "mouse_f0.8_handoff.json",
+        frac_grid_dir / "human_f0.75.json",
+        frac_grid_dir / "human_f0.5.json",
+        frac_grid_dir / "human_f0.40.json",
+        frac_grid_dir / "human_f0.33.json",
+        bakeoff_dir / "human_f0.25.json"]
+
+    human_small_list = [
+        #frac_grid_dir / "mouse_f0.9_handoff.json",
+        #frac_grid_dir / "mouse_f0.8_handoff.json",
+        small_markers_dir / "human_f0.75.json",
+        small_markers_dir / "human_f0.5.json",
+        small_markers_dir / "human_f0.40.json",
+        small_markers_dir / "human_f0.33.json",
+        small_markers_dir / "human_f0.25.json"]
+
+    sea_ad_list = [
+        #frac_grid_dir / "mouse_f0.9_handoff.json",
+        #frac_grid_dir / "mouse_f0.8_handoff.json",
+        sea_ad_dir / "human_f0.75_small_markers.json",
+        sea_ad_dir / "human_f0.5_small_markers.json",
+        sea_ad_dir / "human_f0.40_small_markers.json",
+        sea_ad_dir / "human_f0.33_small_markers.json",
+        sea_ad_dir / "human_f0.25_small_markers.json"]
+
+
+    output_path = "bakeoff/confidence_distribution_finer.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -85,6 +115,20 @@ def main():
             drop_level=None,
             species='human')
 
+        plot_species_comparison(
+            mapping_path_list=human_small_list,
+            pdf_handle=pdf_handle,
+            drop_level=None,
+            species='human_small')
+
+        plot_species_comparison(
+            mapping_path_list=sea_ad_list,
+            pdf_handle=pdf_handle,
+            drop_level=None,
+            species='human_sea_ad')
+
+
+ 
         """
         plot_species_comparison(
             mapping_path_list=mouse_path_list,
@@ -97,13 +141,12 @@ def main():
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_by_hand')
-
+        """
         plot_species_comparison(
             mapping_path_list=handoff_path_list,
             pdf_handle=pdf_handle,
             drop_level='CCN20230722_SUPT',
             species='mouse_handoff')
-        """
 
 def plot_species_comparison(
         mapping_path_list,
@@ -303,6 +346,10 @@ def plot_pdf_comparison(
                   zorder=zorder,
                   marker=marker,
                   markersize=markersize)
+
+    n100k_max = 100000*np.floor(n_true_pos.max()/100000).astype(int)
+    for ix in range(100000, n100k_max+1, 100000):
+        roc_axis.axhline(ix, linestyle='--', color='r')
 
 
 def get_rate_lookup_cdf(
