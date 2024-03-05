@@ -721,3 +721,35 @@ def test_gene_name_errors(tmp_dir_fixture):
             h5ad_path=h5ad_path,
             valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
             gene_id_mapper=GeneIdMapper.from_mouse())
+
+
+def test_cell_id_errors(tmp_dir_fixture):
+    """
+    Test that an error is raised when a cell_id is
+    repeated
+    """
+    obs = pd.DataFrame(
+        [
+         {'cell_id': 'c0'},
+         {'cell_id': 'c1'},
+         {'cell_id': 'c0'},
+         {'cell_id': 'c2'}
+        ]).set_index('cell_id')
+
+    var = pd.DataFrame(
+        [{'g': f'g{ii}'} for ii in range(8)]).set_index('g')
+
+    x = np.ones((len(obs), len(var)), dtype=float)
+    a_data = anndata.AnnData(
+        obs=obs, var=var, X=x)
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    msg = "Cell IDs need to be unique"
+    with pytest.raises(RuntimeError, match=msg):
+        validate_h5ad(
+            h5ad_path=h5ad_path,
+            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+            gene_id_mapper=None)
