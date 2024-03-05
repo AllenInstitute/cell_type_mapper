@@ -166,6 +166,29 @@ def _validate_h5ad(
         else:
             log.error(error_msg)
 
+    # check that cell names are not repeated
+    obs_original = read_df_from_h5ad(
+        h5ad_path=original_h5ad_path,
+        df_name='obs')
+
+    cell_id_census = dict()
+    for cell_id in obs_original.index.values:
+        if cell_id not in cell_id_census:
+            cell_id_census[cell_id] = 1
+        else:
+            cell_id_census[cell_id] += 1
+    msg = ''
+    for cell_id in cell_id_census:
+        if cell_id_census[cell_id] > 1:
+            msg += f"'{cell_id}' occurred {cell_id_census[cell_id]} times\n"
+    if len(msg) > 0:
+        msg = (
+            "Cell IDs need to be unique. The following cell IDs were "
+            "repeated in your obs dataframe:\n"
+            f"{msg}"
+        )
+        raise RuntimeError(msg)
+
     # check that gene names are not repeated
     var_original = read_df_from_h5ad(
             h5ad_path=original_h5ad_path,
