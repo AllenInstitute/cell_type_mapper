@@ -392,6 +392,7 @@ def hdf5_to_blob(
             r_assignment = src['runner_up_assignment'][()]
             r_prob = src['runner_up_probability'][()]
             r_corr = src['runner_up_correlation'][()]
+            n_r = r_assignment.shape[-1]
         else:
             r_assignment = None
             r_prob = None
@@ -412,10 +413,9 @@ def hdf5_to_blob(
                 'runner_up_correlation': []
             }
             if r_assignment is not None:
-                n_r = r_assignment.shape[-1]
                 for i_r in range(n_r):
                     if r_assignment[i_cell, i_level, i_r] < 0:
-                        continue
+                        break
                     node = int_to_node[level][
                         r_assignment[i_cell, i_level, i_r]]
                     this['runner_up_assignment'].append(node)
