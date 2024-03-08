@@ -1,6 +1,7 @@
 import anndata
 from anndata._io.specs import read_elem
 from anndata._io.specs import write_elem
+import copy
 import h5py
 import json
 import numpy as np
@@ -806,3 +807,96 @@ def pivot_csr_h5ad(
                         dataset[i0:i0+delta] = src[name][i0:i0+delta]
     finally:
         _clean_up(tmp_dir)
+
+
+def subset_csc_h5ad_columns(
+        src_path,
+        dst_path,
+        chosen_columns,
+        compression=True):
+    """
+    Subset the columns of a CSC-encoded h5ad file, writing the subset
+    to a new h5ad file.
+
+    Parameters
+    ----------
+    src_path:
+        Path to the original h5ad file
+    dst_path:
+        Path to the new h5ad file
+    chosen_columns:
+        Array of integers denoting the columns to choose
+    compression:
+        If True, use gzip compression in the output file
+
+    Note
+    ----
+    Column order will not be preserved, but the specified columns
+    will be used.
+    """
+    compressor = None
+    compression_opts = None
+    if compression:
+        compressor = 'gzip'
+        compression_opts = 4
+
+    with h5py.File(src_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+
+    if attrs['encoding-type'] != 'csc_matrix':
+        raise RuntimeError(
+            f'{src_path} is not CSC encoded. Attrs for X are:\n'
+            f'{attrs}')
+
+    chosen_columns = np.sort(np.array(chosen_columns))
+
+    obs = read_df_from_h5ad(src_path, df_name='obs')
+    var = read_df_from_h5ad(src_path, df_name='var')
+    new_var = var.iloc[chosen_columns]
+
+    dst = anndata.AnnData(
+        obs=obs,
+        var=new_var)
+    dst.write_h5ad(dst_path)
+
+    with h5py.File(src_path, 'r') as src:
+        src_x = src['X']
+        attrs = dict(src_x.attrs)
+        new_attrs = copy.deepcopy(attrs)
+        new_attrs['shape'][1] = len(chosen_columns)
+        src_indptr = src_x['indptr'][()]
+
+        n_non_zero = 0
+        for col in chosen_columns:
+            n_non_zero += src_indptr[col+1]-src_indptr[col]
+
+        with h5py.File(dst_path, 'a') as dst:
+            dst_x = dst.create_group('X')
+            for name in new_attrs:
+                dst_x.attrs.create(name=name, data=new_attrs[name])
+            for name in ('data', 'indices'):
+                dst_x.create_dataset(
+                    name,
+                    shape=(n_non_zero,),
+                    dtype=src_x[name].dtype,
+                    chunks=True,
+                    compression=compressor,
+                    compression_opts=compression_opts)
+            dst_indptr = np.zeros(
+                len(chosen_columns)+1, dtype=src_x['indices'].dtype)
+            dst_indptr[-1] = n_non_zero
+            dst0 = 0
+            for i_col, col in enumerate(chosen_columns):
+                src0 = src_indptr[col]
+                src1 = src_indptr[col+1]
+                dst1 = dst0 + (src1-src0)
+                dst_indptr[i_col] = dst0
+                dst_x['indices'][dst0:dst1] = src_x['indices'][src0:src1]
+                dst_x['data'][dst0:dst1] = src_x['data'][src0:src1]
+                dst0 = dst1
+            dst_x.create_dataset(
+                'indptr',
+                data=dst_indptr,
+                chunks=True,
+                compression=compressor,
+                compression_opts=compression_opts)
