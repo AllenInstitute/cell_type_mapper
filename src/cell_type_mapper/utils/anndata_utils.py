@@ -15,6 +15,9 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
+from cell_type_mapper.utils.csc_to_csr_parallel import (
+    transpose_sparse_matrix_on_disk_v2)
+
 
 def read_df_from_h5ad(h5ad_path, df_name):
     """
@@ -717,3 +720,89 @@ def shuffle_csr_h5ad_rows(
             dst_indptr[-1] = src_indptr[-1]
             dst_x.create_dataset(
                 'indptr', data=dst_indptr)
+
+
+def pivot_csr_h5ad(
+        src_path,
+        dst_path,
+        tmp_dir=None,
+        n_processors=3,
+        max_gb=10,
+        compression=True):
+    """
+    Convert a CSR-encoded h5ad file to csc.
+
+    Parameters
+    ----------
+    src_path:
+        Path to the CSR-encoded h5ad file
+    dst_path:
+        Path where the CSC-encoded h5ad file will be written
+    tmp_dir:
+        Directory where scratch files can be written
+    n_processors:
+        Number of available processors to use
+    max_gb:
+        Maximum GB to hold in memory at once
+    compression:
+        If True, use gzip compression in new file
+    """
+    with h5py.File(src_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+
+    if attrs['encoding-type'] != 'csr_matrix':
+        raise RuntimeError(
+            f'{src_path} is not CSR encoded. Attrs for X are:\n'
+            f'{attrs}')
+
+    obs = read_df_from_h5ad(h5ad_path=src_path, df_name='obs')
+    var = read_df_from_h5ad(h5ad_path=src_path, df_name='var')
+    dst = anndata.AnnData(obs=obs, var=var)
+    dst.write_h5ad(dst_path)
+
+    if compression:
+        compressor = 'gzip'
+        compression_opts = 4
+    else:
+        compressor = None
+        compression_opts = None
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
+    try:
+        tmp_path = mkstemp_clean(
+            dir=tmp_dir,
+            suffix='.h5')
+
+        transpose_sparse_matrix_on_disk_v2(
+            h5_path=src_path,
+            indices_tag='X/indices',
+            indptr_tag='X/indptr',
+            data_tag='X/data',
+            indices_max=attrs['shape'][1],
+            max_gb=max_gb,
+            output_path=tmp_path,
+            output_mode='a',
+            tmp_dir=tmp_dir,
+            n_processors=n_processors,
+            uint_ok=False)
+
+        with h5py.File(tmp_path, 'r') as src:
+            with h5py.File(dst_path, 'a') as dst:
+                dst_x = dst.create_group('X')
+                for name in attrs:
+                    if name != 'encoding-type':
+                        dst_x.attrs.create(name=name, data=attrs[name])
+                dst_x.attrs.create(name='encoding-type', data='csc_matrix')
+                for name in ('indices', 'indptr', 'data'):
+                    dataset = dst_x.create_dataset(
+                        name=name,
+                        shape=src[name].shape,
+                        dtype=src[name].dtype,
+                        chunks=True,
+                        compression=compressor,
+                        compression_opts=compression_opts)
+                    delta = 10000000
+                    for i0 in range(0, src[name].shape[0], delta):
+                        dataset[i0:i0+delta] = src[name][i0:i0+delta]
+    finally:
+        _clean_up(tmp_dir)
