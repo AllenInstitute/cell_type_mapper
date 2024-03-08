@@ -301,15 +301,16 @@ def blob_to_hdf5(
             assignments[i_cell, i_level] = idx
             corr[i_cell, i_level] = cell[level]['avg_correlation']
             prob[i_cell, i_level] = cell[level]['bootstrapping_probability']
-            this_n = len(cell[level]['runner_up_assignment'])
-            for i_r in range(this_n):
-                idx = node_to_int[level][
-                    cell[level]['runner_up_assignment'][i_r]]
-                r_assignments[i_cell, i_level, i_r] = idx
-                r_prob[i_cell, i_level, i_r] = cell[level][
-                        'runner_up_probability'][i_r]
-                r_corr[i_cell, i_level, i_r] = cell[level][
-                        'runner_up_correlation'][i_r]
+            if 'runner_up_assignment' in cell[level]:
+                this_n = len(cell[level]['runner_up_assignment'])
+                for i_r in range(this_n):
+                    idx = node_to_int[level][
+                        cell[level]['runner_up_assignment'][i_r]]
+                    r_assignments[i_cell, i_level, i_r] = idx
+                    r_prob[i_cell, i_level, i_r] = cell[level][
+                            'runner_up_probability'][i_r]
+                    r_corr[i_cell, i_level, i_r] = cell[level][
+                            'runner_up_correlation'][i_r]
 
     with h5py.File(dst_path, 'w') as dst:
         dst.create_dataset(
