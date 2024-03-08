@@ -25,7 +25,8 @@ from cell_type_mapper.utils.anndata_utils import (
     amalgamate_csr_to_x,
     amalgamate_dense_to_x,
     shuffle_csr_h5ad_rows,
-    pivot_csr_h5ad)
+    pivot_csr_h5ad,
+    subset_csc_h5ad_columns)
 
 
 @pytest.fixture(scope='module')
@@ -765,7 +766,6 @@ def test_pivot_csr_h5ad(
     with h5py.File(csc_path, 'r') as expected:
         with h5py.File(test_path, 'r') as actual:
             expected_attrs = dict(expected['X'].attrs)
-            print(f'expected attrs {expected_attrs} -- {csc_path}')
             actual_attrs = dict(actual['X'].attrs)
             for k in expected_attrs:
                 if k == 'shape':
@@ -779,6 +779,84 @@ def test_pivot_csr_h5ad(
                     actual[f'X/{k}'][()])
 
     expected = anndata.read_h5ad(csc_path, backed='r')
+    actual = anndata.read_h5ad(test_path, backed='r')
+    pd.testing.assert_frame_equal(expected.var, actual.var)
+    pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+
+def test_subset_csc_h5ad_columns(
+        tmp_dir_fixture):
+    rng = np.random.default_rng(761231)
+    n_rows = 100
+    n_cols = 500
+    data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
+    chosen_cols = rng.choice(np.arange(n_cols), 77, replace=False)
+    data[:, chosen_cols[2]] = 0
+
+    obs = pd.DataFrame(
+        [{'c': f'c_{ii}', 'x': rng.integers(0, 9999)}
+         for ii in range(n_rows)]).set_index('c')
+
+    var_data = [
+        {'g': f'g_{ii}', 'y': rng.integers(0, 9999)}
+        for ii in range(n_cols)]
+
+    var = pd.DataFrame(
+        var_data).set_index('g')
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='subset_col_src_',
+        suffix='.h5ad')
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=scipy_sparse.csc_matrix(data))
+    src.write_h5ad(src_path)
+
+    sorted_cols = np.sort(chosen_cols)
+    assert not np.array_equal(chosen_cols, sorted_cols)
+
+    expected_data = data[:, sorted_cols]
+    expected_var = pd.DataFrame(
+        [var_data[ii] for ii in sorted_cols]).set_index('g')
+    expected_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='subset_col_expected_',
+        suffix='.h5ad')
+    expected = anndata.AnnData(
+        obs=obs,
+        var=expected_var,
+        X=scipy_sparse.csc_matrix(expected_data))
+    expected.write_h5ad(expected_path)
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='subset_col_test_',
+        suffix='.h5ad')
+
+    subset_csc_h5ad_columns(
+        src_path=src_path,
+        dst_path=test_path,
+        chosen_columns=chosen_cols)
+
+    with h5py.File(expected_path, 'r') as expected:
+        with h5py.File(test_path, 'r') as actual:
+            expected_attrs = dict(expected['X'].attrs)
+            actual_attrs = dict(actual['X'].attrs)
+            for k in expected_attrs:
+                if k == 'shape':
+                    np.testing.assert_array_equal(
+                        actual_attrs[k], expected_attrs[k])
+                else:
+                    assert actual_attrs[k] == expected_attrs[k]
+            for k in ('indices', 'data', 'indptr'):
+                np.testing.assert_array_equal(
+                    expected[f'X/{k}'][()],
+                    actual[f'X/{k}'][()])
+
+    expected = anndata.read_h5ad(expected_path, backed='r')
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
