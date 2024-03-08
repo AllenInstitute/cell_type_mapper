@@ -26,6 +26,7 @@ def transpose_sparse_matrix_on_disk_v2(
         indices_max,
         max_gb,
         output_path,
+        output_mode='w',
         verbose=False,
         tmp_dir=None,
         n_processors=4,
@@ -53,6 +54,7 @@ def transpose_sparse_matrix_on_disk_v2(
             indices_max=indices_max,
             max_gb=max_gb,
             output_path=output_path,
+            output_mode=output_mode,
             verbose=verbose,
             tmp_dir=tmp_dir,
             n_processors=n_processors,
@@ -69,6 +71,7 @@ def _transpose_sparse_matrix_on_disk_v2(
         indices_max,
         max_gb,
         output_path,
+        output_mode,
         verbose=False,
         tmp_dir=None,
         n_processors=4,
@@ -143,7 +146,7 @@ def _transpose_sparse_matrix_on_disk_v2(
     t0 = time.time()
     indptr_idx = 0
     indices_idx = 0
-    with h5py.File(output_path, 'w') as dst:
+    with h5py.File(output_path, output_mode) as dst:
         indices = dst.create_dataset(
             'indices',
             shape=(indices_size,),

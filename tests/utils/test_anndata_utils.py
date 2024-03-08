@@ -24,7 +24,8 @@ from cell_type_mapper.utils.anndata_utils import (
     update_uns,
     amalgamate_csr_to_x,
     amalgamate_dense_to_x,
-    shuffle_csr_h5ad_rows)
+    shuffle_csr_h5ad_rows,
+    pivot_csr_h5ad)
 
 
 @pytest.fixture(scope='module')
@@ -639,6 +640,10 @@ def test_shuffle_csr_h5ad_rows(
     n_cols = 500
     data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
 
+    data[11, :] = 0
+    data[n_rows-1, :] = 0
+    data[:, -1] = 0
+
     var = pd.DataFrame(
         [{'g': f'g_{ii}', 'y': rng.integers(0, 9999)}
          for ii in range(n_cols)]).set_index('g')
@@ -701,6 +706,79 @@ def test_shuffle_csr_h5ad_rows(
                     actual[f'X/{k}'][()])
 
     expected = anndata.read_h5ad(shuffled_path, backed='r')
+    actual = anndata.read_h5ad(test_path, backed='r')
+    pd.testing.assert_frame_equal(expected.var, actual.var)
+    pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+
+def test_pivot_csr_h5ad(
+        tmp_dir_fixture):
+
+    rng = np.random.default_rng(211131)
+    n_rows = 100
+    n_cols = 500
+    data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
+
+    data[:, -1] = 0
+
+    var = pd.DataFrame(
+        [{'g': f'g_{ii}', 'y': rng.integers(0, 9999)}
+         for ii in range(n_cols)]).set_index('g')
+
+    obs_data = [
+        {'c': f'c_{ii}', 'x': rng.integers(0, 9999)}
+        for ii in range(n_rows)
+    ]
+
+    obs = pd.DataFrame(obs_data).set_index('c')
+    csr = anndata.AnnData(
+        X=scipy_sparse.csr_matrix(data),
+        obs=obs,
+        var=var)
+    csr_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pre_pivot_csr_',
+        suffix='.h5ad')
+    csr.write_h5ad(csr_path)
+
+    csc = anndata.AnnData(
+        X=scipy_sparse.csc_matrix(data),
+        obs=obs,
+        var=var)
+    csc_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='expected_csc_',
+        suffix='.h5ad')
+    csc.write_h5ad(csc_path)
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pivoted_',
+        suffix='.h5ad')
+
+    pivot_csr_h5ad(
+        src_path=csr_path,
+        dst_path=test_path,
+        tmp_dir=tmp_dir_fixture,
+        max_gb=1)
+
+    with h5py.File(csc_path, 'r') as expected:
+        with h5py.File(test_path, 'r') as actual:
+            expected_attrs = dict(expected['X'].attrs)
+            print(f'expected attrs {expected_attrs} -- {csc_path}')
+            actual_attrs = dict(actual['X'].attrs)
+            for k in expected_attrs:
+                if k == 'shape':
+                    np.testing.assert_array_equal(
+                        actual_attrs[k], expected_attrs[k])
+                else:
+                    assert actual_attrs[k] == expected_attrs[k]
+            for k in ('indices', 'data', 'indptr'):
+                np.testing.assert_array_equal(
+                    expected[f'X/{k}'][()],
+                    actual[f'X/{k}'][()])
+
+    expected = anndata.read_h5ad(csc_path, backed='r')
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
