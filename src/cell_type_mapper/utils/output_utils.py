@@ -246,7 +246,22 @@ def get_execution_metadata(
 def blob_to_hdf5(
         output_blob,
         dst_path):
+    """
+    Serialize the output blob to an HDF5 file (this can be a factor of
+    ~10 times smaller than just using json to serialize the blob directly).
 
+    Parameters
+    ----------
+    output_blob:
+        The dict usually produced as the "extended" output of the
+        cell type mapper.
+    dst_path:
+        Path to the HDF5 file to be written.
+
+    Returns
+    -------
+    None. Data is written to the file at dst_path.
+    """
     metadata = dict()
     for k in output_blob:
         if k == 'results':
@@ -348,7 +363,21 @@ def blob_to_hdf5(
 
 def hdf5_to_blob(
         src_path):
+    """
+    Read in HDF5-serialized mapping results and return them
+    as a dict of the form usually produced in the "extended"
+    output JSON produced by the cell type mapper.
 
+    Parameters
+    ----------
+    src_path:
+        Path to the HDF5 file to be read.
+
+    Returns
+    -------
+    A dict containing the mapping results stored in
+    the HDF5 file.
+    """
     with h5py.File(src_path, 'r') as src:
         blob = json.loads(
             src['metadata'][()].decode('utf-8'))
