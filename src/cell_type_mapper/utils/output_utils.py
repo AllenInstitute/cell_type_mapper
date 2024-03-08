@@ -1,4 +1,6 @@
+import h5py
 import json
+import numpy as np
 import pandas as pd
 import pathlib
 import time
@@ -10,6 +12,9 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree)
 
 
 def re_order_blob(
@@ -236,3 +241,189 @@ def get_execution_metadata(
     metadata['version'] = cell_type_mapper.__version__
     metadata['codebase'] = cell_type_mapper.__repository__
     return metadata
+
+
+def blob_to_hdf5(
+        output_blob,
+        dst_path):
+    """
+    Serialize the output blob to an HDF5 file (this can be a factor of
+    ~10 times smaller than just using json to serialize the blob directly).
+
+    Parameters
+    ----------
+    output_blob:
+        The dict usually produced as the "extended" output of the
+        cell type mapper.
+    dst_path:
+        Path to the HDF5 file to be written.
+
+    Returns
+    -------
+    None. Data is written to the file at dst_path.
+    """
+    metadata = dict()
+    for k in output_blob:
+        if k == 'results':
+            continue
+        metadata[k] = output_blob[k]
+
+    taxonomy_tree = TaxonomyTree(
+        data=metadata['taxonomy_tree'])
+
+    n_levels = len(taxonomy_tree.hierarchy)
+
+    results = output_blob['results']
+    n_cells = len(results)
+
+    cell_id = np.array([r['cell_id'].encode('utf-8') for r in results])
+
+    corr = np.zeros(
+        (n_cells, n_levels), dtype=float)
+    prob = np.zeros(
+        (n_cells, n_levels), dtype=float)
+    assignments = np.zeros(
+        (n_cells, n_levels), dtype=int)
+
+    bad_val = -1
+    n_runners_up = metadata['config']['type_assignment']['n_runners_up']
+    if n_runners_up > 0:
+        r_assignments = bad_val*np.ones(
+            (n_cells, n_levels, n_runners_up), dtype=int)
+        r_prob = np.zeros(
+            (n_cells, n_levels, n_runners_up), dtype=float)
+        r_corr = np.zeros(
+            (n_cells, n_levels, n_runners_up), dtype=float)
+    else:
+        r_assignments = None
+        r_prob = None
+        r_corr = None
+
+    node_to_int = dict()
+    int_to_node = dict()
+    for level in taxonomy_tree.hierarchy:
+        node_to_int[level] = dict()
+        these_nodes = taxonomy_tree.nodes_at_level(level)
+        int_to_node[level] = [None]*len(these_nodes)
+        for i_node, node in enumerate(these_nodes):
+            node_to_int[level][node] = i_node
+            int_to_node[level][i_node] = node
+
+    for i_cell in range(len(results)):
+        cell = results[i_cell]
+        for i_level, level in enumerate(taxonomy_tree.hierarchy):
+            idx = node_to_int[level][cell[level]['assignment']]
+            assignments[i_cell, i_level] = idx
+            corr[i_cell, i_level] = cell[level]['avg_correlation']
+            prob[i_cell, i_level] = cell[level]['bootstrapping_probability']
+            if 'runner_up_assignment' in cell[level]:
+                this_n = len(cell[level]['runner_up_assignment'])
+                for i_r in range(this_n):
+                    idx = node_to_int[level][
+                        cell[level]['runner_up_assignment'][i_r]]
+                    r_assignments[i_cell, i_level, i_r] = idx
+                    r_prob[i_cell, i_level, i_r] = cell[level][
+                            'runner_up_probability'][i_r]
+                    r_corr[i_cell, i_level, i_r] = cell[level][
+                            'runner_up_correlation'][i_r]
+
+    with h5py.File(dst_path, 'w') as dst:
+        dst.create_dataset(
+            'metadata',
+            data=json.dumps(metadata).encode('utf-8'))
+
+        dst.create_dataset(
+            'int_to_node',
+            data=json.dumps(int_to_node).encode('utf-8'))
+
+        dst.create_dataset(
+            'cell_id',
+            data=cell_id)
+
+        for name, data in zip(('assignment',
+                               'bootstrapping_probability',
+                               'average_correlation',
+                               'runner_up_assignment',
+                               'runner_up_probability',
+                               'runner_up_correlation'),
+                              (assignments,
+                               prob,
+                               corr,
+                               r_assignments,
+                               r_prob,
+                               r_corr)):
+            if data is not None:
+                dst.create_dataset(
+                    name,
+                    data=data,
+                    compression='gzip',
+                    compression_opts=4,
+                    chunks=True)
+
+
+def hdf5_to_blob(
+        src_path):
+    """
+    Read in HDF5-serialized mapping results and return them
+    as a dict of the form usually produced in the "extended"
+    output JSON produced by the cell type mapper.
+
+    Parameters
+    ----------
+    src_path:
+        Path to the HDF5 file to be read.
+
+    Returns
+    -------
+    A dict containing the mapping results stored in
+    the HDF5 file.
+    """
+    with h5py.File(src_path, 'r') as src:
+        blob = json.loads(
+            src['metadata'][()].decode('utf-8'))
+        cell_id_arr = src['cell_id'][()]
+        int_to_node = json.loads(
+            src['int_to_node'][()].decode('utf-8'))
+
+        assignment = src['assignment'][()]
+        prob = src['bootstrapping_probability'][()]
+        corr = src['average_correlation'][()]
+        if 'runner_up_assignment' in src:
+            r_assignment = src['runner_up_assignment'][()]
+            r_prob = src['runner_up_probability'][()]
+            r_corr = src['runner_up_correlation'][()]
+            n_r = r_assignment.shape[-1]
+        else:
+            r_assignment = None
+            r_prob = None
+            r_corr = None
+
+    taxonomy_tree = TaxonomyTree(data=blob['taxonomy_tree'])
+
+    results = []
+    for i_cell, cell_id in enumerate(cell_id_arr):
+        cell = {'cell_id': cell_id.decode('utf-8')}
+        for i_level, level in enumerate(taxonomy_tree.hierarchy):
+            this = {
+                'assignment': int_to_node[level][assignment[i_cell, i_level]],
+                'bootstrapping_probability': prob[i_cell, i_level],
+                'avg_correlation': corr[i_cell, i_level],
+                'runner_up_assignment': [],
+                'runner_up_probability': [],
+                'runner_up_correlation': []
+            }
+            if r_assignment is not None:
+                for i_r in range(n_r):
+                    if r_assignment[i_cell, i_level, i_r] < 0:
+                        break
+                    node = int_to_node[level][
+                        r_assignment[i_cell, i_level, i_r]]
+                    this['runner_up_assignment'].append(node)
+                    this['runner_up_probability'].append(
+                        r_prob[i_cell, i_level, i_r])
+                    this['runner_up_correlation'].append(
+                        r_corr[i_cell, i_level, i_r])
+            cell[level] = this
+        results.append(cell)
+    blob['results'] = results
+    return blob

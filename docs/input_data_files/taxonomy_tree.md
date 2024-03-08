@@ -3,7 +3,7 @@
 A serialized representation of the cell type taxonomy tree is important
 both as a part of the cell type mapper's input
 ([see the documentation for the precomputed_stats file](precomputed_stats_file.md)) and as a component of the extended JSON
-ouptut produced by the cell type mapper (accessed via
+output produced by the cell type mapper (accessed via
 `results['taxonomy_tree']`). Here we describe the serialized
 representation of the taxonomy tree used by this codebase.
 
@@ -37,7 +37,7 @@ Aside from `'hierarchy'` which maps to a list indicating, from most gross to
 most fine, the order of the levels in the taxonomy tree, the only other
 **required** fields in the taxonomy tree dict are those that encode the
 parent-child relationships between the taxonomy nodes. Those fields are
-themselves nested dicts, i.e. evel listed under `'hierarchy'` is itself
+themselves nested dicts, i.e. every level listed under `'hierarchy'` is itself
 a key of the taxonomy tree dict pointing towards a dict which maps indivdiual
 node names in the taxonomy to lists of their child nodes. For instance
 
