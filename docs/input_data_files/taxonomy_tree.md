@@ -3,7 +3,7 @@
 A serialized representation of the cell type taxonomy tree is important
 both as a part of the cell type mapper's input
 ([see the documentation for the precomputed_stats file](precomputed_stats_file.md)) and as a component of the extended JSON
-ouptut produced by the cell type mapper (accessed via
+output produced by the cell type mapper (accessed via
 `results['taxonomy_tree']`). Here we describe the serialized
 representation of the taxonomy tree used by this codebase.
 
