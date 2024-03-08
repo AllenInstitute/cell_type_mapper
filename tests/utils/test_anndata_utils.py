@@ -23,7 +23,8 @@ from cell_type_mapper.utils.anndata_utils import (
     does_obsm_have_key,
     update_uns,
     amalgamate_csr_to_x,
-    amalgamate_dense_to_x)
+    amalgamate_dense_to_x,
+    shuffle_csr_h5ad_rows)
 
 
 @pytest.fixture(scope='module')
@@ -628,3 +629,78 @@ def test_amalgamate_csr_to_x(
                 expected,
                 atol=0.0,
                 rtol=1.0e-6)
+
+
+def test_shuffle_csr_h5ad_rows(
+        tmp_dir_fixture):
+
+    rng = np.random.default_rng(211131)
+    n_rows = 100
+    n_cols = 500
+    data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
+
+    var = pd.DataFrame(
+        [{'g': f'g_{ii}', 'y': rng.integers(0, 9999)}
+         for ii in range(n_cols)]).set_index('g')
+
+    obs_data = [
+        {'c': f'c_{ii}', 'x': rng.integers(0, 9999)}
+        for ii in range(n_rows)
+    ]
+
+    obs = pd.DataFrame(obs_data).set_index('c')
+    csr = anndata.AnnData(
+        X=scipy_sparse.csr_matrix(data),
+        obs=obs,
+        var=var)
+    csr_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pre_shuffle_csr_',
+        suffix='.h5ad')
+    csr.write_h5ad(csr_path)
+
+    new_row_order = np.arange(n_rows, dtype=int)
+    rng.shuffle(new_row_order)
+    shuffled_data = data[new_row_order, :]
+    shuffled_obs = [
+        obs_data[ii]
+        for ii in new_row_order]
+    shuffled_obs = pd.DataFrame(shuffled_obs).set_index('c')
+    shuffled_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='shuffled_csr_',
+        suffix='.h5ad')
+    shuffled = anndata.AnnData(
+        obs=shuffled_obs,
+        var=var,
+        X=scipy_sparse.csr_matrix(shuffled_data))
+    shuffled.write_h5ad(shuffled_path)
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='actual_shuffled_csr_',
+        suffix='.h5ad')
+    shuffle_csr_h5ad_rows(
+        src_path=csr_path,
+        dst_path=test_path,
+        new_row_order=new_row_order)
+
+    with h5py.File(shuffled_path, 'r') as expected:
+        with h5py.File(test_path, 'r') as actual:
+            expected_attrs = dict(expected['X'].attrs)
+            actual_attrs = dict(actual['X'].attrs)
+            for k in expected_attrs:
+                if k == 'shape':
+                    np.testing.assert_array_equal(
+                        actual_attrs[k], expected_attrs[k])
+                else:
+                    assert actual_attrs[k] == expected_attrs[k]
+            for k in ('indices', 'data', 'indptr'):
+                np.testing.assert_array_equal(
+                    expected[f'X/{k}'][()],
+                    actual[f'X/{k}'][()])
+
+    expected = anndata.read_h5ad(shuffled_path, backed='r')
+    actual = anndata.read_h5ad(test_path, backed='r')
+    pd.testing.assert_frame_equal(expected.var, actual.var)
+    pd.testing.assert_frame_equal(expected.obs, actual.obs)

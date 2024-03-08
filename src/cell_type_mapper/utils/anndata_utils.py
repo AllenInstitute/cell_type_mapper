@@ -633,3 +633,87 @@ def amalgamate_dense_to_x(
                 r1 = r0 + shape[0]
                 dst_data[r0:r1, :] = src['data'][()]
                 r0 = r1
+
+
+def shuffle_csr_h5ad_rows(
+        src_path,
+        dst_path,
+        new_row_order,
+        compression=True):
+    """
+    Shuffle the rows of a CSR-encoded h5ad file.
+
+    Note: will only copy obs, var, and X from src to dst.
+
+    Parameters
+    ----------
+    src_path:
+        Path to original h5ad file
+    dst_path:
+        Path to new h5ad file
+    new_row_order:
+        Order in which rows will be written to
+        dst_path.
+    compression:
+        If True, use gzip compression in new file
+    """
+
+    with h5py.File(src_path, 'r') as src:
+        attrs = dict(src['X'].attrs)
+
+    if attrs['encoding-type'] != 'csr_matrix':
+        raise RuntimeError(
+            f'{src_path} is not CSR encoded. Attrs for X are:\n'
+            f'{attrs}')
+
+    obs = read_df_from_h5ad(
+        h5ad_path=src_path, df_name='obs')
+
+    var = read_df_from_h5ad(
+        h5ad_path=src_path, df_name='var')
+
+    new_obs = obs.iloc[new_row_order]
+
+    dst = anndata.AnnData(obs=new_obs, var=var)
+    dst.write_h5ad(dst_path)
+
+    if compression:
+        compressor = 'gzip'
+        compression_opts = 4
+    else:
+        compressor = None
+        compression_opts = None
+
+    with h5py.File(src_path, 'r') as src:
+        src_x = src['X']
+        with h5py.File(dst_path, 'a') as dst:
+            dst_x = dst.create_group('X')
+            for name in attrs:
+                dst_x.attrs.create(name=name, data=attrs[name])
+            for name in ('data', 'indices'):
+                dst_x.create_dataset(
+                    name,
+                    shape=src_x[name].shape,
+                    dtype=src_x[name].dtype,
+                    chunks=True,
+                    compression=compressor,
+                    compression_opts=compression_opts)
+
+            src_indptr = src_x['indptr'][()]
+
+            dst_indptr = np.zeros(
+                src_indptr.shape,
+                dtype=src_indptr.dtype)
+
+            dst0 = 0
+            for new_r, old_r in enumerate(new_row_order):
+                src0 = src_indptr[old_r]
+                src1 = src_indptr[old_r+1]
+                dst1 = dst0 + (src1-src0)
+                dst_indptr[new_r] = dst0
+                dst_x['indices'][dst0:dst1] = src_x['indices'][src0:src1]
+                dst_x['data'][dst0:dst1] = src_x['data'][src0:src1]
+                dst0 = dst1
+            dst_indptr[-1] = src_indptr[-1]
+            dst_x.create_dataset(
+                'indptr', data=dst_indptr)
