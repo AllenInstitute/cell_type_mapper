@@ -649,6 +649,8 @@ def shuffle_csr_h5ad_rows(
 
     Note: will only copy obs, var, and X from src to dst.
 
+    Currently, this function is quite slow.
+
     Parameters
     ----------
     src_path:
