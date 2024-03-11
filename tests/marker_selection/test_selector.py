@@ -753,7 +753,7 @@ def test_marker_serialization_roundtrip(
                np.testing.assert_array_equal(expected, actual)
 
 
-def test_specified_marker_failure():
+def test_specified_marker_failure(tmp_dir_fixture):
     """
     Test that if the reference set is missing marker genes,
     marker cache creation fails.
@@ -771,7 +771,9 @@ def test_specified_marker_failure():
             marker_lookup=marker_lookup,
             query_gene_names=query_gene_names,
             reference_gene_names=reference_gene_names,
-            output_cache_path='garbage')
+            output_cache_path=mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='garbage'))
 
 
 def test_specified_marker_parent_failure(tmp_dir_fixture):
@@ -819,7 +821,9 @@ def test_specified_marker_parent_failure(tmp_dir_fixture):
              query_gene_names=query_gene_names,
              reference_gene_names=reference_gene_names,
              taxonomy_tree=tree,
-             output_cache_path='garbage')
+             output_cache_path=mkstemp_clean(
+                 dir=tmp_dir_fixture,
+                 prefix='garbage'))
 
     # now make sure it works if we fix the marker lookup
     output_path = mkstemp_clean(
