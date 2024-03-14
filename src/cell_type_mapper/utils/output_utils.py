@@ -301,7 +301,15 @@ def blob_to_hdf5(
 
     node_to_int = dict()
     int_to_node = dict()
-    for level in taxonomy_tree.hierarchy:
+
+    directly_assigned = np.zeros(
+        len(taxonomy_tree.hierarchy),
+        dtype=bool)
+
+    for i_level, level in enumerate(taxonomy_tree.hierarchy):
+
+        directly_assigned[i_level] = results[0][level]['directly_assigned']
+
         node_to_int[level] = dict()
         these_nodes = taxonomy_tree.nodes_at_level(level)
         int_to_node[level] = [None]*len(these_nodes)
@@ -328,6 +336,11 @@ def blob_to_hdf5(
                             'runner_up_correlation'][i_r]
 
     with h5py.File(dst_path, 'w') as dst:
+
+        dst.create_dataset(
+            'directly_assigned',
+            data=directly_assigned)
+
         dst.create_dataset(
             'metadata',
             data=json.dumps(metadata).encode('utf-8'))
@@ -379,6 +392,9 @@ def hdf5_to_blob(
     the HDF5 file.
     """
     with h5py.File(src_path, 'r') as src:
+
+        directly_assigned = src['directly_assigned'][()]
+
         blob = json.loads(
             src['metadata'][()].decode('utf-8'))
         cell_id_arr = src['cell_id'][()]
@@ -408,21 +424,27 @@ def hdf5_to_blob(
                 'assignment': int_to_node[level][assignment[i_cell, i_level]],
                 'bootstrapping_probability': prob[i_cell, i_level],
                 'avg_correlation': corr[i_cell, i_level],
-                'runner_up_assignment': [],
-                'runner_up_probability': [],
-                'runner_up_correlation': []
+                'directly_assigned': directly_assigned[i_level]
             }
-            if r_assignment is not None:
-                for i_r in range(n_r):
-                    if r_assignment[i_cell, i_level, i_r] < 0:
-                        break
-                    node = int_to_node[level][
-                        r_assignment[i_cell, i_level, i_r]]
-                    this['runner_up_assignment'].append(node)
-                    this['runner_up_probability'].append(
-                        r_prob[i_cell, i_level, i_r])
-                    this['runner_up_correlation'].append(
-                        r_corr[i_cell, i_level, i_r])
+
+            if directly_assigned[i_level]:
+                this.update({
+                    'runner_up_assignment': [],
+                    'runner_up_probability': [],
+                    'runner_up_correlation': []
+                })
+
+                if r_assignment is not None:
+                    for i_r in range(n_r):
+                        if r_assignment[i_cell, i_level, i_r] < 0:
+                            break
+                        node = int_to_node[level][
+                            r_assignment[i_cell, i_level, i_r]]
+                        this['runner_up_assignment'].append(node)
+                        this['runner_up_probability'].append(
+                            r_prob[i_cell, i_level, i_r])
+                        this['runner_up_correlation'].append(
+                            r_corr[i_cell, i_level, i_r])
             cell[level] = this
         results.append(cell)
     blob['results'] = results

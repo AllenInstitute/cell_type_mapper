@@ -20,6 +20,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.output_utils import (
+    blob_to_hdf5,
+    hdf5_to_blob)
+
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
 
@@ -1014,3 +1018,85 @@ def test_cloud_safe_mapping(
         data = json.load(src)
         check_not_file(data['log'])
         check_not_file(data['config'])
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False)
+        ))
+def test_output_compression(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass):
+    """
+    Use the fact that this test file already has a full mapping
+    popeline implemented in it to test the
+    blob_to_hdf5 < - > hdf5_to_blob
+    output_utils roundtrip
+    """
+
+    use_tmp_dir = True
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+    config['query_path'] = baseline_config['query_path']
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    with open(result_path, 'rb') as src:
+        output_blob = json.load(src)
+
+    hdf5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='blob_to_hdf5_',
+        suffix='.h5')
+
+    blob_to_hdf5(
+        output_blob=output_blob,
+        dst_path=hdf5_path)
+
+    roundtrip = hdf5_to_blob(
+        src_path=hdf5_path)
+
+    assert roundtrip == output_blob

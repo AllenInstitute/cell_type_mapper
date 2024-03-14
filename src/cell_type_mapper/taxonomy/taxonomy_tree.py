@@ -634,5 +634,10 @@ class TaxonomyTree(object):
                         new_data.pop(k)
                 this_parent = self._child_to_parent[child_level][this_child]
                 new_data['assignment'] = this_parent
+
+                # mark this level as being backfilled
+                new_data['directly_assigned'] = False
+
                 cell[parent_level] = new_data
+
         return assignments
