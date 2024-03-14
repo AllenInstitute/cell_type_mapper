@@ -32,7 +32,8 @@ from cell_type_mapper.utils.anndata_utils import (
 from cell_type_mapper.utils.output_utils import (
     blob_to_csv,
     blob_to_df,
-    get_execution_metadata)
+    get_execution_metadata,
+    blob_to_hdf5)
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
@@ -69,10 +70,15 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         run_mapping(
             config=self.args,
             output_path=self.args['extended_result_path'],
-            log_path=self.args['log_path'])
+            log_path=self.args['log_path'],
+            hdf5_output_path=self.args['hdf5_result_path'])
 
 
-def run_mapping(config, output_path, log_path=None):
+def run_mapping(
+        config,
+        output_path,
+        log_path=None,
+        hdf5_output_path=None):
     t0 = time.time()
     safe_config = copy.deepcopy(config)
     if config['cloud_safe']:
@@ -104,6 +110,9 @@ def run_mapping(config, output_path, log_path=None):
 
     if output_path is not None:
         output_path = pathlib.Path(output_path)
+
+    if hdf5_output_path is not None:
+        hdf5_output_path = pathlib.Path(hdf5_output_path)
 
     if log_path is not None:
         log_path = pathlib.Path(log_path)
@@ -199,6 +208,11 @@ def run_mapping(config, output_path, log_path=None):
         if output_path is not None:
             with open(output_path, "w") as out_file:
                 out_file.write(json.dumps(output, indent=2))
+
+        if hdf5_output_path is not None:
+            blob_to_hdf5(
+                output_blob=output,
+                dst_path=hdf5_output_path)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):

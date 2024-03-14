@@ -112,6 +112,16 @@ class OutputDstForSearchMixin(object):
         description="Path to JSON file where extended results "
         "will be saved.")
 
+    hdf5_result_path = argschema.fields.OutputFile(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Path to an hdf5 file where extended results "
+            "will be saved. This can be a factor of 10 smaller "
+            "than the extended results JSON file."
+        ))
+
     csv_result_path = argschema.fields.OutputFile(
         required=False,
         default=None,
@@ -167,9 +177,16 @@ class OutputDstForSearchMixin(object):
         Make sure that there is somewhere, either extended_result_path
         or obsm_key, where we can store the extended results.
         """
-        if data['extended_result_path'] is None:
-            if data['obsm_key'] is None:
-                msg = ("You must specify at least one of extended_result_path "
-                       "and/or obsm_key")
-                raise RuntimeError(msg)
+        output_params = (
+            'extended_result_path',
+            'hdf5_result_path',
+            'obsm_key')
+        has_output_path = False
+        for param in output_params:
+            if data[param] is not None:
+                has_output_path = True
+        if not has_output_path:
+            msg = ("You must specify at least one of:\n"
+                   "{output_params}")
+            raise RuntimeError(msg)
         return data
