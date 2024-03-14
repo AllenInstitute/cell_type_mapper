@@ -93,6 +93,12 @@ def run_type_assignment_on_h5ad(
             max_gb=max_gb,
             results_output_path=results_output_path)
 
+    # mark each of these cell types a directly assigned
+    # (rather than backfilled)
+    for cell in result:
+        for level in taxonomy_tree.hierarchy:
+            cell[level]['directly_assigned'] = True
+
     result = re_order_blob(
         results_blob=result,
         query_path=query_h5ad_path)

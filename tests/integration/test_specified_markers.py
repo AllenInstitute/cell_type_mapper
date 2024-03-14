@@ -1099,23 +1099,4 @@ def test_output_compression(
     roundtrip = hdf5_to_blob(
         src_path=hdf5_path)
 
-    # levels without runners up
-    flat_levels = None
-    if drop_subclass:
-        flat_levels = ['subclass']
-    if flatten:
-        flat_levels = ['class', 'subclass']
-
-    if flat_levels is not None:
-        for cell in roundtrip['results']:
-             for level in flat_levels:
-                 for k in ('runner_up_assignment',
-                          'runner_up_probability',
-                          'runner_up_correlation'):
-                    assert cell[level][k] == []
-                    cell[level].pop(k)
-
-    print(json.dumps(roundtrip['results'][0], indent=2, sort_keys=True))
-    print(json.dumps(output_blob['results'][0], indent=2, sort_keys=True))
-
     assert roundtrip == output_blob

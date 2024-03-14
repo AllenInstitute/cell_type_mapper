@@ -323,12 +323,25 @@ def test_mapping_from_markers(
     max_runners_up = 0
     # check consistency of runners up
 
+    backfilled_levels = set()
+    if flatten:
+        backfilled_levels = set(['class', 'subclass'])
+    elif drop_subclass:
+        backfilled_levels = set(['subclass'])
+
     for cell in actual['results']:
 
-        # since we are backfilling missing levels into results,
-        # this should hold
         for level in taxonomy_tree.hierarchy:
+
+            # since we are backfilling missing levels into results,
+            # this should hold
             assert level in cell
+
+            # check that backfilled levels are correctly flagged
+            if level in backfilled_levels:
+                assert not cell[level]['directly_assigned']
+            else:
+                assert cell[level]['directly_assigned']
 
         # check inheritance
         this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
@@ -584,7 +597,9 @@ def test_mapping_from_markers_to_query_h5ad(
                 alias_key = f'{readable_level}_alias'
                 assert pd_cell[alias_key] == alias
 
-            for k in ('bootstrapping_probability', 'avg_correlation'):
+            for k in ('bootstrapping_probability',
+                      'avg_correlation',
+                      'directly_assigned'):
                 pd_key = f'{readable_level}_{k}'
                 np.testing.assert_allclose(
                     pd_cell[pd_key],
