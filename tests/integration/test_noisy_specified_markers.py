@@ -56,6 +56,10 @@ from cell_type_mapper.cli.from_specified_markers import (
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
+from cell_type_mapper.utils.output_utils import (
+    blob_to_hdf5,
+    hdf5_to_blob)
+
 
 @pytest.fixture(scope='module')
 def noisy_raw_reference_h5ad_fixture(
@@ -720,3 +724,98 @@ def test_mapping_from_markers_to_query_h5ad_config_errors(
                 args= [],
                 input_data=config)
         runner.run()
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_compression_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    use_tmp_dir = True
+    csv_path = None
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    output_blob = json.load(open(result_path, 'rb'))
+
+    hdf5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='blob_to_hdf5_',
+        suffix='.h5')
+
+    blob_to_hdf5(
+        output_blob=output_blob,
+        dst_path=hdf5_path)
+
+    roundtrip = hdf5_to_blob(
+        src_path=hdf5_path)
+
+    assert roundtrip == output_blob
