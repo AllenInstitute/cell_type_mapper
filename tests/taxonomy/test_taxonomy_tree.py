@@ -510,11 +510,16 @@ def test_backfill():
     ]
 
     noisy = copy.deepcopy(expected_assignment)
-    noisy[0].pop('B')
-    noisy[1].pop('A')
-    noisy[2].pop('C')
-    noisy[6].pop('A')
-    noisy[6].pop('B')
+
+    # pop some data from noisy; edit expected to reflect that those
+    # cell, level combinations will be backfilled
+    for cell_idx, level in ((0, 'B'),
+                            (1, 'A'),
+                            (2, 'C'),
+                            (6, 'A'),
+                            (6, 'B')):
+        noisy[cell_idx].pop(level)
+        expected_assignment[cell_idx][level]['directly_assigned'] = False
 
     assert noisy != expected_assignment
     noisy = tree.backfill_assignments(noisy)
