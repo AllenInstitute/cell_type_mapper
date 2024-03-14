@@ -3,7 +3,8 @@ import argschema
 from cell_type_mapper.schemas.mixins import (
     TmpDirMixin,
     DropLevelMixin,
-    QueryPathMixinForSearch)
+    QueryPathMixinForSearch,
+    OutputDstForSearchMixin)
 
 from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
@@ -15,14 +16,8 @@ from cell_type_mapper.schemas.hierarchical_type_assignment import (
 class SearchSchemaMixin(
         TmpDirMixin,
         DropLevelMixin,
-        QueryPathMixinForSearch):
-
-    extended_result_path = argschema.fields.OutputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="Path to JSON file where extended results "
-        "will be saved.")
+        QueryPathMixinForSearch,
+        OutputDstForSearchMixin):
 
     extended_result_dir = argschema.fields.OutputDir(
         required=False,
@@ -30,23 +25,6 @@ class SearchSchemaMixin(
         allow_none=True,
         description="Optional temporary directory into which assignment "
         "results will be saved from each process.")
-
-    csv_result_path = argschema.fields.OutputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description="Path to CSV file where output file will be "
-        "written (if None, no CSV will be produced).")
-
-    summary_metadata_path = argschema.fields.OutputFile(
-        required=False,
-        default=None,
-        allow_none=True,
-        description=(
-            "If not None, the path to a JSON file where summary "
-            "metadata (e.g. number of mapped genes and number "
-            "of mapped cells) will be stored")
-        )
 
     flatten = argschema.fields.Boolean(
         required=False,
