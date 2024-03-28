@@ -70,15 +70,30 @@ def area_between_cdf(
         actual = np.zeros(len(bins), dtype=float)
         for ii, bb in enumerate(bins):
             all_mask = (all_prob <= bb)
-            expected[ii] = all_prob[all_mask].sum()/max(1, all_mask.sum())
-            this_true = (true_prob <= bb).sum()
-            this_false = (false_prob <= bb).sum()
+
+            if len(all_mask) > 0:
+                expected[ii] = all_prob[all_mask].sum()/max(1, all_mask.sum())
+
+            true_mask = (true_prob <= bb)
+            if len(true_mask) > 0:
+                this_true = true_mask.sum()
+            else:
+                this_true = 0.0
+
+            false_mask = (false_prob <= bb)
+            if len(false_mask) > 0:
+                this_false = (false_prob <= bb).sum()
+            else:
+                this_false = 0.0
+
             actual[ii] = this_true/(max(1, this_true+this_false))
+
         area = _riemann_area(
             x=bins,
             true_y=expected,
             actual_y=actual)
         result[level] = area
+
     return result
 
 
