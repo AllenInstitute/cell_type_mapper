@@ -71,6 +71,6 @@ def avg_f1(
         tp_sum = tp.sum()
         results[level]['micro'] = tp_sum/(tp_sum+0.5*(fn.sum() + fp.sum()))
         f1_vals = tp/(tp+0.5*(fn+fp))
-        results[level]['macro'] = np.mean(f1_vals)
+        results[level]['macro'] = np.nanmean(f1_vals)
 
     return results
