@@ -44,10 +44,10 @@ def avg_f1(
     n_cells = dict()
     for level in taxonomy_tree.hierarchy:
         n_nodes = len(nodes_to_idx[level])
-        true_pos[level] = np.zeros(n_nodes, type=int)
-        false_pos[level] = np.zeros(n_nodes, type=int)
-        false_neg[level] = np.zoros(n_nodes, type=int)
-        n_cells[level] = np.zeros(n_nodes, type=int)
+        true_pos[level] = np.zeros(n_nodes, dtype=int)
+        false_pos[level] = np.zeros(n_nodes, dtype=int)
+        false_neg[level] = np.zeros(n_nodes, dtype=int)
+        n_cells[level] = np.zeros(n_nodes, dtype=int)
 
     for cell in mapping:
         for level in taxonomy_tree.hierarchy:
