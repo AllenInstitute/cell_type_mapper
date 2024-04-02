@@ -98,6 +98,15 @@ Here is the example cartoon lookup table
 
 ## Creating the marker gene lookup table
 
+**Note:** As of `v1.3.0` of the cell type mapper, there is an alternative
+pipeline for marker gene selection that may be more efficient for users
+wishing to select multiple sets of marker genes from the same reference
+data. This alternative pipeline is documented
+[here](../algorithms/marker_gene_selection_v2.md).
+The implementation discussed below is the "baseline" implementation,
+which is suitable for users who only need to select a set of marker
+genes once.
+
 Detailed documentation of the marker gene discovery algorithm used by this
 codebase can be found [here](../algorithms/marker_gene_selection.md).
 In this document, we present a user's guide to the
