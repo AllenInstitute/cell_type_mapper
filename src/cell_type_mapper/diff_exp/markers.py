@@ -76,12 +76,12 @@ def find_markers_for_all_taxonomy_pairs(
 
     p_th/q1_th/qdiff_th/log2_fold_th
         Thresholds for determining if a gene is a valid marker.
-        See Notes under score_differential_genes
+        See Notes under diffexp.scores.score_differential_genes
 
     q1_min_th/qdiff_min_th/log2_fold_min_th
         Minimum thresholds below which genes will not be
         considered marker genes. See Notes under
-        score_differential_genes.
+        diffexp.scores.score_differential_genes.
 
     n_processors:
         Number of independent worker processes to spin out
