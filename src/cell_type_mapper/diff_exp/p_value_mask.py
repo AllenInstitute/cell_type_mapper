@@ -48,35 +48,68 @@ def create_p_value_mask_file(
         tmp_dir=None,
         n_per=10000):
     """
-    Create differential expression scores and validity masks
-    for differential genes between all relevant pairs in a
-    taxonomy*
-
-    * relevant pairs are defined as nodes in the tree that are
-    on the same level and share the same parent.
+    Create the "P-value mask" file, an HDF5 file storing
+    the parameter space distance of each (cell type pair, gene)
+    pair from the point in parameter space defining
+    marker genes.
 
     Parameters
     ----------
     precomputed_stats_path:
         Path to HDF5 file containing precomputed stats for leaf nodes
 
-    p_th
-        Threshold on p-value for determining if gene is a marker
+    dst_path:
+        Path to the HDF5 file that will be written
+
+    p_th/q1_th/qdiff_th/log2_fold_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under diffexp.scores.score_differential_genes
+
+    q1_min_th/qdiff_min_th/log2_fold_min_th
+        Minimum thresholds below which genes will not be
+        considered marker genes. See Notes under
+        diffexp.scores.score_differential_genes.
 
     n_processors:
         Number of independent worker processes to spin out
+
+    tmp_dir:
+        Path to a directory where scratch files can be written
 
     n_per:
         Number of rows to load at a time (per worker)
 
     Returns
     --------
-    Path to a file in tmp_dir where the data is stored
+    Noting. The file at dst_path is created.
 
     Notes
     -----
-    This method stores the markers as sparse arrays with taxonomic
-    pairs as the indptr axis.
+    The HDF5 file created by this function contains the following
+    datasets.
+         'pair_to_idx': a UTF-encoded JSON-serialized dict recording metadata
+         mapping cell type pairs to row numbers. The dict is structured like
+         {'taxonomy_level_1': [
+                             'node1': {'node2': 0, 'node3': 1, ...},
+                             'node2': {'node3': 2, ...}
+                            ]
+          'taxonomy_level_2':...
+         }
+
+        'gene_names': a UTF-encoded, JSON-serialized list of the names of
+        the genes in this dataset (for mapping column index to gene name)
+
+        'data'/'indices'/'inpdtr': they arrays needed to store the
+        parameter space distance of the (cell type pair, gene) pairs
+        from the "critical point" of marker gene membership, with
+        cell type pair being the major axis (i.e. indptr[2:3]
+        denotes the row associated with the 2nd cell type pair)
+
+    (cell type pair, gene) pairs that pass the strict test for being
+    a marker gene have a parameter space distance of -1.0. Pairs that
+    are disqualified from being a marker because they violate the
+    minimum statistical thresholds are absent from the sparse matrix
+    (i.e. they have parameter space distances of zero).
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
     try:
@@ -242,23 +275,34 @@ def _p_values_worker(
     ----------
     cluster_stats:
         Result of read_precomputed_stats (just 'cluster_stats')
+
     tree_as_leaves:
         Result of convert_tree_to_leaves
+
     idx_to_pair:
         Dict mapping col in final output file to
         (level, node1, node2) sibling pair
         [Just the columns that this worker is responsible for]
+
     n_genes:
         Number of genes in dataset
+
     p_th:
         Thresholds for determining if a gene is a valid marker.
         See Notes under score_differential_genes
+
     tmp_path:
         Path to temporary HDF5 file where results for this worker
         will be stored (this process creates that file)
-    exact_penetrance:
-        If False, allow genes that technically fail penetrance
-        and fold-change thresholds to be marker genes.
+
+    p_th/q1_th/qdiff_th/log2_fold_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under diffexp.scores.score_differential_genes
+
+    q1_min_th/qdiff_min_th/log2_fold_min_th
+        Minimum thresholds below which genes will not be
+        considered marker genes. See Notes under
+        diffexp.scores.score_differential_genes.
     """
 
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
@@ -372,7 +416,14 @@ def _merge_masks(
         src_path_list,
         dst_path):
     """
-    Merge the temporary files created to store chunks of p-value masks
+    Merge the temporary files created to store chunks of p-value masks.
+
+    Parameters
+    ----------
+    src_path_list:
+        List of files to merge
+    dst_path:
+        Final HDF5 file to create
     """
     compression = 'gzip'
     compression_opts = 4
