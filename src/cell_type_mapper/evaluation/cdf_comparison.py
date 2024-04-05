@@ -101,7 +101,7 @@ def area_between_cdf(
             x=bins,
             true_y=expected,
             actual_y=actual,
-            signed=False)
+            signed=True)
 
         result[level] = {
             'area': area,
