@@ -34,8 +34,11 @@ def area_between_cdf(
     Returns
     -------
     A dict
-       {level1: area,
-        level2: area,
+       {level1: {'area': area,
+                 'signed_area': positive is over confident; negative is under
+                                confident
+                }
+        level2: {...}
         .....
        }
     """
@@ -91,8 +94,19 @@ def area_between_cdf(
         area = _riemann_area(
             x=bins,
             true_y=expected,
-            actual_y=actual)
-        result[level] = area
+            actual_y=actual,
+            signed=False)
+
+        signed_area = _riemann_area(
+            x=bins,
+            true_y=expected,
+            actual_y=actual,
+            signed=False)
+
+        result[level] = {
+            'area': area,
+            'signed_area': signed_area
+        }
 
     return result
 
@@ -100,9 +114,14 @@ def area_between_cdf(
 def _riemann_area(
         x,
         true_y,
-        actual_y):
+        actual_y,
+        signed=False):
 
     dy = true_y-actual_y
     dx = x[1:]-x[:-1]
-    area_arr = np.abs(dx*0.5*(dy[1:]+dy[:-1]))
+    if signed:
+        area_arr = dx*0.5*(dy[1:]+dy[:-1])
+    else:
+        area_arr = np.abs(dx*0.5*(dy[1:]+dy[:-1]))
+
     return area_arr.sum()
