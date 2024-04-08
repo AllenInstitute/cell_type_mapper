@@ -73,16 +73,17 @@ def area_between_cdf(
                 if cell_parent == true_parent:
                     conditioned = True
 
-            prob *= cell[level]['bootstrapping_probability']
+            level_prob = cell[level]['bootstrapping_probability']
+            prob *= level_prob
 
             if cell[level]['assignment'] == truth[cell['cell_id']][level]:
                 true_prob_lookup[level].append(prob)
                 if conditioned:
-                    conditioned_true_prob_lookup[level].append(prob)
+                    conditioned_true_prob_lookup[level].append(level_prob)
             else:
                 false_prob_lookup[level].append(prob)
                 if conditioned:
-                    conditioned_false_prob_lookup[level].append(prob)
+                    conditioned_false_prob_lookup[level].append(level_prob)
 
     result = dict()
     for level in taxonomy_tree.hierarchy:
