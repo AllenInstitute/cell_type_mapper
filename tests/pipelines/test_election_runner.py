@@ -297,12 +297,18 @@ def test_running_full_election(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precompute_path)
 
+    bootstrap_factor = 0.8
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     result = run_type_assignment(
         full_query_gene_data=query_cell_by_gene,
         leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
-        bootstrap_factor=0.8,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=23,
         rng=rng)
 
@@ -440,12 +446,18 @@ def test_running_flat_election(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precompute_path)
 
+    bootstrap_factor = 0.8
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     result = run_type_assignment(
         full_query_gene_data=query_cell_by_gene,
         leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
-        bootstrap_factor=0.8,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=23,
         rng=rng)
 
@@ -630,6 +642,11 @@ def test_running_h5ad_election(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     result = run_type_assignment_on_h5ad_cpu(
             query_h5ad_path=query_h5ad_fixture,
             precomputed_stats_path=precompute_stats_path_fixture,
@@ -637,7 +654,7 @@ def test_running_h5ad_election(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=rng)
 
@@ -700,6 +717,11 @@ def test_running_h5ad_election_with_tmp_dir(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     baseline_result = run_type_assignment_on_h5ad_cpu(
             query_h5ad_path=query_h5ad_fixture,
             precomputed_stats_path=precompute_stats_path_fixture,
@@ -707,7 +729,7 @@ def test_running_h5ad_election_with_tmp_dir(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed))
 
@@ -725,7 +747,7 @@ def test_running_h5ad_election_with_tmp_dir(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed),
             results_output_path=tmp_result_dir)
@@ -773,6 +795,11 @@ def test_running_h5ad_election_gpu(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     os.environ[env_var] = 'true'
     result = run_type_assignment_on_h5ad_gpu(
         query_h5ad_path=query_h5ad_fixture,
@@ -781,7 +808,7 @@ def test_running_h5ad_election_gpu(
         taxonomy_tree=taxonomy_tree,
         n_processors=n_processors,
         chunk_size=chunk_size,
-        bootstrap_factor=bootstrap_factor,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         results_output_path=None)
@@ -847,6 +874,11 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     env_var = 'AIBS_BKP_USE_TORCH'
 
     os.environ[env_var] = 'true'
@@ -857,7 +889,7 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed))
 
@@ -875,7 +907,7 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed),
             results_output_path=tmp_result_dir)
@@ -965,6 +997,11 @@ def test_running_h5ad_election_negative_expression(
     bootstrap_factor = 0.8
     bootstrap_iteration = 23
 
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
     with pytest.raises(RuntimeError, match="must be >= 0"):
         run_type_assignment_on_h5ad(
             query_h5ad_path=query_h5ad_fixture_negative,
@@ -973,7 +1010,7 @@ def test_running_h5ad_election_negative_expression(
             taxonomy_tree=taxonomy_tree,
             n_processors=n_processors,
             chunk_size=chunk_size,
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=rng,
             normalization='raw')
@@ -986,7 +1023,7 @@ def test_running_h5ad_election_negative_expression(
         taxonomy_tree=taxonomy_tree,
         n_processors=n_processors,
         chunk_size=chunk_size,
-        bootstrap_factor=bootstrap_factor,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         normalization='log2CPM')

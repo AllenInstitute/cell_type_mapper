@@ -468,12 +468,19 @@ def test_run_type_assignment(
         query_gene_names=reference_gene_names,
         output_cache_path=marker_cache_path)
 
+    factor = 0.6666
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy
+    }
+    bootstrap_factor_lookup['None'] = factor
+
     results = run_type_assignment(
         full_query_gene_data=query_data,
         leaf_node_matrix=reference_data,
         marker_gene_cache_path=marker_cache_path,
         taxonomy_tree=taxonomy_tree,
-        bootstrap_factor=0.6666,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=30,
         rng=rng)
 
