@@ -197,6 +197,12 @@ def test_tautological_assignment(
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
 
+    factor = 0.9
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_fixture,
         precomputed_stats_path=precomputed_fixture,
@@ -204,7 +210,7 @@ def test_tautological_assignment(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=50,
-        bootstrap_factor=0.9,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(887123))
     assert len(result) == len(taxonomy_dict_fixture['cluster'])

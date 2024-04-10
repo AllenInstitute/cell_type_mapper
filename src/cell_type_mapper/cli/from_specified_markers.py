@@ -318,6 +318,14 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
+
+    bootstrap_factor_lookup = {
+        level: type_assignment_config['bootstrap_factor']
+        for level in taxonomy_tree.hierarchy
+    }
+    bootstrap_factor_lookup['None'] = type_assignment_config[
+                                            'bootstrap_factor']
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_loc,
         precomputed_stats_path=precomputed_loc,
@@ -325,7 +333,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         taxonomy_tree=taxonomy_tree,
         n_processors=type_assignment_config['n_processors'],
         chunk_size=type_assignment_config['chunk_size'],
-        bootstrap_factor=type_assignment_config['bootstrap_factor'],
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
         n_assignments=type_assignment_config['n_runners_up']+1,
