@@ -70,6 +70,12 @@ def test_raw_pipeline(
     else:
         buffer_dir = None
 
+    factor = 6.0/7.0
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=raw_query_h5ad_fixture,
         precomputed_stats_path=precomputed_path_fixture,
@@ -77,7 +83,7 @@ def test_raw_pipeline(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
-        bootstrap_factor=6.0/7.0,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
         normalization='raw',
@@ -116,6 +122,12 @@ def test_raw_pipeline_cpu(
     else:
         buffer_dir = None
 
+    factor = 6.0/7.0
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad_cpu(
         query_h5ad_path=raw_query_h5ad_fixture,
         precomputed_stats_path=precomputed_path_fixture,
@@ -123,7 +135,7 @@ def test_raw_pipeline_cpu(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
-        bootstrap_factor=6.0/7.0,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
         normalization='raw',
@@ -167,6 +179,12 @@ def test_raw_pipeline_gpu(
     taxonomy_tree = TaxonomyTree(
         data=taxonomy_tree_dict)
 
+    factor = 6.0/7.0
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad_gpu(
         query_h5ad_path=raw_query_h5ad_fixture,
         precomputed_stats_path=precomputed_path_fixture,
@@ -174,7 +192,7 @@ def test_raw_pipeline_gpu(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
-        bootstrap_factor=6.0/7.0,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545),
         normalization='raw',
