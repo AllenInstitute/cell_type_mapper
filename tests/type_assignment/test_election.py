@@ -39,19 +39,31 @@ def tmp_dir_fixture(
 
 
 @pytest.mark.parametrize(
-    "bootstrap_factor, bootstrap_iteration",
-    [(0.7, 22),
-     (0.4, 102),
-     (0.9, 50),
-     (1.0, 1)])
+    "bootstrap_factor, bootstrap_iteration, with_torch",
+    [(0.7, 22, True),
+     (0.4, 102, True),
+     (0.9, 50, True),
+     (1.0, 1, True),
+     (0.7, 22, False),
+     (0.4, 102, False),
+     (0.9, 50, False),
+     (1.0, 1, False)])
 def test_tally_votes(
         bootstrap_factor,
-        bootstrap_iteration):
+        bootstrap_iteration,
+        with_torch):
     """
     Just a smoke test (does test output shape
     and that the total number of votes matches
     iterations)
     """
+    if with_torch:
+        if not is_torch_available():
+            return
+        env_var = 'AIBS_BKP_USE_TORCH'
+        os.environ[env_var] = 'true'
+        assert use_torch()
+
     rng = np.random.default_rng(776123)
 
     n_genes = 25
@@ -74,6 +86,10 @@ def test_tally_votes(
     for i_row in range(n_query):
         assert votes[i_row, :].sum() == bootstrap_iteration
     assert corr_sum.max() > 1.0e-6
+
+    if with_torch:
+        os.environ[env_var] = ''
+        assert not use_torch()
 
 
 def test_tally_votes_mocked_result():
