@@ -216,6 +216,7 @@ def run_mapping(
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
+
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
         log.env(f"is_cuda_available: {is_cuda_available()}")
