@@ -2,6 +2,9 @@ from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
 
+from cell_type_mapper.type_assignment.utils import (
+    validate_bootstrap_factor_lookup)
+
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
@@ -57,6 +60,11 @@ def run_type_assignment_on_h5ad(
                 log.error(error_msg)
             else:
                 raise RuntimeError(error_msg)
+
+    validate_bootstrap_factor_lookup(
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
+        taxonomy_tree=taxonomy_tree,
+        log=log)
 
     if use_torch():
         result = run_type_assignment_on_h5ad_gpu(
