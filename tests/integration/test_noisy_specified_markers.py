@@ -184,15 +184,16 @@ def noisy_marker_gene_lookup_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_gpu,just_once,drop_subclass,n_runners_up',
+        'flatten,use_gpu,just_once,drop_subclass,n_runners_up,scalar_factor',
         itertools.product(
             (True, False),
             (True, False),
             (True, False),
             (True, False),
-            (2, 4)
+            (2, 4),
+            (True, False)
         ))
-def test_mapping_from_markers(
+def test_mapping_from_markers_smoke(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
         noisy_raw_query_h5ad_fixture,
@@ -202,7 +203,8 @@ def test_mapping_from_markers(
         use_gpu,
         just_once,
         drop_subclass,
-        n_runners_up):
+        n_runners_up,
+        scalar_factor):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -260,9 +262,21 @@ def test_mapping_from_markers(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
+    if scalar_factor:
+        bootstrap_factor = 0.75
+        bootstrap_factor_lookup = None
+    else:
+        bootstrap_factor = None
+        bootstrap_factor_lookup = [
+            ('None', 0.75),
+            ('class', 0.5),
+            ('subclass', 0.33)
+        ]
+
     config['type_assignment'] = {
         'bootstrap_iteration': 50,
-        'bootstrap_factor': 0.75,
+        'bootstrap_factor': bootstrap_factor,
+        'bootstrap_factor_lookup': bootstrap_factor_lookup,
         'rng_seed': 1491625,
         'n_processors': 3,
         'chunk_size': 1000,
