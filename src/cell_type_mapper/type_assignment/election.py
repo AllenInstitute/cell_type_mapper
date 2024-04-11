@@ -82,7 +82,7 @@ def run_type_assignment_on_h5ad_cpu(
     taxonomy_tree:
         instance of
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        encoding the taxonomy tree
 
     n_processors:
         Number of independent worker processes to spin up
