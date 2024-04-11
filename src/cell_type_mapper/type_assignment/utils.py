@@ -1,4 +1,5 @@
 import h5py
+import numbers
 
 
 def reconcile_taxonomy_and_markers(
@@ -77,3 +78,74 @@ def reconcile_taxonomy_and_markers(
                 f"--drop_level '{bad_level}'")
 
     return (False, msg)
+
+
+def validate_bootstrap_factor_lookup(
+        bootstrap_factor_lookup,
+        taxonomy_tree,
+        log=None):
+    """
+    Check that the bootstrap_factor_lookup contains
+    all of the levels it needs to specify for a given
+    taxonomy_tree
+
+    Parameters
+    ----------
+
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+
+    taxonomy_tree:
+        instance of
+        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
+
+    log:
+        Optional logging object for tracking errors
+
+    Returns
+    -------
+    None. Just raises an exception if something is wrong
+    with bootstrap_factor_lookup
+    """
+
+    if not isinstance(bootstrap_factor_lookup, dict):
+        msg = (
+            "bootstrap_factor_lookup is not dict; is "
+            f"{type(bootstrap_factor_lookup)}"
+        )
+        if log is not None:
+            log.error(msg)
+        else:
+            raise RuntimeError(msg)
+
+    msg = ""
+
+    if 'None' not in bootstrap_factor_lookup:
+        msg += "bootstrap_factor_lookup missing level 'None'"
+    for level in taxonomy_tree.hierarchy[:-1]:
+        if level not in bootstrap_factor_lookup:
+            msg += f"bootstrap_factor_lookup missing level '{level}'"
+
+    eps = 1.0e-6
+    for k in bootstrap_factor_lookup:
+        val = bootstrap_factor_lookup[k]
+        if not isinstance(val, numbers.Number):
+            msg += (
+                f"bootstrap_factor_lookup['{k}'] = {val}; "
+                "not a number."
+            )
+        else:
+            if val < eps or val-1.0 > eps:
+                msg += (
+                    f"bootstrap_factor_lookup['{k}'] = {val} not "
+                    ">0.0 and <=1.0"
+                )
+
+    if len(msg) > 0:
+        if log is not None:
+            log.error(msg)
+        else:
+            raise RuntimeError(msg)

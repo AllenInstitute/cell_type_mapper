@@ -321,7 +321,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     bootstrap_factor_lookup = {
         level: type_assignment_config['bootstrap_factor']
-        for level in taxonomy_tree.hierarchy
+        for level in taxonomy_tree.hierarchy[:-1]
     }
     bootstrap_factor_lookup['None'] = type_assignment_config[
                                             'bootstrap_factor']
