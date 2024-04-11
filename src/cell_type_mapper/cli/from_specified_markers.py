@@ -319,12 +319,17 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
 
-    bootstrap_factor_lookup = {
-        level: type_assignment_config['bootstrap_factor']
-        for level in taxonomy_tree.hierarchy[:-1]
-    }
-    bootstrap_factor_lookup['None'] = type_assignment_config[
-                                            'bootstrap_factor']
+    if type_assignment_config['bootstrap_factor_lookup'] is not None:
+        bootstrap_factor_lookup = dict()
+        for pair in type_assignment_config['bootstrap_factor_lookup']:
+            bootstrap_factor_lookup[pair[0]] = pair[1]
+    else:
+        bootstrap_factor_lookup = {
+            level: type_assignment_config['bootstrap_factor']
+            for level in taxonomy_tree.hierarchy[:-1]
+        }
+        bootstrap_factor_lookup['None'] = type_assignment_config[
+                                                'bootstrap_factor']
 
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_loc,
