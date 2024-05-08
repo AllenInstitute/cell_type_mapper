@@ -88,6 +88,9 @@ def avg_f1(
         results[level]['micro'] = tp_sum/(tp_sum+0.5*(fn.sum() + fp.sum()))
         f1_vals = tp/(tp+0.5*(fn+fp))
         results[level]['macro'] = np.nanmean(f1_vals)
+        adj = np.where(np.isfinite(f1_vals), f1_vals, 0.0)
+        results[level]['macro_adjusted'] = np.mean(adj)
         results[level]['n_cells'] = n_tot[level]
+        results[level]['valid_classes'] = int(np.isfinite(f1_vals).sum())
 
     return results
