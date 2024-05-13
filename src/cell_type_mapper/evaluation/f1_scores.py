@@ -5,7 +5,8 @@ def avg_f1(
         mapping,
         truth,
         taxonomy_tree,
-        probability_cut=None):
+        probability_cut_list=None,
+        correlation_cut_list=None):
     """
     Return the averaged f1 scores for a mapping (both micro and macro)
 
@@ -37,6 +38,17 @@ def avg_f1(
         level2: {'micro': ....}
        }
     """
+    if probability_cut_list is None:
+        probability_cut_list = [0.0]
+
+    cut_list = [
+        ('probability', v) for v in probability_cut_list
+    ]
+    cut_list += [
+        ('correlation', v) for v in correlation_cut_list
+    ]
+
+
     nodes_to_idx = dict()
     for level in taxonomy_tree.hierarchy:
         nodes_to_idx[level] = dict()
@@ -49,72 +61,95 @@ def avg_f1(
     true_neg = dict()
     n_cells = dict()
     n_tot = dict()
+    estimated_false_pos = dict()
     for level in taxonomy_tree.hierarchy:
         n_nodes = len(nodes_to_idx[level])
-        true_pos[level] = np.zeros(n_nodes, dtype=int)
-        false_pos[level] = np.zeros(n_nodes, dtype=int)
-        false_neg[level] = np.zeros(n_nodes, dtype=int)
-        true_neg[level] = np.zeros(n_nodes, dtype=int)
         n_cells[level] = np.zeros(n_nodes, dtype=int)
         n_tot[level] = 0
 
-    estimated_false_pos = {
-        level:0 for level in taxonomy_tree.hierarchy
-    }
+        for lookup in (true_pos,
+                       false_pos,
+                       false_neg,
+                       true_neg,
+                       estimated_false_pos):
+            lookup[level] = dict()
+
+        for cut in cut_list:
+            true_pos[level][cut] = np.zeros(n_nodes, dtype=int)
+            false_pos[level][cut] = np.zeros(n_nodes, dtype=int)
+            false_neg[level][cut] = np.zeros(n_nodes, dtype=int)
+            true_neg[level][cut] = np.zeros(n_nodes, dtype=int)
+            estimated_false_pos[level][cut] = 0
+
     for cell in mapping:
+        agg_prob = 1.0
         for level in taxonomy_tree.hierarchy:
             assigned_val = cell[level]['assignment']
+            agg_prob *= cell[level]['bootstrapping_probability']
             true_val = truth[cell['cell_id']][level]
             true_idx = nodes_to_idx[level][true_val]
+            n_cells[level][true_idx] += 1
+            n_tot[level] += 1
+
             assigned_idx = nodes_to_idx[level][assigned_val]
             if assigned_idx == true_idx:
                 is_true = True
             else:
                 is_true = False
 
-            agg_prob = None
-            considered_true = True
-            if probability_cut is not None:
-                if 'aggregate_probability' in cell[level]:
-                    agg_prob = cell[level]['aggregate_probability']
-                    if agg_prob < probability_cut:
-                        considered_true=False
+            for cut in cut_list:
+                considered_true = True
+                if cut[0] == 'probability':
+                     if agg_prob < cut[1]:
+                         considered_true=False
+                 elif cut[0] == 'correlation':
+                     if cell[level]['avg_correlation'] < cut[1]:
+                         considered_true=False
+                 else:
+                     raise RuntimeError(
+                         f"Do not know how to handle cut {cut}"
+                     )
 
-            n_cells[level][true_idx] += 1
-            n_tot[level] += 1
-
-            if considered_true:
-                if agg_prob is not None:
-                    estimated_false_pos[level] += (1.0-agg_prob)
-
-            if is_true:
                 if considered_true:
-                    true_pos[level][true_idx] += 1
+                    if cut[0] == 'probability':
+                        estimated_false_pos[level][cut] += (1.0-agg_prob)
+
+                if is_true:
+                    if considered_true:
+                        true_pos[level][cut][true_idx] += 1
+                    else:
+                        false_neg[level][cut][true_idx] += 1
                 else:
-                    false_neg[level][true_idx] += 1
-            else:
-                false_neg[level][true_idx] += 1
-                if considered_true:
-                    false_pos[level][assigned_idx] += 1
+                    false_neg[level][cut][true_idx] += 1
+                    if considered_true:
+                        false_pos[level][cut][assigned_idx] += 1
 
     results = dict()
     for level in taxonomy_tree.hierarchy:
         results[level] = dict()
-        tp = true_pos[level]
-        fp = false_pos[level]
-        fn = false_neg[level]
-        tp_sum = tp.sum()
-        results[level]['micro'] = tp_sum/(tp_sum+0.5*(fn.sum() + fp.sum()))
-        f1_vals = tp/(tp+0.5*(fn+fp))
-        results[level]['macro'] = np.nanmean(f1_vals)
-        adj = np.where(np.isfinite(f1_vals), f1_vals, 0.0)
-        results[level]['macro_adjusted'] = np.mean(adj)
-        results[level]['true_pos'] = int(true_pos[level].sum())
-        results[level]['true_neg'] = int(true_neg[level].sum())
-        results[level]['false_pos'] = int(false_pos[level].sum())
-        results[level]['false_neg'] = int(false_neg[level].sum())
-        results[level]['n_cells'] = n_tot[level]
-        results[level]['valid_classes'] = int(np.isfinite(f1_vals).sum())
-        results[level]['est_false_pos'] = estimated_false_pos[level]
+        for cut in cut_list:
+            if cut[0] not in results[level]:
+                results[level][cut[0]] = dict()
+
+            this = dict()
+
+            tp = true_pos[level][cut]
+            fp = false_pos[level][cut]
+            fn = false_neg[level][cut]
+            tp_sum = tp.sum()
+            this['micro'] = tp_sum/(tp_sum+0.5*(fn.sum() + fp.sum()))
+            f1_vals = tp/(tp+0.5*(fn+fp))
+            this['macro'] = np.nanmean(f1_vals)
+            adj = np.where(np.isfinite(f1_vals), f1_vals, 0.0)
+            this['macro_adjusted'] = np.mean(adj)
+            this['true_pos'] = int(true_pos[level][cut].sum())
+            this['true_neg'] = int(true_neg[level][cut].sum())
+            this['false_pos'] = int(false_pos[level][cut].sum())
+            this['false_neg'] = int(false_neg[level][cut].sum())
+            this['n_cells'] = n_tot[level]
+            this['valid_classes'] = int(np.isfinite(f1_vals).sum())
+            if cut[0] == 'probability':
+                this['est_false_pos'] = estimated_false_pos[level][cut]
+            results[level][cut[0]][f'{cut[1]:.2f}'] = this
 
     return results
