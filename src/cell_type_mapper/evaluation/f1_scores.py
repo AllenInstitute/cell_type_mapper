@@ -102,13 +102,13 @@ def avg_f1(
                 if cut[0] == 'probability':
                      if agg_prob < cut[1]:
                          considered_true=False
-                 elif cut[0] == 'correlation':
-                     if cell[level]['avg_correlation'] < cut[1]:
-                         considered_true=False
-                 else:
-                     raise RuntimeError(
-                         f"Do not know how to handle cut {cut}"
-                     )
+                elif cut[0] == 'correlation':
+                    if cell[level]['avg_correlation'] < cut[1]:
+                        considered_true=False
+                else:
+                    raise RuntimeError(
+                        f"Do not know how to handle cut {cut}"
+                    )
 
                 if considered_true:
                     if cut[0] == 'probability':
