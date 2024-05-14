@@ -66,7 +66,6 @@ def avg_f1(
         ('correlation', v) for v in correlation_cut_list
     ]
 
-
     nodes_to_idx = dict()
     for level in taxonomy_tree.hierarchy:
         nodes_to_idx[level] = dict()
@@ -118,11 +117,11 @@ def avg_f1(
             for cut in cut_list:
                 considered_true = True
                 if cut[0] == 'probability':
-                     if agg_prob < cut[1]:
-                         considered_true=False
+                    if agg_prob < cut[1]:
+                        considered_true = False
                 elif cut[0] == 'correlation':
                     if cell[level]['avg_correlation'] < cut[1]:
-                        considered_true=False
+                        considered_true = False
                 else:
                     raise RuntimeError(
                         f"Do not know how to handle cut {cut}"
