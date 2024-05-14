@@ -107,7 +107,7 @@ def main():
         sea_ad_dir / "human_f0.25_small_markers.json"]
 
 
-    output_path = "bakeoff/confidence_distribution_finer.pdf"
+    output_path = "bakeoff/confidence_distribution_area.pdf"
     with PdfPages(output_path) as pdf_handle:
         plot_species_comparison(
             mapping_path_list=human_path_list,
@@ -127,21 +127,6 @@ def main():
             drop_level=None,
             species='human_sea_ad')
 
-
- 
-        """
-        plot_species_comparison(
-            mapping_path_list=mouse_path_list,
-            pdf_handle=pdf_handle,
-            drop_level='CCN20230722_SUPT',
-            species='mouse')
-
-        plot_species_comparison(
-            mapping_path_list=by_hand_path_list,
-            pdf_handle=pdf_handle,
-            drop_level='CCN20230722_SUPT',
-            species='mouse_by_hand')
-        """
         plot_species_comparison(
             mapping_path_list=handoff_path_list,
             pdf_handle=pdf_handle,
@@ -260,7 +245,7 @@ def plot_species_comparison(
     fig.tight_layout()
 
     pdf_handle.savefig(fig)
-
+    print(f'======done with {species}=======')
 
 def plot_cdf_comparison(
         axis,
@@ -281,7 +266,14 @@ def plot_cdf_comparison(
         level=level,
         binsize=binsize)
 
-    axis.plot(bins, actual, label=legend_label, c=color, linewidth=5)
+    area = _riemann_area(
+        x=bins,
+        true_y=expected,
+        actual_y=actual)
+
+    this_label = f'{legend_label}; {area:.2e}'
+
+    axis.plot(bins, actual, label=this_label, c=color, linewidth=5)
     axis.plot(bins, expected, c=color, linestyle='--', linewidth=5)
 
 
@@ -309,14 +301,28 @@ def plot_pdf_comparison(
         level=level,
         binsize=binsize)
 
-    ct_axis.stairs(actual, bins, label=legend_label, color=color, linewidth=5)
+    ct_area = _area(
+        binned_x=bins,
+        true_y=expected,
+        actual_y=actual)
+    ct_label = f'{legend_label}; {ct_area:.2e}'
+    ct_axis.stairs(actual, bins, label=ct_label, color=color, linewidth=5)
     x_bins = 0.5*(bins[1:]+bins[:-1])
+
     ct_axis.plot(x_bins, expected, c=color, linestyle='--', linewidth=5)
     ct_axis.set_yscale('log')
 
+
+    denom = np.where(total>0, total, 1)
+    rate_area = _area(
+        binned_x=bins,
+        true_y=expected/denom,
+        actual_y=actual/denom)
+
+    rate_label = f'{legend_label}; {rate_area:.2e}'
     total[total<1] = 1
     rate_axis.stairs(actual/total, bins,
-                     label=legend_label, color=color, linewidth=5)
+                     label=rate_label, color=color, linewidth=5)
     if color == 'b':
         rate_axis.plot(
              x_bins,
@@ -470,6 +476,25 @@ def get_rate_lookup_pdf(
             total,
             true_pos,
             false_pos)
+
+
+def _riemann_area(
+    x,
+    true_y,
+    actual_y):
+
+    dy = true_y-actual_y
+    dx = x[1:]-x[:-1]
+    area_arr = np.abs(dx*0.5*(dy[1:]+dy[:-1]))
+    return area_arr.sum()
+
+def _area(
+        binned_x,
+        true_y,
+        actual_y):
+    dy = np.abs(true_y-actual_y)
+    dx = binned_x[1:]-binned_x[:-1]
+    return (dy*dx).sum()
 
 
 
