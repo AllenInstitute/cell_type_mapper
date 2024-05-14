@@ -26,20 +26,38 @@ def avg_f1(
         }
     taxonomy_tree:
         The TaxonomyTree associated with the mapping
-    probability_cut:
-        If not None, ignore cells with
-        aggregate_probability < probability_cut
-        (if aggregate_probability available)
+    probability_cut_list:
+        List of values on which to cut in probability
+        (i.e. if aggregate probability is lower than this
+        threshold, assume the label is false)
+    correlation_cut_list:
+        List of values on which to cut in avg. correlation
+        coefficient.
 
     Returns
     -------
-    A dict
-       {level1: {'micro': micro_avg_f1, 'macro': macro_avg_f1},
-        level2: {'micro': ....}
-       }
+    A dict that maps
+       level -> "probability/correlation" -> cut -> stats
+
+    stats is in the form of a dict:
+        micro -- micro-averaged F1
+        macro -- macro-averaged F1
+        macro_adjusted -- macro-averaged F1 with NaNs converted to 0
+        true_pos -- number of true positives
+        true_neg -- 0; unclear how to handle this
+        false_pos -- number of false positives
+        false_neg -- number of false negatives
+        n_cells -- number of cells (uninteresting)
+        valid_classes -- number of cell types at this level with
+                         finite F1
+        est_false_pos -- number of false positives you would estimate
+                         naively believing aggregate probability
+                         (0 for cuts in average correlation)
     """
     if probability_cut_list is None:
         probability_cut_list = [0.0]
+    if correlation_cut_list is None:
+        correlation_cut_list = []
 
     cut_list = [
         ('probability', v) for v in probability_cut_list
