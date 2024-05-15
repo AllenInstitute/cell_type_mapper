@@ -8,7 +8,7 @@ import pathlib
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up,
-    json_clean_dict)
+    clean_for_json)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -39,7 +39,7 @@ def taxonomy_tree_fixture(
     tree = get_taxonomy_tree(
         obs_records=records_fixture,
         column_hierarchy=column_hierarchy)
-    tree = json_clean_dict(tree)
+    tree = clean_for_json(tree)
     return tree
 
 

@@ -4,7 +4,7 @@ import numpy as np
 import json
 import itertools
 
-from cell_type_mapper.utils.utils import json_clean_dict
+from cell_type_mapper.utils.utils import clean_for_json
 
 from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
@@ -164,7 +164,7 @@ def test_cleaning(
     result = compute_row_order(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
-    cleaned = json_clean_dict(result)
+    cleaned = clean_for_json(result)
     json.dumps(cleaned)
 
 

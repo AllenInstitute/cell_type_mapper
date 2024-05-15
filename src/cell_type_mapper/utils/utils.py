@@ -78,30 +78,6 @@ def print_timing(
     print(this_msg)
 
 
-def json_clean_dict(input_dict):
-    """
-    iteratively clean a dict so that it can be jsonized
-    (i.e. convert sets into lists and np.ints into ints)
-    """
-    output_dict = dict()
-    for k in input_dict:
-        val = input_dict[k]
-        if isinstance(val, dict):
-            output_dict[k] = json_clean_dict(val)
-        elif isinstance(val, set) or isinstance(val, list):
-            new_val = [
-                int(ii) if isinstance(ii, np.int64) else ii
-                for ii in val]
-            if isinstance(val, set):
-                new_val.sort()
-            output_dict[k] = new_val
-        elif isinstance(val, np.int64):
-            output_dict[k] = int(val)
-        else:
-            output_dict[k] = val
-    return output_dict
-
-
 def mkstemp_clean(
         dir: Optional[Union[pathlib.Path, str]] = None,
         prefix: Optional[str] = None,
@@ -196,3 +172,28 @@ def choose_int_dtype(
     if output_dtype is None:
         output_dtype = int
     return output_dtype
+
+
+def clean_for_json(data):
+    """
+    Iteratively walk through data, converting np.int64 to int as needed
+
+    Also convert sets into sorted lists and np.ndarrays into lists
+    """
+    if isinstance(data, np.int64):
+        return int(data)
+    elif isinstance(data, list) or isinstance(data, tuple):
+        return [clean_for_json(el) for el in data]
+    elif isinstance(data, set):
+        new_data = list(data)
+        new_data.sort()
+        return clean_for_json(new_data)
+    elif isinstance(data, np.ndarray):
+        return clean_for_json(data.tolist())
+    elif isinstance(data, dict):
+        new_data = {
+            key: clean_for_json(data[key])
+            for key in data
+        }
+        return new_data
+    return data
