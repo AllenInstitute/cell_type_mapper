@@ -174,14 +174,6 @@ def choose_int_dtype(
     return output_dtype
 
 
-def json_clean_dict(input_dict):
-    """
-    iteratively clean a dict so that it can be jsonized
-    (i.e. convert sets into lists and np.ints into ints)
-    """
-    return clean_for_json(input_dict)
-
-
 def clean_for_json(data):
     """
     Iteratively walk through data, converting np.int64 to int as needed

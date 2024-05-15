@@ -4,7 +4,7 @@ import json
 import pathlib
 
 from cell_type_mapper.utils.utils import (
-    json_clean_dict,
+    clean_for_json,
     get_timestamp)
 
 from cell_type_mapper.taxonomy.utils import (
@@ -294,7 +294,7 @@ class TaxonomyTree(object):
         else:
             out_dict = self._data
 
-        return json.dumps(json_clean_dict(out_dict), indent=indent)
+        return json.dumps(clean_for_json(out_dict), indent=indent)
 
     def flatten(self):
         """
