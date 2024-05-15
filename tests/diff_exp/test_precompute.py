@@ -34,7 +34,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
-    json_clean_dict,
+    clean_for_json,
     mkstemp_clean)
 
 
@@ -407,7 +407,7 @@ def test_precompute_from_data(
     expected_tree = get_taxonomy_tree(
         obs_records=records_fixture,
         column_hierarchy=hierarchy)
-    expected_tree = json_clean_dict(expected_tree)
+    expected_tree = clean_for_json(expected_tree)
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
             in_file['taxonomy_tree'][()].decode('utf-8'))
@@ -800,7 +800,7 @@ def test_precompute_from_many_h5ad_with_tree(
         if k in actual_tree:
             actual_tree.pop(k)
 
-    assert json_clean_dict(expected_tree) == actual_tree
+    assert clean_for_json(expected_tree) == actual_tree
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:
