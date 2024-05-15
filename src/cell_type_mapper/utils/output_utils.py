@@ -8,10 +8,14 @@ import time
 import cell_type_mapper
 
 from cell_type_mapper.utils.utils import (
-    get_timestamp)
+    get_timestamp,
+    mkstemp_clean,
+    clean_for_json)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
+    read_df_from_h5ad,
+    update_uns,
+    read_uns_from_h5ad)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -449,3 +453,100 @@ def hdf5_to_blob(
         results.append(cell)
     blob['results'] = results
     return blob
+
+
+def precomputed_stats_to_uns(
+        precomputed_stats_path,
+        h5ad_path,
+        uns_key):
+    """
+    Serialize the contents of a precomputed stats file and store them
+    in the uns element of an H5AD file.
+
+    Parameters
+    ----------
+    precomputed_stats_path:
+        path to the precomputed_stats file being serialized
+    h5ad_path:
+        path to the h5ad file where we are storing the
+        serialized results
+    uns_key:
+        the key under which all of the precomputed_stats data
+        will be stored.
+
+    Returns
+    -------
+    None
+        the uns elementof the H5AD file is updated with the
+        data from the precomputed stats file
+    """
+    serialized_data = dict()
+    with h5py.File(precomputed_stats_path, 'r') as src:
+        for dataset_name in src.keys():
+            data = src[dataset_name][()]
+            if isinstance(data, bytes):
+                data = json.loads(data.decode('utf-8'))
+            serialized_data[dataset_name] = data
+
+    update_uns(
+        h5ad_path=h5ad_path,
+        new_uns={uns_key: serialized_data},
+        clobber=False)
+
+
+def uns_to_precomputed_stats(
+        h5ad_path,
+        uns_key,
+        tmp_dir=None):
+    """
+    Read a serialized precomputed stats file from the uns element
+    of an H5AD file and write it out to a new HDF5 file. Return
+    the path to the new file.
+
+    Parameters
+    ----------
+    h5ad_path:
+        path to the H5AD file being read
+    uns_key:
+        they key in uns under which the precomputed stats data has
+        been stored
+    tmp_dir:
+        temporary directory where the new file will be created
+
+    Returns
+    -------
+    The path to the new precomputed stats file
+    (a pathlib.Path)
+    """
+    h5_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix='precomputed_stats_',
+            suffix='.h5ad')
+    )
+
+    # we need to do this because anndata's serializaton of uns
+    # to an h5ad file is very aggressive about converting lists
+    # to numpy arrays and, for better or worse, there are structures
+    # that we want stored as JSONized lists in the precomputed
+    # stats file
+    numerical_dataset_names = set(
+        ['n_cells', 'sum', 'sumsq', 'ge1', 'gt1', 'gt0']
+    )
+
+    serialized_data = read_uns_from_h5ad(h5ad_path)[uns_key]
+    with h5py.File(h5_path, 'w') as dst:
+        for dataset_name in serialized_data:
+            data = serialized_data[dataset_name]
+            if dataset_name in numerical_dataset_names:
+                chunks = True
+            else:
+                chunks = False
+                data = json.dumps(clean_for_json(data)).encode('utf-8')
+
+            dst.create_dataset(
+                dataset_name,
+                data=data,
+                chunks=chunks)
+
+    return h5_path
