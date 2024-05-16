@@ -257,6 +257,11 @@ def test_mapping_from_markers(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
+    log_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.txt')
+    config['log_path'] = log_path
+
     runner = FromSpecifiedMarkersRunner(
         args= [],
         input_data=config)

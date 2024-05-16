@@ -189,7 +189,7 @@ def run_mapping(
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
         if log_path is not None:
-            log.write_log(log_path, cloud_save=config['cloud_safe'])
+            log.write_log(log_path, cloud_safe=config['cloud_safe'])
         output["config"] = safe_config
         output_log = copy.deepcopy(log.log)
         if config['cloud_safe']:
