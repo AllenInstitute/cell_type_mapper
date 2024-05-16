@@ -1,6 +1,8 @@
 import copy
 import pathlib
 
+import cell_type_mapper
+
 
 def sanitize_paths(
         input_structure):
@@ -10,12 +12,19 @@ def sanitize_paths(
     to avoid exposing internal file structures in output logs.
     The returned data is the sanitized version of input_structure.
     """
+    mapper_path = pathlib.Path(
+        cell_type_mapper.__file__).resolve().absolute().parent.parent
     if isinstance(input_structure, str):
         substitutions = dict()
         for word in input_structure.split():
             path = _word_to_path(word)
             if is_exposed(path):
-                substitutions[word] = path.name
+                abs_path = path.resolve().absolute()
+                if abs_path.is_relative_to(mapper_path):
+                    safe_path = str(abs_path.relative_to(mapper_path))
+                else:
+                    safe_path = path.name
+                substitutions[word] = safe_path
         if len(substitutions) > 0:
             result = copy.deepcopy(input_structure)
             for old in substitutions:
