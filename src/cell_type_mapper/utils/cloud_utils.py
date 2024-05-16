@@ -1,3 +1,4 @@
+import copy
 import pathlib
 
 
@@ -10,14 +11,18 @@ def sanitize_paths(
     The returned data is the sanitized version of input_structure.
     """
     if isinstance(input_structure, str):
-        new_words = []
+        substitutions = dict()
         for word in input_structure.split():
-            path = pathlib.Path(word)
+            path = _word_to_path(word)
             if is_exposed(path):
-                new_words.append(path.name)
-            else:
-                new_words.append(word)
-        return " ".join(new_words)
+                substitutions[word] = path.name
+        if len(substitutions) > 0:
+            result = copy.deepcopy(input_structure)
+            for old in substitutions:
+                result = result.replace(old, substitutions[old])
+        else:
+            result = input_structure
+        return result
     elif isinstance(input_structure, dict):
         new_dict = dict()
         for k in input_structure:
@@ -44,3 +49,12 @@ def is_exposed(input_path):
     if input_path.is_file() or input_path.is_dir():
         return True
     return is_exposed(input_path.parent)
+
+
+def _word_to_path(word):
+    """
+    Take a string, remove all quotation marks. Return a pathlib.Path
+    """
+    for char in ('"', "'"):
+        word = word.replace(char, '')
+    return pathlib.Path(word)
