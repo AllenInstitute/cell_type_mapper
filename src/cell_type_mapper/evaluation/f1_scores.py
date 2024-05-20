@@ -100,7 +100,10 @@ def avg_f1(
 
     for cell in mapping:
         agg_prob = 1.0
-        ancestor_passed_corr = True
+        ancestor_passed_corr = {
+            cut[1]: True
+            for cut in cut_list if cut[0] == 'correlation'
+        }
         for level in taxonomy_tree.hierarchy:
             assigned_val = cell[level]['assignment']
             agg_prob *= cell[level]['bootstrapping_probability']
@@ -121,11 +124,11 @@ def avg_f1(
                     if agg_prob < cut[1]:
                         considered_true = False
                 elif cut[0] == 'correlation':
-                    if not ancestor_passed_corr:
+                    if not ancestor_passed_corr[cut[1]]:
                         considered_true = False
                     if cell[level]['avg_correlation'] < cut[1]:
                         considered_true = False
-                        ancestor_passed_corr = False
+                        ancestor_passed_corr[cut[1]] = False
                 else:
                     raise RuntimeError(
                         f"Do not know how to handle cut {cut}"
