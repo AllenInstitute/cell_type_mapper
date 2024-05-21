@@ -354,8 +354,8 @@ def run_type_assignment(
 
     taxonomy_tree:
         instance of
-        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        cell_type_mapper.taxonomy.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
 
     bootstrap_factor_lookup:
         A dict mapping the levels in taxonomy_tree.hierarchy to
@@ -539,6 +539,15 @@ def run_type_assignment(
             if cell[child_level]['avg_correlation'] is None:
                 cell[child_level]['avg_correlation'] = \
                     cell[parent_level]['avg_correlation']
+
+    # add aggregate_probability (the product of bootstrapping_probability)
+    # across levels in the taxonomy
+    print(f'level list {level_list}')
+    for cell in result:
+        prob = 1.0
+        for level in taxonomy_tree.hierarchy:
+            prob *= cell[level]['bootstrapping_probability']
+            cell[level]['aggregate_probability'] = prob
 
     return result
 

@@ -586,6 +586,23 @@ def test_run_type_assignment(
     assert n_l1b > 2
     assert n_l2d > 2
 
+    # verify that aggregate probability is correct
+    expected = []
+    actual = []
+    for cell in results:
+        prob = 1.0
+        for level in taxonomy_tree.hierarchy:
+            prob *= cell[level]['bootstrapping_probability']
+            expected.append(prob)
+            actual.append(cell[level]['aggregate_probability'])
+
+    np.testing.assert_allclose(
+        expected,
+        actual,
+        atol=0.0,
+        rtol=1.0e-6)
+
+
 def test_aggregate_votes():
 
     rng = np.random.default_rng(2213)
