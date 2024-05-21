@@ -106,6 +106,12 @@ def test_all_of_it(
     with h5py.File(marker_cache_path, 'r') as in_file:
         assert len(in_file['None']['reference'][()]) > 0
 
+    factor = 0.9
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_h5ad_path_fixture,
         precomputed_stats_path=precomputed_path,
@@ -113,7 +119,7 @@ def test_all_of_it(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
-        bootstrap_factor=0.9,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545))
 

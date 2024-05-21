@@ -34,7 +34,7 @@ class TypeAssignment(nn.Module):
             leaf_node_matrix=config["leaf_node_matrix"],
             marker_gene_cache_path=config["marker_gene_cache_path"],
             taxonomy_tree=config["taxonomy_tree"],
-            bootstrap_factor=config["bootstrap_factor"],
+            bootstrap_factor_lookup=config["bootstrap_factor_lookup"],
             bootstrap_iteration=config["bootstrap_iteration"],
             rng=np.random.default_rng(config["rng"].integers(99, 2**32)),
             n_assignments=config["n_assignments"],
@@ -50,7 +50,7 @@ def run_type_assignment_on_h5ad_gpu(
         taxonomy_tree,
         n_processors,
         chunk_size,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
         n_assignments=25,
@@ -93,8 +93,9 @@ def run_type_assignment_on_h5ad_gpu(
         Note: if this is larger than n_rows/n_processors,
         then this will get changed to n_rows/n_processors
 
-    bootstrap_factor:
-        Fraction (<=1.0) by which to sampel the marker gene set
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
         at each bootstrapping iteration
 
     bootstrap_iteration:
@@ -199,7 +200,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["leaf_node_matrix"] = leaf_node_matrix
     config["marker_gene_cache_path"] = marker_gene_cache_path
     config["taxonomy_tree"] = taxonomy_tree
-    config["bootstrap_factor"] = bootstrap_factor
+    config["bootstrap_factor_lookup"] = bootstrap_factor_lookup
     config["bootstrap_iteration"] = bootstrap_iteration
     config["rng"] = rng
     config["gpu_index"] = gpu_index

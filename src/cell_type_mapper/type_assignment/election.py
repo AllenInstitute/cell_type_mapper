@@ -49,7 +49,7 @@ def run_type_assignment_on_h5ad_cpu(
         taxonomy_tree,
         n_processors,
         chunk_size,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
         n_assignments=26,
@@ -82,7 +82,7 @@ def run_type_assignment_on_h5ad_cpu(
     taxonomy_tree:
         instance of
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        encoding the taxonomy tree
 
     n_processors:
         Number of independent worker processes to spin up
@@ -92,8 +92,9 @@ def run_type_assignment_on_h5ad_cpu(
         Note: if this is larger than n_rows/n_processors,
         then this will get changed to n_rows/n_processors
 
-    bootstrap_factor:
-        Fraction (<=1.0) by which to sampel the marker gene set
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
         at each bootstrapping iteration
 
     bootstrap_iteration:
@@ -238,7 +239,7 @@ def run_type_assignment_on_h5ad_cpu(
                     'leaf_node_matrix': leaf_node_matrix,
                     'marker_gene_cache_path': marker_gene_cache_path,
                     'taxonomy_tree': taxonomy_tree,
-                    'bootstrap_factor': bootstrap_factor,
+                    'bootstrap_factor_lookup': bootstrap_factor_lookup,
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'n_assignments': n_assignments,
@@ -288,7 +289,7 @@ def _run_type_assignment_on_h5ad_worker(
         leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
         n_assignments,
@@ -301,7 +302,7 @@ def _run_type_assignment_on_h5ad_worker(
         leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
-        bootstrap_factor=bootstrap_factor,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         n_assignments=n_assignments)
@@ -323,7 +324,7 @@ def run_type_assignment(
         leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
         n_assignments=25,
@@ -356,8 +357,9 @@ def run_type_assignment(
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
         ecoding the taxonomy tree
 
-    bootstrap_factor:
-        Fraction (<=1.0) by which to sampel the marker gene set
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
         at each bootstrapping iteration
 
     bootstrap_iteration:
@@ -454,6 +456,9 @@ def run_type_assignment(
 
             if len(possible_children) > 1:
                 t = time.time()
+
+                bootstrap_factor = bootstrap_factor_lookup[str(parent_level)]
+
                 (assignment,
                  bootstrapping_probability,
                  avg_corr,

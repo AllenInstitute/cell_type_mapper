@@ -18,9 +18,25 @@ class HierarchicalConfigMixin(object):
     bootstrap_factor = argschema.fields.Float(
         required=False,
         default=0.9,
-        allow_none=False,
+        allow_none=True,
         description="Factor by which to downsample the number of genes when "
         "performing bootstrapped nearest neighbor cell type searches.")
+
+    bootstrap_factor_lookup = argschema.fields.List(
+        argschema.fields.Tuple(
+            (argschema.fields.String,
+             argschema.fields.Float)
+        ),
+        required=False,
+        default=None,
+        allow_none=True,
+        cli_as_single_argument=True,
+        description=(
+            "A list of tuples (level_name, value) that indicate the "
+            "bootstrapping_factor values to use at each level in the "
+            "taxonomy."
+        )
+    )
 
     chunk_size = argschema.fields.Int(
         required=False,
@@ -71,6 +87,10 @@ class HierarchicalConfigMixin(object):
         and that normalization is either 'raw' or 'log2CPM'
         """
         factor = data['bootstrap_factor']
+
+        if factor is None:
+            return data
+
         eps = 1.0e-6
         if factor <= 0.0 or factor > 1.0+eps:
             raise ValidationError(
@@ -82,6 +102,22 @@ class HierarchicalConfigMixin(object):
                 f"{norm} is not a valid query normalization;\n"
                 "must be either 'raw' or 'log2CP'")
 
+        return data
+
+    @post_load
+    def check_bootstrap_factor_lookup(self, data, **kwargs):
+        """
+        Check that only one of bootstrap_factor or
+        bootstrap_factor_lookup are specified
+        """
+        no_factor = int((data['bootstrap_factor'] is None))
+        no_lookup = int((data['bootstrap_factor_lookup'] is None))
+        if no_factor + no_lookup != 1:
+            msg = (
+                "Must specify one and only one of 'bootstrap_factor' "
+                "or 'bootstrap_factor_lookup'"
+            )
+            raise ValidationError(msg)
         return data
 
 

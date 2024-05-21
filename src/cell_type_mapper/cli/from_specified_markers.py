@@ -216,6 +216,7 @@ def run_mapping(
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
+
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
         log.env(f"is_cuda_available: {is_cuda_available()}")
@@ -317,6 +318,19 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
+
+    if type_assignment_config['bootstrap_factor_lookup'] is not None:
+        bootstrap_factor_lookup = dict()
+        for pair in type_assignment_config['bootstrap_factor_lookup']:
+            bootstrap_factor_lookup[pair[0]] = pair[1]
+    else:
+        bootstrap_factor_lookup = {
+            level: type_assignment_config['bootstrap_factor']
+            for level in taxonomy_tree.hierarchy[:-1]
+        }
+        bootstrap_factor_lookup['None'] = type_assignment_config[
+                                                'bootstrap_factor']
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_loc,
         precomputed_stats_path=precomputed_loc,
@@ -324,7 +338,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         taxonomy_tree=taxonomy_tree,
         n_processors=type_assignment_config['n_processors'],
         chunk_size=type_assignment_config['chunk_size'],
-        bootstrap_factor=type_assignment_config['bootstrap_factor'],
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
         n_assignments=type_assignment_config['n_runners_up']+1,

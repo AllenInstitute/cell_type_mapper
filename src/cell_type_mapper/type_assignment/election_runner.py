@@ -2,6 +2,9 @@ from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
 
+from cell_type_mapper.type_assignment.utils import (
+    validate_bootstrap_factor_lookup)
+
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
@@ -24,7 +27,7 @@ def run_type_assignment_on_h5ad(
         taxonomy_tree,
         n_processors,
         chunk_size,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
         n_assignments=10,
@@ -58,6 +61,11 @@ def run_type_assignment_on_h5ad(
             else:
                 raise RuntimeError(error_msg)
 
+    validate_bootstrap_factor_lookup(
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
+        taxonomy_tree=taxonomy_tree,
+        log=log)
+
     if use_torch():
         result = run_type_assignment_on_h5ad_gpu(
             query_h5ad_path,
@@ -66,7 +74,7 @@ def run_type_assignment_on_h5ad(
             taxonomy_tree,
             n_processors,
             chunk_size,
-            bootstrap_factor,
+            bootstrap_factor_lookup,
             bootstrap_iteration,
             rng,
             n_assignments=n_assignments,
@@ -83,7 +91,7 @@ def run_type_assignment_on_h5ad(
             taxonomy_tree,
             n_processors,
             chunk_size,
-            bootstrap_factor,
+            bootstrap_factor_lookup,
             bootstrap_iteration,
             rng,
             n_assignments=n_assignments,
