@@ -286,6 +286,8 @@ def blob_to_hdf5(
         (n_cells, n_levels), dtype=float)
     prob = np.zeros(
         (n_cells, n_levels), dtype=float)
+    agg_prob = np.zeros(
+        (n_cells, n_levels), dtype=float)
     assignments = np.zeros(
         (n_cells, n_levels), dtype=int)
 
@@ -328,6 +330,7 @@ def blob_to_hdf5(
             assignments[i_cell, i_level] = idx
             corr[i_cell, i_level] = cell[level]['avg_correlation']
             prob[i_cell, i_level] = cell[level]['bootstrapping_probability']
+            agg_prob[i_cell, i_level] = cell[level]['aggregate_probability']
             if 'runner_up_assignment' in cell[level]:
                 this_n = len(cell[level]['runner_up_assignment'])
                 for i_r in range(this_n):
@@ -359,12 +362,14 @@ def blob_to_hdf5(
 
         for name, data in zip(('assignment',
                                'bootstrapping_probability',
+                               'aggregate_probability',
                                'average_correlation',
                                'runner_up_assignment',
                                'runner_up_probability',
                                'runner_up_correlation'),
                               (assignments,
                                prob,
+                               agg_prob,
                                corr,
                                r_assignments,
                                r_prob,
@@ -407,6 +412,10 @@ def hdf5_to_blob(
 
         assignment = src['assignment'][()]
         prob = src['bootstrapping_probability'][()]
+        if 'aggregate_probability' in src.keys():
+            agg_prob = src['aggregate_probability'][()]
+        else:
+            agg_prob = None
         corr = src['average_correlation'][()]
         if 'runner_up_assignment' in src:
             r_assignment = src['runner_up_assignment'][()]
@@ -430,6 +439,9 @@ def hdf5_to_blob(
                 'avg_correlation': corr[i_cell, i_level],
                 'directly_assigned': directly_assigned[i_level]
             }
+
+            if agg_prob is not None:
+                this['aggregate_probability'] = agg_prob[i_cell, i_level]
 
             if directly_assigned[i_level]:
                 this.update({
