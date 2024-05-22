@@ -182,6 +182,8 @@ def clean_for_json(data):
     """
     if isinstance(data, np.int64):
         return int(data)
+    elif isinstance(data, np.bool_):
+        return bool(data)
     elif isinstance(data, list) or isinstance(data, tuple):
         return [clean_for_json(el) for el in data]
     elif isinstance(data, set):
