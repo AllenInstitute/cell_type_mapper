@@ -110,6 +110,14 @@ For each level in the taxonomy tree there is recorded
 - `'assignment'`: the taxonomic node chosen for this cell
 - `'bootstrapping_probability'`: the fraction of bootstrap iterations that
 selected the assigned taxonomic node
+- `'aggregate_probability'`: this is the product of `boostrapping_probability`
+for all levels of the taxonomy starting at the grossest level and
+ending at the current level, i.e. if your taxonomy has levels
+`['class', 'subclass', 'cluster']`, then the `aggregate_probability` at
+the `subclass` level is the product of the `class` level
+`bootstrapping_probability` with the `subclass` level
+`bootstrapping_probability`; the `aggregate_probability` at the `cluster`
+level is the product of the `bootstrapping_probability` at all three levels.
 - `'avg_correlation`': the average Pearson's correlation coefficient between
 the gene profile of the cell and the average gene profile of the chosen
 taxonomic node *in the marker genes appropriate for that node.* The average
@@ -125,9 +133,9 @@ based on the inheritance of the assigned leaf node (e.g. "I know the cell
 has been assigned directly to subtypeA; it was not directly assigned to
 a supertype; however, since subtypeA is a child of supertypeB in my taxonomy,
 I can infer that the cell must also be a member of supertypeB").
-In this case, the `bootstrapping_probability` and `avg_correlation` values
-are propagated up the tree from the directly assigned child node for
-convenience.
+In this case, the `bootstrapping_probability`, 	`aggregate_probability`,
+and `avg_correlation` values are propagated up the tree from the
+directly assigned child node for convenience.
 
 The cell is identified by the `cell_id` key in the dict, e.g.
 
@@ -136,18 +144,21 @@ The cell is identified by the `cell_id` key in the dict, e.g.
   "CCN20230504_CLAS": {
     "assignment": "CCN20230504_CLAS_25",
     "bootstrapping_probability": 0.74,
+    "aggregate_probability": 0.74,
     "avg_correlation": 0.5735289275007436,
     "directly_assigned": True
   },
   "CCN20230504_SUBC": {
     "assignment": "CCN20230504_SUBC_269",
     "bootstrapping_probability": 0.59,
+    "aggregate_probability": 0.44,
     "avg_correlation": 0.6041588697199276,
     "directly_assigned": True
   },
   "CCN20230504_CLUS": {
     "assignment": "CCN20230504_CLUS_4975",
     "bootstrapping_probability": 0.56,
+    "aggregate_probability": 0.24,
     "avg_correlation": 0.6123913092110298,
     "directly_assigned": True
   },
