@@ -211,6 +211,16 @@ def test_mapping_from_markers_smoke(
     drop_subclass will drop 'subclass' from the taxonomy
     """
 
+    if flatten:
+        actual_levels = ['cluster']
+        mapped_levels = {'class': 'cluster', 'subclass': 'cluster'}
+    elif drop_subclass:
+        actual_levels = ['class', 'cluster']
+        mapped_levels = {'subclass': 'cluster'}
+    else:
+        actual_levels = ['class', 'subclass', 'cluster']
+        mapped_levels = dict()
+
     use_tmp_dir = True
     use_csv = True
 
@@ -443,6 +453,34 @@ def test_mapping_from_markers_smoke(
         assert with_runners_up == 0
 
     assert without_runners_up > 0
+
+    # check aggregate probability
+    actual_agg = []
+    expected_agg = []
+    for cell in actual['results']:
+        prob = 1.0
+        prob_lookup = dict()
+
+        # calculate aggregate probability for directly calculated
+        # levels
+        for level in actual_levels:
+            prob *= cell[level]['bootstrapping_probability']
+            prob_lookup[level] = prob
+
+        # map probability from actually calculated levels to
+        # levels that were flattened away or dropped
+        for src_level in mapped_levels:
+            prob_lookup[src_level] = prob_lookup[mapped_levels[src_level]]
+
+        for level in ['class', 'subclass', 'cluster']:
+            actual_agg.append(cell[level]['aggregate_probability'])
+            expected_agg.append(prob_lookup[level])
+
+    np.testing.assert_allclose(
+        actual_agg,
+        expected_agg,
+        atol=0.0,
+        rtol=1.0e-6)
 
 
 @pytest.mark.parametrize(
