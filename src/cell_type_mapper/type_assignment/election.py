@@ -542,7 +542,6 @@ def run_type_assignment(
 
     # add aggregate_probability (the product of bootstrapping_probability)
     # across levels in the taxonomy
-    print(f'level list {level_list}')
     for cell in result:
         prob = 1.0
         for level in taxonomy_tree.hierarchy:
