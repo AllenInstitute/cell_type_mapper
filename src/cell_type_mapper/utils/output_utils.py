@@ -272,6 +272,49 @@ def blob_to_hdf5(
             continue
         metadata[k] = output_blob[k]
 
+    with h5py.File(dst_path, 'w') as dst:
+
+        dst.create_dataset(
+            'metadata',
+            data=json.dumps(metadata).encode('utf-8'))
+
+    run_succeeded = True
+    if 'taxonomy_tree' not in output_blob:
+        run_succeeded = False
+    elif 'results' not in output_blob:
+        run_succeeded = False
+
+    if run_succeeded:
+        _blob_to_hdf5_results(
+            output_blob=output_blob,
+            dst_path=dst_path,
+            metadata=metadata)
+
+
+def _blob_to_hdf5_results(
+        output_blob,
+        dst_path,
+        metadata):
+    """
+    Serialize the actual mapping results into an HDF5 file
+    (this is a separate function so that, in the event that a run fails,
+    the log, etc. will still get written to an HDF5 file).
+
+    Parameters
+    ----------
+    output_blob:
+        The dict usually produced as the "extended" output of the
+        cell type mapper.
+    dst_path:
+        Path to the HDF5 file to be written.
+        Should already have been created by blob_to_hdf5
+    metadata:
+        A dict. The metadata accumulatd by blob_to_hdf5
+
+    Returns
+    -------
+    None. Data is written to the file at dst_path.
+    """
     taxonomy_tree = TaxonomyTree(
         data=metadata['taxonomy_tree'])
 
@@ -342,15 +385,11 @@ def blob_to_hdf5(
                     r_corr[i_cell, i_level, i_r] = cell[level][
                             'runner_up_correlation'][i_r]
 
-    with h5py.File(dst_path, 'w') as dst:
+    with h5py.File(dst_path, 'a') as dst:
 
         dst.create_dataset(
             'directly_assigned',
             data=directly_assigned)
-
-        dst.create_dataset(
-            'metadata',
-            data=json.dumps(metadata).encode('utf-8'))
 
         dst.create_dataset(
             'int_to_node',
@@ -402,10 +441,14 @@ def hdf5_to_blob(
     """
     with h5py.File(src_path, 'r') as src:
 
-        directly_assigned = src['directly_assigned'][()]
-
         blob = json.loads(
             src['metadata'][()].decode('utf-8'))
+
+        if 'assignment' not in src.keys():
+            return blob
+
+        directly_assigned = src['directly_assigned'][()]
+
         cell_id_arr = src['cell_id'][()]
         int_to_node = json.loads(
             src['int_to_node'][()].decode('utf-8'))

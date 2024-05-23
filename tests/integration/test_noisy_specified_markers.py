@@ -900,9 +900,6 @@ def test_cli_compression_noisy_markers(
     drop_subclass will drop 'subclass' from the taxonomy
     """
 
-    use_tmp_dir = True
-    csv_path = None
-
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
     json_result_path = mkstemp_clean(
@@ -914,10 +911,7 @@ def test_cli_compression_noisy_markers(
         suffix='.h5')
 
     config = dict()
-    if use_tmp_dir:
-        config['tmp_dir'] = this_tmp
-    else:
-        config['tmp_dir'] = None
+    config['tmp_dir'] = this_tmp
 
     config['query_path'] = str(
         noisy_raw_query_h5ad_fixture.resolve().absolute())
@@ -964,6 +958,113 @@ def test_cli_compression_noisy_markers(
         src_path=hdf5_result_path)
 
     assert len(output_blob['results']) > 0
+    assert from_hdf5 == output_blob
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_failure_cli_compression_of_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    Test whether output written to HDF5 file is identical to
+    output written to JSON file when the job fails.
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    nonsense_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    rng = np.random.default_rng(22111)
+    n_cells = 55
+    n_genes = 14
+    var = pd.DataFrame(
+        [{'g': f'garbage_{ii}'} for ii in range(n_genes)]).set_index('g')
+    obs = pd.DataFrame(
+        [{'c': f'c_{ii}'} for ii in range(n_cells)]).set_index('c')
+    a_data = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=rng.random((n_cells, n_genes)))
+    a_data.write_h5ad(nonsense_path)
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    json_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    hdf5_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.h5')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = nonsense_path
+
+    config['extended_result_path'] = json_result_path
+    config['hdf5_result_path'] = hdf5_result_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    try:
+        runner.run()
+    except:
+        pass
+
+    output_blob = json.load(open(json_result_path, 'rb'))
+    assert 'results' not in output_blob
+
+    from_hdf5 = hdf5_to_blob(
+        src_path=hdf5_result_path)
+
     assert from_hdf5 == output_blob
 
 
