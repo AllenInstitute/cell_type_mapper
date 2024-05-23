@@ -881,6 +881,100 @@ def test_compression_noisy_markers(
             (True, False),
             (2, 4)
         ))
+def test_cli_compression_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    Test whether output written to HDF5 file is identical to
+    output written to JSON file.
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    use_tmp_dir = True
+    csv_path = None
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    json_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    hdf5_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.h5')
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = json_result_path
+    config['hdf5_result_path'] = hdf5_result_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    output_blob = json.load(open(json_result_path, 'rb'))
+
+    from_hdf5 = hdf5_to_blob(
+        src_path=hdf5_result_path)
+
+    assert len(output_blob['results']) > 0
+    assert from_hdf5 == output_blob
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
 def test_hdf5_output_from_cli(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
