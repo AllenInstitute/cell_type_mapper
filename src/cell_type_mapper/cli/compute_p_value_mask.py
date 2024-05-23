@@ -47,7 +47,9 @@ class PValueRunner(argschema.ArgSchemaParser):
                 data=json.dumps(metadata).encode('utf-8'))
 
         duration = time.time()-t0
-        print(f"======RAN SUCCESSFULLY in {duration/3600.0:.2e} hrs======")
+        print(
+            "======P-VALUE MASK RAN SUCCESSFULLY in "
+            f"{duration/3600.0:.2e} hrs======")
 
 
 def main():

@@ -88,7 +88,7 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 max_gb=self.args['max_gb'],
                 log=log)
 
-            log.info("RAN SUCCESSFULLY")
+            log.info("REFERENCE MARKER FINDER RAN SUCCESSFULLY")
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path

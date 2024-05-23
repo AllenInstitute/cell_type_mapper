@@ -204,7 +204,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             input_data=mapping_config)
 
         mapping_runner.run()
-        log.info("RAN SUCCESSFULLY")
+        log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
 
 
 def main():

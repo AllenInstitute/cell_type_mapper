@@ -179,7 +179,7 @@ def run_mapping(
                         indent=2))
 
         _clean_up(tmp_result_dir)
-        log.info("RAN SUCCESSFULLY")
+        log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"

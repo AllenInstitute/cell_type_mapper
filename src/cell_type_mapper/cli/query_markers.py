@@ -77,7 +77,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
                 json.dumps(marker_lookup, indent=2))
 
         dur = time.time()-t0
-        print(f"RAN SUCCESSFULLY in {dur:.2e} seconds")
+        print(f"QUERY MARKER FINDER RAN SUCCESSFULLY in {dur:.2e} seconds")
 
 
 if __name__ == "__main__":
