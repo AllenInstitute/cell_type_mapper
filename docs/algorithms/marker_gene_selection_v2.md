@@ -3,9 +3,7 @@
 This page documents an alternative pipeline for creating the marker gene
 lookup table used by the cell type mapper. It essentially follows the
 same algorithm described [here,](marker_gene_selection.md) but with a different
-computational workflow that is, in some respects, more efficient. We will
-attempt to compare the original workflow with this workflow
-[at the bottom of this page.](#advantages-to-the-new-workflow)
+computational workflow that is, in some respects, more efficient.
 
 As described in the algorithm documentation page linked to above, there
 are two steps to marker gene selection:
@@ -60,5 +58,3 @@ python -m cell_type_mapper.cli.query_markers_from_p_value_mask
 
 As with all command line tools in this repository, running with
 the `--help` argument will print out the tool's call signature.
-
-## Advantages to the new workflow
