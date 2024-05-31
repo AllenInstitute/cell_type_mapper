@@ -7,10 +7,15 @@ import time
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
-    _clean_up)
+    _clean_up,
+    choose_int_dtype)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
+
+from cell_type_mapper.utils.csc_to_csr import (
+    transpose_sparse_matrix_on_disk
+)
 
 
 def transpose_sparse_matrix_on_disk_v2(
@@ -18,14 +23,22 @@ def transpose_sparse_matrix_on_disk_v2(
         indices_tag,
         indptr_tag,
         data_tag,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
+        output_mode='w',
         verbose=False,
         tmp_dir=None,
-        n_processors=4):
+        n_processors=4,
+        uint_ok=False):
     """
-    n_indices is the number of unique indices values in original array
+    indices_max is the number of unique indices values in original array
+
+    if uint_ok is True, allow uints for the dtypes of indptr and indices
+    in final array (also allow them to have different dtypes).
+
+    This is not generally acceptable for arrays that will be read in as
+    scipy.sparse arrays.
     """
 
     tmp_dir = tempfile.mkdtemp(
@@ -38,12 +51,14 @@ def transpose_sparse_matrix_on_disk_v2(
             indices_tag=indices_tag,
             indptr_tag=indptr_tag,
             data_tag=data_tag,
-            n_indices=n_indices,
+            indices_max=indices_max,
             max_gb=max_gb,
             output_path=output_path,
+            output_mode=output_mode,
             verbose=verbose,
             tmp_dir=tmp_dir,
-            n_processors=n_processors)
+            n_processors=n_processors,
+            uint_ok=uint_ok)
     finally:
         _clean_up(tmp_dir)
 
@@ -53,35 +68,30 @@ def _transpose_sparse_matrix_on_disk_v2(
         indices_tag,
         indptr_tag,
         data_tag,
-        n_indices,
+        indices_max,
         max_gb,
         output_path,
+        output_mode,
         verbose=False,
         tmp_dir=None,
-        n_processors=4):
-    indices_dtype = int
+        n_processors=4,
+        uint_ok=False):
 
     use_data = (data_tag is not None)
 
     with h5py.File(h5_path, 'r') as src:
-        n_raw_indices = src[indices_tag].shape[0]
         if use_data:
             data_dtype = src[data_tag].dtype
+        n_orig_indptr = src[indptr_tag].shape[0]
 
-    indices_gb = (4*n_raw_indices)/(1024**3)
-    chunk_size = np.round(n_raw_indices*max_gb/indices_gb).astype(int)
-    chunk_size = np.round(chunk_size/n_processors).astype(int)
-    if chunk_size == 0:
-        chunk_size = 10000
-    if chunk_size > n_raw_indices:
-        chunk_size = n_raw_indices
-
-    indices_chunk_size = np.round(n_indices/n_processors).astype(int)
+    gb_per_process = 0.8 * max_gb / n_processors
+    indices_chunk_size = np.ceil(indices_max / n_processors).astype(int)
 
     path_list = []
     process_list = []
-    for i0 in range(0, n_indices, indices_chunk_size):
-        i1 = min(n_indices, i0+indices_chunk_size)
+    for i0 in range(0, indices_max, indices_chunk_size):
+
+        i1 = min(indices_max, i0+indices_chunk_size)
 
         tmp_path = pathlib.Path(
                 mkstemp_clean(
@@ -96,9 +106,10 @@ def _transpose_sparse_matrix_on_disk_v2(
                 'indices_tag': indices_tag,
                 'indptr_tag': indptr_tag,
                 'data_tag': data_tag,
-                'indices_minmax': (i0, i1),
-                'chunk_size': chunk_size,
-                'output_path': tmp_path
+                'indices_max': indices_max,
+                'indices_slice': (i0, i1),
+                'output_path': tmp_path,
+                'max_gb': gb_per_process
             })
 
         p.start()
@@ -106,6 +117,7 @@ def _transpose_sparse_matrix_on_disk_v2(
         path_list.append(tmp_path)
         while len(process_list) >= n_processors:
             process_list = winnow_process_list(process_list)
+
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
@@ -117,27 +129,42 @@ def _transpose_sparse_matrix_on_disk_v2(
             indptr_size += src['indptr'].shape[0]-1
     indptr_size += 1
 
+    if uint_ok:
+        indices_dtype = choose_int_dtype(
+            (0, n_orig_indptr))
+        indptr_dtype = choose_int_dtype(
+            (0, indices_size))
+    else:
+        max_val = max(n_orig_indptr, indices_size)
+        cutoff = np.iinfo(np.int32).max
+        if max_val >= cutoff:
+            indices_dtype = np.int64
+        else:
+            indices_dtype = np.int32
+        indptr_dtype = indices_dtype
+
     t0 = time.time()
     indptr_idx = 0
     indices_idx = 0
-    with h5py.File(output_path, 'w') as dst:
+    with h5py.File(output_path, output_mode) as dst:
         indices = dst.create_dataset(
             'indices',
             shape=(indices_size,),
-            chunks=(min(indptr_size, 10000),),
+            chunks=(min(indptr_size, 1000000),),
             dtype=indices_dtype)
         indptr = dst.create_dataset(
             'indptr',
             shape=(indptr_size,),
             chunks=None,
-            dtype=int)
+            dtype=indptr_dtype)
         if use_data:
             data = dst.create_dataset(
                 'data',
                 shape=(indices_size,),
-                chunks=(min(indptr_size, 10000),),
+                chunks=(min(indptr_size, 1000000),),
                 dtype=data_dtype)
 
+        chunk_size = 1000000
         for path in path_list:
             with h5py.File(path, 'r') as src:
                 src_indices = src['indices']
@@ -171,10 +198,10 @@ def _transpose_subset_of_indices(
         indices_tag,
         indptr_tag,
         data_tag,
-        indices_minmax,
-        chunk_size,
-        output_path):
-
+        indices_max,
+        indices_slice,
+        output_path,
+        max_gb=12):
     use_data = (data_tag is not None)
 
     with h5py.File(h5_path, 'r', swmr=True) as src:
@@ -185,170 +212,17 @@ def _transpose_subset_of_indices(
         else:
             data_handle = None
 
-        output_dict = dict()
-        n_indices = indices_handle.shape[0]
-        indptr = indptr_handle[()]
-        for i0 in range(0, n_indices, chunk_size):
-            i1 = min(n_indices, i0+chunk_size)
-            if use_data:
-                data_chunk = data_handle[i0:i1]
-            else:
-                data_chunk = None
-            indices_chunk = indices_handle[i0:i1]
-            _grab_indices_from_chunk(
-                indptr=indptr,
-                indptr_0=0,
-                indices_chunk=indices_chunk,
-                data_chunk=data_chunk,
-                indices_minmax=indices_minmax,
-                indices_position=(i0, i1),
-                output_dict=output_dict)
+        transpose_sparse_matrix_on_disk(
+            indices_handle=indices_handle,
+            indptr_handle=indptr_handle,
+            data_handle=data_handle,
+            indices_max=indices_max,
+            max_gb=max_gb,
+            output_path=output_path,
+            verbose=False,
+            indices_slice=indices_slice)
 
-    indptr = []
-    indices = []
-    data = []
-    indptr_ct = 0
-    for i_indptr in range(indices_minmax[0], indices_minmax[1], 1):
-        indptr.append(indptr_ct)
-        if i_indptr not in output_dict:
-            continue
-        this = output_dict.pop(i_indptr)
-        n = 0
-        for row in this['indices']:
-            n += len(row)
-        indptr_ct += n
-        indices += this['indices']
-        if use_data:
-            data += this['data']
-
-    indptr.append(indptr_ct)
-
-    if len(indices) > 0:
-        indices = np.concatenate(indices)
-    else:
-        indices = np.array([])
-
-    if use_data:
-        if len(data) > 0:
-            data = np.concatenate(data)
-        else:
-            data = np.array([])
-
-    with h5py.File(output_path, 'w') as dst:
+    with h5py.File(output_path, 'a') as dst:
         dst.create_dataset(
-            'indices_minmax',
-            data=np.array(indices_minmax))
-        dst.create_dataset(
-            'indices',
-            data=indices)
-        dst.create_dataset(
-            'indptr',
-            data=indptr)
-        if use_data:
-            dst.create_dataset(
-                'data',
-                data=data)
-
-
-def _grab_indices_from_chunk(
-        indptr,
-        indptr_0,
-        indices_chunk,
-        data_chunk,
-        indices_minmax,
-        indices_position,
-        output_dict):
-    """
-    Parameters
-    ----------
-    inpdtr:
-        chunk of original indptr array that is relevant
-    indptr_0:
-        offset in indptr_idx (in case indptr is not the raw
-        indptr)
-    indices_chunk:
-        the chunk of indices to be processed now
-    data_chunk:
-        the chunk of the data array being transposed
-        (can be None)
-    indices_minmax:
-        tuple indicating min, max of indices values being
-        considered by this worker
-    indices_position:
-        tuple indicating (i0, i1) of indices_chunk (i.e. indices
-        chunk is global_indices[i0:i1])
-    output_dict:
-        dict mapping value in original indices to array of original
-        indptr values
-
-    Notes
-    -----
-    This function will scan through the chunk of indices, grabbing
-    the desired indices and populating a dict that maps indices
-    to indptr (since, in the transposed array, indices<->indptr)
-
-    output_dict[ii] will be a list of arrays indicating the
-    "column" values for that index.
-    """
-    indices_idx = np.arange(indices_position[0],
-                            indices_position[1],
-                            dtype=int)
-    full_valid = np.ones(indices_chunk.shape, dtype=bool)
-    full_valid[indices_chunk < indices_minmax[0]] = False
-    full_valid[indices_chunk >= indices_minmax[1]] = False
-    indices_chunk = indices_chunk[full_valid]
-    masked_indices_idx = np.copy(indices_idx[full_valid])
-    if data_chunk is not None:
-        data_chunk = data_chunk[full_valid]
-
-    indptr_idx = np.zeros(masked_indices_idx.shape, dtype=int)
-    indptr_pos = 0
-    for ii in range(len(indptr)-1):
-        row = ii+indptr_0
-        original0 = indptr[ii] - indices_position[0]
-        original1 = indptr[ii+1] - indices_position[0]
-        if original1 < 0:
-            continue
-        if original0 < 0:
-            original0 = 0
-        mask = full_valid[original0:original1]
-        n_valid = mask.sum()
-        indptr_idx[indptr_pos:indptr_pos+n_valid] = row
-        indptr_pos += n_valid
-
-    indices_idx = masked_indices_idx
-
-    del full_valid
-    del indices_idx
-
-    if len(indptr_idx) == 0:
-        return dict()
-
-    # sort first by indices then by indptr
-    max_indptr = indptr_idx.max()
-    to_sort = (indices_chunk.astype(np.int64)*(max_indptr+1)
-               + indptr_idx.astype(np.int64))
-    sorted_dex = np.argsort(to_sort)
-
-    del to_sort
-
-    indices_chunk = indices_chunk[sorted_dex]
-    indptr_idx = indptr_idx[sorted_dex]
-    if data_chunk is not None:
-        data_chunk = data_chunk[sorted_dex]
-
-    delta_indices = np.diff(indices_chunk)
-
-    # these will be the last idx of blocks
-    transitions = np.concatenate([[0],
-                                  np.where(delta_indices > 0)[0]+1,
-                                  [len(indptr_idx)]])
-    for ii in range(1, len(transitions), 1):
-        indices_value = indices_chunk[transitions[ii-1]]
-        if indices_value not in output_dict:
-            output_dict[indices_value] = {'indices': [], 'data': []}
-        indptr_values = indptr_idx[transitions[ii-1]: transitions[ii]]
-        output_dict[indices_value]['indices'].append(indptr_values)
-        if data_chunk is not None:
-            data_values = data_chunk[transitions[ii-1]:transitions[ii]]
-            output_dict[indices_value]['data'].append(data_values)
+            'indices_slice',
+            data=np.array(indices_slice))

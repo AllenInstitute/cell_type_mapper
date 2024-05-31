@@ -579,8 +579,6 @@ def _process_chunk_spec(
     iterator_path = None
     for chunk_spec in chunk_specification_list:
         if iterator is None or iterator_path != chunk_spec[0]:
-            print(f'{os.getpid()} '
-                  f'opening {pathlib.Path(chunk_spec[0]).name}')
 
             cell_name_list = list(
                 read_df_from_h5ad(chunk_spec[0], 'obs').index.values)
@@ -606,8 +604,6 @@ def _process_chunk_spec(
             normalization=normalization,
             n_clusters=n_clusters,
             buffer_dict=buffer_dict)
-        print(f'    process {os.getpid()} tot {time.time()-t0:.2e} '
-              f'reading {time_reading:.2e}')
 
     w_t0 = time.time()
     with h5py.File(buffer_path, 'w') as dst:

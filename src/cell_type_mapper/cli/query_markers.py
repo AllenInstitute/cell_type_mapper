@@ -4,10 +4,8 @@ import h5py
 import json
 import time
 
-import cell_type_mapper
-
-from cell_type_mapper.utils.utils import (
-    get_timestamp)
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.utils.anndata_utils import (
      read_df_from_h5ad)
@@ -63,22 +61,23 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             n_processors=self.args['n_processors'],
             behemoth_cutoff=5000000,
             tmp_dir=self.args['tmp_dir'],
-            drop_level=self.args['drop_level'])
+            drop_level=self.args['drop_level'],
+            genes_at_a_time=self.args['genes_at_a_time'])
 
-        dur = time.time()-t0
+        metadata = {'config': copy.deepcopy(self.args)}
+        metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=t0))
 
-        marker_lookup['metadata'] = {'config': copy.deepcopy(self.args)}
-        marker_lookup['metadata']['timestamp'] = get_timestamp()
-        marker_lookup['metadata']['cell_type_mapper_version'] = \
-            cell_type_mapper.__version__
-        marker_lookup['metadata']['duration'] = dur
+        marker_lookup['metadata'] = metadata
 
         with open(self.args['output_path'], 'w') as dst:
             dst.write(
                 json.dumps(marker_lookup, indent=2))
 
         dur = time.time()-t0
-        print(f"RAN SUCCESSFULLY in {dur:.2e} seconds")
+        print(f"QUERY MARKER FINDER RAN SUCCESSFULLY in {dur:.2e} seconds")
 
 
 if __name__ == "__main__":

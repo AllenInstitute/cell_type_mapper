@@ -31,7 +31,9 @@ from cell_type_mapper.utils.anndata_utils import (
 
 from cell_type_mapper.utils.output_utils import (
     blob_to_csv,
-    blob_to_df)
+    blob_to_df,
+    get_execution_metadata,
+    blob_to_hdf5)
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
@@ -68,11 +70,16 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         run_mapping(
             config=self.args,
             output_path=self.args['extended_result_path'],
-            log_path=self.args['log_path'])
+            log_path=self.args['log_path'],
+            hdf5_output_path=self.args['hdf5_result_path'])
 
 
-def run_mapping(config, output_path, log_path=None):
-
+def run_mapping(
+        config,
+        output_path,
+        log_path=None,
+        hdf5_output_path=None):
+    t0 = time.time()
     safe_config = copy.deepcopy(config)
     if config['cloud_safe']:
         safe_config = sanitize_paths(safe_config)
@@ -103,6 +110,9 @@ def run_mapping(config, output_path, log_path=None):
 
     if output_path is not None:
         output_path = pathlib.Path(output_path)
+
+    if hdf5_output_path is not None:
+        hdf5_output_path = pathlib.Path(hdf5_output_path)
 
     if log_path is not None:
         log_path = pathlib.Path(log_path)
@@ -169,7 +179,7 @@ def run_mapping(config, output_path, log_path=None):
                         indent=2))
 
         _clean_up(tmp_result_dir)
-        log.info("RAN SUCCESSFULLY")
+        log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
     except Exception:
         traceback_msg = "an ERROR occurred ===="
         traceback_msg += f"\n{traceback.format_exc()}\n"
@@ -179,13 +189,17 @@ def run_mapping(config, output_path, log_path=None):
         _clean_up(tmp_dir)
         log.info("CLEANING UP")
         if log_path is not None:
-            log.write_log(log_path, cloud_save=config['cloud_safe'])
+            log.write_log(log_path, cloud_safe=config['cloud_safe'])
         output["config"] = safe_config
         output_log = copy.deepcopy(log.log)
         if config['cloud_safe']:
             output_log = sanitize_paths(output_log)
         output["log"] = output_log
-        output["cell_type_mapper_version"] = cell_type_mapper.__version__
+
+        metadata = get_execution_metadata(
+            module_file=__file__,
+            t0=t0)
+        output['metadata'] = metadata
 
         uns = read_uns_from_h5ad(config["query_path"])
         if "AIBS_CDM_gene_mapping" in uns:
@@ -194,6 +208,11 @@ def run_mapping(config, output_path, log_path=None):
         if output_path is not None:
             with open(output_path, "w") as out_file:
                 out_file.write(json.dumps(output, indent=2))
+
+        if hdf5_output_path is not None:
+            blob_to_hdf5(
+                output_blob=output,
+                dst_path=hdf5_output_path)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
@@ -272,9 +291,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
         all_markers = set()
         for k in marker_lookup:
-            if k == 'metadata':
-                continue
-            all_markers = all_markers.union(set(marker_lookup[k]))
+            if k not in ('log', 'metadata'):
+                all_markers = all_markers.union(set(marker_lookup[k]))
         all_markers = list(all_markers)
         all_markers.sort()
         marker_lookup = {'None': all_markers}
@@ -290,7 +308,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         query_gene_names=query_gene_names,
         output_cache_path=query_marker_tmp,
         log=log,
-        taxonomy_tree=taxonomy_tree)
+        taxonomy_tree=taxonomy_tree,
+        min_markers=config['type_assignment']['min_markers'])
 
     log.benchmark(msg="creating query marker cache",
                   duration=time.time()-t0)
@@ -299,6 +318,19 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     t0 = time.time()
     rng = np.random.default_rng(type_assignment_config['rng_seed'])
+
+    if type_assignment_config['bootstrap_factor_lookup'] is not None:
+        bootstrap_factor_lookup = dict()
+        for pair in type_assignment_config['bootstrap_factor_lookup']:
+            bootstrap_factor_lookup[pair[0]] = pair[1]
+    else:
+        bootstrap_factor_lookup = {
+            level: type_assignment_config['bootstrap_factor']
+            for level in taxonomy_tree.hierarchy[:-1]
+        }
+        bootstrap_factor_lookup['None'] = type_assignment_config[
+                                                'bootstrap_factor']
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_loc,
         precomputed_stats_path=precomputed_loc,
@@ -306,7 +338,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         taxonomy_tree=taxonomy_tree,
         n_processors=type_assignment_config['n_processors'],
         chunk_size=type_assignment_config['chunk_size'],
-        bootstrap_factor=type_assignment_config['bootstrap_factor'],
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=type_assignment_config['bootstrap_iteration'],
         rng=rng,
         n_assignments=type_assignment_config['n_runners_up']+1,

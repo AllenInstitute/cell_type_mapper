@@ -1,5 +1,8 @@
 import pytest
+
+import json
 import numpy as np
+
 from cell_type_mapper.utils.utils import (
     merge_index_list,
     choose_int_dtype)
@@ -14,7 +17,6 @@ from cell_type_mapper.utils.utils import (
 def test_merge_index_list(input_list, expected):
     actual = merge_index_list(input_list)
     assert actual == expected
-
 
 
 @pytest.mark.parametrize(

@@ -179,8 +179,9 @@ def create_marker_gene_lookup_from_ref_list(
         n_per_utility_override,
         n_processors,
         behemoth_cutoff,
+        genes_at_a_time=1,
         tmp_dir=None,
-        drop_level=None):
+        drop_level=None,):
     """
     Parameters
     ----------
@@ -201,6 +202,11 @@ def create_marker_gene_lookup_from_ref_list(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
     tmp_dir:
         Directory for scratch files when transposing large
         sparse matrices.
@@ -283,6 +289,7 @@ def create_marker_gene_lookup_from_ref_list(
                 n_per_utility_override=n_per_utility_override,
                 n_processors=n_processors,
                 behemoth_cutoff=behemoth_cutoff,
+                genes_at_a_time=genes_at_a_time,
                 tmp_dir=tmp_dir)
 
         if marker_lookup is None:
@@ -304,6 +311,7 @@ def create_raw_marker_gene_lookup(
         n_per_utility,
         n_processors,
         behemoth_cutoff=10000000,
+        genes_at_a_time=1,
         parent_list=None,
         n_per_utility_override=None,
         tmp_dir=None):
@@ -329,6 +337,11 @@ def create_raw_marker_gene_lookup(
     behemoth_cutoff:
         Number of leaf nodes for a parent to be considered
         a behemoth
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
     parent_list:
         If not None, a list of parent nodes (in the form of
         (level, node) tuples) to get markers for. Ignore
@@ -350,6 +363,7 @@ def create_raw_marker_gene_lookup(
      summary_log) = select_all_markers(
         marker_cache_path=input_cache_path,
         query_gene_names=query_gene_names,
+        genes_at_a_time=genes_at_a_time,
         taxonomy_tree=taxonomy_tree,
         n_per_utility=n_per_utility,
         n_per_utility_override=n_per_utility_override,
@@ -622,7 +636,7 @@ def validate_marker_lookup(
                         patched_with.append(ancestor_str)
 
                         if len(query_gene_names.intersection(
-                                    set(new_markers))) > min_markers:
+                                    set(new_markers))) >= min_markers:
                             break
 
                 if len(query_gene_names.intersection(new_markers)) \

@@ -88,6 +88,12 @@ class ValidationInputSchema(argschema.ArgSchema):
         "products will be written where ever tempfile.mkdtemp "
         "defaults to.")
 
+    cloud_safe = argschema.fields.Boolean(
+        required=False,
+        default=True,
+        allow_nonw=False,
+        description="If True, full file paths not recorded in log")
+
     @post_load
     def check_for_output_json(self, data, **kwargs):
         is_valid = True
@@ -204,7 +210,9 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
         finally:
             command_log.info("CLEANING UP")
             if log_path is not None:
-                command_log.write_log(log_path)
+                command_log.write_log(
+                    log_path,
+                    cloud_safe=self.args['cloud_safe'])
 
 
 def main():

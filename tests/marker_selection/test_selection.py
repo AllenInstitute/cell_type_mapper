@@ -18,6 +18,7 @@ from cell_type_mapper.marker_selection.marker_array import (
 
 from cell_type_mapper.marker_selection.selection import (
     recalculate_utility_array,
+    recalculate_utility_array_batch,
     _get_taxonomy_idx)
 
 from cell_type_mapper.diff_exp.markers import (
@@ -211,6 +212,41 @@ def test_recalculate_utilty_array(
             marker_gene_array=arr,
             pair_idx=4,
             sign=3)
+
+def test_recalculate_utility_array_batch(
+        marker_cache_fixture,
+        n_genes):
+    """
+    Test method that runs a bunch of utility array recalculations at once
+    """
+    rng = np.random.default_rng(67112)
+    marker_arr = MarkerGeneArray.from_cache_path(
+        cache_path=marker_cache_fixture)
+    util = rng.integers(1000, 5000, n_genes)
+
+    n_adjustments = 100
+    sign_arr = rng.choice((-1, 1), n_adjustments, replace=True)
+    pair_arr = rng.choice(
+        np.arange(marker_arr.n_pairs), n_adjustments, replace=True)
+    expected = np.copy(util)
+    for sign, pair in zip(sign_arr, pair_arr):
+        expected = recalculate_utility_array(
+            marker_gene_array=marker_arr,
+            utility_array=expected,
+            pair_idx=pair,
+            sign=sign)
+
+    actual = np.copy(util)
+    actual = recalculate_utility_array_batch(
+        marker_gene_array=marker_arr,
+        utility_array=actual,
+        pair_batch=pair_arr,
+        sign_batch=sign_arr)
+
+    np.testing.assert_array_equal(
+        actual,
+        expected)
+
 
 def test_get_taxonomy_idx(
         taxonomy_tree_fixture,

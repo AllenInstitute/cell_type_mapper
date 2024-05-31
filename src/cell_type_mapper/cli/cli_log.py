@@ -69,7 +69,7 @@ class CommandLog(object):
         if cloud_safe:
             to_write = sanitize_paths(to_write)
         with open(output_path, 'a') as out_file:
-            for line in sanitize_paths(to_write):
+            for line in to_write:
                 out_file.write(line + "\n")
 
     def log_software_env(self):

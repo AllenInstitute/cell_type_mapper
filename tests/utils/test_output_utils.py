@@ -1,6 +1,8 @@
 import pytest
 
 import anndata
+import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -12,7 +14,9 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.output_utils import (
     re_order_blob,
     blob_to_df,
-    blob_to_csv)
+    blob_to_csv,
+    precomputed_stats_to_uns,
+    uns_to_precomputed_stats)
 
 
 @pytest.fixture(scope='module')
@@ -21,6 +25,47 @@ def tmp_dir_fixture(tmp_path_factory):
         tmp_path_factory.mktemp('output'))
     yield tmp_dir
     _clean_up(tmp_dir)
+
+
+@pytest.fixture(scope='module')
+def precomputed_stats_fixture(tmp_dir_fixture):
+    """
+    Write an HDF5 file that has the same schema as a
+    precomputed_stats file. Save it to disk. Return
+    the path to the saved file.
+    """
+    h5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_stats_',
+        suffix='.h5')
+
+    # the contents of this file will just be nonsense;
+    # all we need to test for is that they get serialized
+    # and deserialized correctly
+    rng = np.random.default_rng(77112)
+    with h5py.File(h5_path, 'w') as dst:
+        dst.create_dataset(
+            'metadata',
+            data=json.dumps({'x': 1, 'y':3}).encode('utf-8'))
+        dst.create_dataset(
+            'cluster_to_row',
+            data=json.dumps({'a': 'bcd', 'b': 5}).encode('utf-8'))
+        dst.create_dataset(
+            'col_names',
+            data=json.dumps(['a', 'b', 'c', 'd']).encode('utf-8'))
+        dst.create_dataset(
+            'taxonomy_tree',
+            data=json.dumps({'x': [[1, 2, 3], [6, 7, 8]],
+                             'y': [8,]}).encode('utf-8'))
+        dst.create_dataset(
+            'n_cells',
+            data=np.arange(5))
+        for k in ('sum', 'sumsq', 'ge1', 'gt1', 'gt0'):
+            dst.create_dataset(
+                k,
+                data=rng.random((37, 29)))
+
+    return h5_path
 
 
 @pytest.fixture(scope='module')
@@ -420,3 +465,77 @@ def test_re_order_blob(tmp_dir_fixture):
     for c in new_blob:
         assert c == results_lookup[c['cell_id']]
     assert len(new_blob) == len(results_lookup)
+
+
+def test_precomputed_stats_to_uns(
+        tmp_dir_fixture,
+        precomputed_stats_fixture):
+    """
+    Test utility functions to move precomputed stats data from HDF5 to
+    the uns element of an h5ad file and back.
+    """
+    rng = np.random.default_rng(812331)
+    n_cells = 15
+    n_genes = 21
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='uns_anndata_',
+        suffix='.h5ad')
+
+    var = pd.DataFrame(
+        [{'gene': f'g_{ii}'}
+         for ii in range(n_genes)]
+    ).set_index('gene')
+
+    obs = pd.DataFrame(
+        [{'cell': f'c_{ii}'}
+         for ii in range(n_cells)]
+    ).set_index('cell')
+
+    original_uns = {
+        'garbage': 'yes',
+        'maybe': [1, 2, 3, 4]
+    }
+
+    a_data = anndata.AnnData(
+        X=rng.random((n_cells, n_genes)),
+        obs=obs,
+        var=var,
+        uns=original_uns)
+
+    a_data.write_h5ad(h5ad_path)
+
+    uns_key = 'serialization_test'
+
+    precomputed_stats_to_uns(
+        precomputed_stats_path=precomputed_stats_fixture,
+        h5ad_path=h5ad_path,
+        uns_key=uns_key)
+
+    roundtrip_path = uns_to_precomputed_stats(
+        uns_key=uns_key,
+        h5ad_path=h5ad_path,
+        tmp_dir=tmp_dir_fixture)
+
+    with h5py.File(precomputed_stats_fixture, 'r') as expected_src:
+        with h5py.File(roundtrip_path, 'r') as actual_src:
+            assert set(expected_src.keys()) == set(actual_src.keys())
+            for k in expected_src.keys():
+                expected = expected_src[k][()]
+                actual = actual_src[k][()]
+                if not isinstance(expected, np.ndarray):
+                    assert expected == actual
+                else:
+                    np.testing.assert_allclose(
+                        expected,
+                        actual,
+                        atol=0.0,
+                        rtol=1.0e-6)
+
+    # make sure that original uns is unspoiled
+    roundtrip_h5ad = anndata.read_h5ad(h5ad_path, backed='r')
+    assert roundtrip_h5ad.uns['garbage'] == original_uns['garbage']
+    np.testing.assert_array_equal(
+        original_uns['maybe'],
+        roundtrip_h5ad.uns['maybe']
+    )

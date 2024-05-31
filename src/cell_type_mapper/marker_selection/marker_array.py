@@ -218,7 +218,7 @@ class MarkerGeneArray(object):
          by_pair_indices) = transpose_by_way_of_disk(
              indices=up_by_gene.indices,
              indptr=up_by_gene.indptr,
-             n_indices=n_pairs,
+             indices_max=n_pairs,
              max_gb=30,
              tmp_dir=tmp_dir)
 
@@ -240,7 +240,7 @@ class MarkerGeneArray(object):
          by_pair_indices) = transpose_by_way_of_disk(
              indices=down_by_gene.indices,
              indptr=down_by_gene.indptr,
-             n_indices=n_pairs,
+             indices_max=n_pairs,
              max_gb=30,
              tmp_dir=tmp_dir)
 
@@ -292,7 +292,7 @@ class MarkerGeneArray(object):
          by_gene_pair) = transpose_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
-             n_indices=self.n_genes,
+             indices_max=self.n_genes,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -314,7 +314,7 @@ class MarkerGeneArray(object):
          by_gene_pair) = transpose_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
-             n_indices=self.n_genes,
+             indices_max=self.n_genes,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -358,7 +358,7 @@ class MarkerGeneArray(object):
          by_pair_gene) = transpose_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
-             n_indices=self.n_pairs,
+             indices_max=self.n_pairs,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -380,7 +380,7 @@ class MarkerGeneArray(object):
          by_pair_gene) = transpose_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
-             n_indices=self.n_pairs,
+             indices_max=self.n_pairs,
              max_gb=10,
              tmp_dir=tmp_dir)
 
@@ -512,6 +512,22 @@ class MarkerGeneArray(object):
         result[self.up_by_pair.get_genes_for_pair(pair_idx)] = True
         return result
 
+    def up_mask_from_pair_idx_batch(
+            self,
+            pair_idx_list):
+        """
+        Return an (n_genes,) array of ints counting how many
+        times each gene occurs as an up-regulated marker within
+        the list of pairs in pair_idx_list
+        """
+        result = np.zeros(self.n_genes, dtype=int)
+        for pair_idx in pair_idx_list:
+            indices = self.up_by_pair.indices[
+                self.up_by_pair.indptr[pair_idx]:
+                self.up_by_pair.indptr[pair_idx+1]]
+            result[indices] += 1
+        return result
+
     def down_mask_from_pair_idx(
             self,
             pair_idx):
@@ -521,6 +537,22 @@ class MarkerGeneArray(object):
         """
         result = np.zeros(self.n_genes, dtype=bool)
         result[self.down_by_pair.get_genes_for_pair(pair_idx)] = True
+        return result
+
+    def down_mask_from_pair_idx_batch(
+            self,
+            pair_idx_list):
+        """
+        Return an (n_genes,) array of ints counting how many
+        times each gene occurs as an down-regulated marker within
+        the list of pairs in pair_idx_list
+        """
+        result = np.zeros(self.n_genes, dtype=int)
+        for pair_idx in pair_idx_list:
+            indices = self.down_by_pair.indices[
+                self.down_by_pair.indptr[pair_idx]:
+                self.down_by_pair.indptr[pair_idx+1]]
+            result[indices] += 1
         return result
 
     def up_regulated_gene_batch(self, gene0, gene1):

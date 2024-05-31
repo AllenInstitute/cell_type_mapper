@@ -259,6 +259,11 @@ def summary_plots_for_one_file(
         else:
             this_axis_list = None
 
+        valid_truth = set(obs[ground_truth_column].values)
+        valid_assn = set([results_lookup[c][level]['assignment']
+                          for c in results_lookup])
+        valid_truth = valid_truth.union(valid_assn)
+
         if level == taxonomy_tree.leaf_level:
             label_order = leaf_order
         else:
@@ -266,6 +271,13 @@ def summary_plots_for_one_file(
             for leaf in leaf_order:
                 if leaf in inverted_tree[level]:
                     this = inverted_tree[level][leaf]
+                    if this not in valid_truth:
+                        this = taxonomy_tree.label_to_name(
+                            level=level, label=this)
+                        if this not in valid_truth:
+                            raise RuntimeError(
+                                "Unclear how to order "
+                                f"{inverted_tree[level][leaf]}")
                     if this not in label_order:
                         label_order.append(this)
 
@@ -334,7 +346,7 @@ def summary_plots_for_one_file(
                 title=f"{level} normalized by true label",
                 is_log=is_log10,
                 label_x_axis=label_x_axis,
-                label_y_axis=True)
+                label_y_axis=False)
 
             plot_confusion_matrix(
                 figure=fig,
@@ -380,6 +392,9 @@ def summary_plots_for_one_file(
         line_list = split_sentence(line)
         for sub in line_list:
             msg += sub+"\n"
+
+    msg += "\nconfig\n=========\n"
+    msg += json.dumps(results['config'], indent=2, sort_keys=True)
 
     print(msg)
     axis_list[0].text(

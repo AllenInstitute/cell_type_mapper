@@ -8,7 +8,7 @@ import pathlib
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up,
-    json_clean_dict)
+    clean_for_json)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -39,7 +39,7 @@ def taxonomy_tree_fixture(
     tree = get_taxonomy_tree(
         obs_records=records_fixture,
         column_hierarchy=column_hierarchy)
-    tree = json_clean_dict(tree)
+    tree = clean_for_json(tree)
     return tree
 
 
@@ -106,6 +106,12 @@ def test_all_of_it(
     with h5py.File(marker_cache_path, 'r') as in_file:
         assert len(in_file['None']['reference'][()]) > 0
 
+    factor = 0.9
+    bootstrap_factor_lookup = {
+        level: factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = factor
+
     result = run_type_assignment_on_h5ad(
         query_h5ad_path=query_h5ad_path_fixture,
         precomputed_stats_path=precomputed_path,
@@ -113,7 +119,7 @@ def test_all_of_it(
         taxonomy_tree=taxonomy_tree,
         n_processors=3,
         chunk_size=100,
-        bootstrap_factor=0.9,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545))
 

@@ -50,14 +50,15 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
-from cell_type_mapper.test_utils.hierarchical_mapping import (
-    run_mapping as ab_initio_mapping)
-
 from cell_type_mapper.cli.from_specified_markers import (
     run_mapping as from_marker_run_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
+
+from cell_type_mapper.utils.output_utils import (
+    blob_to_hdf5,
+    hdf5_to_blob)
 
 
 @pytest.fixture(scope='module')
@@ -183,15 +184,16 @@ def noisy_marker_gene_lookup_fixture(
 
 
 @pytest.mark.parametrize(
-        'flatten,use_gpu,just_once,drop_subclass,n_runners_up',
+        'flatten,use_gpu,just_once,drop_subclass,n_runners_up,scalar_factor',
         itertools.product(
             (True, False),
             (True, False),
             (True, False),
             (True, False),
-            (2, 4)
+            (2, 4),
+            (True, False)
         ))
-def test_mapping_from_markers(
+def test_mapping_from_markers_smoke(
         noisy_precomputed_stats_fixture,
         noisy_marker_gene_lookup_fixture,
         noisy_raw_query_h5ad_fixture,
@@ -201,12 +203,23 @@ def test_mapping_from_markers(
         use_gpu,
         just_once,
         drop_subclass,
-        n_runners_up):
+        n_runners_up,
+        scalar_factor):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
     drop_subclass will drop 'subclass' from the taxonomy
     """
+
+    if flatten:
+        actual_levels = ['cluster']
+        mapped_levels = {'class': 'cluster', 'subclass': 'cluster'}
+    elif drop_subclass:
+        actual_levels = ['class', 'cluster']
+        mapped_levels = {'subclass': 'cluster'}
+    else:
+        actual_levels = ['class', 'subclass', 'cluster']
+        mapped_levels = dict()
 
     use_tmp_dir = True
     use_csv = True
@@ -259,9 +272,21 @@ def test_mapping_from_markers(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
+    if scalar_factor:
+        bootstrap_factor = 0.75
+        bootstrap_factor_lookup = None
+    else:
+        bootstrap_factor = None
+        bootstrap_factor_lookup = [
+            ('None', 0.75),
+            ('class', 0.5),
+            ('subclass', 0.33)
+        ]
+
     config['type_assignment'] = {
         'bootstrap_iteration': 50,
-        'bootstrap_factor': 0.75,
+        'bootstrap_factor': bootstrap_factor,
+        'bootstrap_factor_lookup': bootstrap_factor_lookup,
         'rng_seed': 1491625,
         'n_processors': 3,
         'chunk_size': 1000,
@@ -326,12 +351,25 @@ def test_mapping_from_markers(
     max_runners_up = 0
     # check consistency of runners up
 
+    backfilled_levels = set()
+    if flatten:
+        backfilled_levels = set(['class', 'subclass'])
+    elif drop_subclass:
+        backfilled_levels = set(['subclass'])
+
     for cell in actual['results']:
 
-        # since we are backfilling missing levels into results,
-        # this should hold
         for level in taxonomy_tree.hierarchy:
+
+            # since we are backfilling missing levels into results,
+            # this should hold
             assert level in cell
+
+            # check that backfilled levels are correctly flagged
+            if level in backfilled_levels:
+                assert not cell[level]['directly_assigned']
+            else:
+                assert cell[level]['directly_assigned']
 
         # check inheritance
         this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
@@ -415,6 +453,34 @@ def test_mapping_from_markers(
         assert with_runners_up == 0
 
     assert without_runners_up > 0
+
+    # check aggregate probability
+    actual_agg = []
+    expected_agg = []
+    for cell in actual['results']:
+        prob = 1.0
+        prob_lookup = dict()
+
+        # calculate aggregate probability for directly calculated
+        # levels
+        for level in actual_levels:
+            prob *= cell[level]['bootstrapping_probability']
+            prob_lookup[level] = prob
+
+        # map probability from actually calculated levels to
+        # levels that were flattened away or dropped
+        for src_level in mapped_levels:
+            prob_lookup[src_level] = prob_lookup[mapped_levels[src_level]]
+
+        for level in ['class', 'subclass', 'cluster']:
+            actual_agg.append(cell[level]['aggregate_probability'])
+            expected_agg.append(prob_lookup[level])
+
+    np.testing.assert_allclose(
+        actual_agg,
+        expected_agg,
+        atol=0.0,
+        rtol=1.0e-6)
 
 
 @pytest.mark.parametrize(
@@ -587,7 +653,9 @@ def test_mapping_from_markers_to_query_h5ad(
                 alias_key = f'{readable_level}_alias'
                 assert pd_cell[alias_key] == alias
 
-            for k in ('bootstrapping_probability', 'avg_correlation'):
+            for k in ('bootstrapping_probability',
+                      'avg_correlation',
+                      'directly_assigned'):
                 pd_key = f'{readable_level}_{k}'
                 np.testing.assert_allclose(
                     pd_cell[pd_key],
@@ -708,3 +776,418 @@ def test_mapping_from_markers_to_query_h5ad_config_errors(
                 args= [],
                 input_data=config)
         runner.run()
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_compression_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    use_tmp_dir = True
+    csv_path = None
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    output_blob = json.load(open(result_path, 'rb'))
+
+    hdf5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='blob_to_hdf5_',
+        suffix='.h5')
+
+    blob_to_hdf5(
+        output_blob=output_blob,
+        dst_path=hdf5_path)
+
+    roundtrip = hdf5_to_blob(
+        src_path=hdf5_path)
+
+    assert roundtrip == output_blob
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_cli_compression_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    Test whether output written to HDF5 file is identical to
+    output written to JSON file.
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    json_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    hdf5_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.h5')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = json_result_path
+    config['hdf5_result_path'] = hdf5_result_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    output_blob = json.load(open(json_result_path, 'rb'))
+
+    from_hdf5 = hdf5_to_blob(
+        src_path=hdf5_result_path)
+
+    assert len(output_blob['results']) > 0
+    assert from_hdf5 == output_blob
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_failure_cli_compression_of_noisy_markers(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    Test whether output written to HDF5 file is identical to
+    output written to JSON file when the job fails.
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    nonsense_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+
+    rng = np.random.default_rng(22111)
+    n_cells = 55
+    n_genes = 14
+    var = pd.DataFrame(
+        [{'g': f'garbage_{ii}'} for ii in range(n_genes)]).set_index('g')
+    obs = pd.DataFrame(
+        [{'c': f'c_{ii}'} for ii in range(n_cells)]).set_index('c')
+    a_data = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=rng.random((n_cells, n_genes)))
+    a_data.write_h5ad(nonsense_path)
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    json_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    hdf5_result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.h5')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = nonsense_path
+
+    config['extended_result_path'] = json_result_path
+    config['hdf5_result_path'] = hdf5_result_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    try:
+        runner.run()
+    except:
+        pass
+
+    output_blob = json.load(open(json_result_path, 'rb'))
+    assert 'results' not in output_blob
+
+    from_hdf5 = hdf5_to_blob(
+        src_path=hdf5_result_path)
+
+    assert from_hdf5 == output_blob
+
+
+@pytest.mark.parametrize(
+        'flatten,just_once,drop_subclass,n_runners_up',
+        itertools.product(
+            (True, False),
+            (True, False),
+            (True, False),
+            (2, 4)
+        ))
+def test_hdf5_output_from_cli(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        flatten,
+        just_once,
+        drop_subclass,
+        n_runners_up):
+    """
+    Test that from_specified_markers CLI can successfully
+    write an HDF5 output file with expected output
+
+    just_once sets type_assignment.bootstrap_iteration=1
+
+    drop_subclass will drop 'subclass' from the taxonomy
+    """
+
+    use_tmp_dir = True
+    csv_path = None
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+    config['cloud_safe'] = False
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.75,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': n_runners_up
+    }
+
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    json_output = json.load(open(result_path, 'rb'))
+
+    hdf5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='hdf5_output_',
+        suffix='.h5')
+
+    config.pop('extended_result_path')
+    config['hdf5_result_path'] = hdf5_path
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+
+    runner.run()
+
+    hdf5_output = hdf5_to_blob(
+        src_path=hdf5_path)
+
+    # remove fields that will be different because
+    # of the different configs/runtimes
+    hdf5_config = hdf5_output.pop('config')
+    assert hdf5_config == config
+
+    json_output.pop('config')
+
+    hdf5_output.pop('metadata')
+    json_output.pop('metadata')
+
+    hdf5_output.pop('log')
+    json_output.pop('log')
+
+    assert hdf5_output['results'] == json_output['results']
+    assert hdf5_output['taxonomy_tree'] == json_output['taxonomy_tree']
+    assert hdf5_output['results'] == json_output['results']
+    assert hdf5_output['marker_genes'] == json_output['marker_genes']
+    assert hdf5_output['n_unmapped_genes'] == json_output['n_unmapped_genes']
+    assert hdf5_output['marker_genes'] == json_output['marker_genes']
+    assert hdf5_output['gene_identifier_mapping'] == json_output['gene_identifier_mapping']
+
+    assert hdf5_output == json_output

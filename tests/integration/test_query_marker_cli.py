@@ -4,18 +4,27 @@ Test the CLI tool for finding query markers
 import pytest
 
 import anndata
+import h5py
 import itertools
 import json
 import numpy as np
 import pandas as pd
-
+import scipy.sparse
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
+from cell_type_mapper.utils.csc_to_csr_parallel import (
+    transpose_sparse_matrix_on_disk_v2)
+
 from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
+from cell_type_mapper.cli.compute_p_value_mask import (
+    PValueRunner)
+
+from cell_type_mapper.cli.query_markers_from_p_value_mask import(
+    QueryMarkersFromPValueMaskRunner)
 
 
 @pytest.mark.parametrize(
@@ -135,3 +144,221 @@ def test_query_marker_cli_tool(
     for k in config:
         assert k in actual['metadata']['config']
         assert actual['metadata']['config'][k] == config[k]
+
+
+def test_transposing_markers(
+        ref_marker_path_fixture,
+        tmp_dir_fixture):
+    """
+    Test transposition of sparse array using 'realistic'
+    reference marker data.
+    """
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    with h5py.File(ref_marker_path_fixture, 'r') as src:
+        n_rows = src['n_pairs'][()]
+        n_cols = len(json.loads(src['gene_names'][()].decode('utf-8')))
+        indices = src['sparse_by_pair/up_gene_idx'][()]
+        indptr = src['sparse_by_pair/up_pair_idx'][()]
+
+    data = (indices+1)**2
+    csr = scipy.sparse.csr_array(
+        (data, indices, indptr),
+        shape=(n_rows, n_cols))
+
+    expected_csc = scipy.sparse.csc_array(
+        csr.toarray())
+
+    with h5py.File(src_path, 'w') as dst:
+        dst.create_dataset('data', data=data, chunks=(1000,))
+        dst.create_dataset('indices', data=indices, chunks=(1000,))
+        dst.create_dataset('indptr', data=indptr)
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    transpose_sparse_matrix_on_disk_v2(
+        h5_path=src_path,
+        indices_tag='indices',
+        indptr_tag='indptr',
+        data_tag='data',
+        indices_max=n_cols,
+        max_gb=1,
+        n_processors=3,
+        output_path=dst_path,
+        verbose=False,
+        tmp_dir=tmp_dir_fixture)
+
+    with h5py.File(dst_path, 'r') as src:
+        actual_data = src['data'][()]
+        actual_indices = src['indices'][()]
+        actual_indptr = src['indptr'][()]
+
+    assert actual_indices.shape == expected_csc.indices.shape
+
+    np.testing.assert_array_equal(
+        actual_indptr,
+        expected_csc.indptr)
+
+    np.testing.assert_array_equal(
+        actual_indices[-10:],
+        expected_csc.indices[-10:])
+
+    actual_csc = scipy.sparse.csc_matrix(
+        (actual_data, actual_indices, actual_indptr),
+        shape=(n_rows,n_cols))
+
+    np.testing.assert_array_equal(
+        csr.toarray(), actual_csc.toarray())
+
+
+def test_genes_at_a_time(
+        query_gene_names,
+        ref_marker_path_fixture,
+        precomputed_path_fixture,
+        full_marker_name_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture):
+    """
+    Really just a smoke test to make sure that
+    genes_at_a_time changes the result
+    """
+
+    valid_gene_names = query_gene_names
+    query_path = None
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_query_markers_',
+        suffix='.json')
+
+    config = {
+        'query_path': query_path,
+        'reference_marker_path_list': [ref_marker_path_fixture],
+        'n_processors': 3,
+        'n_per_utility': 5,
+        'drop_level': None,
+        'output_path': baseline_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute())}
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    for genes_at_a_time in (1, 10):
+        test_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='test_query_markers_',
+            suffix='.json')
+
+        config['output_path'] = test_path
+        config['genes_at_a_time'] = genes_at_a_time
+
+        runner = QueryMarkerRunner(
+            args=[],
+            input_data=config)
+        runner.run()
+
+        baseline = json.load(open(baseline_path, 'rb'))
+        test = json.load(open(test_path, 'rb'))
+        for k in ('log', 'metadata'):
+            baseline.pop(k)
+            test.pop(k)
+
+        if genes_at_a_time == 1:
+            assert test == baseline
+        else:
+            assert test != baseline
+
+
+@pytest.fixture(scope='module')
+def p_value_path_fixture(
+        precomputed_path_fixture,
+        tmp_dir_fixture):
+
+    p_value_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_value_mask_',
+        suffix='.h5')
+
+    config = {
+        'tmp_dir': str(tmp_dir_fixture),
+        'output_path': p_value_path,
+        'precomputed_stats_path': precomputed_path_fixture,
+        'clobber': True,
+        'n_processors': 3
+    }
+
+    runner = PValueRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+    return p_value_path
+
+
+@pytest.mark.parametrize(
+        "n_per_utility,genes_at_a_time,n_processors,n_valid",
+        itertools.product(
+            (10,),
+            (5,),
+            (3,),
+            (None,)
+        ))
+def test_query_markers_from_p_values(
+        tmp_dir_fixture,
+        p_value_path_fixture,
+        genes_at_a_time,
+        n_per_utility,
+        n_processors,
+        n_valid):
+    """
+    Just a smoke test for the CLI tool that goes straight from
+    p-value mask to query markers.
+    """
+
+    drop_level = None
+    n_per_utility_override = None
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_from_p_values_',
+        suffix='.json')
+
+    config = {
+        'output_path': output_path,
+        'p_value_mask_path': p_value_path_fixture,
+        'max_gb': 5,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': n_processors,
+        'drop_level': drop_level,
+        'clobber': True,
+        'reference_markers': {
+            'n_valid': n_valid
+        },
+        'query_markers':  {
+            'n_per_utility': n_per_utility,
+            'n_per_utility_override': n_per_utility_override,
+            'genes_at_a_time': genes_at_a_time
+        }
+    }
+
+    runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    with open(output_path, 'rb') as src:
+        result = json.load(src)
+    assert len(result) > 2
+    n_markers = 0
+    for k in result:
+        if k in ('log', 'metadata'):
+            continue
+        n_markers += len(result[k])
+    assert n_markers > 0

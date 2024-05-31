@@ -110,11 +110,32 @@ For each level in the taxonomy tree there is recorded
 - `'assignment'`: the taxonomic node chosen for this cell
 - `'bootstrapping_probability'`: the fraction of bootstrap iterations that
 selected the assigned taxonomic node
+- `'aggregate_probability'`: this is the product of `boostrapping_probability`
+for all levels of the taxonomy starting at the grossest level and
+ending at the current level, i.e. if your taxonomy has levels
+`['class', 'subclass', 'cluster']`, then the `aggregate_probability` at
+the `subclass` level is the product of the `class` level
+`bootstrapping_probability` with the `subclass` level
+`bootstrapping_probability`; the `aggregate_probability` at the `cluster`
+level is the product of the `bootstrapping_probability` at all three levels.
 - `'avg_correlation`': the average Pearson's correlation coefficient between
 the gene profile of the cell and the average gene profile of the chosen
 taxonomic node *in the marker genes appropriate for that node.* The average
 is taken over only those bootstrap iterations that selected the assigned
 node.
+- `'directly_assigned'`: this is a boolean. If `True`, then the cell type
+was assigned directly by the cell type mapper. If `False`, the cell type
+was inferred from a directly assigned child. This may occur if, for instance,
+you run the cell type mapper with `flatten = True`, in which case each cell
+is mapped directly to the leaf node of the taxonomy tree. In this case,
+higher level nodes of the tree are still assigned, but they are inferred
+based on the inheritance of the assigned leaf node (e.g. "I know the cell
+has been assigned directly to subtypeA; it was not directly assigned to
+a supertype; however, since subtypeA is a child of supertypeB in my taxonomy,
+I can infer that the cell must also be a member of supertypeB").
+In this case, the `bootstrapping_probability`, 	`aggregate_probability`,
+and `avg_correlation` values are propagated up the tree from the
+directly assigned child node for convenience.
 
 The cell is identified by the `cell_id` key in the dict, e.g.
 
@@ -123,17 +144,23 @@ The cell is identified by the `cell_id` key in the dict, e.g.
   "CCN20230504_CLAS": {
     "assignment": "CCN20230504_CLAS_25",
     "bootstrapping_probability": 0.74,
-    "avg_correlation": 0.5735289275007436
+    "aggregate_probability": 0.74,
+    "avg_correlation": 0.5735289275007436,
+    "directly_assigned": True
   },
   "CCN20230504_SUBC": {
     "assignment": "CCN20230504_SUBC_269",
     "bootstrapping_probability": 0.59,
-    "avg_correlation": 0.6041588697199276
+    "aggregate_probability": 0.44,
+    "avg_correlation": 0.6041588697199276,
+    "directly_assigned": True
   },
   "CCN20230504_CLUS": {
     "assignment": "CCN20230504_CLUS_4975",
     "bootstrapping_probability": 0.56,
-    "avg_correlation": 0.6123913092110298
+    "aggregate_probability": 0.24,
+    "avg_correlation": 0.6123913092110298,
+    "directly_assigned": True
   },
   "cell_id": "1015221640100510476"
 }
@@ -143,6 +170,7 @@ At each level, there will also be optional fields `runner_up_assignment`,
 `runner_up_correlation`, and `runner_up_probability`. These will map
 to lists of the N (if requested) next most likely assignments as
 ranked according to `bootstrapping_probability`. If there were no
-runners up, these will be empty lists. **Note:** the default value of
-`n_runners_up`, the configuration parameter telling the code how many
-runners up to report, is zero, so these lists will be empty by default.
+runners up, these will be empty lists.
+
+**Note:** the runner up fields will be absent for any levels in the
+taxonomy tree that were not directly assigned.

@@ -7,6 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import scipy.sparse
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -23,6 +24,9 @@ from cell_type_mapper.diff_exp.markers import (
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
+
+from cell_type_mapper.diff_exp.p_value_mask import (
+    create_p_value_mask_file)
 
 
 @pytest.fixture(scope='module')
@@ -158,9 +162,9 @@ def cluster_to_signal(
     rng = np.random.default_rng(66713)
     for ii, cl in enumerate(taxonomy_tree_dict['cluster']):
         genes = marker_gene_names[ii*7:(ii+1)*7]
-        assert len(genes) == 7
         signal = np.power(8, rng.integers(2, 7, len(genes)))
         result[cl] = {n: s for n, s, in zip(genes, signal)}
+
     return result
 
 
@@ -326,7 +330,7 @@ def ref_marker_path_fixture(
         taxonomy_tree=taxonomy_tree,
         output_path=ref_marker_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=0.006)
+        max_gb=2)
 
     metadata = {
         'precomputed_path': str(precomputed_path_fixture)

@@ -75,6 +75,8 @@ fold_change > = 1
 These thresholds are set using the config parameters
 `q1_th`, `qdiff_th`, and `log2_fold_th`.
 
+#### Approximate penetrance filter
+
 In practice, this "exact penetrance filter" is too restrictive.
 It does not permit enough genes to be designated as markers, so
 the code includes an approximate penetrance filter that can be

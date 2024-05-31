@@ -19,6 +19,11 @@ from cell_type_mapper.cell_by_gene.utils import (
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
 
+from cell_type_mapper.utils.output_utils import (
+    precomputed_stats_to_uns,
+    uns_to_precomputed_stats
+)
+
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad,
     precompute_summary_stats_from_h5ad_and_lookup,
@@ -29,7 +34,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
-    json_clean_dict,
+    clean_for_json,
     mkstemp_clean)
 
 
@@ -358,7 +363,7 @@ def many_raw_h5ad_fixture(
     return path_list
 
 @pytest.mark.parametrize(
-        'use_raw,n_processors',
+        'use_raw, n_processors',
         itertools.product([True, False], [1, 3]))
 def test_precompute_from_data(
         h5ad_path_fixture,
@@ -402,7 +407,7 @@ def test_precompute_from_data(
     expected_tree = get_taxonomy_tree(
         obs_records=records_fixture,
         column_hierarchy=hierarchy)
-    expected_tree = json_clean_dict(expected_tree)
+    expected_tree = clean_for_json(expected_tree)
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
             in_file['taxonomy_tree'][()].decode('utf-8'))
@@ -454,6 +459,106 @@ def test_precompute_from_data(
         assert n_cells[idx] == baseline_stats_fixture[cluster]["n_cells"]
 
     _clean_up(tmp_dir)
+
+
+@pytest.mark.parametrize(
+        'use_raw', [True, False])
+def test_serialization_of_actual_precomputed_stats(
+        h5ad_path_fixture,
+        raw_h5ad_path_fixture,
+        tmp_dir_fixture,
+        use_raw):
+    """
+    Test that serialization to uns works on an actual
+    precomputed stats file
+    """
+
+    if use_raw:
+        h5ad_path = raw_h5ad_path_fixture
+        normalization = 'raw'
+    else:
+        h5ad_path = h5ad_path_fixture
+        normalization = 'log2CPM'
+
+    n_processors = 1
+
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
+
+    hierarchy = ["level1", "level2", "class", "cluster"]
+
+    stats_file = tmp_dir / "summary_stats_for_serialization.h5"
+    assert not stats_file.is_file()
+
+    precompute_summary_stats_from_h5ad(
+        data_path=h5ad_path,
+        column_hierarchy=hierarchy,
+        taxonomy_tree=None,
+        output_path=stats_file,
+        rows_at_a_time=13,
+        normalization=normalization,
+        n_processors=n_processors,
+        tmp_dir=tmp_dir_fixture)
+
+    uns_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='h5ad_for_serialization_',
+        suffix='.h5ad')
+
+    # create a dummy h5ad file that we can serialize
+    # the precomputed stats into
+    rng = np.random.default_rng(88712)
+    n_cells = 10
+    n_genes = 22
+    var = pd.DataFrame(
+        [{'gene': f'g_{ii}'} for ii in range(n_genes)]
+    ).set_index('gene')
+    obs = pd.DataFrame(
+        [{'cell': f'c_{ii}'} for ii in range(n_cells)]
+    ).set_index('cell')
+    a_data = anndata.AnnData(
+        X=rng.random((n_cells, n_genes)),
+        var=var,
+        obs=obs,
+        uns={'a': 'b', 'c': 'd'})
+    a_data.write_h5ad(uns_path)
+
+    # serialize and read back the precomputed stats to/from
+    # the h5ad file's uns element
+    uns_key = 'precomputed_stats'
+    precomputed_stats_to_uns(
+        precomputed_stats_path=stats_file,
+        h5ad_path=uns_path,
+        uns_key=uns_key)
+
+    roundtrip_file = uns_to_precomputed_stats(
+        h5ad_path=uns_path,
+        uns_key=uns_key,
+        tmp_dir=tmp_dir)
+
+    # check that the two precomputed_stats files agree with
+    # each other
+    with h5py.File(stats_file, 'r') as expected_src:
+        with h5py.File(roundtrip_file, 'r') as actual_src:
+            assert set(expected_src.keys()) == set(actual_src.keys())
+            for dataset_name in expected_src.keys():
+                expected = expected_src[dataset_name][()]
+                actual = actual_src[dataset_name][()]
+                if isinstance(expected, np.ndarray):
+                    np.testing.assert_allclose(
+                        expected,
+                        actual,
+                        atol=0.0,
+                        rtol=1.0e-6)
+                else:
+                    expected = json.loads(expected.decode('utf-8'))
+                    actual = json.loads(actual.decode('utf-8'))
+                    if expected != actual:
+                        raise RuntimeError(
+                            f"{dataset_name} does not match\n"
+                            f"{expected}\n"
+                            f"{actual}\n"
+                        )
 
 
 @pytest.mark.parametrize(
@@ -695,7 +800,7 @@ def test_precompute_from_many_h5ad_with_tree(
         if k in actual_tree:
             actual_tree.pop(k)
 
-    assert json_clean_dict(expected_tree) == actual_tree
+    assert clean_for_json(expected_tree) == actual_tree
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:

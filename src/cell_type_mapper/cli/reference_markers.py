@@ -5,9 +5,8 @@ import json
 import pathlib
 import time
 
-import cell_type_mapper
-
-from cell_type_mapper.utils.utils import get_timestamp
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -35,11 +34,14 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
         input_to_output = self.create_input_to_output_map()
 
         parent_metadata = {
-            'config': self.args,
-            'timestamp': get_timestamp(),
+            'config': copy.deepcopy(self.args),
             'input_to_output_map': input_to_output,
-            'cell_type_mapper_version': cell_type_mapper.__version__
         }
+
+        parent_metadata.update(
+            get_execution_metadata(
+                module_file=__file__,
+                t0=None))
 
         taxonomy_tree = None
 
@@ -54,6 +56,7 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
             gene_list = None
 
         for precomputed_path in input_to_output:
+            local_t0 = time.time()
             output_path = input_to_output[precomputed_path]
             to_write = output_path
             if self.args['cloud_safe']:
@@ -85,11 +88,13 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
                 max_gb=self.args['max_gb'],
                 log=log)
 
-            log.info("RAN SUCCESSFULLY")
+            log.info("REFERENCE MARKER FINDER RAN SUCCESSFULLY")
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['precomputed_path'] = precomputed_path
             metadata['log'] = log.log
+            duration = time.time()-local_t0
+            metadata['duration'] = duration
             metadata_str = json.dumps(metadata)
             with h5py.File(output_path, 'a') as dst:
                 dst.create_dataset(

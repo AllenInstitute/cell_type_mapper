@@ -2,8 +2,10 @@ import pytest
 
 import numpy as np
 
+from cell_type_mapper.diff_exp.score_utils import (
+    aggregate_stats)
+
 from cell_type_mapper.diff_exp.scores import (
-    aggregate_stats,
     score_differential_genes,
     diffexp_score,
     rank_genes)

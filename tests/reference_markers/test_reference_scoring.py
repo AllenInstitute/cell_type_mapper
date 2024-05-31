@@ -7,13 +7,16 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import scipy.sparse
 import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
+from cell_type_mapper.diff_exp.score_utils import (
+    read_precomputed_stats)
+
 from cell_type_mapper.diff_exp.scores import (
-    read_precomputed_stats,
     score_differential_genes)
 
 from cell_type_mapper.diff_exp.markers import (
@@ -150,6 +153,32 @@ def test_find_all_markers_given_min_thresholds(
                 exact_penetrance=False,
                 n_valid=1000)
 
+        # check that the two encodings of reference markers are, in fact,
+        # transposes of each other
+
+        with h5py.File(h5_path, 'r') as src:
+            n_genes = len(json.loads(src['gene_names'][()].decode('utf-8')))
+            n_pairs = src['n_pairs'][()]
+            for dir_ in ('up', 'down'):
+                csr_indices = src[f'sparse_by_pair/{dir_}_gene_idx'][()]
+                csr_indptr = src[f'sparse_by_pair/{dir_}_pair_idx'][()]
+                csc_indices = src[f'sparse_by_gene/{dir_}_pair_idx'][()]
+                csc_indptr = src[f'sparse_by_gene/{dir_}_gene_idx'][()]
+                assert csc_indices.shape == csr_indices.shape
+
+                csr = scipy.sparse.csr_array(
+                    (np.ones(csc_indices.shape, dtype=int),
+                     csr_indices,
+                     csr_indptr),
+                    shape=(n_pairs, n_genes))
+                csc = scipy.sparse.csc_array(
+                    (np.ones(csc_indices.shape, dtype=int),
+                     csc_indices,
+                     csc_indptr),
+                    shape=(n_pairs, n_genes))
+                np.testing.assert_array_equal(
+                    csr.toarray(), csc.toarray())
+
         marker_array = MarkerGeneArray.from_cache_path(
             cache_path=h5_path)
 
@@ -281,6 +310,32 @@ def test_find_all_markers_given_thresholds(
                 max_gb=1,
                 exact_penetrance=False,
                 n_valid=n_valid)
+
+        # check that the two encodings of reference markers are, in fact,
+        # transposes of each other
+
+        with h5py.File(h5_path, 'r') as src:
+            n_genes = len(json.loads(src['gene_names'][()].decode('utf-8')))
+            n_pairs = src['n_pairs'][()]
+            for dir_ in ('up', 'down'):
+                csr_indices = src[f'sparse_by_pair/{dir_}_gene_idx'][()]
+                csr_indptr = src[f'sparse_by_pair/{dir_}_pair_idx'][()]
+                csc_indices = src[f'sparse_by_gene/{dir_}_pair_idx'][()]
+                csc_indptr = src[f'sparse_by_gene/{dir_}_gene_idx'][()]
+                assert csc_indices.shape == csr_indices.shape
+
+                csr = scipy.sparse.csr_array(
+                    (np.ones(csc_indices.shape, dtype=int),
+                     csr_indices,
+                     csr_indptr),
+                    shape=(n_pairs, n_genes))
+                csc = scipy.sparse.csc_array(
+                    (np.ones(csc_indices.shape, dtype=int),
+                     csc_indices,
+                     csc_indptr),
+                    shape=(n_pairs, n_genes))
+                np.testing.assert_array_equal(
+                    csr.toarray(), csc.toarray())
 
         marker_array = MarkerGeneArray.from_cache_path(
             cache_path=h5_path)
