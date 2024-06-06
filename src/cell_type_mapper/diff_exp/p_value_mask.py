@@ -326,7 +326,7 @@ def _p_values_worker(
             f"col0 ({col0}) is not an integer multiple of 8")
 
     n_pairs = len(idx_values)
-    dense_mask = np.zeros((n_pairs, n_genes), dtype=np.float16)
+    dense_mask = np.zeros((n_pairs, n_genes))
 
     for pair_ct, idx in enumerate(idx_values):
         sibling_pair = idx_to_pair[idx]
@@ -384,7 +384,7 @@ def _p_values_worker(
         # matrix
         valid[distances['invalid']] = False
 
-        dense_mask[pair_ct, valid] = wgt[valid].astype(np.float16)
+        dense_mask[pair_ct, valid] = wgt[valid]
 
     sparse_mask = scipy_sparse.csr_matrix(dense_mask)
 
