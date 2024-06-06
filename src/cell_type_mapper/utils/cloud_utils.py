@@ -20,7 +20,9 @@ def sanitize_paths(
             path = _word_to_path(word)
             if is_exposed(path):
                 abs_path = path.resolve().absolute()
-                if abs_path.is_relative_to(mapper_path):
+                if is_relative_to(
+                        child_path=abs_path,
+                        parent_path=mapper_path):
                     safe_path = str(abs_path.relative_to(mapper_path))
                 else:
                     safe_path = path.name
@@ -67,3 +69,15 @@ def _word_to_path(word):
     for char in ('"', "'"):
         word = word.replace(char, '')
     return pathlib.Path(word)
+
+
+def is_relative_to(
+        child_path,
+        parent_path):
+    """
+    Returns True if child_path is a child of parent path. Returns
+    False otherwise
+    """
+    child_path = str(child_path)
+    parent_path = str(parent_path)
+    return child_path.startswith(parent_path)
