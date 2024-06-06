@@ -217,6 +217,9 @@ def _run_mapping(config, tmp_dir, log):
     marker_gene_lookup = serialize_markers(
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
+
+    del file_tracker
+
     return {'assignments': result, 'marker_genes': marker_gene_lookup}
 
 
