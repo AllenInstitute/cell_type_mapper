@@ -351,25 +351,15 @@ def _p_values_worker(
             log2_fold_min_th=log2_fold_min_th)
 
         distances = distance_lookup['wgt']
-        distances = np.clip(
-            a=distances,
-            a_min=0.0,
-            a_max=np.finfo(np.float16).max-1)
+        invalid = distance_lookup['invalid']
 
-        # so that genes with weighted distance == 0 get kept
-        # in the sparse matrix
-        distances[distances == 0.0] = -1.0
-        eps = np.finfo(np.float16).resolution
-        distances[np.abs(distances) < eps] = eps
-
-        valid = (p_values < p_th)
-
-        # so that invalid genes (according to penetrance min
-        # thresholds do not get carried over into the sparse
-        # matrix
-        valid[distance_lookup['invalid']] = False
-
-        dense_mask[pair_ct, valid] = distances[valid]
+        dense_mask = _populate_dense_mask(
+            dense_mask=dense_mask,
+            pair_ct=pair_ct,
+            distances=distances,
+            invalid=invalid,
+            p_values=p_values,
+            p_th=p_th)
 
     _save_sub_mask(
         dense_mask=dense_mask,
@@ -491,6 +481,62 @@ def _save_sub_mask(
             'data', data=data, dtype=np.float16)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
+
+
+def _populate_dense_mask(
+        dense_mask,
+        pair_ct,
+        distances,
+        invalid,
+        p_values,
+        p_th):
+    """
+    Update dense mask with data from one cell-type pair
+
+    Parameters
+    ----------
+    dense_mask:
+        the array being updated
+    pair_ct:
+        The row of dense_mask being updated
+    distances:
+        The (n_genes,) array of parameter space distances from
+        the absolute marker gene threshold
+    invalid:
+        An (n_genes,) array of booleans indicating which genes
+        are invalid, regardless of their parameter space distance
+    p_values:
+        The (n_genes,) array of P-values indicating how good
+        a marker gene each gene is
+    p_th:
+        The threshold P-value for accepting marker genes
+
+    Returns
+    -------
+    dense_mask:
+        Having been updated accordingly
+    """
+
+    distances = np.clip(
+        a=distances,
+        a_min=0.0,
+        a_max=np.finfo(np.float16).max-1)
+
+    # so that genes with weighted distance == 0 get kept
+    # in the sparse matrix
+    distances[distances == 0.0] = -1.0
+    eps = np.finfo(np.float16).resolution
+    distances[np.abs(distances) < eps] = eps
+
+    valid = (p_values < p_th)
+
+    # so that invalid genes (according to penetrance min
+    # thresholds do not get carried over into the sparse
+    # matrix
+    valid[invalid] = False
+
+    dense_mask[pair_ct, valid] = distances[valid]
+    return dense_mask
 
 
 def _merge_masks(
