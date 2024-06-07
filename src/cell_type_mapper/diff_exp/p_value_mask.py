@@ -305,28 +305,16 @@ def _p_values_worker(
         diffexp.scores.score_differential_genes.
     """
 
-    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
-    idx_dtype = choose_int_dtype((0, n_genes))
+    (dense_mask,
+     idx_values,
+     boring_t,
+     idx_dtype) = _prepare_mask(
+        cluster_stats=cluster_stats,
+        idx_to_pair=idx_to_pair,
+        p_th=p_th)
 
-    boring_t = boring_t_from_p_value(p_th)
-
-    idx_values = list(idx_to_pair.keys())
-    idx_values.sort()
-    idx_values = np.array(idx_values)
-
-    # make sure these are consecutive
-    delta = np.unique(np.diff(idx_values))
-    if len(delta) != 1 or delta[0] != 1:
-        raise RuntimeError(
-            "p-value worker was passed non-consecutive pairs")
-
-    col0 = min(idx_values)
-    if col0 % 8 != 0:
-        raise RuntimeError(
-            f"col0 ({col0}) is not an integer multiple of 8")
-
-    n_pairs = len(idx_values)
-    dense_mask = np.zeros((n_pairs, n_genes))
+    n_pairs = dense_mask.shape[0]
+    n_genes = dense_mask.shape[1]
 
     for pair_ct, idx in enumerate(idx_values):
         sibling_pair = idx_to_pair[idx]
@@ -410,6 +398,66 @@ def _p_values_worker(
             'data', data=data, dtype=np.float16)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
+
+
+def _prepare_mask(
+        cluster_stats,
+        idx_to_pair,
+        p_th):
+    """
+    Find a bunch of boilerplate parameters needed for P-value mask
+    creation.
+
+    Parameters
+    ----------
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
+
+    idx_to_pair:
+        Dict mapping col in final output file to
+        (level, node1, node2) sibling pair
+        [Just the columns that this worker is responsible for]
+
+    p_th:
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under score_differential_genes
+
+    Returns
+    -------
+    dense_mask:
+        np.array of zeros for storing the p-value mask
+    idx_values:
+        list of idx values (i.e. the indices of the cell type pairs
+        stored in the mask)
+    boring_t:
+        to be passed to the welch_t_test function
+    idx_dtype:
+        dtype necessary to store the indices of the sparse matrix
+    """
+
+    n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
+    idx_dtype = choose_int_dtype((0, n_genes))
+
+    boring_t = boring_t_from_p_value(p_th)
+
+    idx_values = list(idx_to_pair.keys())
+    idx_values.sort()
+    idx_values = np.array(idx_values)
+
+    # make sure these are consecutive
+    delta = np.unique(np.diff(idx_values))
+    if len(delta) != 1 or delta[0] != 1:
+        raise RuntimeError(
+            "p-value worker was passed non-consecutive pairs")
+
+    col0 = min(idx_values)
+    if col0 % 8 != 0:
+        raise RuntimeError(
+            f"col0 ({col0}) is not an integer multiple of 8")
+
+    n_pairs = len(idx_values)
+    dense_mask = np.zeros((n_pairs, n_genes))
+    return dense_mask, idx_values, boring_t, idx_dtype
 
 
 def _merge_masks(
