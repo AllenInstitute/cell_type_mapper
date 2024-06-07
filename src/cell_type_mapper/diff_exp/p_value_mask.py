@@ -313,9 +313,6 @@ def _p_values_worker(
         idx_to_pair=idx_to_pair,
         p_th=p_th)
 
-    n_pairs = dense_mask.shape[0]
-    n_genes = dense_mask.shape[1]
-
     for pair_ct, idx in enumerate(idx_values):
         sibling_pair = idx_to_pair[idx]
         level = sibling_pair[0]
@@ -374,30 +371,11 @@ def _p_values_worker(
 
         dense_mask[pair_ct, valid] = wgt[valid]
 
-    sparse_mask = scipy_sparse.csr_matrix(dense_mask)
-
-    indices = np.copy(sparse_mask.indices)
-    indptr = np.copy(sparse_mask.indptr).astype(np.int64)
-    data = np.copy(sparse_mask.data).astype(np.float16)
-    del sparse_mask
-    indices = indices.astype(idx_dtype)
-
-    # store mask as just the indices, indptr arrays from the
-    # sparse mask (since this is a boolean array that can only
-    # have values 0, 1
-    with h5py.File(tmp_path, 'a') as out_file:
-        out_file.create_dataset(
-            'n_genes', data=n_genes)
-        out_file.create_dataset(
-            'n_pairs', data=n_pairs)
-        out_file.create_dataset(
-            'indices', data=indices, dtype=idx_dtype)
-        out_file.create_dataset(
-            'indptr', data=indptr, dtype=np.int64)
-        out_file.create_dataset(
-            'data', data=data, dtype=np.float16)
-        out_file.create_dataset(
-            'min_row', data=idx_values.min())
+    _save_sub_mask(
+        dense_mask=dense_mask,
+        idx_dtype=idx_dtype,
+        idx_values=idx_values,
+        dst_path=tmp_path)
 
 
 def _prepare_mask(
@@ -458,6 +436,61 @@ def _prepare_mask(
     n_pairs = len(idx_values)
     dense_mask = np.zeros((n_pairs, n_genes))
     return dense_mask, idx_values, boring_t, idx_dtype
+
+
+def _save_sub_mask(
+        dense_mask,
+        idx_values,
+        idx_dtype,
+        dst_path):
+    """
+    Save P-value mask as a sparse matrix in an HDF5 file.
+    (Meant for saving a subset of the final mask in a temporary
+    file).
+
+    Parameters
+    ----------
+    dense_mask:
+        The mask as a dense matrix
+    idx_values:
+        An array of ints. The indexes in the final mask of the cell type
+        pairs stored in this HDF5 file.
+    idx_dtype:
+        The dtype for storing the sparse matrix indices.
+    dst_path:
+        Path to the HDF5 file being created.
+
+    Returns
+    -------
+    None
+        The file at dst_path is created and written to.
+    """
+    n_genes = dense_mask.shape[1]
+    n_pairs = dense_mask.shape[0]
+    sparse_mask = scipy_sparse.csr_matrix(dense_mask)
+
+    indices = np.copy(sparse_mask.indices)
+    indptr = np.copy(sparse_mask.indptr).astype(np.int64)
+    data = np.copy(sparse_mask.data).astype(np.float16)
+    del sparse_mask
+    indices = indices.astype(idx_dtype)
+
+    # store mask as just the indices, indptr arrays from the
+    # sparse mask (since this is a boolean array that can only
+    # have values 0, 1
+    with h5py.File(dst_path, 'w') as out_file:
+        out_file.create_dataset(
+            'n_genes', data=n_genes)
+        out_file.create_dataset(
+            'n_pairs', data=n_pairs)
+        out_file.create_dataset(
+            'indices', data=indices, dtype=idx_dtype)
+        out_file.create_dataset(
+            'indptr', data=indptr, dtype=np.int64)
+        out_file.create_dataset(
+            'data', data=data, dtype=np.float16)
+        out_file.create_dataset(
+            'min_row', data=idx_values.min())
 
 
 def _merge_masks(
