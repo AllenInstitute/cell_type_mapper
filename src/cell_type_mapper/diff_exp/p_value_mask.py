@@ -327,31 +327,17 @@ def _p_values_worker(
             boring_t=boring_t,
             big_nu=None)
 
-        (pij_1,
-         pij_2,
-         log2_fold) = pij_from_stats(
-             cluster_stats=cluster_stats,
-             node_1=node_1,
-             node_2=node_2)
-
-        (q1_score,
-         qdiff_score) = q_score_from_pij(
-             pij_1=pij_1,
-             pij_2=pij_2)
-
-        distance_lookup = penetrance_parameter_distance(
-            q1_score=q1_score,
-            qdiff_score=qdiff_score,
-            log2_fold=log2_fold,
-            q1_th=q1_th,
-            q1_min_th=q1_min_th,
-            qdiff_th=qdiff_th,
-            qdiff_min_th=qdiff_min_th,
-            log2_fold_th=log2_fold_th,
-            log2_fold_min_th=log2_fold_min_th)
-
-        distances = distance_lookup['wgt']
-        invalid = distance_lookup['invalid']
+        (distances,
+         invalid) = _penetrance_distances(
+                         cluster_stats=cluster_stats,
+                         node_1=node_1,
+                         node_2=node_2,
+                         q1_th=q1_th,
+                         q1_min_th=q1_min_th,
+                         qdiff_th=qdiff_th,
+                         qdiff_min_th=qdiff_min_th,
+                         log2_fold_th=log2_fold_th,
+                         log2_fold_min_th=log2_fold_min_th)
 
         dense_mask = _populate_dense_mask(
             dense_mask=dense_mask,
@@ -505,6 +491,7 @@ def _populate_dense_mask(
     invalid:
         An (n_genes,) array of booleans indicating which genes
         are invalid, regardless of their parameter space distance
+        (True means a gene is not a valid marker)
     p_values:
         The (n_genes,) array of P-values indicating how good
         a marker gene each gene is
@@ -616,3 +603,74 @@ def _merge_masks(
                 idx_0 += n_this
                 indptr_0 += len(indptr)-1
         dst_indptr[-1] = n_indices
+
+
+def _penetrance_distances(
+        cluster_stats,
+        node_1,
+        node_2,
+        q1_th,
+        q1_min_th,
+        qdiff_th,
+        qdiff_min_th,
+        log2_fold_th,
+        log2_fold_min_th):
+    """
+    Find the parameter space distances of genes from the
+    marker threshold, using penetrance as the relevant
+    metric.
+
+    Parameters
+    ----------
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
+
+    node_1/node_2:
+        The keys in cluster_stats corresponding to the cell types
+        being compared here.
+
+    q1_th/qdiff_th/log2_fold_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under diffexp.scores.score_differential_genes
+
+    qdiff_min_th/log2_fold_min_th
+        Minimum thresholds below which genes will not be
+        considered marker genes. See Notes under
+        diffexp.scores.score_differential_genes.
+
+    Returns
+    -------
+    distances:
+        a (n_genes,) array of parameter space distances from the marker
+        gene threshold
+    invalid:
+        a (n_genes,) array of booleans indicating which genes are invalid
+        markers, regardless of their parameter space distance
+        (True means a gene is not a valid marker)
+    """
+    (pij_1,
+     pij_2,
+     log2_fold) = pij_from_stats(
+         cluster_stats=cluster_stats,
+         node_1=node_1,
+         node_2=node_2)
+
+    (q1_score,
+     qdiff_score) = q_score_from_pij(
+         pij_1=pij_1,
+         pij_2=pij_2)
+
+    distance_lookup = penetrance_parameter_distance(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=q1_th,
+        q1_min_th=q1_min_th,
+        qdiff_th=qdiff_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_th=log2_fold_th,
+        log2_fold_min_th=log2_fold_min_th)
+
+    distances = distance_lookup['wgt']
+    invalid = distance_lookup['invalid']
+    return distances, invalid
