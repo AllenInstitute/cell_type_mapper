@@ -37,6 +37,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 def create_p_value_mask_file(
         precomputed_stats_path,
         dst_path,
+        algorithm='penetrance',
         p_th=0.01,
         q1_th=0.5,
         q1_min_th=0.1,
@@ -60,6 +61,10 @@ def create_p_value_mask_file(
 
     dst_path:
         Path to the HDF5 file that will be written
+
+    algorithm:
+        A str indicating how to evaluate goodness of marker.
+        Either 'penetrance' or 'significance'
 
     p_th/q1_th/qdiff_th/log2_fold_th
         Thresholds for determining if a gene is a valid marker.
@@ -116,6 +121,7 @@ def create_p_value_mask_file(
         _create_p_value_mask_file(
             precomputed_stats_path=precomputed_stats_path,
             dst_path=dst_path,
+            algorithm=algorithm,
             p_th=p_th,
             n_processors=n_processors,
             tmp_dir=tmp_dir,
@@ -133,6 +139,7 @@ def create_p_value_mask_file(
 def _create_p_value_mask_file(
         precomputed_stats_path,
         dst_path,
+        algorithm,
         p_th=0.01,
         n_processors=4,
         tmp_dir=None,
@@ -143,6 +150,29 @@ def _create_p_value_mask_file(
         qdiff_min_th=0.1,
         log2_fold_th=1.0,
         log2_fold_min_th=0.8):
+
+    valid_algo = ('penetrance', 'significance')
+    if algorithm not in valid_algo:
+        msg = (
+            f"algorithm '{algorithm}' is not valid; "
+            f"must be one of {valid_algo}"
+        )
+        raise RuntimeError(msg)
+
+    if algorithm == 'penetrance':
+        msg = ""
+        for name, param in (('q1_th', q1_th),
+                            ('q1_min_th', q1_min_th),
+                            ('qdiff_th', qdiff_th),
+                            ('qdiff_min_th', qdiff_min_th),
+                            ('log2_fold_th', log2_fold_th),
+                            ('log2_fold_min_th', log2_fold_min_th)):
+            if param is None:
+                msg += f"{name} cannot be None if algorithm is {algorithm}\n"
+        if len(msg) > 0:
+            raise RuntimeError(msg)
+    else:
+        raise NotImplementedError()
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(
         precomputed_stats_path)
@@ -202,6 +232,7 @@ def _create_p_value_mask_file(
                 target=_p_values_worker,
                 kwargs={
                     'cluster_stats': this_cluster_stats,
+                    'algorithm': algorithm,
                     'tree_as_leaves': this_tree_as_leaves,
                     'idx_to_pair': this_idx_to_pair,
                     'n_genes': n_genes,
@@ -254,6 +285,7 @@ def _create_p_value_mask_file(
 
 def _p_values_worker(
         cluster_stats,
+        algorithm,
         tree_as_leaves,
         idx_to_pair,
         n_genes,
@@ -275,6 +307,10 @@ def _p_values_worker(
     ----------
     cluster_stats:
         Result of read_precomputed_stats (just 'cluster_stats')
+
+    algorithm:
+        A str indicating how to evaluate goodness of marker.
+        Either 'penetrance' or 'significance'
 
     tree_as_leaves:
         Result of convert_tree_to_leaves
@@ -304,6 +340,9 @@ def _p_values_worker(
         considered marker genes. See Notes under
         diffexp.scores.score_differential_genes.
     """
+
+    if algorithm != 'penetrance':
+        raise NotImplementedError()
 
     (dense_mask,
      idx_values,
