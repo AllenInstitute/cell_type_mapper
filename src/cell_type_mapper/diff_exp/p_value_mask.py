@@ -339,7 +339,7 @@ def _p_values_worker(
              pij_1=pij_1,
              pij_2=pij_2)
 
-        distances = penetrance_parameter_distance(
+        distance_lookup = penetrance_parameter_distance(
             q1_score=q1_score,
             qdiff_score=qdiff_score,
             log2_fold=log2_fold,
@@ -350,26 +350,26 @@ def _p_values_worker(
             log2_fold_th=log2_fold_th,
             log2_fold_min_th=log2_fold_min_th)
 
-        wgt = distances['wgt']
-        wgt = np.clip(
-            a=wgt,
+        distances = distance_lookup['wgt']
+        distances = np.clip(
+            a=distances,
             a_min=0.0,
             a_max=np.finfo(np.float16).max-1)
 
         # so that genes with weighted distance == 0 get kept
         # in the sparse matrix
-        wgt[wgt == 0.0] = -1.0
+        distances[distances == 0.0] = -1.0
         eps = np.finfo(np.float16).resolution
-        wgt[np.abs(wgt) < eps] = eps
+        distances[np.abs(distances) < eps] = eps
 
         valid = (p_values < p_th)
 
         # so that invalid genes (according to penetrance min
         # thresholds do not get carried over into the sparse
         # matrix
-        valid[distances['invalid']] = False
+        valid[distance_lookup['invalid']] = False
 
-        dense_mask[pair_ct, valid] = wgt[valid]
+        dense_mask[pair_ct, valid] = distances[valid]
 
     _save_sub_mask(
         dense_mask=dense_mask,
