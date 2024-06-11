@@ -56,7 +56,8 @@ def precomputed_stats_fixture(tmp_dir_fixture):
         dst.create_dataset(
             'taxonomy_tree',
             data=json.dumps({'x': [[1, 2, 3], [6, 7, 8]],
-                             'y': [8,]}).encode('utf-8'))
+                             'y': [8,],
+                             'z/ab': [4, 7]}).encode('utf-8'))
         dst.create_dataset(
             'n_cells',
             data=np.arange(5))
