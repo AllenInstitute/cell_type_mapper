@@ -10,7 +10,9 @@ import cell_type_mapper
 from cell_type_mapper.utils.utils import (
     get_timestamp,
     mkstemp_clean,
-    clean_for_json)
+    clean_for_json,
+    clean_for_uns_serialization,
+    clean_for_uns_deserialization)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -545,7 +547,9 @@ def precomputed_stats_to_uns(
 
     update_uns(
         h5ad_path=h5ad_path,
-        new_uns={uns_key: serialized_data},
+        new_uns={
+            uns_key: clean_for_uns_serialization(serialized_data)
+        },
         clobber=False)
 
 
@@ -597,7 +601,11 @@ def uns_to_precomputed_stats(
                 chunks = True
             else:
                 chunks = False
-                data = json.dumps(clean_for_json(data)).encode('utf-8')
+                data = json.dumps(
+                    clean_for_uns_deserialization(
+                        clean_for_json(data)
+                    )
+                ).encode('utf-8')
 
             dst.create_dataset(
                 dataset_name,

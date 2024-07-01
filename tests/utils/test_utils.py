@@ -5,7 +5,9 @@ import numpy as np
 
 from cell_type_mapper.utils.utils import (
     merge_index_list,
-    choose_int_dtype)
+    choose_int_dtype,
+    clean_for_uns_serialization,
+    clean_for_uns_deserialization)
 
 
 @pytest.mark.parametrize(
@@ -28,3 +30,26 @@ def test_choose_int_dtype(output_dtype):
     min_val = (output_info.min)+0.1
     max_val = float(output_info.max)-0.1
     assert choose_int_dtype((min_val, max_val)) == output_dtype
+
+
+def test_clean_for_uns_serialization():
+    data = {
+        'a': 1,
+        'b/c': 3,
+        'd': {'e/f': 'g', 'h': 'i'},
+        'j': [{'x/y': 'z', 'w': 'u'}, 'b']
+    }
+
+    actual = clean_for_uns_serialization(data)
+
+    expected = {
+        'a': 1,
+        'b$c': 3,
+        'd': {'e$f': 'g', 'h': 'i'},
+        'j': [{'x$y': 'z', 'w': 'u'}, 'b']
+    }
+
+    assert actual == expected
+
+    roundtrip = clean_for_uns_deserialization(actual)
+    assert roundtrip == data

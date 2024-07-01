@@ -199,3 +199,93 @@ def clean_for_json(data):
         }
         return new_data
     return data
+
+
+def clean_for_uns_serialization(data):
+    """
+    anndata's uns object will treat any dict keys with a '/' in them
+    as though they are separate levels in the HDF5 filesystem. This
+    function is part of a workaround to that behavior. It scans through
+    data and replaces any '/' in keys with '$'
+
+    Parameters
+    ----------
+    data:
+        Any blob being serialized
+
+    Returns
+    -------
+    data_cleaned:
+        '/' replaced with '$'
+    """
+    return _clean_for_uns(
+                data=data,
+                old_symbol='/',
+                new_symbol='$')
+
+
+def clean_for_uns_deserialization(data):
+    """
+    anndata's uns object will treat any dict keys with a '/' in them
+    as though they are separate levels in the HDF5 filesystem. This
+    function is part of a workaround to that behavior. It scans through
+    data and replaces any '$' in keys with '/'
+
+    Parameters
+    ----------
+    data:
+        Any blob being serialized
+
+    Returns
+    -------
+    data_cleaned:
+        '$' replaced with '/'
+    """
+    return _clean_for_uns(
+                data=data,
+                old_symbol='$',
+                new_symbol='/')
+
+
+def _clean_for_uns(
+        data,
+        old_symbol,
+        new_symbol):
+    """
+    Parameters
+    ----------
+    data:
+        blob being serialized
+    old_symbol:
+        a str
+    new_symbol:
+        a str
+
+    Returns
+    -------
+    cleaned_data:
+        data, but keys in dicts are modified so that
+        old_symbol is replaced with new_symbol
+    """
+    if isinstance(data, dict):
+        cleaned_data = dict()
+        for key in data:
+            if isinstance(key, str):
+                new_key = key.replace(old_symbol, new_symbol)
+            else:
+                new_key = key
+            cleaned_data[new_key] = _clean_for_uns(
+                                         data=data[key],
+                                         old_symbol=old_symbol,
+                                         new_symbol=new_symbol)
+    elif isinstance(data, list):
+        cleaned_data = [
+            _clean_for_uns(
+                data=element,
+                old_symbol=old_symbol,
+                new_symbol=new_symbol)
+            for element in data]
+    else:
+        cleaned_data = data
+
+    return cleaned_data
