@@ -1,5 +1,17 @@
 # Output file contents
 
+**Note:** There is an example Jupyter notebook in this repository at
+
+examples/explore_mapping_results.ipynb
+
+which walks the user through downloading actual data from the NEMO
+archive, formatting it for submission to the on-line MapMyCells tool,
+and examining the results of the mapping. Running that notebook
+will provide a more practical, hands-on complement to reading this
+documentation.
+
+=====
+
 `cell_type_mapper.cli.from_specified_markers` produces two output files.
 An optional CSV output file, and an "extended" JSON output file (though this
 file is actually the one that is always created). The JSON file contains all
