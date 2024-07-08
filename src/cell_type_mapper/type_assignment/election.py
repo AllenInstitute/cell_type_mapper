@@ -730,7 +730,7 @@ def choose_node(
 
     update_timer("tally_votes", t, timers)
 
-    sorted_by_votes = np.argsort(-1*votes, axis=1)
+    sorted_by_votes = np.argsort(votes, axis=1)[:, -1::-1]
     sorted_by_votes = sorted_by_votes[:, :n_assignments]
 
     idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
