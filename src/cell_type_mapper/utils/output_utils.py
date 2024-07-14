@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import pathlib
 import time
-from functools import reduce
 
 import cell_type_mapper
 
