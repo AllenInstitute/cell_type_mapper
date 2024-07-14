@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import time
+from functools import reduce
 
 import cell_type_mapper
 
@@ -555,7 +556,7 @@ def precomputed_stats_to_uns(
 
 def uns_to_precomputed_stats(
         h5ad_path,
-        uns_key,
+        uns_keys_list,
         tmp_dir=None):
     """
     Read a serialized precomputed stats file from the uns element
@@ -593,7 +594,10 @@ def uns_to_precomputed_stats(
         ['n_cells', 'sum', 'sumsq', 'ge1', 'gt1', 'gt0']
     )
 
-    serialized_data = read_uns_from_h5ad(h5ad_path)[uns_key]
+    serialized_data = read_uns_from_h5ad(h5ad_path)
+    for uns_key in uns_keys_list:
+        serialized_data = serialized_data[uns_key]
+
     with h5py.File(h5_path, 'w') as dst:
         for dataset_name in serialized_data:
             data = serialized_data[dataset_name]

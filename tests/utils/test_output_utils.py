@@ -468,9 +468,11 @@ def test_re_order_blob(tmp_dir_fixture):
     assert len(new_blob) == len(results_lookup)
 
 
+@pytest.mark.parametrize('nested_uns', [True, False])
 def test_precomputed_stats_to_uns(
         tmp_dir_fixture,
-        precomputed_stats_fixture):
+        precomputed_stats_fixture, 
+        nested_uns):
     """
     Test utility functions to move precomputed stats data from HDF5 to
     the uns element of an h5ad file and back.
@@ -507,16 +509,26 @@ def test_precomputed_stats_to_uns(
     a_data.write_h5ad(h5ad_path)
 
     uns_key = 'serialization_test'
+    uns_key_nested = 'serialization_test_nested'
 
     precomputed_stats_to_uns(
         precomputed_stats_path=precomputed_stats_fixture,
         h5ad_path=h5ad_path,
         uns_key=uns_key)
 
-    roundtrip_path = uns_to_precomputed_stats(
-        uns_key=uns_key,
-        h5ad_path=h5ad_path,
-        tmp_dir=tmp_dir_fixture)
+    if not nested_uns:
+        roundtrip_path = uns_to_precomputed_stats(
+            uns_keys_list=[uns_key],
+            h5ad_path=h5ad_path,
+            tmp_dir=tmp_dir_fixture)
+    else:
+        a_data = anndata.read_h5ad(h5ad_path)
+        a_data.uns[uns_key] = {uns_key_nested: a_data.uns[uns_key]}
+        a_data.write_h5ad(h5ad_path)
+        roundtrip_path = uns_to_precomputed_stats(
+            uns_keys_list=[uns_key, uns_key_nested],
+            h5ad_path=h5ad_path,
+            tmp_dir=tmp_dir_fixture)
 
     with h5py.File(precomputed_stats_fixture, 'r') as expected_src:
         with h5py.File(roundtrip_path, 'r') as actual_src:
@@ -540,3 +552,4 @@ def test_precomputed_stats_to_uns(
         original_uns['maybe'],
         roundtrip_h5ad.uns['maybe']
     )
+
