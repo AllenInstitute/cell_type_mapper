@@ -46,7 +46,8 @@ def create_p_value_mask_file(
         log2_fold_min_th=0.8,
         n_processors=4,
         tmp_dir=None,
-        n_per=10000):
+        n_per=10000,
+        use_chisq_distance=False):
     """
     Create the "P-value mask" file, an HDF5 file storing
     the parameter space distance of each (cell type pair, gene)
@@ -78,6 +79,10 @@ def create_p_value_mask_file(
 
     n_per:
         Number of rows to load at a time (per worker)
+
+    use_chisq_distance:
+        A boolean. If True, use alternative "chisquared" distance
+        metric.
 
     Returns
     --------
@@ -125,7 +130,8 @@ def create_p_value_mask_file(
             qdiff_th=qdiff_th,
             qdiff_min_th=qdiff_min_th,
             log2_fold_th=log2_fold_th,
-            log2_fold_min_th=log2_fold_min_th)
+            log2_fold_min_th=log2_fold_min_th,
+            use_chisq_distance=use_chisq_distance)
     finally:
         _clean_up(tmp_dir)
 
@@ -142,7 +148,8 @@ def _create_p_value_mask_file(
         qdiff_th=0.7,
         qdiff_min_th=0.1,
         log2_fold_th=1.0,
-        log2_fold_min_th=0.8):
+        log2_fold_min_th=0.8,
+        use_chisq_distance=False):
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(
         precomputed_stats_path)
@@ -212,7 +219,8 @@ def _create_p_value_mask_file(
                     'qdiff_th': qdiff_th,
                     'qdiff_min_th': qdiff_min_th,
                     'log2_fold_th': log2_fold_th,
-                    'log2_fold_min_th': log2_fold_min_th})
+                    'log2_fold_min_th': log2_fold_min_th,
+                    'use_chisq_distance': use_chisq_distance})
         p.start()
         process_dict[col0] = p
         while len(process_dict) >= n_processors:
@@ -264,7 +272,8 @@ def _p_values_worker(
         qdiff_th=0.7,
         qdiff_min_th=0.1,
         log2_fold_th=1.0,
-        log2_fold_min_th=0.8):
+        log2_fold_min_th=0.8,
+        use_chisq_distance=False):
     """
     Score and rank differentiallly expressed genes for
     a subset of taxonomic siblings. Write the results to
@@ -303,6 +312,10 @@ def _p_values_worker(
         Minimum thresholds below which genes will not be
         considered marker genes. See Notes under
         diffexp.scores.score_differential_genes.
+
+    use_chisq_distance:
+        A boolean. If True, use alternative "chisquared" distance
+        metric.
     """
 
     (dense_mask,
@@ -327,17 +340,27 @@ def _p_values_worker(
             boring_t=boring_t,
             big_nu=None)
 
-        (distances,
-         invalid) = _penetrance_distances(
-                         cluster_stats=cluster_stats,
-                         node_1=node_1,
-                         node_2=node_2,
-                         q1_th=q1_th,
-                         q1_min_th=q1_min_th,
-                         qdiff_th=qdiff_th,
-                         qdiff_min_th=qdiff_min_th,
-                         log2_fold_th=log2_fold_th,
-                         log2_fold_min_th=log2_fold_min_th)
+        if use_chisq_distance:
+            (distances,
+             invalid) = _chisq_distances(
+                             cluster_stats=cluster_stats,
+                             node_1=node_1,
+                             node_2=node_2,
+                             q1_th=q1_th,
+                             q1_min_th=q1_min_th)
+
+        else:
+            (distances,
+             invalid) = _penetrance_distances(
+                             cluster_stats=cluster_stats,
+                             node_1=node_1,
+                             node_2=node_2,
+                             q1_th=q1_th,
+                             q1_min_th=q1_min_th,
+                             qdiff_th=qdiff_th,
+                             qdiff_min_th=qdiff_min_th,
+                             log2_fold_th=log2_fold_th,
+                             log2_fold_min_th=log2_fold_min_th)
 
         dense_mask = _populate_dense_mask(
             dense_mask=dense_mask,
@@ -673,4 +696,92 @@ def _penetrance_distances(
 
     distances = distance_lookup['wgt']
     invalid = distance_lookup['invalid']
+    return distances, invalid
+
+
+def _chisq_distances(
+        cluster_stats,
+        node_1,
+        node_2,
+        q1_th,
+        q1_min_th):
+    """
+    Find the parameter space distances of genes from the
+    marker threshold, using the ratio of log2_fold to the
+    std of the gene expression in the relevant taxonomic
+    nodes as the metric.
+
+    Parameters
+    ----------
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
+
+    node_1/node_2:
+        The keys in cluster_stats corresponding to the cell types
+        being compared here.
+
+    q1_th
+        Threshold in q1 for determining if a gene is a valid marker.
+        See Notes under diffexp.scores.score_differential_genes
+
+    q1_min_th
+        Minimum threshold of q1 below which genes will not be
+        considered marker genes. See Notes under
+        diffexp.scores.score_differential_genes.
+
+    Returns
+    -------
+    distances:
+        a (n_genes,) array of parameter space distances from the marker
+        gene threshold
+    invalid:
+        a (n_genes,) array of booleans indicating which genes are invalid
+        markers, regardless of their parameter space distance
+        (True means a gene is not a valid marker)
+    """
+    (pij_1,
+     pij_2,
+     log2_fold) = pij_from_stats(
+         cluster_stats=cluster_stats,
+         node_1=node_1,
+         node_2=node_2)
+
+    (q1_score,
+     _) = q_score_from_pij(
+         pij_1=pij_1,
+         pij_2=pij_2)
+
+    mu1 = cluster_stats[node_1]['mean']
+    std1 = np.sqrt(cluster_stats[node_1]['var'])
+    mu2 = cluster_stats[node_2]['mean']
+    std2 = np.sqrt(cluster_stats[node_2]['var'])
+
+    eps = 1.0e-6
+    denom = np.where(std1 > std2, std1, std2)
+    denom = np.where(denom > eps, denom, eps)
+    chisq = log2_fold/denom
+
+    denom = np.where(mu1 < mu2, mu1, mu2)
+    denom = np.where(denom > eps, denom, eps)
+    coeff = log2_fold/denom
+
+    # put more emphasis on coeff and chisq in determining
+    # distance from "absolutely valid" point in parameter
+    # space
+    distances = 2.0*(coeff+chisq)+q1_score
+    distances = np.where(distances > 0.0, distances, eps)
+    distances = 1.0/distances
+
+    abs_valid = np.logical_and(
+        q1_score >= q1_th,
+        np.logical_and(
+            chisq >= 1.0,
+            coeff >= 1.0
+        )
+    )
+
+    distances[abs_valid] = 0.0
+
+    invalid = (q1_score < q1_min_th)
+
     return distances, invalid

@@ -34,7 +34,8 @@ class PValueRunner(argschema.ArgSchemaParser):
             log2_fold_min_th=self.args['log2_fold_min_th'],
             n_processors=self.args['n_processors'],
             tmp_dir=self.args['tmp_dir'],
-            n_per=self.args['rows_at_a_time'])
+            n_per=self.args['rows_at_a_time'],
+            use_chisq_distance=self.args['use_chisq_distance'])
 
         metadata.update(
             get_execution_metadata(

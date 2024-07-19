@@ -34,3 +34,13 @@ class PValueMaskSchema(
             "Number of cluster pairs each worker should "
             "process at a time."
         ))
+
+    use_chisq_distance = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=(
+            "If true, determine validity of markers using "
+            "the ratio of log2_fold to stdev of the expressions "
+            "in the taxonomic nodes."
+        ))

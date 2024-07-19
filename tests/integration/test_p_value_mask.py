@@ -617,3 +617,66 @@ def test_p_mask_marker_smoke(
                      indptr.astype(int)),
                     shape=(n_pairs, len(gene_names))).toarray()
                 assert arr.sum() > 0.0
+
+
+@pytest.mark.parametrize("use_cli", [True, False])
+def test_chisq_p_mask_smoke(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        taxonomy_tree_fixture,
+        cluster_pair_fixture,
+        use_cli):
+    """
+    smoke test for p-value mask from "chisquared" distance
+    """
+
+    q1_th = 0.5
+    qdiff_th = 0.7
+    log2_fold_th = 1.0
+
+    # these need to be so low because of how the test
+    # data is constructed. These low thresholds give a difference
+    # between n_valid = 10 and n_valid = 30
+    p_th = 0.05
+    q1_min_th = 0.1
+    qdiff_min_th = 0.1
+    log2_fold_min_th = 0.01
+
+    p_mask_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_mask_for_markers_',
+        suffix='.h5')
+
+    if use_cli:
+        config = {
+            'precomputed_stats_path': precomputed_path_fixture,
+            'output_path': p_mask_path,
+            'p_th': p_th,
+            'q1_th': q1_th,
+            'q1_min_th': q1_min_th,
+            'qdiff_th': qdiff_th,
+            'qdiff_min_th': qdiff_min_th,
+            'log2_fold_th': log2_fold_th,
+            'log2_fold_min_th': log2_fold_min_th,
+            'n_processors': 3,
+            'tmp_dir': str(tmp_dir_fixture),
+            'clobber': True,
+            'rows_at_a_time': 5000,
+            'use_chisq_distance': True
+        }
+        runner = PValueRunner(args=[], input_data=config)
+        runner.run()
+    else:
+        create_p_value_mask_file(
+            precomputed_stats_path=precomputed_path_fixture,
+            dst_path=p_mask_path,
+            p_th=p_th,
+            q1_th=q1_th,
+            q1_min_th=q1_min_th,
+            qdiff_th=qdiff_th,
+            qdiff_min_th=qdiff_min_th,
+            log2_fold_th=log2_fold_th,
+            log2_fold_min_th=log2_fold_min_th,
+            tmp_dir=tmp_dir_fixture,
+            n_processors=3,
+            use_chisq_distance=True)
