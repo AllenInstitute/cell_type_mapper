@@ -613,6 +613,8 @@ def validate_marker_lookup(
 
         if len(query_gene_names.intersection(markers)) < min_markers:
 
+            n_orig = len(query_gene_names.intersection(markers))
+
             # try patching with markers from levels above this level
 
             if parent_str != 'None':
@@ -654,7 +656,8 @@ def validate_marker_lookup(
 
                 warning_msg = (
                      f"parent node '{parent_str}' had too few markers in "
-                     "query set; augmenting with markers from "
+                     f"query set ({n_orig} < {min_markers}); "
+                     "augmenting with markers from "
                      f"{patched_with}")
                 if log is not None:
                     log.warn(warning_msg)

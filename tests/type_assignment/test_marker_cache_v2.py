@@ -133,10 +133,10 @@ def test_validate_marker_lookup(
             assert set(new_lookup['class/A']) == set(lookup['None'])
         else:
             assert set(new_lookup['subclass/f']) == set(lookup['class/C'])
-        expected = f"'{to_drop}' had too few markers in query set; augmenting"
+        expected = f"'{to_drop}' had too few markers in query set"
         found = False
         for msg in log.log:
-            if expected in msg:
+            if expected in msg and "augmenting" in msg:
                 found = True
                 break
         assert found
@@ -163,11 +163,10 @@ def test_validate_marker_lookup(
             the_patch = f"{['None']}"
         else:
             the_patch = f"{['class/C']}"
-        expected = (f"'{to_drop}' had too few markers in query set; "
-                    "augmenting with markers from")
+        expected = f"'{to_drop}' had too few markers in query set"
         found = False
         for msg in log.log:
-            if expected in msg:
+            if expected in msg and "augmenting" in msg:
                 found = True
                 break
         assert found
