@@ -187,8 +187,10 @@ def read_raw_precomputed_stats(
         precomputed_stats['gene_names'] = json.loads(
             in_file['col_names'][()].decode('utf-8'))
 
-        row_lookup = json.loads(
-            in_file['cluster_to_row'][()].decode('utf-8'))
+        row_lookup = _read_cluster_to_row(
+            json.loads(
+                in_file['cluster_to_row'][()].decode('utf-8'))
+            )
 
         all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
         all_keys = list(all_keys.intersection(set(in_file.keys())))
@@ -317,3 +319,24 @@ def aggregate_stats(
             result[k] = result[k].astype(new_dtype)
 
     return result
+
+
+def _read_cluster_to_row(cluster_row_lookup):
+    """
+    Take cluster row lookup dict.
+    Return cluster row lookup dict with int casted values.
+
+    Parameters
+    ----------
+    cluster_row_lookup: 
+        A dictionary mapping cluster names to index values 
+        for looking up n_cells for a given cluster.
+
+    Returns
+    -------
+    cluster_to_row
+    """
+    cluster_to_row = {}
+    for cluster, row in cluster_row_lookup.items():
+        cluster_to_row[cluster] = int(row)
+    return cluster_to_row
