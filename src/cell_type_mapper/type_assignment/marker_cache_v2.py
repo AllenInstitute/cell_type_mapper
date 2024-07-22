@@ -189,12 +189,10 @@ def create_marker_gene_lookup_from_ref_list(
         List of paths to reference_marker
     query_gene_names:
         list of gene names in the query dataset
-    taxonomy_tree:
-        Dict encoding the cell type taxonomy
     n_per_utility:
         How many genes to select per (taxon_pair, sign)
         combination
-    n_per_utility:
+    n_per_utility_override:
         Dict mapping (level, node) pairs denoting parent
         nodes to override values of n_per_utility
     n_processors:
