@@ -63,6 +63,30 @@ class QueryMarkerFinderSchema(
             "when creating this query marker file.")
         )
 
+    precomputed_stats_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
+        required=True,
+        default=None,
+        allow_none=True,
+        cli_as_single_argument=True,
+        description=(
+            "List of paths to the precomputed_stats files "
+            "associated with the reference marker files "
+            "specified in reference_marker_path_list. "
+            "The precomputed_stats files must be in the same order "
+            "as the paths in reference_marker_path_list. If "
+            "precomputed_stats_path_list is None, then the "
+            "precomputed_stats paths will be "
+            "read directly from the metadata fields in the "
+            "refernce marker files. THE PREFERRED USAGE PATTERN "
+            "IS TO LEAVE precomputed_stats_path_list = None. "
+            "That will ensure self-consistency between the reference "
+            "marker files and the precomputed_stats files. You should "
+            "only specify this field if, for some reason, the metadata "
+            "fields in the reference marker files no longer point to the "
+            "current locations of your precomputed_stats files.")
+        )
+
     output_path = argschema.fields.OutputFile(
         required=True,
         default=None,
