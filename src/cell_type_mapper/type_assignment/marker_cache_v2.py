@@ -2,6 +2,7 @@ import copy
 import h5py
 import json
 import numpy as np
+import pathlib
 import warnings
 
 from cell_type_mapper.diff_exp.precompute_utils import (
@@ -181,7 +182,8 @@ def create_marker_gene_lookup_from_ref_list(
         behemoth_cutoff,
         genes_at_a_time=1,
         tmp_dir=None,
-        drop_level=None,):
+        drop_level=None,
+        search_for_stats_file=False):
     """
     Parameters
     ----------
@@ -210,6 +212,12 @@ def create_marker_gene_lookup_from_ref_list(
         sparse matrices.
     drop_level:
         Optional level to drop from taxonomy tree
+    search_for_stats_file:
+        A boolean. If True, look for any precomputed_stats file that
+        is missing in the directory where the reference_marker file
+        derived from that precomputed_stats file is saved. (This is
+        for use in a cloud environment where files don't necessarily
+        have stable paths any longer).
 
     Returns
     -------
@@ -220,8 +228,10 @@ def create_marker_gene_lookup_from_ref_list(
     # assemble dict mapping precomputed stats path to reference
     # marker path
     error_msg = ""
+    missing_file_pairs = []
     precompute_to_ref = dict()
     for ref_path in reference_marker_path_list:
+        ref_path = pathlib.Path(ref_path)
         with h5py.File(ref_path, 'r') as src:
             metadata = json.loads(src['metadata'][()].decode('utf-8'))
         if 'precomputed_path' not in metadata:
@@ -230,7 +240,25 @@ def create_marker_gene_lookup_from_ref_list(
                 f"{ref_path} does not point to a "
                 "precomputed stats file\n===\n")
             continue
-        stats_path = metadata['precomputed_path']
+
+        stats_path = pathlib.Path(
+            metadata['precomputed_path'])
+
+        is_a_file = False
+        if stats_path.is_file():
+            is_a_file = True
+        else:
+            if search_for_stats_file:
+                alt_path = ref_path.parent / stats_path.name
+                if alt_path.is_file():
+                    stats_path = alt_path
+                    is_a_file = True
+        if not is_a_file:
+            missing_file_pairs.append(
+                (str(ref_path.resolve().absolute()),
+                 metadata['precomputed_path'])
+            )
+
         if stats_path in precompute_to_ref:
             error_msg += (
                 f"stats_path\n{stats_path}\noccurs for\n"
@@ -238,6 +266,16 @@ def create_marker_gene_lookup_from_ref_list(
                 f"{precompute_to_ref[stats_path]}\n===\n"
             )
         precompute_to_ref[stats_path] = ref_path
+
+    if len(missing_file_pairs) > 0:
+        msg = "Could not find the following precomputed_stats files:\n"
+        for pair in missing_file_pairs:
+            msg += f"{pair[1]} referenced in {pair[0]}\n"
+        msg += ("Try running with search_for_stats_file=True, which "
+                "will force the code to look for the precomputed_stats "
+                "file in the same directory where the reference_marker "
+                "file is stored.")
+        raise FileNotFoundError(msg)
 
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)
