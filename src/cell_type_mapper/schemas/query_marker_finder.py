@@ -52,6 +52,13 @@ class QueryMarkerFinderSchema(
         NProcessorsMixin,
         QueryPathMixinForMarkers):
 
+    output_path = argschema.fields.OutputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description="Path to the JSON file that will contain "
+        "the marker gene lookup for the query dataset.")
+
     reference_marker_path_list = argschema.fields.List(
         argschema.fields.InputFile,
         required=True,
@@ -63,9 +70,15 @@ class QueryMarkerFinderSchema(
             "when creating this query marker file.")
         )
 
-    output_path = argschema.fields.OutputFile(
+    search_for_stats_file = argschema.fields.Boolean(
         required=True,
-        default=None,
+        default=False,
         allow_none=False,
-        description="Path to the JSON file that will contain "
-        "the marker gene lookup for the query dataset.")
+        description=(
+            "If True, look for the precomputed_stats file associated "
+            "with a reference_marker file in the same directory where "
+            "the reference_marker file is stored. This is meant for use "
+            "in cloud environments where the absolute paths of files have "
+            "been changed due to movement in and out of cloud storage."
+        )
+    )

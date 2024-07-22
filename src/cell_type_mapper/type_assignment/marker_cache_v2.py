@@ -271,10 +271,11 @@ def create_marker_gene_lookup_from_ref_list(
         msg = "Could not find the following precomputed_stats files:\n"
         for pair in missing_file_pairs:
             msg += f"{pair[1]} referenced in {pair[0]}\n"
-        msg += ("Try running with search_for_stats_file=True, which "
-                "will force the code to look for the precomputed_stats "
-                "file in the same directory where the reference_marker "
-                "file is stored.")
+        if not search_for_stats_file:
+            msg += ("Try running with search_for_stats_file=True, which "
+                    "will force the code to look for the precomputed_stats "
+                    "file in the same directory where the reference_marker "
+                    "file is stored.")
         raise FileNotFoundError(msg)
 
     if len(error_msg) > 0:

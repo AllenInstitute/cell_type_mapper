@@ -14,6 +14,10 @@ import pathlib
 import shutil
 import tempfile
 
+from cell_type_mapper.test_utils.reference_markers import (
+    move_precomputed_stats_from_reference_markers
+)
+
 from cell_type_mapper.utils.utils import(
     mkstemp_clean,
     _clean_up)
@@ -340,45 +344,9 @@ def test_misplaced_stats_infrastructure(
         )
     )
 
-    # copy reference_marker files into new locations,
-    # changing the entry for precomputed_stats path
-    # so that it points to a nonsense file.
-    new_ref_marker_list = []
-    for src_path in reference_marker_fixture:
-        dst_path = tmp_dir / pathlib.Path(src_path).name
-        new_ref_marker_list.append(
-            str(dst_path.resolve().absolute())
-        )
-        with h5py.File(dst_path, 'w') as dst:
-            with h5py.File(src_path, 'r') as src:
-                metadata = json.loads(src['metadata'][()])
-                for name in ('gene_names', 'pair_to_idx', 'n_pairs'):
-                    dst.create_dataset(
-                        name,
-                        data=src[name][()])
-                for group in ('sparse_by_pair', 'sparse_by_gene'):
-                    grp = dst.create_group(group)
-                    for name in ('down_gene_idx',
-                                 'down_pair_idx',
-                                 'up_gene_idx',
-                                 'up_pair_idx'):
-                        grp.create_dataset(
-                            name,
-                            data=src[group][name][()])
-            precompute_path = pathlib.Path(metadata['precomputed_path'])
-            new_precompute = tmp_dir / precompute_path.name
-            nonsense_precompute = f'/not/really/a/file/{precompute_path.name}'
-            shutil.copy(
-                src=precompute_path,
-                dst=new_precompute)
-            new_metadata = {
-                'precomputed_path': nonsense_precompute
-            }
-            dst.create_dataset(
-                'metadata',
-                data=json.dumps(new_metadata).encode('utf-8')
-            )
-
+    new_ref_marker_list = move_precomputed_stats_from_reference_markers(
+        reference_marker_path_list=reference_marker_fixture,
+        tmp_dir=tmp_dir)
 
     if not search_for_stats_file:
         match = "search_for_stats_file=True"
