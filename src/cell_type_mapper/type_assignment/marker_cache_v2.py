@@ -210,6 +210,11 @@ def create_marker_gene_lookup_from_ref_list(
         sparse matrices.
     drop_level:
         Optional level to drop from taxonomy tree
+
+    Returns
+    -------
+    A dict mapping nodes in the taxonomy to lists of marker genes
+    used in discriminating between the children of those nodes.
     """
 
     # assemble dict mapping precomputed stats path to reference
@@ -236,6 +241,64 @@ def create_marker_gene_lookup_from_ref_list(
 
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)
+
+    return create_marker_gene_lookup_from_mapping(
+        precompute_to_ref=precompute_to_ref,
+        query_gene_names=query_gene_names,
+        n_per_utility=n_per_utility,
+        n_per_utility_override=n_per_utility_override,
+        n_processors=n_processors,
+        behemoth_cutoff=behemoth_cutoff,
+        genes_at_a_time=genes_at_a_time,
+        tmp_dir=tmp_dir,
+        drop_level=drop_level)
+
+
+def create_marker_gene_lookup_from_mapping(
+        precompute_to_ref,
+        query_gene_names,
+        n_per_utility,
+        n_per_utility_override,
+        n_processors,
+        behemoth_cutoff,
+        genes_at_a_time=1,
+        tmp_dir=None,
+        drop_level=None):
+    """
+    Parameters
+    ----------
+    precompute_to_ref:
+        Dict mapping paths of precomputed_stats files
+        to paths of reference_marker_files
+    query_gene_names:
+        list of gene names in the query dataset
+    n_per_utility:
+        How many genes to select per (taxon_pair, sign)
+        combination
+    n_per_utility_override:
+        Dict mapping (level, node) pairs denoting parent
+        nodes to override values of n_per_utility
+    n_processors:
+        Number of independent workers to spin up.
+    behemoth_cutoff:
+        Number of leaf nodes for a parent to be considered
+        a behemoth
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
+    drop_level:
+        Optional level to drop from taxonomy tree
+
+    Returns
+    -------
+    A dict mapping nodes in the taxonomy to lists of marker genes
+    used in discriminating between the children of those nodes.
+    """
 
     (leaf_census,
      taxonomy_tree) = run_leaf_census(
