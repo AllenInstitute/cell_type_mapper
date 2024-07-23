@@ -5,6 +5,10 @@ import numpy as np
 import pathlib
 import warnings
 
+from cell_type_mapper.utils.config_utils import (
+    patch_child_to_parent
+)
+
 from cell_type_mapper.diff_exp.precompute_utils import (
     run_leaf_census)
 
@@ -228,7 +232,6 @@ def create_marker_gene_lookup_from_ref_list(
     # assemble dict mapping precomputed stats path to reference
     # marker path
     error_msg = ""
-    missing_file_pairs = []
     precompute_to_ref = dict()
     for ref_path in reference_marker_path_list:
         ref_path = pathlib.Path(ref_path)
@@ -244,21 +247,6 @@ def create_marker_gene_lookup_from_ref_list(
         stats_path = pathlib.Path(
             metadata['precomputed_path'])
 
-        is_a_file = False
-        if stats_path.is_file():
-            is_a_file = True
-        else:
-            if search_for_stats_file:
-                alt_path = ref_path.parent / stats_path.name
-                if alt_path.is_file():
-                    stats_path = alt_path
-                    is_a_file = True
-        if not is_a_file:
-            missing_file_pairs.append(
-                (str(ref_path.resolve().absolute()),
-                 metadata['precomputed_path'])
-            )
-
         if stats_path in precompute_to_ref:
             error_msg += (
                 f"stats_path\n{stats_path}\noccurs for\n"
@@ -266,6 +254,11 @@ def create_marker_gene_lookup_from_ref_list(
                 f"{precompute_to_ref[stats_path]}\n===\n"
             )
         precompute_to_ref[stats_path] = ref_path
+
+    (precompute_to_ref,
+     missing_file_pairs) = patch_child_to_parent(
+        child_to_parent=precompute_to_ref,
+        do_search=search_for_stats_file)
 
     if len(missing_file_pairs) > 0:
         msg = "Could not find the following precomputed_stats files:\n"
