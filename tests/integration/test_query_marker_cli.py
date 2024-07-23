@@ -9,10 +9,19 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
+import pathlib
 import scipy.sparse
+import tempfile
+
+
+from cell_type_mapper.test_utils.reference_markers import (
+    move_precomputed_stats_from_reference_markers,
+    move_precomputed_stats_from_mask_file
+)
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean)
+    mkstemp_clean,
+    _clean_up)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
     transpose_sparse_matrix_on_disk_v2)
@@ -144,6 +153,87 @@ def test_query_marker_cli_tool(
     for k in config:
         assert k in actual['metadata']['config']
         assert actual['metadata']['config'][k] == config[k]
+
+
+@pytest.mark.parametrize(
+    "n_per_utility,drop_level,downsample_genes,search_for_stats_file",
+    itertools.product(
+        (3, 7),
+        (None, 'subclass'),
+        (True, False),
+        (True, False)))
+def test_missing_precompute_query_marker(
+        query_gene_names,
+        ref_marker_path_fixture,
+        precomputed_path_fixture,
+        full_marker_name_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        n_per_utility,
+        drop_level,
+        downsample_genes,
+        search_for_stats_file):
+    """
+    Test that query marker CLI properly handles precomputed_stats files
+    whose absolute paths have changed.
+    """
+    tmp_dir = pathlib.Path(
+        tempfile.mkdtemp(dir=tmp_dir_fixture)
+    )
+
+    new_ref_list = move_precomputed_stats_from_reference_markers(
+        reference_marker_path_list=[ref_marker_path_fixture],
+        tmp_dir=tmp_dir)
+
+    if downsample_genes:
+        rng = np.random.default_rng(76123)
+        valid_gene_names = rng.choice(
+            query_gene_names,
+            len(query_gene_names)*3//4,
+            replace=False)
+
+        query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='h5ad_for_finding_query_markers_',
+            suffix='.h5ad')
+
+        var = pd.DataFrame(
+            [{'gene_name': g}
+             for g in valid_gene_names]).set_index('gene_name')
+        adata = anndata.AnnData(var=var)
+        adata.write_h5ad(query_path)
+    else:
+        valid_gene_names = query_gene_names
+        query_path = None
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_markers_',
+        suffix='.json')
+
+    config = {
+        'query_path': query_path,
+        'reference_marker_path_list': new_ref_list,
+        'n_processors': 3,
+        'n_per_utility': n_per_utility,
+        'drop_level': drop_level,
+        'output_path': output_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'search_for_stats_file': search_for_stats_file}
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+
+
+    if search_for_stats_file:
+        runner.run()
+    else:
+        match = "Could not find the following precomputed_stats"
+        with pytest.raises(FileNotFoundError, match=match):
+            runner.run()
+
+    _clean_up(tmp_dir)
 
 
 def test_transposing_markers(
@@ -362,3 +452,77 @@ def test_query_markers_from_p_values(
             continue
         n_markers += len(result[k])
     assert n_markers > 0
+
+
+@pytest.mark.parametrize("search_for_stats", [True, False])
+def test_query_markers_from_p_values_when_precompute_moved(
+        tmp_dir_fixture,
+        p_value_path_fixture,
+        search_for_stats):
+    """
+    Just a smoke test for the CLI tool that goes straight from
+    p-value mask to query markers in the case where the precomputed_stats
+    file has been moved
+    """
+    n_per_utility = 10
+    genes_at_a_time = 3
+    n_valid = None
+    n_processors = 3
+
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    new_mask_path = move_precomputed_stats_from_mask_file(
+        mask_file_path=p_value_path_fixture,
+        tmp_dir=tmp_dir)
+
+    drop_level = None
+    n_per_utility_override = None
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_from_p_values_',
+        suffix='.json')
+
+    config = {
+        'output_path': output_path,
+        'p_value_mask_path': str(new_mask_path.resolve().absolute()),
+        'max_gb': 5,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': n_processors,
+        'drop_level': drop_level,
+        'clobber': True,
+        'reference_markers': {
+            'n_valid': n_valid
+        },
+        'query_markers':  {
+            'n_per_utility': n_per_utility,
+            'n_per_utility_override': n_per_utility_override,
+            'genes_at_a_time': genes_at_a_time
+        },
+        'search_for_stats_file': search_for_stats
+    }
+
+    runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=config)
+
+    if not search_for_stats:
+        match = "and saving the missing file"
+        with pytest.raises(FileNotFoundError, match=match):
+            runner.run()
+    else:
+
+        runner.run()
+
+        with open(output_path, 'rb') as src:
+            result = json.load(src)
+        assert len(result) > 2
+        n_markers = 0
+        for k in result:
+            if k in ('log', 'metadata'):
+                continue
+            n_markers += len(result[k])
+        assert n_markers > 0
+
+    _clean_up(tmp_dir)

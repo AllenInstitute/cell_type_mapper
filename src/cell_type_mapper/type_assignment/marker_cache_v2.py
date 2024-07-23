@@ -2,7 +2,12 @@ import copy
 import h5py
 import json
 import numpy as np
+import pathlib
 import warnings
+
+from cell_type_mapper.utils.config_utils import (
+    patch_child_to_parent
+)
 
 from cell_type_mapper.diff_exp.precompute_utils import (
     run_leaf_census)
@@ -181,7 +186,8 @@ def create_marker_gene_lookup_from_ref_list(
         behemoth_cutoff,
         genes_at_a_time=1,
         tmp_dir=None,
-        drop_level=None,):
+        drop_level=None,
+        search_for_stats_file=False):
     """
     Parameters
     ----------
@@ -189,12 +195,10 @@ def create_marker_gene_lookup_from_ref_list(
         List of paths to reference_marker
     query_gene_names:
         list of gene names in the query dataset
-    taxonomy_tree:
-        Dict encoding the cell type taxonomy
     n_per_utility:
         How many genes to select per (taxon_pair, sign)
         combination
-    n_per_utility:
+    n_per_utility_override:
         Dict mapping (level, node) pairs denoting parent
         nodes to override values of n_per_utility
     n_processors:
@@ -212,6 +216,17 @@ def create_marker_gene_lookup_from_ref_list(
         sparse matrices.
     drop_level:
         Optional level to drop from taxonomy tree
+    search_for_stats_file:
+        A boolean. If True, look for any precomputed_stats file that
+        is missing in the directory where the reference_marker file
+        derived from that precomputed_stats file is saved. (This is
+        for use in a cloud environment where files don't necessarily
+        have stable paths any longer).
+
+    Returns
+    -------
+    A dict mapping nodes in the taxonomy to lists of marker genes
+    used in discriminating between the children of those nodes.
     """
 
     # assemble dict mapping precomputed stats path to reference
@@ -219,6 +234,7 @@ def create_marker_gene_lookup_from_ref_list(
     error_msg = ""
     precompute_to_ref = dict()
     for ref_path in reference_marker_path_list:
+        ref_path = pathlib.Path(ref_path)
         with h5py.File(ref_path, 'r') as src:
             metadata = json.loads(src['metadata'][()].decode('utf-8'))
         if 'precomputed_path' not in metadata:
@@ -227,7 +243,10 @@ def create_marker_gene_lookup_from_ref_list(
                 f"{ref_path} does not point to a "
                 "precomputed stats file\n===\n")
             continue
-        stats_path = metadata['precomputed_path']
+
+        stats_path = pathlib.Path(
+            metadata['precomputed_path'])
+
         if stats_path in precompute_to_ref:
             error_msg += (
                 f"stats_path\n{stats_path}\noccurs for\n"
@@ -236,8 +255,82 @@ def create_marker_gene_lookup_from_ref_list(
             )
         precompute_to_ref[stats_path] = ref_path
 
+    (precompute_to_ref,
+     missing_file_pairs) = patch_child_to_parent(
+        child_to_parent=precompute_to_ref,
+        do_search=search_for_stats_file)
+
+    if len(missing_file_pairs) > 0:
+        msg = "Could not find the following precomputed_stats files:\n"
+        for pair in missing_file_pairs:
+            msg += f"{pair[1]} referenced in {pair[0]}\n"
+        if not search_for_stats_file:
+            msg += ("Try running with search_for_stats_file=True, which "
+                    "will force the code to look for the precomputed_stats "
+                    "file in the same directory where the reference_marker "
+                    "file is stored.")
+        raise FileNotFoundError(msg)
+
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)
+
+    return create_marker_gene_lookup_from_mapping(
+        precompute_to_ref=precompute_to_ref,
+        query_gene_names=query_gene_names,
+        n_per_utility=n_per_utility,
+        n_per_utility_override=n_per_utility_override,
+        n_processors=n_processors,
+        behemoth_cutoff=behemoth_cutoff,
+        genes_at_a_time=genes_at_a_time,
+        tmp_dir=tmp_dir,
+        drop_level=drop_level)
+
+
+def create_marker_gene_lookup_from_mapping(
+        precompute_to_ref,
+        query_gene_names,
+        n_per_utility,
+        n_per_utility_override,
+        n_processors,
+        behemoth_cutoff,
+        genes_at_a_time=1,
+        tmp_dir=None,
+        drop_level=None):
+    """
+    Parameters
+    ----------
+    precompute_to_ref:
+        Dict mapping paths of precomputed_stats files
+        to paths of reference_marker_files
+    query_gene_names:
+        list of gene names in the query dataset
+    n_per_utility:
+        How many genes to select per (taxon_pair, sign)
+        combination
+    n_per_utility_override:
+        Dict mapping (level, node) pairs denoting parent
+        nodes to override values of n_per_utility
+    n_processors:
+        Number of independent workers to spin up.
+    behemoth_cutoff:
+        Number of leaf nodes for a parent to be considered
+        a behemoth
+    genes_at_a_time:
+        Number of markers to select before updating statistics governing
+        marker selection. Setting this higher will cause the code to
+        run faster, but will result in some cluster pairs getting
+        unnecessary over coverage from the markers selected.
+    tmp_dir:
+        Directory for scratch files when transposing large
+        sparse matrices.
+    drop_level:
+        Optional level to drop from taxonomy tree
+
+    Returns
+    -------
+    A dict mapping nodes in the taxonomy to lists of marker genes
+    used in discriminating between the children of those nodes.
+    """
 
     (leaf_census,
      taxonomy_tree) = run_leaf_census(
