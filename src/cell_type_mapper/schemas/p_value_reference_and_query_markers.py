@@ -60,3 +60,16 @@ class QueryMarkersFromPValueMaskSchema(
     query_markers = argschema.fields.Nested(
         QueryMarkerStageSchema,
         required=False)
+
+    search_for_stats_file = argschema.fields.Boolean(
+        required=True,
+        default=False,
+        allow_none=False,
+        description=(
+            "If True, look for the precomputed_stats file associated "
+            "with a p_value_mask file file in the same directory where "
+            "the p_value_mask file is stored. This is meant for use "
+            "in cloud environments where the absolute paths of files have "
+            "been changed due to movement in and out of cloud storage."
+        )
+    )

@@ -15,7 +15,8 @@ import tempfile
 
 
 from cell_type_mapper.test_utils.reference_markers import (
-    move_precomputed_stats_from_reference_markers
+    move_precomputed_stats_from_reference_markers,
+    move_precomputed_stats_from_mask_file
 )
 
 from cell_type_mapper.utils.utils import (
@@ -451,3 +452,77 @@ def test_query_markers_from_p_values(
             continue
         n_markers += len(result[k])
     assert n_markers > 0
+
+
+@pytest.mark.parametrize("search_for_stats", [True, False])
+def test_query_markers_from_p_values_when_precompute_moved(
+        tmp_dir_fixture,
+        p_value_path_fixture,
+        search_for_stats):
+    """
+    Just a smoke test for the CLI tool that goes straight from
+    p-value mask to query markers in the case where the precomputed_stats
+    file has been moved
+    """
+    n_per_utility = 10
+    genes_at_a_time = 3
+    n_valid = None
+    n_processors = 3
+
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    new_mask_path = move_precomputed_stats_from_mask_file(
+        mask_file_path=p_value_path_fixture,
+        tmp_dir=tmp_dir)
+
+    drop_level = None
+    n_per_utility_override = None
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_from_p_values_',
+        suffix='.json')
+
+    config = {
+        'output_path': output_path,
+        'p_value_mask_path': str(new_mask_path.resolve().absolute()),
+        'max_gb': 5,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': n_processors,
+        'drop_level': drop_level,
+        'clobber': True,
+        'reference_markers': {
+            'n_valid': n_valid
+        },
+        'query_markers':  {
+            'n_per_utility': n_per_utility,
+            'n_per_utility_override': n_per_utility_override,
+            'genes_at_a_time': genes_at_a_time
+        },
+        'search_for_stats_file': search_for_stats
+    }
+
+    runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=config)
+
+    if not search_for_stats:
+        match = "and saving the missing file"
+        with pytest.raises(FileNotFoundError, match=match):
+            runner.run()
+    else:
+
+        runner.run()
+
+        with open(output_path, 'rb') as src:
+            result = json.load(src)
+        assert len(result) > 2
+        n_markers = 0
+        for k in result:
+            if k in ('log', 'metadata'):
+                continue
+            n_markers += len(result[k])
+        assert n_markers > 0
+
+    _clean_up(tmp_dir)

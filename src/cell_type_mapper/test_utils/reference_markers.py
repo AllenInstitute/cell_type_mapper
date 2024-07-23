@@ -71,3 +71,57 @@ def move_precomputed_stats_from_reference_markers(
                 data=json.dumps(new_metadata).encode('utf-8')
             )
     return new_ref_marker_list
+
+
+def move_precomputed_stats_from_mask_file(
+        mask_file_path,
+        tmp_dir):
+    """
+    Take a p-value mask file. Copy it and its linked precomputed_stats file
+    to a new directory, altering the metadata of the p-value mask file to
+    point to a file that does not exist.
+
+    This is for testing how the query marker finder handles cases
+    where the absolute path to the precomputed stats file has
+    changed, but the precomputed stats file is in the same directory
+    as its p-value mask file.
+
+    Parameters
+    ----------
+    mask_file_path:
+        Path to the p-value mask file
+    tmp_dir:
+        pathlib.Path to temporary directory where
+        files will be copied
+
+    Returns
+    -------
+    path to the new p-value mask file
+    """
+    tmp_dir = pathlib.Path(tmp_dir)
+    new_mask_path = tmp_dir / pathlib.Path(mask_file_path).name
+    with h5py.File(mask_file_path, 'r') as src:
+        with h5py.File(new_mask_path, 'w') as dst:
+            for name in ('data',
+                         'gene_names',
+                         'indices',
+                         'indptr',
+                         'n_pairs',
+                         'pair_to_idx'):
+                dst.create_dataset(name, data=src[name][()])
+            metadata = json.loads(src['metadata'][()])
+            src_precompute = metadata['config']['precomputed_stats_path']
+            dst_precompute = tmp_dir / 'precompute.h5'
+            shutil.copy(src=src_precompute, dst=dst_precompute)
+            new_metadata = {
+                'config': {
+                    'precomputed_stats_path': '/no/such/file/precompute.h5'
+                }
+            }
+
+            dst.create_dataset(
+                'metadata',
+                data=json.dumps(new_metadata).encode('utf-8')
+            )
+
+    return new_mask_path

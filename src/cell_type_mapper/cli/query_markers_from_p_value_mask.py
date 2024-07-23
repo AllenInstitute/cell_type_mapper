@@ -11,6 +11,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.config_utils import (
+    patch_child_to_parent
+)
+
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
@@ -81,6 +85,28 @@ class QueryMarkersFromPValueMaskRunner(
 
         precomputed_stats_path = p_value_metadata[
                         'config']['precomputed_stats_path']
+
+        (lookup,
+         missing_pairs) = patch_child_to_parent(
+             child_to_parent={
+                 precomputed_stats_path: self.args['p_value_mask_path']
+             },
+             do_search=self.args['search_for_stats_file'])
+
+        if len(missing_pairs) > 0:
+            parent = missing_pairs[0][0]
+            child = missing_pairs[0][1]
+            msg = (
+                f"Could not find\n{child}\nwhich is referenced in\n"
+                f"{parent}\nTry running with search_for_stats_file=True "
+                "and saving the missing file in the same directory as "
+                f"\n{parent}"
+            )
+            raise FileNotFoundError(msg)
+
+        precomputed_stats_path = str(
+            list(lookup.keys())[0].resolve().absolute()
+        )
 
         reference_marker_path = mkstemp_clean(
             dir=tmp_dir,
