@@ -752,13 +752,13 @@ def _chisq_distances(
          pij_2=pij_2)
 
     mu1 = cluster_stats[node_1]['mean']
-    std1 = np.sqrt(cluster_stats[node_1]['var'])
     mu2 = cluster_stats[node_2]['mean']
-    std2 = np.sqrt(cluster_stats[node_2]['var'])
 
     eps = 1.0e-6
-    denom = np.where(std1 > std2, std1, std2)
+    denom = np.sqrt(cluster_stats[node_1]['var']
+                    + cluster_stats[node_2]['var'])
     denom = np.where(denom > eps, denom, eps)
+
     chisq = log2_fold/denom
 
     denom = np.where(mu1 < mu2, mu1, mu2)
