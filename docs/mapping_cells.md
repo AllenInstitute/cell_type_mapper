@@ -3,6 +3,16 @@
 This document explains how to run the code in this library to map unlabeled
 cell by gene expression data onto a reference cell type taxonomy.
 
+If you wish to map to one of the taxonomies supported by the
+[on-line MapMyCells tool](https://portal.brain-map.org/atlases-and-data/bkp/mapmycells),
+you will need to download the data files that describe the desired taxonomy.
+Instructions for downloading those files and running them through this
+codebase can be found
+[here.](input_data_files/running_online_taxonomies_locally.md)
+
+Below, you will find instructions for using this codebase to map
+data to an arbitrary taxonomy.
+
 ## Defining the taxonomy on which to map
 
 In order to map an unlabeled dataset onto a taxonomy, you need two supporting
