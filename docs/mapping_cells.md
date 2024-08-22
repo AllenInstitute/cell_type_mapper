@@ -3,6 +3,20 @@
 This document explains how to run the code in this library to map unlabeled
 cell by gene expression data onto a reference cell type taxonomy.
 
+For hands on examples of the processes described here, you can see the following
+Jupyter notebooks (included in this repository)
+- [This notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/full_mapping_pipeline.ipynb)
+creates an h5ad file defining a cartoon taxonomy and another h5ad file containing
+unlabeled cells to be mapped to that cartoon taxonomy. It then walks users through
+the process of creating the data products necessary for running the `cell_type_mapper`
+locally, using either command line tools or the python API provided in this
+respository.
+- [This notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/explore_mapping_results.ipynb)
+walks users through the process of creating a MapMyCells-ready h5ad file from real
+data, submitting it for mapping to the
+[on-line MapMyCells tool](https://knowledge.brain-map.org/mapmycells/process/),
+downloading the results, and examining their contents.
+
 ## Defining the taxonomy on which to map
 
 In order to map an unlabeled dataset onto a taxonomy, you need two supporting

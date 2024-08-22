@@ -2,7 +2,7 @@
 
 **Note:** There is an example Jupyter notebook in this repository at
 
-examples/explore_mapping_results.ipynb
+[examples/explore_mapping_results.ipynb](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/explore_mapping_results.ipynb)
 
 which walks the user through downloading actual data from the NEMO
 archive, formatting it for submission to the on-line MapMyCells tool,
