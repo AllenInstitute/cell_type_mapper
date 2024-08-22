@@ -125,5 +125,10 @@ class HierarchicalTypeAssignmentSchema(
         argschema.ArgSchema,
         HierarchicalConfigMixin,
         NProcessorsMixin):
+    pass
 
+
+class HierarchicalTypeAssignmentSchema_noNProcessors(
+        argschema.ArgSchema,
+        HierarchicalConfigMixin):
     pass

@@ -10,10 +10,25 @@ from cell_type_mapper.schemas.base_schemas import (
     PrecomputedStatsInputSchema)
 
 from cell_type_mapper.schemas.hierarchical_type_assignment import (
-    HierarchicalTypeAssignmentSchema)
+    HierarchicalTypeAssignmentSchema,
+    HierarchicalTypeAssignmentSchema_noNProcessors)
 
 
-class SearchSchemaMixin(
+class TypeAssignmentMixin(object):
+
+    type_assignment = argschema.fields.Nested(
+        HierarchicalTypeAssignmentSchema,
+        required=True)
+
+
+class TypeAssignmentMixin_noNProcessors(object):
+
+    type_assignment = argschema.fields.Nested(
+        HierarchicalTypeAssignmentSchema_noNProcessors,
+        required=True)
+
+
+class SearchSchemaMixinBase(
         TmpDirMixin,
         DropLevelMixin,
         QueryPathMixinForSearch,
@@ -47,10 +62,18 @@ class SearchSchemaMixin(
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
 
-    type_assignment = argschema.fields.Nested(
-        HierarchicalTypeAssignmentSchema,
-        required=True)
-
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsInputSchema,
         required=True)
+
+
+class SearchSchemaMixin(
+        SearchSchemaMixinBase,
+        TypeAssignmentMixin):
+    pass
+
+
+class SearchSchemaMixin_noNProcessors(
+        SearchSchemaMixinBase,
+        TypeAssignmentMixin_noNProcessors):
+    pass

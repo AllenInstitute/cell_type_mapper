@@ -21,7 +21,7 @@ from cell_type_mapper.schemas.query_marker_finder import (
     QueryFinderConfigMixin)
 
 from cell_type_mapper.schemas.search_mixins import (
-    SearchSchemaMixin)
+    SearchSchemaMixin_noNProcessors)
 
 from cell_type_mapper.cli.reference_markers import (
     ReferenceMarkerRunner)
@@ -68,7 +68,7 @@ class ReferenceMarkerSchema_OTF(
 
 class MapperSchema_OTF(
         argschema.ArgSchema,
-        SearchSchemaMixin,
+        SearchSchemaMixin_noNProcessors,
         NProcessorsMixin):
 
     query_markers = argschema.fields.Nested(
