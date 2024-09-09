@@ -20,6 +20,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
 from cell_type_mapper.utils.output_utils import (
     blob_to_hdf5,
     hdf5_to_blob)
@@ -1150,12 +1154,27 @@ def test_integer_indexed_input(
     for ii in range(len(old_obs)):
         new_obs.append({'cell_label': np.int64(ii)})
     new_obs = pd.DataFrame(new_obs).set_index('cell_label')
+    new_obs.index.astype(np.int64, copy=False)
     new_data = anndata.AnnData(
-        obs=new_obs,
+        obs=None,
         var=query_data.var,
         X=query_data.X)
     new_data.write_h5ad(new_query_path)
 
+    # doctor h5ad file to force the index to have integer values
+    # (I'm not sure that anndata thinks this should be possible,
+    # https://github.com/scverse/anndata/issues/35
+    # but it has been encountered "in the wild")
+    with h5py.File(new_query_path, 'a') as src:
+        old_index = src['obs']['_index'][()]
+        del src['obs']['_index']
+        src['obs'].create_dataset(
+            '_index',
+            data=old_index.astype(np.int64)
+        )
+
+    checking = read_df_from_h5ad(new_query_path, df_name='obs')
+    assert checking.index.dtype == np.int64
 
     config['query_path'] = str(new_query_path)
 
