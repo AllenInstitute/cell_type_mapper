@@ -194,7 +194,7 @@ def clean_for_json(data):
         return clean_for_json(data.tolist())
     elif isinstance(data, dict):
         new_data = {
-            key: clean_for_json(data[key])
+            clean_for_json(key): clean_for_json(data[key])
             for key in data
         }
         return new_data

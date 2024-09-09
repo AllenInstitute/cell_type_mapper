@@ -18,6 +18,7 @@ from cell_type_mapper.utils.utils import (
     print_timing,
     update_timer,
     choose_int_dtype,
+    clean_for_json,
     _clean_up)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
@@ -278,7 +279,7 @@ def run_type_assignment_on_h5ad_cpu(
 
 def save_results(result, results_output_path):
     with open(results_output_path, "w") as outfile:
-        json.dump(result, outfile)
+        json.dump(clean_for_json(result), outfile)
 
 
 def _run_type_assignment_on_h5ad_worker(
