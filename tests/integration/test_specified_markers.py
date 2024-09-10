@@ -1150,13 +1150,22 @@ def test_integer_indexed_input(
 
     query_data = anndata.read_h5ad(baseline_config['query_path'])
     old_obs = query_data.obs
+    old_idx = old_obs.index.values
     new_obs = []
+    idx_array = np.arange(len(old_obs), dtype=np.int64)
+    rng = np.random.default_rng(22113)
+    rng.shuffle(idx_array)
+    old_label_to_new_label = dict()
+
     for ii in range(len(old_obs)):
-        new_obs.append({'cell_label': np.int64(ii)})
+        new_label = idx_array[ii]
+        old_label_to_new_label[old_idx[ii]] = new_label
+        new_obs.append({'cell_label': new_label})
+
     new_obs = pd.DataFrame(new_obs).set_index('cell_label')
     new_obs.index.astype(np.int64, copy=False)
     new_data = anndata.AnnData(
-        obs=None,
+        obs=new_obs,
         var=query_data.var,
         X=query_data.X)
     new_data.write_h5ad(new_query_path)
@@ -1166,10 +1175,10 @@ def test_integer_indexed_input(
     # https://github.com/scverse/anndata/issues/35
     # but it has been encountered "in the wild")
     with h5py.File(new_query_path, 'a') as src:
-        old_index = src['obs']['_index'][()]
-        del src['obs']['_index']
+        old_index = src['obs']['cell_label'][()]
+        del src['obs']['cell_label']
         src['obs'].create_dataset(
-            '_index',
+            'cell_label',
             data=old_index.astype(np.int64)
         )
 
@@ -1196,8 +1205,41 @@ def test_integer_indexed_input(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
+    control_config = copy.deepcopy(config)
+
     runner = FromSpecifiedMarkersRunner(
         args= [],
         input_data=config)
-
     runner.run()
+
+    # re-run with the original anndata file (that doesn't use
+    # integers to index obs) and make sure that results are identical
+    control_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='control_mapping_',
+        suffix='.json'
+    )
+    control_config['query_path'] = baseline_config['query_path']
+    control_config['extended_result_path'] = control_output
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=control_config
+    )
+    runner.run()
+
+    with open(config['extended_result_path'], 'rb') as src:
+        actual = json.load(src)
+    with open(control_config['extended_result_path'], 'rb') as src:
+        expected = json.load(src)
+
+    assert len(expected['results']) == len(actual['results'])
+
+    actual = {
+        c['cell_id']: c for c in actual['results']
+    }
+    for ii in range(len(expected['results'])):
+        expected_cell = expected['results'][ii]
+        actual_cell = actual[old_label_to_new_label[expected_cell['cell_id']]]
+        expected_cell.pop('cell_id')
+        actual_cell.pop('cell_id')
+        assert actual_cell == expected_cell
