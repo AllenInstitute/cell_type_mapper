@@ -7,7 +7,8 @@ from cell_type_mapper.utils.utils import (
     merge_index_list,
     choose_int_dtype,
     clean_for_uns_serialization,
-    clean_for_uns_deserialization)
+    clean_for_uns_deserialization,
+    clean_for_json)
 
 
 @pytest.mark.parametrize(
@@ -53,3 +54,35 @@ def test_clean_for_uns_serialization():
 
     roundtrip = clean_for_uns_deserialization(actual)
     assert roundtrip == data
+
+
+def test_clean_for_json():
+
+    dirty = [
+        {
+         np.int64(6): ['a', 'b', 'c'],
+         'hello': {
+          'a': 'xyz',
+          np.int64(17): [6, 9, np.int64(11)]
+         },
+         'goodbye': [2, 4, np.int64(7)]
+        },
+        {'a': np.int64(55)}
+    ]
+    cleaned = clean_for_json(dirty)
+
+    expected = [
+        {
+         6: ['a', 'b', 'c'],
+         'hello': {
+          'a': 'xyz',
+          17: [6, 9, 11]
+         },
+         'goodbye': [2, 4, 7]
+        },
+        {'a': 55}
+    ]
+
+    assert cleaned == expected
+
+    json.dumps(cleaned)

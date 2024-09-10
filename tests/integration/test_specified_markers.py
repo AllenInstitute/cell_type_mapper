@@ -20,6 +20,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
 from cell_type_mapper.utils.output_utils import (
     blob_to_hdf5,
     hdf5_to_blob)
@@ -1105,3 +1109,137 @@ def test_output_compression(
         src_path=hdf5_path)
 
     assert roundtrip == output_blob
+
+
+def test_integer_indexed_input(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        precomputed_stats_fixture,
+        tmp_dir_fixture):
+    """
+    Test that the mapper can handle an input h5ad file in
+    which obs is indexed using numpy.int64 (which JSON cannot
+    serialize)
+    """
+
+    flatten = False
+    just_once = False
+    drop_subclass = False
+
+    use_tmp_dir = True
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    csv_path = None
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    new_query_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='int_indexed_',
+        suffix='.h5ad')
+
+    query_data = anndata.read_h5ad(baseline_config['query_path'])
+    old_obs = query_data.obs
+    old_idx = old_obs.index.values
+    new_obs = []
+    idx_array = np.arange(len(old_obs), dtype=np.int64)
+    rng = np.random.default_rng(22113)
+    rng.shuffle(idx_array)
+    old_label_to_new_label = dict()
+
+    for ii in range(len(old_obs)):
+        new_label = idx_array[ii]
+        old_label_to_new_label[old_idx[ii]] = new_label
+        new_obs.append({'cell_label': new_label})
+
+    new_obs = pd.DataFrame(new_obs).set_index('cell_label')
+    new_obs.index.astype(np.int64, copy=False)
+    new_data = anndata.AnnData(
+        obs=new_obs,
+        var=query_data.var,
+        X=query_data.X)
+    new_data.write_h5ad(new_query_path)
+
+    # doctor h5ad file to force the index to have integer values
+    # (I'm not sure that anndata thinks this should be possible,
+    # https://github.com/scverse/anndata/issues/35
+    # but it has been encountered "in the wild")
+    with h5py.File(new_query_path, 'a') as src:
+        old_index = src['obs']['cell_label'][()]
+        del src['obs']['cell_label']
+        src['obs'].create_dataset(
+            'cell_label',
+            data=old_index.astype(np.int64)
+        )
+
+    checking = read_df_from_h5ad(new_query_path, df_name='obs')
+    assert checking.index.dtype == np.int64
+
+    config['query_path'] = str(new_query_path)
+
+    # just reuse the precomputed stats file that has already been generated
+    config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+
+    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    if just_once:
+        config['type_assignment']['bootstrap_iteration'] = 1
+    config['flatten'] = flatten
+
+    config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    if drop_subclass:
+        config['drop_level'] = 'subclass'
+
+    control_config = copy.deepcopy(config)
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=config)
+    runner.run()
+
+    # re-run with the original anndata file (that doesn't use
+    # integers to index obs) and make sure that results are identical
+    control_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='control_mapping_',
+        suffix='.json'
+    )
+    control_config['query_path'] = baseline_config['query_path']
+    control_config['extended_result_path'] = control_output
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=control_config
+    )
+    runner.run()
+
+    with open(config['extended_result_path'], 'rb') as src:
+        actual = json.load(src)
+    with open(control_config['extended_result_path'], 'rb') as src:
+        expected = json.load(src)
+
+    assert len(expected['results']) == len(actual['results'])
+
+    actual = {
+        c['cell_id']: c for c in actual['results']
+    }
+    for ii in range(len(expected['results'])):
+        expected_cell = expected['results'][ii]
+        actual_cell = actual[old_label_to_new_label[expected_cell['cell_id']]]
+        expected_cell.pop('cell_id')
+        actual_cell.pop('cell_id')
+        assert actual_cell == expected_cell

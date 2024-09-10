@@ -22,6 +22,7 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.utils.utils import (
     get_timestamp,
     mkstemp_clean,
+    clean_for_json,
     _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -207,7 +208,11 @@ def run_mapping(
 
         if output_path is not None:
             with open(output_path, "w") as out_file:
-                out_file.write(json.dumps(output, indent=2))
+                out_file.write(
+                    json.dumps(
+                        clean_for_json(output), indent=2
+                    )
+                )
 
         if hdf5_output_path is not None:
             blob_to_hdf5(
