@@ -279,8 +279,17 @@ def test_update_uns(tmp_dir_fixture, which_test):
             assert actual.uns[k] == new_uns[k]
 
     elif which_test == 'error':
-        with pytest.raises(RuntimeError, match="keys already exist"):
+        with pytest.raises(RuntimeError, match="key already exists"):
             update_uns(h5ad_path, new_uns={'a':2, 'f': 6}, clobber=False)
+
+        # make sure uns was unchanged
+        actual = anndata.read_h5ad(h5ad_path)
+        assert set(actual.uns.keys()) == set(original_uns.keys())
+        for k in original_uns:
+            if isinstance(actual.uns[k], np.ndarray):
+                np.testing.assert_array_equal(actual.uns[k], original_uns[k])
+            else:
+                assert actual.uns[k] == original_uns[k]
 
     elif which_test == 'clobber':
         update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=True)
@@ -292,6 +301,126 @@ def test_update_uns(tmp_dir_fixture, which_test):
             actual.uns['b'], original_uns['b'])
     else:
         raise RuntimeError(f"cannot parse which_test = {which_test}")
+
+
+@pytest.mark.parametrize(
+    'clobber', [True, ]
+)
+def test_compound_update_uns(tmp_dir_fixture, clobber):
+
+    original_uns = {
+        'a': 1,
+        'b': 9,
+        'c': {
+            'd': 4,
+            'other_dict': {
+                'z': 88,
+                'u': 14
+            }
+        }
+    }
+
+    a_data = anndata.AnnData(
+        uns=original_uns)
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='update_uns_',
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    new_uns = {
+        'c': {
+            'e': 2,
+            'f': 3,
+            'other_dict': {
+                'x': 17,
+            },
+            'still_another_dict': {
+                'y': 55
+            }
+        }
+    }
+
+    update_uns(h5ad_path, new_uns=new_uns, clobber=False)
+    roundtrip = anndata.read_h5ad(h5ad_path)
+    expected = {
+        'a': 1,
+        'b': 9,
+        'c': {
+            'd': 4,
+            'e': 2,
+            'f': 3,
+            'other_dict': {
+                'z': 88,
+                'x': 17,
+                'u': 14
+            },
+            'still_another_dict': {
+                'y': 55
+            }
+        }
+    }
+    assert roundtrip.uns == expected
+
+    a_data = anndata.AnnData(
+        uns=original_uns)
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='update_uns_',
+        suffix='.h5ad')
+    a_data.write_h5ad(h5ad_path)
+
+    new_uns = {
+        'c': {
+            'd': 3,
+            'e': 4,
+            'still_another_dict': {
+                'y': 45
+            },
+            'other_dict': {
+                'x': 66,
+                'z': 13
+            }
+        }
+    }
+
+    if clobber:
+        update_uns(h5ad_path, new_uns=new_uns, clobber=clobber)
+        expected = {
+            'a': 1,
+            'b': 9,
+            'c': {
+                'd': 3,
+                'e': 4,
+                'other_dict': {
+                    'z': 13,
+                    'x': 66,
+                    'u': 14
+                },
+                'still_another_dict': {
+                    'y': 45
+                }
+            }
+        }
+        roundtrip = anndata.read_h5ad(h5ad_path)
+        if roundtrip.uns != expected:
+            import json
+            from cell_type_mapper.utils.utils import (
+                clean_for_json
+            )
+            msg = (
+                f"{json.dumps(clean_for_json(roundtrip.uns), indent=2)}\n"
+                "=======n"
+                f"{json.dumps(clean_for_json(expected), indent=2)}\n"
+            )
+            raise RuntimeError(msg)
+    else:
+        with pytest.raises(RuntimeError, match="key already exists"):
+            update_uns(h5ad_path, new_uns=new_uns, clobber=clobber)
+        # make sure uns was unchanged
+        actual = anndata.read_h5ad(h5ad_path)
+        assert actual.uns == original_uns
+
 
 def test_read_empty_uns(tmp_dir_fixture):
     """
