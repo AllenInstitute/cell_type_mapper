@@ -74,21 +74,79 @@ def update_uns(h5ad_path, new_uns, clobber=False):
 
     Otherwise, raise an exception of there are duplicate keys.
     """
-    uns = read_uns_from_h5ad(h5ad_path)
-    if not clobber:
-        new_keys = set(new_uns.keys())
-        old_keys = set(uns.keys())
-        duplicates = new_keys.intersection(old_keys)
-        if len(duplicates) > 0:
-            duplicates = list(duplicates)
-            duplicates.sort()
-            msg = (
-                "Cannot update uns. The following keys already exist:\n"
-                f"{duplicates}"
-            )
-            raise RuntimeError(msg)
-    uns.update(new_uns)
-    write_uns_to_h5ad(h5ad_path, uns_value=uns)
+    updated_uns = read_uns_from_h5ad(h5ad_path)
+
+    for new_key in new_uns:
+        updated_uns = _update_uns_key(
+             old_uns=updated_uns,
+             key=new_key,
+             new_data=new_uns[new_key],
+             clobber=clobber
+         )
+
+    write_uns_to_h5ad(h5ad_path, uns_value=updated_uns)
+
+
+def _update_uns_key(
+        old_uns,
+        key,
+        new_data,
+        clobber,
+        key_str=None):
+    """
+    Update one key, value pair in the uns dict.
+
+    Parameters
+    ----------
+    old_uns:
+        a dict. The uns dict being updated
+    key:
+        any. The key in old_uns being updated
+    new_data:
+        any. The data that goes with key in the new uns dict
+    clobber:
+        a boolean. If True and key already exists in old_uns, overwrite.
+        If False and key already exists in old_uns, raise an exception.
+    key_str:
+       a str. Used to keep track of the chain of nested keys we
+       are updating for more helpful error messages)
+
+    Returns
+    -------
+    The updated old_uns dict (note that old_uns is also updated in place)
+    """
+    if key_str is None:
+        key_str = f'{key}'
+    else:
+        key_str = f'{key_str}:{key}'
+
+    if key not in old_uns:
+        old_uns[key] = new_data
+    else:
+        if isinstance(new_data, dict):
+            if not isinstance(old_uns[key], dict):
+                raise RuntimeError(
+                    f"Cannot update uns. '{key_str}' points to a dict in the "
+                    "new data, but not in the original data"
+                )
+            for inner_key in new_data:
+                old_uns[key] = _update_uns_key(
+                    old_uns=old_uns[key],
+                    key=inner_key,
+                    new_data=new_data[inner_key],
+                    clobber=clobber,
+                    key_str=key_str
+                )
+        else:
+            if not clobber:
+                msg = (
+                    "Cannot update uns. The following key already exists:\n"
+                    f"{key_str}"
+                )
+                raise RuntimeError(msg)
+            old_uns[key] = new_data
+
+    return old_uns
 
 
 def does_obsm_have_key(h5ad_path, obsm_key):
