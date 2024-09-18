@@ -55,7 +55,8 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            cell_metadata_path=self.args['cell_metadata_path'],
            cluster_annotation_path=self.args['cluster_annotation_path'],
            cluster_membership_path=self.args['cluster_membership_path'],
-           hierarchy=self.args['hierarchy'])
+           hierarchy=self.args['hierarchy'],
+           do_pruning=self.args['do_pruning'])
 
         cell_metadata = pd.read_csv(self.args['cell_metadata_path'])
         dataset_to_cell_set = dict()

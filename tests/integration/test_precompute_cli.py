@@ -121,6 +121,14 @@ def cell_to_cluster_fixture(cluster_names_fixture):
     return result
 
 @pytest.fixture(scope='module')
+def missing_subclass_fixture():
+    """
+    Name of the subclass to omit from incomplete_cell_metadata
+    """
+    return "subclass_1"
+
+
+@pytest.fixture(scope='module')
 def alias_fixture(
         cluster_to_supertype_fixture,
         supertype_to_subclass_fixture,
@@ -144,9 +152,11 @@ def alias_fixture(
             alias += 1
     return result
 
+
 @pytest.fixture(scope='module')
 def dataset_list_fixture():
     return ['dataset1', 'dataset2', 'dataset3']
+
 
 @pytest.fixture(scope='module')
 def cell_to_dataset_fixture(
@@ -159,18 +169,22 @@ def cell_to_dataset_fixture(
         lookup[cell_id] = chosen
     return lookup
 
+
 @pytest.fixture(scope='module')
 def cell_metadata_fixture(
         tmp_dir_fixture,
         cell_to_cluster_fixture,
         cell_to_dataset_fixture,
         alias_fixture):
-    tmp_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.csv')
     """
     Simulates CSV that associates cell_name with cluster alias
     """
+
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_',
+        suffix='.csv')
+
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
         out_file.write(
@@ -182,6 +196,46 @@ def cell_metadata_fixture(
             out_file.write(
                 f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
+    return tmp_path
+
+
+@pytest.fixture(scope='module')
+def incomplete_cell_metadata_fixture(
+        tmp_dir_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        alias_fixture,
+        missing_subclass_fixture,
+        cluster_to_supertype_fixture,
+        supertype_to_subclass_fixture):
+    """
+    Simulates CSV that associates cell_name with cluster alias.
+    Omits all cells assigned to missing_subclass_fixture
+    """
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='incomplete_cell_metadata_',
+        suffix='.csv')
+
+    rng = np.random.default_rng(5443388)
+    with open(tmp_path, 'w') as out_file:
+        out_file.write(
+            'nonsense,cell_label,more_nonsense,cluster_alias,woah,dataset_label\n')
+        for cell_name in cell_to_cluster_fixture:
+
+            cluster_name = cell_to_cluster_fixture[cell_name]
+            supertype = cluster_to_supertype_fixture[cluster_name]
+            subclass = supertype_to_subclass_fixture[supertype]
+
+            if subclass == missing_subclass_fixture:
+                continue
+
+            dataset_label = cell_to_dataset_fixture[cell_name]
+            alias = alias_fixture[cluster_name]
+            out_file.write(
+                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{alias},{rng.random()},{dataset_label}\n")
+
     return tmp_path
 
 
@@ -719,3 +773,60 @@ def test_reference_cli_config(
         # marker file
         assert set(found_precompute_paths) == set(
                         precomputed_stats_path_fixture)
+
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,do_pruning",
+    itertools.product([True, False], [True, False], [True, False]))
+def test_precompute_cli_incomplete_cell_metadata(
+        incomplete_cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_fixture,
+        x_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset,
+        do_pruning):
+    """
+    A smoketest to make sure that the correct error is raised (or not)
+    when cell_metadata.csv does not assign cells to all of the cell types
+    in the taxonomy. (Error should not be raised if do_pruning is True)
+    """
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+
+    config = {
+        'output_path': output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': incomplete_cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'do_pruning': do_pruning}
+
+    runner = PrecomputationABCRunner(
+        args=[],
+        input_data=config)
+
+    if not do_pruning:
+        msg = "is not present in the keys at level cluster"
+        with pytest.raises(RuntimeError, match=msg):
+            runner.run()
+    else:
+        runner.run()
