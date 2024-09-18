@@ -117,6 +117,36 @@ def test_all_this(
     assert test_tree != baseline_tree_without_cells_fixture
 
 
+@pytest.mark.parametrize('do_pruning', [True, False])
+def test_tree_from_incomplete_cell_metadata(
+        incomplete_cell_metadata_fixture,
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        baseline_incomplete_tree_fixture,
+        do_pruning):
+
+    if not do_pruning:
+        msg = "is not present in the keys at level cluster"
+        with pytest.raises(RuntimeError, match=msg):
+            TaxonomyTree.from_data_release(
+                    cell_metadata_path=incomplete_cell_metadata_fixture,
+                    cluster_annotation_path=cluster_annotation_term_fixture,
+                    cluster_membership_path=cluster_membership_fixture,
+                    hierarchy=['class', 'subclass', 'supertype', 'cluster'],
+                    do_pruning=do_pruning)
+    else:
+        test_tree = TaxonomyTree.from_data_release(
+                cell_metadata_path=incomplete_cell_metadata_fixture,
+                cluster_annotation_path=cluster_annotation_term_fixture,
+                cluster_membership_path=cluster_membership_fixture,
+                hierarchy=['class', 'subclass', 'supertype', 'cluster'],
+                do_pruning=do_pruning)
+
+        assert test_tree == baseline_incomplete_tree_fixture
+
+
+
 def test_no_cell_metadata(
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
