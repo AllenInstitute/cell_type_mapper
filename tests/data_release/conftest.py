@@ -133,12 +133,15 @@ def cell_metadata_fixture(
         tmp_dir_fixture,
         cell_to_cluster_fixture,
         alias_fixture):
-    tmp_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.csv')
     """
     Simulates CSV that associates cell_name with cluster alias
     """
+
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_',
+        suffix='.csv')
+
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
         out_file.write('nonsense,cell_label,more_nonsense,cluster_alias,woah\n')
@@ -149,6 +152,47 @@ def cell_metadata_fixture(
                 f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
+
+
+@pytest.fixture(scope='module')
+def missing_subclass_fixture():
+    """
+    subclass to trim from incomplete cell_metadata
+    """
+    return 'subclass_1'
+
+@pytest.fixture(scope='module')
+def incomplete_cell_metadata_fixture(
+        supertype_to_subclass_fixture,
+        cluster_to_supertype_fixture,
+        cell_to_cluster_fixture,
+        alias_fixture,
+        missing_subclass_fixture,
+        tmp_dir_fixture):
+    """
+    A cell_metadata.csv file that leaves out all of the
+    cells in the subclass indicated by missing_subclass_fixture
+    """
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='incomplete_cell_metadata_',
+        suffix='.csv')
+
+    rng = np.random.default_rng(5443388)
+    with open(tmp_path, 'w') as out_file:
+        out_file.write('nonsense,cell_label,more_nonsense,cluster_alias,woah\n')
+        for cell_name in cell_to_cluster_fixture:
+            cluster_name = cell_to_cluster_fixture[cell_name]
+            supertype = cluster_to_supertype_fixture[cluster_name]
+            subclass = supertype_to_subclass_fixture[supertype]
+            if subclass == missing_subclass_fixture:
+                continue
+            alias = alias_fixture[cluster_name]
+            out_file.write(
+                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{alias},{rng.random()}\n")
+    return pathlib.Path(tmp_path)
+
 
 @pytest.fixture(scope='module')
 def term_label_to_name_fixture(
@@ -354,6 +398,30 @@ def baseline_tree_without_cells_fixture(
     for k in data['cluster']:
         data['cluster'][k] = []
     return TaxonomyTree(data=data)
+
+
+@pytest.fixture(scope='module')
+def baseline_incomplete_tree_fixture(
+        baseline_tree_data_fixture,
+        missing_subclass_fixture):
+    """
+    Construct a TaxonomyTree in which the subclass indicated by
+    missing_subclass_fixture does not exist
+    """
+    tree_data = copy.deepcopy(baseline_tree_data_fixture)
+    for class_name in list(tree_data['class'].keys()):
+        if missing_subclass_fixture in tree_data['class'][class_name]:
+            tree_data['class'][class_name].remove(missing_subclass_fixture)
+
+    supertype_list = tree_data['subclass'].pop(missing_subclass_fixture)
+    cluster_list = []
+    for supertype in supertype_list:
+        cluster_list += list(tree_data['supertype'].pop(supertype))
+
+    for cluster in cluster_list:
+        tree_data['cluster'].pop(cluster)
+
+    return TaxonomyTree(data=tree_data)
 
 
 @pytest.fixture(scope='module')

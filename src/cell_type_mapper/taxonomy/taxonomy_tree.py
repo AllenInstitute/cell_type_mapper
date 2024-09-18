@@ -13,7 +13,8 @@ from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree_from_h5ad,
     convert_tree_to_leaves,
     get_all_pairs,
-    get_child_to_parent)
+    get_child_to_parent,
+    prune_tree)
 
 from cell_type_mapper.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -144,7 +145,8 @@ class TaxonomyTree(object):
             cell_metadata_path,
             cluster_annotation_path,
             cluster_membership_path,
-            hierarchy):
+            hierarchy,
+            do_pruning=False):
         """
         Construct a TaxonomyTree from the canonical CSV files
         encoding a taxonomy for a data release
@@ -166,6 +168,13 @@ class TaxonomyTree(object):
         hierarchy:
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
+        do_pruning:
+            A boolean. If True, remove all nodes from the tree that are
+            not directly connected to the leaf level of the tree. This
+            is useful, for instance, when creating a taxonomy tree based
+            only on cells from a subset of a wider data release which may
+            not include all of the cell types identified in the full
+            taxonomy.
         """
         cluster_annotation_path = pathlib.Path(cluster_annotation_path)
         cluster_membership_path = pathlib.Path(cluster_membership_path)
@@ -277,6 +286,9 @@ class TaxonomyTree(object):
                     leaves[child] = []
 
         data[hierarchy[-1]] = leaves
+
+        if do_pruning:
+            data = prune_tree(data)
 
         return cls(data=data)
 
