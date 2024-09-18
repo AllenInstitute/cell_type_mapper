@@ -21,7 +21,7 @@ def compute_row_order(
         List of the records from the obs DataFrame of an
         anndata file.
 
-    column_hierarcy:
+    column_hierarchy:
         The list of columns denoting taxonomic classes,
         ordered from highest (parent) to lowest (child).
 
@@ -107,7 +107,7 @@ def get_taxonomy_tree(
         List of the records from the obs DataFrame of an
         anndata file.
 
-    column_hierarcy:
+    column_hierarchy:
         The list of columns denoting taxonomic classes,
         ordered from highest (parent) to lowest (child).
 
