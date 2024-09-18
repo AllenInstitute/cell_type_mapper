@@ -442,3 +442,39 @@ def get_child_to_parent(tree_data):
             for child in tree_data[parent_level][parent]:
                 result[child_level][child] = parent
     return result
+
+
+def prune_tree(tree):
+    """
+    Iterate over a tree, removing any nodes who do not have connections
+    all the way down to the leaf level of the tree.
+
+    Parameters
+    ----------
+    tree:
+        A dict encoding the taxonomy tree
+
+    Returns
+    -------
+    The edited dict
+
+    Notes
+    -----
+    Also alters tree in place.
+    """
+
+    hierarchy = copy.deepcopy(tree['hierarchy'])
+    keep_going = True
+    while keep_going:
+        keep_going = False
+        for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+            parent_list = list(tree[parent_level].keys())
+            for parent_node in parent_list:
+                child_list = copy.deepcopy(tree[parent_level][parent_node])
+                for child_node in child_list:
+                    if child_node not in tree[child_level]:
+                        tree[parent_level][parent_node].remove(child_node)
+                if len(tree[parent_level][parent_node]) == 0:
+                    tree[parent_level].pop(parent_node)
+                    keep_going = True
+    return tree

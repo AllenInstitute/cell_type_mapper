@@ -16,7 +16,8 @@ from cell_type_mapper.taxonomy.utils import (
     get_all_pairs,
     get_all_leaf_pairs,
     validate_taxonomy_tree,
-    get_child_to_parent)
+    get_child_to_parent,
+    prune_tree)
 
 
 def test_get_taxonomy_tree(
@@ -564,3 +565,63 @@ def test_get_child_to_parent():
     }
 
     assert actual == expected
+
+
+def test_prune_tree():
+
+    tree = {
+        'hierarchy': ['a', 'b', 'c'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3'],
+            'cc': ['4'],
+            'dd': ['6', '7', '8'],
+            'ee': ['9']
+        },
+        'b': {
+            '1': ['x'],
+            '2': ['y', 'z'],
+            '3': ['w', 'u', 'v'],
+            '5': ['t'],
+            '7': ['s'],
+            '8': ['r', 'p'],
+            '9': ['o', 'n', 'm']
+        },
+        'c': {
+            'r': [],
+            'u': [],
+            'v': [],
+            'w': [],
+            'x': [],
+            'y': [],
+            'z': []
+        }
+    }
+
+
+    expected = {
+        'hierarchy': ['a', 'b', 'c'],
+        'a': {
+            'aa': ['1', '2'],
+            'bb': ['3'],
+            'dd': ['8']
+        },
+        'b': {
+            '1': ['x'],
+            '2': ['y', 'z'],
+            '3': ['w', 'u', 'v'],
+            '8': ['r']
+        },
+        'c': {
+            'r': [],
+            'u': [],
+            'v': [],
+            'w': [],
+            'x': [],
+            'y': [],
+            'z': []
+        }
+    }
+
+    tree = prune_tree(tree)
+    assert tree == expected
