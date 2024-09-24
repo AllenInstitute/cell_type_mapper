@@ -437,6 +437,13 @@ def _merge_sparse_by_pair_files(
     down_pair_offset = 0
     with h5py.File(output_path, 'a') as dst:
 
+        up_chunks = (min(1000000, n_up_indices),)
+        if up_chunks == 0:
+            up_chunks = None
+        down_chunks = (min(1000000, n_down_indices),)
+        if down_chunks == 0:
+            down_chunks = None
+
         dst_grp = dst.create_group('sparse_by_pair')
 
         dst_grp.create_dataset(
@@ -447,7 +454,7 @@ def _merge_sparse_by_pair_files(
             'up_gene_idx',
             shape=(n_up_indices,),
             dtype=gene_idx_dtype,
-            chunks=(min(1000000, n_up_indices),))
+            chunks=up_chunks)
         dst_grp.create_dataset(
             'down_pair_idx',
             shape=(n_pairs+1,),
@@ -456,7 +463,7 @@ def _merge_sparse_by_pair_files(
             'down_gene_idx',
             shape=(n_down_indices,),
             dtype=gene_idx_dtype,
-            chunks=(min(1000000, n_down_indices),))
+            chunks=down_chunks)
 
         col0_values = list(tmp_path_dict.keys())
         col0_values.sort()
