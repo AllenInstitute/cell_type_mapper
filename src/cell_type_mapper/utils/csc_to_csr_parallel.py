@@ -146,11 +146,20 @@ def _transpose_sparse_matrix_on_disk_v2(
     t0 = time.time()
     indptr_idx = 0
     indices_idx = 0
+
+    indices_chunks = (min(indices_size, 1000000),)
+    if indices_chunks == (0,):
+        indices_chunks = None
+
+    indptr_chunks = (min(indptr_size, 1000000),)
+    if indptr_chunks == (0,):
+        indptr_chunks = None
+
     with h5py.File(output_path, output_mode) as dst:
         indices = dst.create_dataset(
             'indices',
             shape=(indices_size,),
-            chunks=(min(indices_size, 1000000),),
+            chunks=indices_chunks,
             dtype=indices_dtype)
         indptr = dst.create_dataset(
             'indptr',
@@ -161,7 +170,7 @@ def _transpose_sparse_matrix_on_disk_v2(
             data = dst.create_dataset(
                 'data',
                 shape=(indices_size,),
-                chunks=(min(indptr_size, 1000000),),
+                chunks=indptr_chunks,
                 dtype=data_dtype)
 
         chunk_size = 1000000

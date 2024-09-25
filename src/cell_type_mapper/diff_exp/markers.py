@@ -435,13 +435,14 @@ def _merge_sparse_by_pair_files(
 
     up_pair_offset = 0
     down_pair_offset = 0
+
     with h5py.File(output_path, 'a') as dst:
 
         up_chunks = (min(1000000, n_up_indices),)
-        if up_chunks == 0:
+        if up_chunks == (0,):
             up_chunks = None
         down_chunks = (min(1000000, n_down_indices),)
-        if down_chunks == 0:
+        if down_chunks == (0,):
             down_chunks = None
 
         dst_grp = dst.create_group('sparse_by_pair')

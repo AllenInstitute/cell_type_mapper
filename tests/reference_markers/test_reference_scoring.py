@@ -504,3 +504,57 @@ def test_find_all_markers_limit_genes(
                             assert not np.array_equal(
                                 baseline[k][d][()],
                                 unlimited[k][d][()])
+
+
+def test_find_markers_no_up_regulated(
+        tmp_dir_fixture,
+        precomputed_fixture_no_up_markers,
+        precomputed_fixture_no_down_markers,
+        taxonomy_tree_fixture):
+    """
+    A smoketest to make sure the code runs successfully even when there
+    is a cluster with no up-regulated markers relative to other clusters
+    """
+    h5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='no_up_markers_',
+        suffix='.h5'
+    )
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precomputed_fixture_no_up_markers,
+        taxonomy_tree=taxonomy_tree_fixture,
+        output_path=h5_path,
+        p_th=1.0,
+        q1_th=1.0,
+        qdiff_th=1.0,
+        log2_fold_th=1.0,
+        q1_min_th=0.0,
+        qdiff_min_th=0.0,
+        log2_fold_min_th=0.0,
+        n_processors=3,
+        tmp_dir=tmp_dir_fixture,
+        max_gb=1,
+        exact_penetrance=False,
+        n_valid=1000)
+
+    h5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='no_up_markers_',
+        suffix='.h5'
+    )
+    find_markers_for_all_taxonomy_pairs(
+        precomputed_stats_path=precomputed_fixture_no_down_markers,
+        taxonomy_tree=taxonomy_tree_fixture,
+        output_path=h5_path,
+        p_th=1.0,
+        q1_th=1.0,
+        qdiff_th=1.0,
+        log2_fold_th=1.0,
+        q1_min_th=0.0,
+        qdiff_min_th=0.0,
+        log2_fold_min_th=0.0,
+        n_processors=3,
+        tmp_dir=tmp_dir_fixture,
+        max_gb=1,
+        exact_penetrance=False,
+        n_valid=1000)
