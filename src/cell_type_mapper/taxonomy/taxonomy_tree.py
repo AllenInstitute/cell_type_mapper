@@ -196,7 +196,8 @@ class TaxonomyTree(object):
                     str(cluster_annotation_path.resolve().absolute()),
                 'cluster_membership_path':
                     str(cluster_membership_path.resolve().absolute()),
-                'hierarchy': hierarchy}}
+                'hierarchy': hierarchy,
+                'do_pruning': do_pruning}}
 
         leaf_level = hierarchy[-1]
 
