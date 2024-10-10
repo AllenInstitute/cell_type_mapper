@@ -417,6 +417,13 @@ class TaxonomyTree(object):
                 f"Node {node} not present at level {level}"
             )
         new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            if 'dropped_nodes' not in new_data['metadata']:
+                new_data['metadata']['dropped_nodes'] = []
+            new_data['metadata']['dropped_nodes'].append(
+                {'level': level, 'node': node}
+            )
+
         for leaf in self.as_leaves[level][node]:
             new_data[self.leaf_level].pop(leaf)
         new_data = prune_tree(new_data)
