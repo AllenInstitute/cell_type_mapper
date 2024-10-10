@@ -391,6 +391,36 @@ class TaxonomyTree(object):
         """
         return self._drop_level(self.leaf_level, allow_leaf=True)
 
+    def drop_node(self, level, node):
+        """
+        Return a new TaxonomyTree having dropped the specified node
+        and pruned the tree appropriately.
+
+        Parameters
+        ----------
+        level:
+            A string. The level of the node to drop
+        node:
+            A string. The node to be dropped
+
+        Parameters
+        ----------
+        A new TaxonomyTree
+        """
+        if level not in self.hierarchy:
+            raise RuntimeError(
+                f"Level {level} not present in tree"
+            )
+        if node not in self.nodes_at_level(level):
+            raise RuntimeError(
+                f"Node {node} not present at level {level}"
+            )
+        new_data = copy.deepcopy(self._data)
+        for leaf in self.as_leaves[level][node]:
+            new_data[self.leaf_level].pop(leaf)
+        new_data = prune_tree(new_data)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
