@@ -1,8 +1,10 @@
 import pytest
 
+import anndata
 import h5py
 import json
 import numpy as np
+import pandas as pd
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -13,7 +15,11 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.diff_exp.precompute_utils import (
     run_leaf_census,
-    merge_precompute_files)
+    merge_precompute_files,
+    drop_nodes_from_precomputed_stats)
+
+from cell_type_mapper.diff_exp.precompute_from_anndata import (
+    precompute_summary_stats_from_h5ad)
 
 
 @pytest.fixture(scope='module')
@@ -201,3 +207,164 @@ def test_merge_precompute(
             actual_sumsqarr[i_cluster, :],
             expected_ssq[idx][i_cluster, :],
             atol=0.0, rtol=1.0e-6)
+
+
+
+@pytest.mark.parametrize(
+    'drop_level,drop_node',
+    [('class', 'CLAS01'),
+     ('class', 'CLAS02'),
+     ('supertype', 'SUPT02'),
+     ('supertype', 'SUPT03')
+    ]
+)
+def test_drop_node_from_precompute(
+        tmp_dir_fixture,
+        drop_level,
+        drop_node):
+    """
+    Test utility to drop a node from the taxonomy_tree in a
+    precomputed_stats file.
+    """
+
+    rng = np.random.default_rng(411225)
+
+    tree_data = {
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'class': {
+            'CLAS01': ['SUBC01', 'SUBC03'],
+            'CLAS02': ['SUBC02']
+        },
+        'subclass': {
+            'SUBC01': ['SUPT01'],
+            'SUBC02': ['SUPT03'],
+            'SUBC03': ['SUPT02', 'SUPT04']
+        },
+        'supertype': {
+            'SUPT01': ['C01', 'C02'],
+            'SUPT02': ['C03', 'C05'],
+            'SUPT03': ['C04', 'C07'],
+            'SUPT04': ['C06']
+        },
+        'cluster': {
+            f'C0{ii+1}': [] for ii in range(7)
+        }
+    }
+
+    baseline_tree = TaxonomyTree(data=tree_data)
+    baseline_trimmed_tree = baseline_tree.drop_node(
+            level=drop_level,
+            node=drop_node)
+    assert baseline_trimmed_tree != baseline_tree
+
+    trimmed_cluster_list = baseline_trimmed_tree.nodes_at_level(
+        baseline_trimmed_tree.leaf_level
+    )
+
+    # create h5ad file reflecting this taxonomy
+    src_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='scrattch_for_precompute_drop_',
+        suffix='.h5ad'
+    )
+    n_cells = 56
+    n_genes = 12
+    var_data = [{'gene_id': f'g{ii}'} for ii in range(n_genes)]
+    xx = np.zeros((n_cells, n_genes), dtype=int)
+    obs_data = []
+    for i_cell in range(n_cells):
+        vec = rng.integers(0, 5, n_genes)
+        xx[i_cell, :] = vec
+        this_cell = {'cell_id': f'c{i_cell}'}
+        parent_node = None
+        parent_level = None
+        for level in tree_data['hierarchy']:
+            if level == tree_data['hierarchy'][0]:
+                candidates = list(tree_data[level].keys())
+            else:
+                candidates = baseline_tree.children(
+                    level=parent_level,
+                    node=parent_node)
+            parent_level = level
+            chosen = rng.choice(candidates)
+            parent_node = chosen
+            this_cell[level] = chosen
+        obs_data.append(this_cell)
+    a_data = anndata.AnnData(
+        obs=pd.DataFrame(obs_data).set_index('cell_id'),
+        var=pd.DataFrame(var_data).set_index('gene_id'),
+        X=xx)
+    a_data.write_h5ad(src_h5ad_path)
+
+    baseline_precompute_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_precompute_',
+        suffix='.h5'
+    )
+
+    precompute_summary_stats_from_h5ad(
+        data_path=src_h5ad_path,
+        column_hierarchy=['class', 'subclass', 'supertype', 'cluster'],
+        taxonomy_tree=None,
+        output_path=baseline_precompute_path,
+        rows_at_a_time=1000,
+        normalization='raw',
+        tmp_dir=tmp_dir_fixture,
+        n_processors=1
+    )
+
+    p_tree = TaxonomyTree.from_precomputed_stats(
+        baseline_precompute_path
+    )
+    assert p_tree.is_equal_to(baseline_tree)
+    assert not p_tree.is_equal_to(baseline_trimmed_tree)
+
+    trimmed_precompute_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='trimmed_precompute_',
+        suffix='.h5'
+    )
+
+    drop_nodes_from_precomputed_stats(
+        src_path=baseline_precompute_path,
+        dst_path=trimmed_precompute_path,
+        node_list=[(drop_level, drop_node)],
+        clobber=True
+    )
+
+    test_tree = TaxonomyTree.from_precomputed_stats(
+        trimmed_precompute_path
+    )
+    assert test_tree.is_equal_to(baseline_trimmed_tree)
+
+    # make sure only changes to content of trimmed file are the
+    # dropped nodes
+    with h5py.File(baseline_precompute_path, 'r') as baseline_src:
+        baseline_cluster_to_row = json.loads(
+            baseline_src['cluster_to_row'][()].decode('utf-8')
+        )
+        with h5py.File(trimmed_precompute_path, 'r') as trimmed_src:
+            assert trimmed_src['col_names'][()] == baseline_src['col_names'][()]
+            trimmed_cluster_to_row = json.loads(
+                trimmed_src['cluster_to_row'][()].decode('utf-8')
+            )
+            assert len(trimmed_cluster_to_row) == len(trimmed_cluster_list)
+            for cluster_id in trimmed_cluster_list:
+                baseline_idx = baseline_cluster_to_row[cluster_id]
+                trimmed_idx = trimmed_cluster_to_row[cluster_id]
+                assert (
+                    baseline_src['n_cells'][baseline_idx] == trimmed_src['n_cells'][trimmed_idx]
+                )
+                for data_key in baseline_src.keys():
+                    if data_key in ('taxonomy_tree',
+                                    'metadata',
+                                    'n_cells',
+                                    'col_names',
+                                    'cluster_to_row'):
+                        continue
+                    np.testing.assert_allclose(
+                        baseline_src[data_key][baseline_idx, :],
+                        trimmed_src[data_key][trimmed_idx, :],
+                        atol=0.0,
+                        rtol=1.0e-6
+                    )
