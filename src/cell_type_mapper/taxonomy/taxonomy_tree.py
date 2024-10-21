@@ -13,7 +13,8 @@ from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree_from_h5ad,
     convert_tree_to_leaves,
     get_all_pairs,
-    get_child_to_parent)
+    get_child_to_parent,
+    prune_tree)
 
 from cell_type_mapper.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -144,7 +145,8 @@ class TaxonomyTree(object):
             cell_metadata_path,
             cluster_annotation_path,
             cluster_membership_path,
-            hierarchy):
+            hierarchy,
+            do_pruning=False):
         """
         Construct a TaxonomyTree from the canonical CSV files
         encoding a taxonomy for a data release
@@ -166,6 +168,13 @@ class TaxonomyTree(object):
         hierarchy:
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
+        do_pruning:
+            A boolean. If True, remove all nodes from the tree that are
+            not directly connected to the leaf level of the tree. This
+            is useful, for instance, when creating a taxonomy tree based
+            only on cells from a subset of a wider data release which may
+            not include all of the cell types identified in the full
+            taxonomy.
         """
         cluster_annotation_path = pathlib.Path(cluster_annotation_path)
         cluster_membership_path = pathlib.Path(cluster_membership_path)
@@ -187,7 +196,8 @@ class TaxonomyTree(object):
                     str(cluster_annotation_path.resolve().absolute()),
                 'cluster_membership_path':
                     str(cluster_membership_path.resolve().absolute()),
-                'hierarchy': hierarchy}}
+                'hierarchy': hierarchy,
+                'do_pruning': do_pruning}}
 
         leaf_level = hierarchy[-1]
 
@@ -277,6 +287,9 @@ class TaxonomyTree(object):
                     leaves[child] = []
 
         data[hierarchy[-1]] = leaves
+
+        if do_pruning:
+            data = prune_tree(data)
 
         return cls(data=data)
 
@@ -378,6 +391,43 @@ class TaxonomyTree(object):
         Drop leaf level from tree.
         """
         return self._drop_level(self.leaf_level, allow_leaf=True)
+
+    def drop_node(self, level, node):
+        """
+        Return a new TaxonomyTree having dropped the specified node
+        and pruned the tree appropriately.
+
+        Parameters
+        ----------
+        level:
+            A string. The level of the node to drop
+        node:
+            A string. The node to be dropped
+
+        Parameters
+        ----------
+        A new TaxonomyTree
+        """
+        if level not in self.hierarchy:
+            raise RuntimeError(
+                f"Level {level} not present in tree"
+            )
+        if node not in self.nodes_at_level(level):
+            raise RuntimeError(
+                f"Node {node} not present at level {level}"
+            )
+        new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            if 'dropped_nodes' not in new_data['metadata']:
+                new_data['metadata']['dropped_nodes'] = []
+            new_data['metadata']['dropped_nodes'].append(
+                {'level': level, 'node': node}
+            )
+
+        for leaf in self.as_leaves[level][node]:
+            new_data[self.leaf_level].pop(leaf)
+        new_data = prune_tree(new_data)
+        return TaxonomyTree(data=new_data)
 
     @property
     def hierarchy(self):

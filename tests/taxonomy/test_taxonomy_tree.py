@@ -566,3 +566,249 @@ def test_bad_level():
 
     with pytest.raises(RuntimeError, match="F is not a valid level"):
         tree.children(level='F', node='ffff')
+
+
+@pytest.mark.parametrize(
+    "node_to_drop",
+    [('level1', 'l1b'),
+     ('level2', 'l2d'),
+     ('level3', 'l3f'),
+     ('level2', 'l2f')
+    ])
+def test_drop_node(node_to_drop):
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    test_tree = TaxonomyTree(
+        data=full_tree_data)
+
+    if node_to_drop == ('level1', 'l1b'):
+        leaf_list = [
+            0, 1, 2,  7, 8, 9, 10, 11, 12,
+            15, 16, 17, 18, 21, 22, 23
+        ]
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1c': set(['l2f',])
+                      },
+            'level2': {'l2b': set(['l3a', 'l3c']),
+                       'l2d': set(['l3d', 'l3f', 'l3h']),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3f': set([str(ii) for ii in range(15, 19)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)]),
+                       'l3i': set(['23',])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level2', 'l2d'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8,
+            13, 14, 19, 20, 23
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                       'l1c': set(['l2f',])
+                      },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2e': set(['l3g',]),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3i': set(['23',])},
+             'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level3', 'l3f'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+            13, 14, 19, 20, 21, 22, 23
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                       'l1c': set(['l2f',])
+                      },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2d': set(['l3d', 'l3h']),
+                       'l2e': set(['l3g',]),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)]),
+                       'l3i': set(['23',])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level2', 'l2f'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+            13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                      },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2d': set(['l3d', 'l3f', 'l3h']),
+                       'l2e': set(['l3g',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3f': set([str(ii) for ii in range(15, 19)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    else:
+       raise RuntimeError(
+           f"No test for dropped_node {node_to_drop}"
+       )
+
+    expected_tree = TaxonomyTree(data=expected_tree_data)
+
+    assert test_tree != expected_tree
+
+    test_tree = test_tree.drop_node(
+        level=node_to_drop[0],
+        node=node_to_drop[1])
+
+    assert test_tree == expected_tree
+
+
+def test_drop_leaf_node():
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    test_tree = TaxonomyTree(
+        data=full_tree_data)
+
+    leaves_to_drop = ['23', '13', '14', '18']
+    for leaf in leaves_to_drop:
+        test_tree = test_tree.drop_node(level=test_tree.leaf_level, node=leaf)
+
+    expected_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2e'])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3f': set([str(ii) for ii in [15, 16, 17]]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in [
+                     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                     12, 15, 16, 17, 19, 20, 21, 22
+                 ]}}
+    expected_tree = TaxonomyTree(data=expected_tree_data)
+
+    assert expected_tree == test_tree
+
+
+def test_drop_node_errors():
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                  },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    tree = TaxonomyTree(data=full_tree_data)
+    msg = "Level blah not present in tree"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.drop_node(level='blah', node='garbage')
+    msg = "Node garbage not present at level level2"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.drop_node(level='level2', node='garbage')
