@@ -812,3 +812,129 @@ def test_drop_node_errors():
     msg = "Node garbage not present at level level2"
     with pytest.raises(RuntimeError, match=msg):
         tree.drop_node(level='level2', node='garbage')
+
+
+def test_reverse_name_lookup():
+    """
+    Test TaxonomyTree method to lookup levels and nodes by
+    human readable names.
+    """
+    data = {
+        'hierarchy': ['A', 'B', 'C', 'D'],
+        'A': {
+            'a1': ['b1'],
+            'a2': ['b2']
+        },
+        'B': {
+            'b1': ['c1'],
+            'b2': ['c2']
+        },
+        'C': {
+            'c1': ['d1'],
+            'c2': ['d2']
+        },
+        'D': {
+            'd1': [],
+            'd2': []
+        },
+        'hierarchy_mapper': {
+            'A': 'levelA',
+            'B': 'levelB',
+            'C': 'levelC',
+            'D': 'levelC'
+        },
+        'name_mapper': {
+            'A': {
+                'a1': {
+                    'name': 'node_a1'
+                },
+                'a2': {
+                    'name': 'node_a2'
+                }
+            },
+            'B': {
+                'b1': {
+                    'name': 'node_b1'
+                },
+                'b2': {
+                    'name': 'node_b1'
+                }
+            },
+            'C': {
+                'c1': {
+                    'name': 'node_c1'
+                },
+                'c2': {
+                    'name': 'node_c2'
+                }
+            },
+            'D': {
+                'd1': {
+                    'name': 'node_d1'
+                },
+                'd2': {
+                    'name': 'node_d2'
+                }
+            }
+        }
+    }
+
+    tree = TaxonomyTree(data=data)
+
+    for level in ('A', 'B', 'C', 'D'):
+        if level == 'D':
+            expected_level = 'levelC'
+        else:
+            expected_level = f'level{level}'
+        assert tree.level_to_name(level) == expected_level
+
+        if expected_level == 'levelC':
+            msg = 'levelC maps to many levels'
+            with pytest.raises(RuntimeError, match=msg):
+                tree.name_to_level(expected_level)
+        else:
+            assert tree.name_to_level(expected_level) == level
+
+        for ii in (1, 2):
+            node = f'{level.lower()}{ii}'
+            if node == 'b2':
+                expected_node = f'node_b1'
+            else:
+                expected_node = f'node_{node}'
+            assert tree.label_to_name(
+                level=level,
+                label=node,
+                name_key='name') == expected_node
+            if expected_node == 'node_b1':
+                msg = '\(B, node_b1\) maps to many nodes'
+                with pytest.raises(RuntimeError, match=msg):
+                    tree.name_to_node(level=level, node=expected_node)
+            else:
+                assert tree.name_to_node(
+                    level=level,
+                    node=expected_node) == (level, node)
+
+            # test mapping from (readable_level, readable_node)
+            if expected_level != 'levelC' and expected_node != 'node_b1':
+                assert tree.name_to_node(
+                    level=expected_level,
+                    node=expected_node) == (level, node)
+
+    msg = "E is not a valid level in this taxonomy"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_level('E')
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_node(level='E', node='a2')
+
+    msg = "\(A, a3\) not a valid node in this taxonomy"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_node(level='A', node='a3')
+
+    assert tree.name_to_level('A') == 'A'
+    assert tree.name_to_node(
+        level='A',
+        node='a2') == ('A', 'a2')
+
+    assert tree.name_to_node(
+        level='levelA',
+        node='a2') == ('A', 'a2')
