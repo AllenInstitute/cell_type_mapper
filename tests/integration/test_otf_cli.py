@@ -14,6 +14,10 @@ import pathlib
 import tempfile
 from unittest.mock import patch
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    drop_nodes_from_precomputed_stats
+)
+
 from cell_type_mapper.test_utils.cloud_safe import (
     check_not_file)
 
@@ -95,25 +99,16 @@ def test_query_pipeline(
 
 
 @pytest.mark.parametrize(
-    'write_summary, cloud_safe, nodes_to_drop',
+    'write_summary, cloud_safe',
     itertools.product(
         [True, False],
-        [True, False],
-        [None, [('class', 'a'), ('subclass', 'subclass_5')]]))
+        [True, False]))
 def test_otf_smoke(
         tmp_dir_fixture,
         precomputed_path_fixture,
         raw_query_h5ad_fixture,
         write_summary,
-        cloud_safe,
-        nodes_to_drop):
-
-    # record hash of precomputed stats file to make sure it
-    # is not changed when nodes are dropped
-    hasher = hashlib.md5()
-    with open(precomputed_path_fixture, 'rb') as src:
-        hasher.update(src.read())
-    precompute_hash = hasher.hexdigest()
+        cloud_safe):
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -142,7 +137,7 @@ def test_otf_smoke(
         'extended_result_path': output_path,
         'summary_metadata_path': metadata_path,
         'cloud_safe': cloud_safe,
-        'nodes_to_drop': nodes_to_drop
+        'nodes_to_drop': None
     }
 
     runner = OnTheFlyMapper(args=[], input_data=config)
@@ -168,12 +163,6 @@ def test_otf_smoke(
             data = json.load(src)
         check_not_file(data['config'])
         check_not_file(data['log'])
-
-    hasher = hashlib.md5()
-    with open(precomputed_path_fixture, 'rb') as src:
-        hasher.update(src.read())
-    final_hash = hasher.hexdigest()
-    assert final_hash == precompute_hash
 
 
 def test_otf_no_markers(
@@ -230,3 +219,91 @@ def test_otf_no_markers(
     )
     with pytest.raises(RuntimeError, match=msg):
         runner.run()
+
+
+
+def test_otf_drop_nodes(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        raw_query_h5ad_fixture):
+    """
+    Run on-the-fly mapping, once on the full precomputed_stats
+    file, calling nodes_to_drop. Once on a precomputed_stats file
+    that was pre-munged. Compare that results are identical.
+    """
+
+    nodes_to_drop = [('class', 'a'), ('subclass', 'subclass_5')]
+
+    # record hash of precomputed stats file to make sure it
+    # is not changed when nodes are dropped
+    hasher = hashlib.md5()
+    with open(precomputed_path_fixture, 'rb') as src:
+        hasher.update(src.read())
+    precompute_hash = hasher.hexdigest()
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    baseline_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_mapping_',
+        suffix='.json')
+
+    pre_munged_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pre_munged_mapping_',
+        suffix='.json')
+
+    drop_nodes_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='drop_nodes_mapping_',
+        suffix='.json')
+
+    munged_stats_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pre_munged_',
+        suffix='.h5'
+    )
+
+    drop_nodes_from_precomputed_stats(
+        src_path=precomputed_path_fixture,
+        dst_path=munged_stats_path,
+        node_list=nodes_to_drop,
+        clobber=True
+    )
+
+    for output_path, precompute_path, drop_nodes in [
+            (baseline_output_path, precomputed_path_fixture, None),
+            (pre_munged_output_path, munged_stats_path, None),
+            (drop_nodes_output_path, precomputed_path_fixture, nodes_to_drop)]:
+
+        config = {
+            'n_processors': 3,
+            'tmp_dir': tmp_dir,
+            'precomputed_stats': {'path': str(precompute_path)},
+            'drop_level': None,
+            'query_path': str(raw_query_h5ad_fixture),
+            'query_markers': {},
+            'reference_markers': {},
+            'type_assignment': {'normalization': 'raw'},
+            'extended_result_path': output_path,
+            'summary_metadata_path': None,
+            'cloud_safe': False,
+            'nodes_to_drop': drop_nodes
+        }
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    hasher = hashlib.md5()
+    with open(precomputed_path_fixture, 'rb') as src:
+        hasher.update(src.read())
+    final_hash = hasher.hexdigest()
+    assert final_hash == precompute_hash
+
+    baseline = json.load(open(baseline_output_path, 'rb'))
+    munged = json.load(open(pre_munged_output_path, 'rb'))
+    dropped = json.load(open(drop_nodes_output_path, 'rb'))
+    assert munged['results'] != baseline['results']
+    assert munged['results'] == dropped['results']
+    assert munged['marker_genes'] != baseline['marker_genes']
+    assert munged['marker_genes'] == dropped['marker_genes']
