@@ -5,6 +5,7 @@ the fly
 import pytest
 
 import anndata
+import hashlib
 import itertools
 import json
 import numpy as np
@@ -94,14 +95,25 @@ def test_query_pipeline(
 
 
 @pytest.mark.parametrize(
-    'write_summary, cloud_safe',
-    itertools.product([True, False], [True, False]))
+    'write_summary, cloud_safe, nodes_to_drop',
+    itertools.product(
+        [True, False],
+        [True, False],
+        [None, [('class', 'a'), ('subclass', 'subclass_5')]]))
 def test_otf_smoke(
         tmp_dir_fixture,
         precomputed_path_fixture,
         raw_query_h5ad_fixture,
         write_summary,
-        cloud_safe):
+        cloud_safe,
+        nodes_to_drop):
+
+    # record hash of precomputed stats file to make sure it
+    # is not changed when nodes are dropped
+    hasher = hashlib.md5()
+    with open(precomputed_path_fixture, 'rb') as src:
+        hasher.update(src.read())
+    precompute_hash = hasher.hexdigest()
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -129,7 +141,8 @@ def test_otf_smoke(
         'type_assignment': {'normalization': 'raw'},
         'extended_result_path': output_path,
         'summary_metadata_path': metadata_path,
-        'cloud_safe': cloud_safe
+        'cloud_safe': cloud_safe,
+        'nodes_to_drop': nodes_to_drop
     }
 
     runner = OnTheFlyMapper(args=[], input_data=config)
@@ -155,6 +168,12 @@ def test_otf_smoke(
             data = json.load(src)
         check_not_file(data['config'])
         check_not_file(data['log'])
+
+    hasher = hashlib.md5()
+    with open(precomputed_path_fixture, 'rb') as src:
+        hasher.update(src.read())
+    final_hash = hasher.hexdigest()
+    assert final_hash == precompute_hash
 
 
 def test_otf_no_markers(

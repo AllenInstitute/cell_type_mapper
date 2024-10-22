@@ -218,3 +218,26 @@ class OutputDstForSearchMixin(object):
                    "{output_params}")
             raise RuntimeError(msg)
         return data
+
+
+class NodesToDropMixin(object):
+
+    nodes_to_drop = argschema.fields.List(
+        argschema.fields.Tuple(
+            (argschema.fields.String,
+             argschema.fields.String)
+        ),
+        cli_as_single_argument=True,
+        default=None,
+        allow_none=True,
+        description=(
+            "Nodes to drop from the taxonomy before performing any "
+            "operations. They are of the form (level, node) where "
+            "level and node are strings referring to the level in the "
+            "taxonomy and the node at that level to be dropped. Pass this "
+            "to the CLI as a list in nested quotation marks like "
+            """'[("level0", "node0"), ("level1", "node1")]' """
+            "If None, the taxonomy will be used as read from the "
+            "specified precomputed_stats files."
+        )
+    )
