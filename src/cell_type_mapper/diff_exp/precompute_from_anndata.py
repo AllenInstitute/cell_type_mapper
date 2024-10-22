@@ -60,8 +60,8 @@ def precompute_summary_stats_from_h5ad(
 
     taxonomy_tree:
         instance of
-        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        cell_type_mapper.taxonomy.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file that will contain the lookup
