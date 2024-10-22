@@ -216,7 +216,13 @@ def test_merge_precompute(
      [('class', 'CLAS02')],
      [('supertype', 'SUPT02')],
      [('supertype', 'SUPT03')],
-     [('cluster', 'C06'), ('supertype', 'SUPT01')]
+     [('cluster', 'C06'), ('supertype', 'SUPT01')],
+     [('readable_class', 'readable_CLAS01')],
+     [('readable_class', 'readable_CLAS02')],
+     [('readable_supertype', 'readable_SUPT02')],
+     [('readable_supertype', 'readable_SUPT03')],
+     [('readable_cluster', 'readable_C06'),
+      ('readable_supertype', 'readable_SUPT01')]
     ]
 )
 def test_drop_node_from_precompute(
@@ -248,12 +254,48 @@ def test_drop_node_from_precompute(
         },
         'cluster': {
             f'C0{ii+1}': [] for ii in range(7)
+        },
+        'hierarchy_mapper': {
+            'class': 'readable_class',
+            'subclass': 'readable_subclass',
+            'supertype': 'readable_supertype',
+            'cluster': 'readable_cluster'
+        },
+        'name_mapper': {
+            'class': {
+                'CLAS01': {'name': 'readable_CLAS01'},
+                'CLAS02': {'name': 'readable_CLAS02'}
+            },
+            'subclass': {
+                'SUBC01': {'name': 'readable_SUBC01'},
+                'SUBC02': {'name': 'readable_SUBC02'},
+                'SUBC03': {'name': 'readable_SUBC03'}
+            },
+            'supertype': {
+                k: {'name': f'readable_{k}'} for k in
+                ('SUPT01', 'SUPT02', 'SUPT03', 'SUPT04')
+            },
+            'cluster': {
+                k: {'name': f'readable_{k}'} for k in
+                ('C01', 'C02', 'C03', 'C04',
+                 'C05', 'C06', 'C07')
+            }
         }
     }
 
     baseline_tree = TaxonomyTree(data=tree_data)
     baseline_trimmed_tree = TaxonomyTree(data=tree_data)
+
+    mapped_drop_node_list = []
     for drop_node in drop_node_list:
+        mapped_drop_node_list.append(
+            baseline_tree.name_to_node(
+                level=drop_node[0],
+                node=drop_node[1]
+            )
+        )
+
+    for drop_node in mapped_drop_node_list:
         baseline_trimmed_tree = baseline_trimmed_tree.drop_node(
                 level=drop_node[0],
                 node=drop_node[1])
@@ -314,6 +356,17 @@ def test_drop_node_from_precompute(
         tmp_dir=tmp_dir_fixture,
         n_processors=1
     )
+
+    # patch h5 file taxonomy tree with name mapper and hierarchy mapper
+    with h5py.File(baseline_precompute_path, 'a') as src:
+        src_data = json.loads(src['taxonomy_tree'][()].decode('utf-8'))
+        del src['taxonomy_tree']
+        src_data['hierarchy_mapper'] = tree_data['hierarchy_mapper']
+        src_data['name_mapper'] = tree_data['name_mapper']
+        src.create_dataset(
+            'taxonomy_tree',
+            data=json.dumps(src_data).encode('utf-8')
+        )
 
     p_tree = TaxonomyTree.from_precomputed_stats(
         baseline_precompute_path
