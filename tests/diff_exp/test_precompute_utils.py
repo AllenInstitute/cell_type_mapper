@@ -211,16 +211,17 @@ def test_merge_precompute(
 
 
 @pytest.mark.parametrize(
-    'drop_node',
-    [('class', 'CLAS01'),
-     ('class', 'CLAS02'),
-     ('supertype', 'SUPT02'),
-     ('supertype', 'SUPT03')
+    'drop_node_list',
+    [[('class', 'CLAS01')],
+     [('class', 'CLAS02')],
+     [('supertype', 'SUPT02')],
+     [('supertype', 'SUPT03')],
+     [('cluster', 'C06'), ('supertype', 'SUPT01')]
     ]
 )
 def test_drop_node_from_precompute(
         tmp_dir_fixture,
-        drop_node):
+        drop_node_list):
     """
     Test utility to drop a node from the taxonomy_tree in a
     precomputed_stats file.
@@ -251,9 +252,11 @@ def test_drop_node_from_precompute(
     }
 
     baseline_tree = TaxonomyTree(data=tree_data)
-    baseline_trimmed_tree = baseline_tree.drop_node(
-            level=drop_node[0],
-            node=drop_node[1])
+    baseline_trimmed_tree = TaxonomyTree(data=tree_data)
+    for drop_node in drop_node_list:
+        baseline_trimmed_tree = baseline_trimmed_tree.drop_node(
+                level=drop_node[0],
+                node=drop_node[1])
     assert baseline_trimmed_tree != baseline_tree
 
     trimmed_cluster_list = baseline_trimmed_tree.nodes_at_level(
@@ -327,7 +330,7 @@ def test_drop_node_from_precompute(
     drop_nodes_from_precomputed_stats(
         src_path=baseline_precompute_path,
         dst_path=trimmed_precompute_path,
-        node_list=[(drop_node[0], drop_node[1])],
+        node_list=drop_node_list,
         clobber=True
     )
 
