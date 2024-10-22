@@ -200,6 +200,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         for k in ('query_path',
                   'extended_result_path',
                   'extended_result_dir',
+                  'hdf5_result_path',
                   'csv_result_path',
                   'drop_level',
                   'flatten',

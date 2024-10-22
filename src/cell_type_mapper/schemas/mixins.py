@@ -215,7 +215,7 @@ class OutputDstForSearchMixin(object):
                 has_output_path = True
         if not has_output_path:
             msg = ("You must specify at least one of:\n"
-                   "{output_params}")
+                   f"{output_params}")
             raise RuntimeError(msg)
         return data
 
