@@ -171,9 +171,14 @@ def drop_nodes_from_precomputed_stats(
 
     taxonomy_tree = TaxonomyTree.from_precomputed_stats(src_path)
     for node in node_list:
-        taxonomy_tree = taxonomy_tree.drop_node(
+        mapped_node = taxonomy_tree.name_to_node(
             level=node[0],
             node=node[1]
+        )
+
+        taxonomy_tree = taxonomy_tree.drop_node(
+            level=mapped_node[0],
+            node=mapped_node[1]
         )
 
     new_leaf_list = taxonomy_tree.nodes_at_level(
