@@ -335,7 +335,7 @@ def test_otf_config_consistency(
         nodes_to_drop):
     """
     Test that you can just pass the config file from the mapping
-    result JSON back into the module, and get the same result.    
+    result JSON back into the module, and get the same result.
     """
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -356,135 +356,91 @@ def test_otf_config_consistency(
         },
         'type_assignment': {
             'normalization': 'raw',
-            'rng_seed': 11235},
+            'rng_seed': 11235,
+            'bootstrap_factor': 0.4},
         'summary_metadata_path': None,
         'cloud_safe': False,
         'nodes_to_drop': nodes_to_drop
     }
 
-    output_a = mkstemp_clean(
+    baseline_output = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='output_a_',
         suffix='.json'
     )
-    config_a = copy.deepcopy(base_config)
-    config_a['extended_result_path'] = output_a
-    config_a['type_assignment']['bootstrap_factor'] = 0.4
 
-    runner = OnTheFlyMapper(args=[], input_data=config_a)
+    base_config['extended_result_path'] = baseline_output
+
+    runner = OnTheFlyMapper(args=[], input_data=base_config)
     runner.run()
-    mapping_a = json.load(open(output_a, 'rb'))
+    baseline_mapping = json.load(open(baseline_output, 'rb'))
 
-    output_a2 = mkstemp_clean(
+    test_config = copy.deepcopy(baseline_mapping['config'])
+    test_output = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='output_a2_',
         suffix='.json'
     )
-    config_a2 = copy.deepcopy(mapping_a['config'])
-    config_a2['extended_result_path'] = output_a2
-    runner = OnTheFlyMapper(args=[], input_data=config_a2)
+    test_config['extended_result_path'] = test_output
+    runner = OnTheFlyMapper(args=[], input_data=test_config)
     runner.run()
-    mapping_a2 = json.load(open(output_a2, 'rb'))
+    test_mapping = json.load(open(test_output, 'rb'))
+    for k in ('results', 'marker_genes', 'taxonomy_tree'):
+        assert test_mapping[k] == baseline_mapping[k]
 
-    assert mapping_a['results'] == mapping_a2['results']
-    assert mapping_a['marker_genes'] == mapping_a2['marker_genes']
-    assert mapping_a['taxonomy_tree'] == mapping_a2['taxonomy_tree']
+    update_config_list = [
+        {'n_processors': 2},
+        {'type_assignment': {'rng_seed': 566122}},
+        {'reference_markers': {
+                'log2_fold_min_th': 0.9,
+                'q1_th': 0.9,
+                'q1_min_th': 0.8,
+                'qdiff_min_th': 0.5
+            }
+        },
+        {'query_markers': {'n_per_utility': 5}}
 
-    # change n_processors; make sure mapping changes
-    config_a3 = copy.deepcopy(mapping_a['config'])
-    output_a3 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a3_',
-        suffix='.json'
-    )
-    config_a3['n_processors'] = 2
-    config_a3['extended_result_path'] = output_a3
-    runner = OnTheFlyMapper(args=[], input_data=config_a3)
-    runner.run()
-    mapping_a3 = json.load(open(output_a3, 'rb'))
-    assert mapping_a['results'] != mapping_a3['results']
-    assert mapping_a['marker_genes'] == mapping_a3['marker_genes']
-    assert mapping_a['taxonomy_tree'] == mapping_a3['taxonomy_tree']
+    ]
+    for update_config in update_config_list:
+        test_config = copy.deepcopy(base_config)
+        test_output = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+        test_config['extended_result_path'] = test_output
 
-    # change rng_seed; make sure mapping changes
-    config_a4 = copy.deepcopy(mapping_a['config'])
-    output_a4 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a4_',
-        suffix='.json'
-    )
-    config_a4['type_assignment']['rng_seed'] = 55667
-    config_a4['extended_result_path'] = output_a4
-    runner = OnTheFlyMapper(args=[], input_data=config_a4)
-    runner.run()
-    mapping_a4 = json.load(open(output_a4, 'rb'))
-    assert mapping_a['results'] != mapping_a4['results']
-    assert mapping_a['marker_genes'] == mapping_a4['marker_genes']
-    assert mapping_a['taxonomy_tree'] == mapping_a4['taxonomy_tree']
+        # change test_config parametrs
+        for k in update_config:
+            if not isinstance(update_config[k], dict):
+                assert k in test_config
+                test_config[k] = update_config[k]
+            else:
+                for k2 in update_config[k]:
+                    assert k2 in test_config[k]
+                    test_config[k][k2] = update_config[k][k2]
 
-    # change reference marker configs
-    config_a5 = copy.deepcopy(mapping_a['config'])
-    output_a5 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a5_',
-        suffix='.json'
-    )
+        runner = OnTheFlyMapper(args=[], input_data=test_config)
+        runner.run()
+        test_mapping = json.load(open(test_output, 'rb'))
 
-    config_a5['reference_markers']['log2_fold_min_th'] = 0.9
-    config_a5['reference_markers']['q1_th'] = 0.9
-    config_a5['reference_markers']['q1_min_th'] = 0.8
-    config_a5['reference_markers']['qdiff_min_th'] = 0.5
+        # make sure result changed where expected
+        assert test_mapping['results'] != baseline_mapping['results']
+        assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
+        if 'reference_markers' in update_config or 'query_markers' in update_config:
+            assert test_mapping['marker_genes'] != baseline_mapping['marker_genes']
+        else:
+            assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
 
-    config_a5['extended_result_path'] = output_a5
-    runner = OnTheFlyMapper(args=[], input_data=config_a5)
-    runner.run()
-    mapping_a5 = json.load(open(output_a5, 'rb'))
-    assert mapping_a['results'] != mapping_a5['results']
-    assert mapping_a['marker_genes'] != mapping_a5['marker_genes']
-    assert mapping_a['taxonomy_tree'] == mapping_a5['taxonomy_tree']
-
-    config_a6 = copy.deepcopy(mapping_a5['config'])
-    output_a6 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a6_',
-        suffix='.json'
-    )
-    config_a6['extended_result_path'] = output_a6
-    runner = OnTheFlyMapper(args=[], input_data=config_a6)
-    runner.run()
-    mapping_a6 = json.load(open(output_a6, 'rb'))
-    assert mapping_a6['results'] == mapping_a5['results']
-    assert mapping_a6['marker_genes'] == mapping_a5['marker_genes']
-    assert mapping_a6['taxonomy_tree'] == mapping_a5['taxonomy_tree']
-
-    # change query marker configs
-    config_a7 = copy.deepcopy(mapping_a['config'])
-    output_a7 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a7_',
-        suffix='.json'
-    )
-
-    config_a7['query_markers']['n_per_utility'] = 5
-
-    config_a7['extended_result_path'] = output_a7
-    runner = OnTheFlyMapper(args=[], input_data=config_a7)
-    runner.run()
-    mapping_a7 = json.load(open(output_a5, 'rb'))
-    assert mapping_a['results'] != mapping_a7['results']
-    assert mapping_a['marker_genes'] != mapping_a7['marker_genes']
-    assert mapping_a['taxonomy_tree'] == mapping_a7['taxonomy_tree']
-
-    config_a8 = copy.deepcopy(mapping_a7['config'])
-    output_a8 = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a8_',
-        suffix='.json'
-    )
-    config_a8['extended_result_path'] = output_a8
-    runner = OnTheFlyMapper(args=[], input_data=config_a8)
-    runner.run()
-    mapping_a8 = json.load(open(output_a8, 'rb'))
-    assert mapping_a8['results'] == mapping_a7['results']
-    assert mapping_a8['marker_genes'] == mapping_a7['marker_genes']
-    assert mapping_a8['taxonomy_tree'] == mapping_a7['taxonomy_tree']
+        # Make sure test_mapping recorded a config that allows you to
+        # reproduce its results
+        second_test_config = copy.deepcopy(test_mapping['config'])
+        second_test_output = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+        second_test_config['extended_result_path'] = second_test_output
+        runner = OnTheFlyMapper(args=[], input_data=second_test_config)
+        runner.run()
+        second_test_mapping = json.load(open(second_test_output, 'rb'))
+        for k in ('results', 'taxonomy_tree', 'marker_genes'):
+            assert second_test_mapping[k] == test_mapping[k]
