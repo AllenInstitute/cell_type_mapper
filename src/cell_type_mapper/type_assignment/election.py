@@ -537,6 +537,13 @@ def run_type_assignment(
     # using the parent's avg_correlation value.
     for cell in result:
         for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
+
+            # parent_level == None if the taxonomy had been trimmed
+            # such that there was only one option at the highest
+            # level of the taxonomy tree.
+            if parent_level is None:
+                continue
+
             if cell[child_level]['avg_correlation'] is None:
                 cell[child_level]['avg_correlation'] = \
                     cell[parent_level]['avg_correlation']
