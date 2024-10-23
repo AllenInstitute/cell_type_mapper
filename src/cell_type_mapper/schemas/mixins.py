@@ -238,6 +238,11 @@ class NodesToDropMixin(object):
             "to the CLI as a list in nested quotation marks like "
             """'[("level0", "node0"), ("level1", "node1")]' """
             "If None, the taxonomy will be used as read from the "
-            "specified precomputed_stats files."
+            "specified precomputed_stats files. Note: dropping "
+            "a node from the taxonomy tree also drops all of "
+            "the child nodes descended from it. If the resulting "
+            "tree has parent nodes that are no longer connected "
+            "to the leaf level of the taxonomy, those are dropped "
+            "as well."
         )
     )
