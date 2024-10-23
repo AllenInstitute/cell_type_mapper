@@ -6,10 +6,15 @@ from cell_type_mapper.schemas.base_schemas import (
 from cell_type_mapper.schemas.search_mixins import (
     SearchSchemaMixin)
 
+from cell_type_mapper.schemas.mixins import (
+    NodesToDropMixin
+)
+
 
 class FromSpecifiedMarkersSchema(
         argschema.ArgSchema,
-        SearchSchemaMixin):
+        SearchSchemaMixin,
+        NodesToDropMixin):
 
     map_to_ensembl = argschema.fields.Boolean(
         reauired=False,
