@@ -5,6 +5,7 @@ the fly
 import pytest
 
 import anndata
+import copy
 import hashlib
 import itertools
 import json
@@ -318,3 +319,172 @@ def test_otf_drop_nodes(
 
     assert munged['taxonomy_tree'] != baseline['taxonomy_tree']
     assert munged['taxonomy_tree'] == dropped['taxonomy_tree']
+
+
+
+
+@pytest.mark.parametrize(
+    "nodes_to_drop",
+    [None,
+     [('class', 'a'), ('subclass', 'subclass_5')]]
+)
+def test_otf_config_consistency(
+        tmp_dir_fixture,
+        noisier_precomputed_path_fixture,
+        raw_query_h5ad_fixture,
+        nodes_to_drop):
+    """
+    Test that you can just pass the config file from the mapping
+    result JSON back into the module, and get the same result.    
+    """
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    base_config = {
+        'n_processors': 3,
+        'tmp_dir': this_tmp,
+        'precomputed_stats': {'path': str(noisier_precomputed_path_fixture)},
+        'drop_level': None,
+        'query_path': str(raw_query_h5ad_fixture),
+        'query_markers': {
+            'n_per_utility': 30
+        },
+        'reference_markers': {
+            'log2_fold_min_th': 0.8,
+            'q1_th': 0.5,
+            'q1_min_th': 0.1,
+            'qdiff_min_th': 0.1
+        },
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 11235},
+        'summary_metadata_path': None,
+        'cloud_safe': False,
+        'nodes_to_drop': nodes_to_drop
+    }
+
+    output_a = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a_',
+        suffix='.json'
+    )
+    config_a = copy.deepcopy(base_config)
+    config_a['extended_result_path'] = output_a
+    config_a['type_assignment']['bootstrap_factor'] = 0.4
+
+    runner = OnTheFlyMapper(args=[], input_data=config_a)
+    runner.run()
+    mapping_a = json.load(open(output_a, 'rb'))
+
+    output_a2 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a2_',
+        suffix='.json'
+    )
+    config_a2 = copy.deepcopy(mapping_a['config'])
+    config_a2['extended_result_path'] = output_a2
+    runner = OnTheFlyMapper(args=[], input_data=config_a2)
+    runner.run()
+    mapping_a2 = json.load(open(output_a2, 'rb'))
+
+    assert mapping_a['results'] == mapping_a2['results']
+    assert mapping_a['marker_genes'] == mapping_a2['marker_genes']
+    assert mapping_a['taxonomy_tree'] == mapping_a2['taxonomy_tree']
+
+    # change n_processors; make sure mapping changes
+    config_a3 = copy.deepcopy(mapping_a['config'])
+    output_a3 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a3_',
+        suffix='.json'
+    )
+    config_a3['n_processors'] = 2
+    config_a3['extended_result_path'] = output_a3
+    runner = OnTheFlyMapper(args=[], input_data=config_a3)
+    runner.run()
+    mapping_a3 = json.load(open(output_a3, 'rb'))
+    assert mapping_a['results'] != mapping_a3['results']
+    assert mapping_a['marker_genes'] == mapping_a3['marker_genes']
+    assert mapping_a['taxonomy_tree'] == mapping_a3['taxonomy_tree']
+
+    # change rng_seed; make sure mapping changes
+    config_a4 = copy.deepcopy(mapping_a['config'])
+    output_a4 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a4_',
+        suffix='.json'
+    )
+    config_a4['type_assignment']['rng_seed'] = 55667
+    config_a4['extended_result_path'] = output_a4
+    runner = OnTheFlyMapper(args=[], input_data=config_a4)
+    runner.run()
+    mapping_a4 = json.load(open(output_a4, 'rb'))
+    assert mapping_a['results'] != mapping_a4['results']
+    assert mapping_a['marker_genes'] == mapping_a4['marker_genes']
+    assert mapping_a['taxonomy_tree'] == mapping_a4['taxonomy_tree']
+
+    # change reference marker configs
+    config_a5 = copy.deepcopy(mapping_a['config'])
+    output_a5 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a5_',
+        suffix='.json'
+    )
+
+    config_a5['reference_markers']['log2_fold_min_th'] = 0.9
+    config_a5['reference_markers']['q1_th'] = 0.9
+    config_a5['reference_markers']['q1_min_th'] = 0.8
+    config_a5['reference_markers']['qdiff_min_th'] = 0.5
+
+    config_a5['extended_result_path'] = output_a5
+    runner = OnTheFlyMapper(args=[], input_data=config_a5)
+    runner.run()
+    mapping_a5 = json.load(open(output_a5, 'rb'))
+    assert mapping_a['results'] != mapping_a5['results']
+    assert mapping_a['marker_genes'] != mapping_a5['marker_genes']
+    assert mapping_a['taxonomy_tree'] == mapping_a5['taxonomy_tree']
+
+    config_a6 = copy.deepcopy(mapping_a5['config'])
+    output_a6 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a6_',
+        suffix='.json'
+    )
+    config_a6['extended_result_path'] = output_a6
+    runner = OnTheFlyMapper(args=[], input_data=config_a6)
+    runner.run()
+    mapping_a6 = json.load(open(output_a6, 'rb'))
+    assert mapping_a6['results'] == mapping_a5['results']
+    assert mapping_a6['marker_genes'] == mapping_a5['marker_genes']
+    assert mapping_a6['taxonomy_tree'] == mapping_a5['taxonomy_tree']
+
+    # change query marker configs
+    config_a7 = copy.deepcopy(mapping_a['config'])
+    output_a7 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a7_',
+        suffix='.json'
+    )
+
+    config_a7['query_markers']['n_per_utility'] = 5
+
+    config_a7['extended_result_path'] = output_a7
+    runner = OnTheFlyMapper(args=[], input_data=config_a7)
+    runner.run()
+    mapping_a7 = json.load(open(output_a5, 'rb'))
+    assert mapping_a['results'] != mapping_a7['results']
+    assert mapping_a['marker_genes'] != mapping_a7['marker_genes']
+    assert mapping_a['taxonomy_tree'] == mapping_a7['taxonomy_tree']
+
+    config_a8 = copy.deepcopy(mapping_a7['config'])
+    output_a8 = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_a8_',
+        suffix='.json'
+    )
+    config_a8['extended_result_path'] = output_a8
+    runner = OnTheFlyMapper(args=[], input_data=config_a8)
+    runner.run()
+    mapping_a8 = json.load(open(output_a8, 'rb'))
+    assert mapping_a8['results'] == mapping_a7['results']
+    assert mapping_a8['marker_genes'] == mapping_a7['marker_genes']
+    assert mapping_a8['taxonomy_tree'] == mapping_a7['taxonomy_tree']
