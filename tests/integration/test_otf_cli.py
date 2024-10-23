@@ -222,17 +222,23 @@ def test_otf_no_markers(
 
 
 
+@pytest.mark.parametrize(
+    "nodes_to_drop",
+    [
+     [('class', 'a'), ('subclass', 'subclass_5')],
+     [('class', 'a'), ('class', 'b')]
+    ]
+)
 def test_otf_drop_nodes(
         tmp_dir_fixture,
         precomputed_path_fixture,
-        raw_query_h5ad_fixture):
+        raw_query_h5ad_fixture,
+        nodes_to_drop):
     """
     Run on-the-fly mapping, once on the full precomputed_stats
     file, calling nodes_to_drop. Once on a precomputed_stats file
     that was pre-munged. Compare that results are identical.
     """
-
-    nodes_to_drop = [('class', 'a'), ('subclass', 'subclass_5')]
 
     # record hash of precomputed stats file to make sure it
     # is not changed when nodes are dropped
