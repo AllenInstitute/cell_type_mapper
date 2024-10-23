@@ -15,6 +15,10 @@ import pathlib
 import tempfile
 from unittest.mock import patch
 
+from cell_type_mapper.utils.output_utils import (
+    hdf5_to_blob
+)
+
 from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
 )
@@ -337,6 +341,11 @@ def test_otf_config_consistency(
     Test that you can just pass the config file from the mapping
     result JSON back into the module, and get the same result.
     """
+
+    hdf5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5'
+    )
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
     base_config = {
@@ -360,7 +369,8 @@ def test_otf_config_consistency(
             'bootstrap_factor': 0.4},
         'summary_metadata_path': None,
         'cloud_safe': False,
-        'nodes_to_drop': nodes_to_drop
+        'nodes_to_drop': nodes_to_drop,
+        'hdf5_result_path': hdf5_path
     }
 
     baseline_output = mkstemp_clean(
@@ -374,6 +384,9 @@ def test_otf_config_consistency(
     runner = OnTheFlyMapper(args=[], input_data=base_config)
     runner.run()
     baseline_mapping = json.load(open(baseline_output, 'rb'))
+
+    blob = hdf5_to_blob(hdf5_path)
+    assert blob['config'] == baseline_mapping['config']
 
     test_config = copy.deepcopy(baseline_mapping['config'])
     test_output = mkstemp_clean(
@@ -422,6 +435,8 @@ def test_otf_config_consistency(
         runner = OnTheFlyMapper(args=[], input_data=test_config)
         runner.run()
         test_mapping = json.load(open(test_output, 'rb'))
+        blob = hdf5_to_blob(test_config['hdf5_result_path'])
+        assert blob['config'] == test_mapping['config']
 
         # make sure result changed where expected
         assert test_mapping['results'] != baseline_mapping['results']
