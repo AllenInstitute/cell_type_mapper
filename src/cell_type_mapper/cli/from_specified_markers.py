@@ -85,15 +85,15 @@ def run_mapping(
         log_path=None,
         hdf5_output_path=None):
     t0 = time.time()
-    safe_config = copy.deepcopy(config)
+    metadata_config = copy.deepcopy(config)
     if config['cloud_safe']:
-        safe_config = sanitize_paths(safe_config)
-        safe_config.pop('extended_result_dir')
-        safe_config.pop('tmp_dir')
+        metadata_config = sanitize_paths(metadata_config)
+        metadata_config.pop('extended_result_dir')
+        metadata_config.pop('tmp_dir')
 
     print('=== Running Hierarchical Mapping '
           f'{cell_type_mapper.__version__} with config ===\n'
-          f'{json.dumps(safe_config, indent=2)}')
+          f'{json.dumps(metadata_config, indent=2)}')
 
     log = CommandLog()
 
@@ -195,7 +195,7 @@ def run_mapping(
         log.info("CLEANING UP")
         if log_path is not None:
             log.write_log(log_path, cloud_safe=config['cloud_safe'])
-        output["config"] = safe_config
+        output["config"] = metadata_config
         output_log = copy.deepcopy(log.log)
         if config['cloud_safe']:
             output_log = sanitize_paths(output_log)
