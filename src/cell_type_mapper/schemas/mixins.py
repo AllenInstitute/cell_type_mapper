@@ -60,7 +60,12 @@ class DropLevelMixin(object):
         "it before doing type assignment (this is to accommmodate "
         "the fact that the official taxonomy includes the "
         "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
+        "during hierarchical type assignment). Note: though we "
+        "use the term 'drop', it is more accurate to say that "
+        "the level is ignored. It still exists in the taxonomy, "
+        "but it is not directly mapped to. Mapping values will be "
+        "backfilled from lower levels in the taxonomy after "
+        "the mapping is complete.")
 
 
 class TmpDirMixin(object):
