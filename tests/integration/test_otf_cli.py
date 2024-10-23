@@ -309,7 +309,12 @@ def test_otf_drop_nodes(
     baseline = json.load(open(baseline_output_path, 'rb'))
     munged = json.load(open(pre_munged_output_path, 'rb'))
     dropped = json.load(open(drop_nodes_output_path, 'rb'))
+
     assert munged['results'] != baseline['results']
     assert munged['results'] == dropped['results']
+
     assert munged['marker_genes'] != baseline['marker_genes']
     assert munged['marker_genes'] == dropped['marker_genes']
+
+    assert munged['taxonomy_tree'] != baseline['taxonomy_tree']
+    assert munged['taxonomy_tree'] == dropped['taxonomy_tree']
