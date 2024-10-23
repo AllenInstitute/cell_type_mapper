@@ -45,6 +45,10 @@ from cell_type_mapper.cli.cli_log import (
 from cell_type_mapper.utils.cli_utils import (
     _get_query_gene_names)
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    drop_nodes_from_precomputed_stats
+)
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
@@ -229,6 +233,11 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         log.env("multiprocessing start method: "
                 f"{multiprocessing.get_start_method()}")
         log.log_software_env()
+
+    config = drop_nodes_from_taxonomy(
+        tmp_dir=tmp_dir,
+        config=config
+    )
 
     t0 = time.time()
     file_tracker = FileTracker(
@@ -429,6 +438,41 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     output["n_unmapped_genes"] = n_unmapped
 
     return output
+
+
+def drop_nodes_from_taxonomy(tmp_dir, config):
+    """
+    Drop nodes from precomputed_stats files, if needed.
+    Write the files with the amended taxonomies to new files in
+    tmp_dir.
+    Update config to point to the new files.
+    Return config
+    """
+    if config['nodes_to_drop'] is None:
+        return config
+
+    precompute_dir = tempfile.mkdtemp(
+        dir=tmp_dir,
+        prefix='munged_precomputed_stats_files'
+    )
+
+    src_path = pathlib.Path(config['precomputed_stats']['path'])
+
+    main_tmp_path = mkstemp_clean(
+        dir=precompute_dir,
+        prefix=src_path.name,
+        suffix='.h5',
+        delete=True)
+
+    drop_nodes_from_precomputed_stats(
+        src_path=src_path,
+        dst_path=main_tmp_path,
+        node_list=config['nodes_to_drop'],
+        clobber=False
+    )
+
+    config['precomputed_stats']['path'] = main_tmp_path
+    return config
 
 
 def main():
