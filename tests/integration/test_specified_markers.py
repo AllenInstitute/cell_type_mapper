@@ -51,9 +51,6 @@ from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
-    run_mapping as from_marker_run_mapping)
-
-from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
 
