@@ -43,7 +43,8 @@ from cell_type_mapper.cli.cli_log import (
     CommandLog)
 
 from cell_type_mapper.utils.cli_utils import (
-    _get_query_gene_names)
+    _get_query_gene_names,
+    config_from_args)
 
 from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
@@ -76,11 +77,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     def run_mapping(self, write_to_disk=True):
         mapping_exception = None
         t0 = time.time()
-        metadata_config = copy.deepcopy(self.args)
-        if self.args['cloud_safe']:
-            metadata_config = sanitize_paths(metadata_config)
-            metadata_config.pop('extended_result_dir')
-            metadata_config.pop('tmp_dir')
+        metadata_config = config_from_args(
+            input_config=self.args,
+            cloud_safe=self.args['cloud_safe']
+        )
 
         print('=== Running Hierarchical Mapping '
               f'{cell_type_mapper.__version__} with config ===\n'

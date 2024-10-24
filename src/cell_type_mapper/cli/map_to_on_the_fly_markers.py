@@ -12,11 +12,12 @@ from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
 )
 
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
-
-from cell_type_mapper.utils.cloud_utils import (
-    sanitize_paths)
 
 from cell_type_mapper.schemas.mixins import (
     NProcessorsMixin,
@@ -96,13 +97,12 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         tmp_dir = tempfile.mkdtemp(
             dir=self.args['tmp_dir'])
         try:
-            metadata_config = copy.deepcopy(self.args)
+            metadata_config = config_from_args(
+                input_config=self.args,
+                cloud_safe=self.args['cloud_safe']
+            )
 
             mapping_result = self._run(tmp_dir=tmp_dir, log=log)
-            if self.args['cloud_safe']:
-                metadata_config = sanitize_paths(metadata_config)
-                metadata_config.pop('extended_result_dir')
-                metadata_config.pop('tmp_dir')
 
             mapping_result['output']['config'] = metadata_config
             mapping_result['output']['metadata'] = get_execution_metadata(
