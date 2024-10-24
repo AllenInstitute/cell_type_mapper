@@ -189,8 +189,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         finally:
             _clean_up(tmp_dir)
             log.info("CLEANING UP")
-            if log_path is not None:
-                log.write_log(log_path, cloud_safe=self.args['cloud_safe'])
+
             output["config"] = metadata_config
             output_log = copy.deepcopy(log.log)
             if self.args['cloud_safe']:
@@ -206,18 +205,37 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             if "AIBS_CDM_gene_mapping" in uns:
                 output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
 
-            if output_path is not None:
-                with open(output_path, "w") as out_file:
-                    out_file.write(
-                        json.dumps(
-                            clean_for_json(output), indent=2
-                        )
-                    )
+            self.write_output(
+                output=output,
+                log=log,
+                log_path=log_path,
+                output_path=output_path,
+                hdf5_output_path=hdf5_output_path
+            )
 
-            if hdf5_output_path is not None:
-                blob_to_hdf5(
-                    output_blob=output,
-                    dst_path=hdf5_output_path)
+    def write_output(
+            self,
+            output,
+            log,
+            log_path,
+            output_path,
+            hdf5_output_path):
+
+        if log_path is not None:
+            log.write_log(log_path, cloud_safe=self.args['cloud_safe'])
+
+        if output_path is not None:
+            with open(output_path, "w") as out_file:
+                out_file.write(
+                    json.dumps(
+                        clean_for_json(output), indent=2
+                    )
+                )
+
+        if hdf5_output_path is not None:
+            blob_to_hdf5(
+                output_blob=output,
+                dst_path=hdf5_output_path)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
