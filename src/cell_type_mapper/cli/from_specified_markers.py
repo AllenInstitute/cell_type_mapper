@@ -71,9 +71,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = FromSpecifiedMarkersSchema
 
     def run(self):
-        self.run_mapping()
+        self.run_mapping(write_to_disk=True)
 
-    def run_mapping(self):
+    def run_mapping(self, write_to_disk=True):
+        mapping_exception = None
         t0 = time.time()
         metadata_config = copy.deepcopy(self.args)
         if self.args['cloud_safe']:
@@ -181,7 +182,8 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
             _clean_up(tmp_result_dir)
             log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
-        except Exception:
+        except Exception as err:
+            mapping_exception = err
             traceback_msg = "an ERROR occurred ===="
             traceback_msg += f"\n{traceback.format_exc()}\n"
             log.add_msg(traceback_msg)
@@ -203,39 +205,52 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
             uns = read_uns_from_h5ad(self.args["query_path"])
             if "AIBS_CDM_gene_mapping" in uns:
-                output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
+                output["gene_identifier_mapping"] = \
+                    uns["AIBS_CDM_gene_mapping"]
 
-            self.write_output(
-                output=output,
-                log=log,
-                log_path=log_path,
-                output_path=output_path,
-                hdf5_output_path=hdf5_output_path
+            if write_to_disk:
+                write_mapping_to_disk(
+                    output=output,
+                    log=log,
+                    log_path=log_path,
+                    output_path=output_path,
+                    hdf5_output_path=hdf5_output_path,
+                    cloud_safe=self.args['cloud_safe']
+                )
+            else:
+                return {
+                    'output': output,
+                    'log': log,
+                    'log_path': log_path,
+                    'output_path': output_path,
+                    'hdf5_output_path': hdf5_output_path,
+                    'mapping_exception': mapping_exception
+                }
+
+
+def write_mapping_to_disk(
+        output,
+        log,
+        log_path,
+        output_path,
+        hdf5_output_path,
+        cloud_safe):
+
+    if log_path is not None:
+        log.write_log(log_path, cloud_safe=cloud_safe)
+
+    if output_path is not None:
+        with open(output_path, "w") as out_file:
+            out_file.write(
+                json.dumps(
+                    clean_for_json(output), indent=2
+                )
             )
 
-    def write_output(
-            self,
-            output,
-            log,
-            log_path,
-            output_path,
-            hdf5_output_path):
-
-        if log_path is not None:
-            log.write_log(log_path, cloud_safe=self.args['cloud_safe'])
-
-        if output_path is not None:
-            with open(output_path, "w") as out_file:
-                out_file.write(
-                    json.dumps(
-                        clean_for_json(output), indent=2
-                    )
-                )
-
-        if hdf5_output_path is not None:
-            blob_to_hdf5(
-                output_blob=output,
-                dst_path=hdf5_output_path)
+    if hdf5_output_path is not None:
+        blob_to_hdf5(
+            output_blob=output,
+            dst_path=hdf5_output_path)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
