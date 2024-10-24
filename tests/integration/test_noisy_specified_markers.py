@@ -56,9 +56,6 @@ from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
 from cell_type_mapper.cli.from_specified_markers import (
-    run_mapping as from_marker_run_mapping)
-
-from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
 from cell_type_mapper.utils.output_utils import (
