@@ -72,156 +72,154 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
-        run_mapping(
-            config=self.args,
+        self.run_mapping(
             output_path=self.args['extended_result_path'],
             log_path=self.args['log_path'],
             hdf5_output_path=self.args['hdf5_result_path'])
 
+    def run_mapping(
+            self,
+            output_path,
+            log_path=None,
+            hdf5_output_path=None):
+        t0 = time.time()
+        metadata_config = copy.deepcopy(self.args)
+        if self.args['cloud_safe']:
+            metadata_config = sanitize_paths(metadata_config)
+            metadata_config.pop('extended_result_dir')
+            metadata_config.pop('tmp_dir')
 
-def run_mapping(
-        config,
-        output_path,
-        log_path=None,
-        hdf5_output_path=None):
-    t0 = time.time()
-    metadata_config = copy.deepcopy(config)
-    if config['cloud_safe']:
-        metadata_config = sanitize_paths(metadata_config)
-        metadata_config.pop('extended_result_dir')
-        metadata_config.pop('tmp_dir')
+        print('=== Running Hierarchical Mapping '
+              f'{cell_type_mapper.__version__} with config ===\n'
+              f'{json.dumps(metadata_config, indent=2)}')
 
-    print('=== Running Hierarchical Mapping '
-          f'{cell_type_mapper.__version__} with config ===\n'
-          f'{json.dumps(metadata_config, indent=2)}')
+        log = CommandLog()
 
-    log = CommandLog()
+        # create this now in case _run_mapping errors
+        # before creating the output dict (the finally
+        # block will add some logging info to output)
+        output = dict()
 
-    # create this now in case _run_mapping errors
-    # before creating the output dict (the finally
-    # block will add some logging info to output)
-    output = dict()
+        if 'tmp_dir' not in self.args:
+            raise RuntimeError("did not specify tmp_dir")
 
-    if 'tmp_dir' not in config:
-        raise RuntimeError("did not specify tmp_dir")
-
-    if config['tmp_dir'] is not None:
-        timestamp = get_timestamp().replace('-', '')
-        tmp_dir = tempfile.mkdtemp(
-            dir=config['tmp_dir'],
-            prefix=f'cell_type_mapper_{timestamp}_')
-    else:
-        tmp_dir = None
-
-    if output_path is not None:
-        output_path = pathlib.Path(output_path)
-
-    if hdf5_output_path is not None:
-        hdf5_output_path = pathlib.Path(hdf5_output_path)
-
-    if log_path is not None:
-        log_path = pathlib.Path(log_path)
-
-    # check validity of output_path and log_path
-    for pth in (output_path, log_path):
-        if pth is not None:
-            if not pth.exists():
-                try:
-                    with open(pth, 'w') as out_file:
-                        out_file.write('junk')
-                    pth.unlink()
-                except FileNotFoundError:
-                    raise RuntimeError(
-                        "unable to write to "
-                        f"{pth.resolve().absolute()}")
-
-    try:
-        if config['tmp_dir'] is not None:
-            tmp_result_dir = tempfile.mkdtemp(
-                dir=config['tmp_dir'],
-                prefix='result_buffer_')
+        if self.args['tmp_dir'] is not None:
+            timestamp = get_timestamp().replace('-', '')
+            tmp_dir = tempfile.mkdtemp(
+                dir=self.args['tmp_dir'],
+                prefix=f'cell_type_mapper_{timestamp}_')
         else:
-            tmp_result_dir = tempfile.mkdtemp(
-                dir=config['extended_result_dir'],
-                prefix='result_buffer_')
-
-        output = _run_mapping(
-            config=config,
-            tmp_dir=tmp_dir,
-            tmp_result_dir=tmp_result_dir,
-            log=log)
-
-        if config['summary_metadata_path'] is not None:
-            n_mapped_cells = len(output['results'])
-            uns = read_uns_from_h5ad(
-                    config['query_path'])
-            n_total_genes = len(
-                    read_df_from_h5ad(
-                        config['query_path'],
-                        df_name='var'))
-
-            local_unmapped = output.pop('n_unmapped_genes')
-
-            if config['map_to_ensembl']:
-                n_mapped_genes = n_total_genes - local_unmapped
-            else:
-                gene_key = 'AIBS_CDM_n_mapped_genes'
-                if gene_key in uns:
-                    n_mapped_genes = uns[gene_key]
-                else:
-                    n_mapped_genes = len(
-                        read_df_from_h5ad(
-                            config['query_path'],
-                            df_name='var'))
-
-            with open(config['summary_metadata_path'], 'w') as dst:
-                dst.write(
-                    json.dumps(
-                        {
-                         'n_mapped_cells': int(n_mapped_cells),
-                         'n_mapped_genes': int(n_mapped_genes)
-                        },
-                        indent=2))
-
-        _clean_up(tmp_result_dir)
-        log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
-    except Exception:
-        traceback_msg = "an ERROR occurred ===="
-        traceback_msg += f"\n{traceback.format_exc()}\n"
-        log.add_msg(traceback_msg)
-        raise
-    finally:
-        _clean_up(tmp_dir)
-        log.info("CLEANING UP")
-        if log_path is not None:
-            log.write_log(log_path, cloud_safe=config['cloud_safe'])
-        output["config"] = metadata_config
-        output_log = copy.deepcopy(log.log)
-        if config['cloud_safe']:
-            output_log = sanitize_paths(output_log)
-        output["log"] = output_log
-
-        metadata = get_execution_metadata(
-            module_file=__file__,
-            t0=t0)
-        output['metadata'] = metadata
-
-        uns = read_uns_from_h5ad(config["query_path"])
-        if "AIBS_CDM_gene_mapping" in uns:
-            output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
+            tmp_dir = None
 
         if output_path is not None:
-            with open(output_path, "w") as out_file:
-                out_file.write(
-                    json.dumps(
-                        clean_for_json(output), indent=2
-                    )
-                )
+            output_path = pathlib.Path(output_path)
 
         if hdf5_output_path is not None:
-            blob_to_hdf5(
-                output_blob=output,
-                dst_path=hdf5_output_path)
+            hdf5_output_path = pathlib.Path(hdf5_output_path)
+
+        if log_path is not None:
+            log_path = pathlib.Path(log_path)
+
+        # check validity of output_path and log_path
+        for pth in (output_path, log_path):
+            if pth is not None:
+                if not pth.exists():
+                    try:
+                        with open(pth, 'w') as out_file:
+                            out_file.write('junk')
+                        pth.unlink()
+                    except FileNotFoundError:
+                        raise RuntimeError(
+                            "unable to write to "
+                            f"{pth.resolve().absolute()}")
+
+        try:
+            if self.args['tmp_dir'] is not None:
+                tmp_result_dir = tempfile.mkdtemp(
+                    dir=self.args['tmp_dir'],
+                    prefix='result_buffer_')
+            else:
+                tmp_result_dir = tempfile.mkdtemp(
+                    dir=self.args['extended_result_dir'],
+                    prefix='result_buffer_')
+
+            output = _run_mapping(
+                config=self.args,
+                tmp_dir=tmp_dir,
+                tmp_result_dir=tmp_result_dir,
+                log=log)
+
+            if self.args['summary_metadata_path'] is not None:
+                n_mapped_cells = len(output['results'])
+                uns = read_uns_from_h5ad(
+                        self.args['query_path'])
+                n_total_genes = len(
+                        read_df_from_h5ad(
+                            self.args['query_path'],
+                            df_name='var'))
+
+                local_unmapped = output.pop('n_unmapped_genes')
+
+                if self.args['map_to_ensembl']:
+                    n_mapped_genes = n_total_genes - local_unmapped
+                else:
+                    gene_key = 'AIBS_CDM_n_mapped_genes'
+                    if gene_key in uns:
+                        n_mapped_genes = uns[gene_key]
+                    else:
+                        n_mapped_genes = len(
+                            read_df_from_h5ad(
+                                self.args['query_path'],
+                                df_name='var'))
+
+                with open(self.args['summary_metadata_path'], 'w') as dst:
+                    dst.write(
+                        json.dumps(
+                            {
+                             'n_mapped_cells': int(n_mapped_cells),
+                             'n_mapped_genes': int(n_mapped_genes)
+                            },
+                            indent=2))
+
+            _clean_up(tmp_result_dir)
+            log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
+        except Exception:
+            traceback_msg = "an ERROR occurred ===="
+            traceback_msg += f"\n{traceback.format_exc()}\n"
+            log.add_msg(traceback_msg)
+            raise
+        finally:
+            _clean_up(tmp_dir)
+            log.info("CLEANING UP")
+            if log_path is not None:
+                log.write_log(log_path, cloud_safe=self.args['cloud_safe'])
+            output["config"] = metadata_config
+            output_log = copy.deepcopy(log.log)
+            if self.args['cloud_safe']:
+                output_log = sanitize_paths(output_log)
+            output["log"] = output_log
+
+            metadata = get_execution_metadata(
+                module_file=__file__,
+                t0=t0)
+            output['metadata'] = metadata
+
+            uns = read_uns_from_h5ad(self.args["query_path"])
+            if "AIBS_CDM_gene_mapping" in uns:
+                output["gene_identifier_mapping"] = uns["AIBS_CDM_gene_mapping"]
+
+            if output_path is not None:
+                with open(output_path, "w") as out_file:
+                    out_file.write(
+                        json.dumps(
+                            clean_for_json(output), indent=2
+                        )
+                    )
+
+            if hdf5_output_path is not None:
+                blob_to_hdf5(
+                    output_blob=output,
+                    dst_path=hdf5_output_path)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
