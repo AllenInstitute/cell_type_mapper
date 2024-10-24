@@ -71,17 +71,9 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = FromSpecifiedMarkersSchema
 
     def run(self):
+        self.run_mapping()
 
-        self.run_mapping(
-            output_path=self.args['extended_result_path'],
-            log_path=self.args['log_path'],
-            hdf5_output_path=self.args['hdf5_result_path'])
-
-    def run_mapping(
-            self,
-            output_path,
-            log_path=None,
-            hdf5_output_path=None):
+    def run_mapping(self):
         t0 = time.time()
         metadata_config = copy.deepcopy(self.args)
         if self.args['cloud_safe']:
@@ -111,14 +103,20 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         else:
             tmp_dir = None
 
-        if output_path is not None:
-            output_path = pathlib.Path(output_path)
+        if self.args['extended_result_path'] is not None:
+            output_path = pathlib.Path(self.args['extended_result_path'])
+        else:
+            output_path = None
 
-        if hdf5_output_path is not None:
-            hdf5_output_path = pathlib.Path(hdf5_output_path)
+        if self.args['hdf5_result_path'] is not None:
+            hdf5_output_path = pathlib.Path(self.args['hdf5_result_path'])
+        else:
+            hdf5_output_path = None
 
-        if log_path is not None:
-            log_path = pathlib.Path(log_path)
+        if self.args['log_path'] is not None:
+            log_path = pathlib.Path(self.args['log_path'])
+        else:
+            log_path = None
 
         # check validity of output_path and log_path
         for pth in (output_path, log_path):
