@@ -386,8 +386,8 @@ def test_otf_config_consistency(
     baseline_mapping = json.load(open(baseline_output, 'rb'))
 
     blob = hdf5_to_blob(hdf5_path)
-    #assert blob['config'] == baseline_mapping['config']
-    #assert blob['metadata'] == baseline_mapping['metadata']
+    assert blob['config'] == baseline_mapping['config']
+    assert blob['metadata'] == baseline_mapping['metadata']
 
     test_config = copy.deepcopy(baseline_mapping['config'])
     test_output = mkstemp_clean(
@@ -437,8 +437,8 @@ def test_otf_config_consistency(
         runner.run()
         test_mapping = json.load(open(test_output, 'rb'))
         blob = hdf5_to_blob(test_config['hdf5_result_path'])
-        #assert blob['config'] == test_mapping['config']
-        #assert blob['metadata'] == test_mapping['metadata']
+        assert blob['config'] == test_mapping['config']
+        assert blob['metadata'] == test_mapping['metadata']
 
         # make sure result changed where expected
         assert test_mapping['results'] != baseline_mapping['results']
