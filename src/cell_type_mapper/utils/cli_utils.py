@@ -1,5 +1,9 @@
+import copy
 import pathlib
 import time
+
+from cell_type_mapper.utils.cloud_utils import (
+    sanitize_paths)
 
 from cell_type_mapper.gene_id.utils import detect_species
 
@@ -113,3 +117,29 @@ def create_precomputed_stats_file(
         normalization=precomputed_config['normalization'])
     log.benchmark(msg="precomputing stats",
                   duration=time.time()-t0)
+
+
+def config_from_args(input_config, cloud_safe=False):
+    """
+    Take args from a CLI module and return a config dict
+    suitable for recording in the output file's metadata.
+
+    Parameters
+    ----------
+    input_config:
+        a dict. self.args from an ArgSchemaParser
+    cloud_safe:
+        boolean. If true, clip all file paths to only reference
+        the file's name (not it's directory)
+    """
+    config = copy.deepcopy(input_config)
+    for bad_key in ('input_json',):
+        if bad_key in config:
+            config.pop(bad_key)
+
+    if cloud_safe:
+        for bad_key in ('extended_result_dir', 'tmp_dir'):
+            if bad_key in config:
+                config.pop(bad_key)
+        config = sanitize_paths(config)
+    return config
