@@ -6,6 +6,7 @@ the June 2023 ABC Atlas data release
 import pytest
 
 import anndata
+import copy
 import h5py
 import itertools
 import json
@@ -830,3 +831,147 @@ def test_precompute_cli_incomplete_cell_metadata(
             runner.run()
     else:
         runner.run()
+
+
+
+@pytest.fixture
+def h5ad_path_list_alt_layer_fixture(
+        request,
+        h5ad_path_list_fixture,
+        tmp_dir_fixture):
+    """
+    Write out alternate set of h5ad files where data is
+    recorded in different layers.
+    """
+    layer = request.param
+    result_path_list = []
+    for src_path in h5ad_path_list_fixture:
+        src = anndata.read_h5ad(src_path, backed='r')
+        dst_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix=f'h5ad_alt_layer_',
+            suffix='.h5ad'
+        )
+        xx = np.zeros(src.X.shape, dtype=int)
+        if layer == 'dummy':
+            layers = {'dummy': src.X[()]}
+            raw = None
+        elif layer == 'raw':
+            layers = None
+            raw = {'X': src.X[()]}
+        else:
+            raise RuntimeError(
+                f"Test cannot parse layer '{layer}'"
+            )
+        dst = anndata.AnnData(
+            X=xx,
+            obs=src.obs,
+            var=src.var,
+            layers=layers,
+            raw=raw
+        )
+        dst.write_h5ad(dst_path)
+        result_path_list.append(dst_path)
+    return {'path': result_path_list, 'layer': layer}
+
+
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,h5ad_path_list_alt_layer_fixture",
+    itertools.product(
+        [True, False],
+        [True, False],
+        ['dummy', 'raw']),
+    indirect=['h5ad_path_list_alt_layer_fixture'])
+def test_precompute_cli_from_layers(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_fixture,
+        h5ad_path_list_alt_layer_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset):
+    """
+    Run the precomputation CLI twice, once on data stored in X;
+    once on identical data stored in another layer. Verify that
+    the two results are equal.
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    test_output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    baseline_output_path = mkstemp_clean(
+        dir=baseline_output_dir,
+        suffix='.h5')
+
+    test_output_path = mkstemp_clean(
+        dir=test_output_dir,
+        suffix='.h5')
+
+    full_alt_list = h5ad_path_list_alt_layer_fixture['path']
+    layer = h5ad_path_list_alt_layer_fixture['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
+
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+        alt_h5ad_list = [full_alt_list[0],
+                         full_alt_list[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+        alt_h5ad_list = full_alt_list
+
+    baseline_config = {
+        'output_path': baseline_output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'layer': 'X'}
+
+    baseline_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=baseline_config
+    )
+
+    baseline_runner.run()
+
+    test_config = copy.deepcopy(baseline_config)
+    test_config.pop('output_path')
+    test_config.pop('h5ad_path_list')
+    test_config.pop('layer')
+
+    test_config['output_path'] = test_output_path
+    test_config['h5ad_path_list'] = alt_h5ad_list
+    test_config['layer'] = layer
+
+    test_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=test_config
+    )
+
+    test_runner.run()
+
+    if not split_by_dataset:
+        with h5py.File(baseline_output_path, 'r') as base:
+            with h5py.File(test_output_path, 'r') as test:
+                for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                    np.testing.assert_allclose(
+                        base[k][()],
+                        test[k][()],
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )
+                for k in ('cluster_to_row', 'col_names'):
+                    assert base[k][()] == test[k][()]
