@@ -282,11 +282,11 @@ def create_h5ad(
         layers = None
         raw = None
     elif layer == 'dummy':
-        xx = np.zeros(shape(x), dtype=int)
+        xx = np.zeros(x.shape, dtype=int)
         layers = {'dummy': data}
         raw = None
     elif layer == 'raw':
-        xx = np.zeros(shape(x), dtype=int)
+        xx = np.zeros(x.shape, dtype=int)
         layers = None
         raw = {'X': data}
     else:
@@ -330,11 +330,11 @@ def create_many_h5ad(
            layers = None
            raw = None
        elif layer == 'dummy':
-           xx = np.zeros(x.shape, dtype=int)
+           xx = np.zeros(this_x.shape, dtype=int)
            layers = {'dummy': csr}
            raw = None
        elif layer == 'raw':
-           xx = np.zeros(x.shape, dtype=int)
+           xx = np.zeros(this_x.shape, dtype=int)
            layers = None
            raw = {'X': csr}
        else:
@@ -367,8 +367,18 @@ def h5ad_input_path(
         x_fixture):
 
     dataset = request.param['dataset']
+
     layer = request.param['layer']
-    output_layer = layer
+
+    # output_layer is the layer where we will
+    # instruct the precomputation function to
+    # look for data
+    if layer == 'X':
+        output_layer = 'X'
+    elif layer == 'dummy':
+        output_layer = 'dummy'
+    elif layer == 'raw':
+        output_layer = 'raw/X'
 
     if dataset == 'raw_data':
         return {'path': create_h5ad(
@@ -412,8 +422,16 @@ def h5ad_input_path(
         itertools.product(
             [{'dataset': 'raw_data',
               'layer': 'X'},
-              {'dataset': 'log2_data',
-               'layer': 'X'}],
+             {'dataset': 'log2_data',
+              'layer': 'X'},
+             {'dataset': 'raw_data',
+              'layer': 'dummy'},
+             {'dataset': 'log2_data',
+              'layer': 'dummy'},
+             {'dataset': 'raw_data',
+             'layer': 'raw'},
+             {'dataset': 'log2_data',
+              'layer': 'raw'}],
             [1, 3]),
         indirect=['h5ad_input_path'])
 def test_precompute_from_data(
@@ -447,7 +465,8 @@ def test_precompute_from_data(
         rows_at_a_time=13,
         normalization=normalization,
         n_processors=n_processors,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        layer=layer)
 
     expected_tree = get_taxonomy_tree(
         obs_records=records_fixture,
@@ -510,8 +529,16 @@ def test_precompute_from_data(
         'h5ad_input_path',
         [{'dataset': 'raw_data',
           'layer': 'X'},
-          {'dataset': 'log2_data',
-           'layer': 'X'}],
+         {'dataset': 'log2_data',
+          'layer': 'X'},
+         {'dataset': 'raw_data',
+          'layer': 'dummy'},
+         {'dataset': 'log2_data',
+          'layer': 'dummy'},
+         {'dataset': 'raw_data',
+          'layer': 'raw'},
+         {'dataset': 'log2_data',
+          'layer': 'raw'}],
         indirect=['h5ad_input_path'])
 def test_serialization_of_actual_precomputed_stats(
         h5ad_input_path,
@@ -543,7 +570,8 @@ def test_serialization_of_actual_precomputed_stats(
         rows_at_a_time=13,
         normalization=normalization,
         n_processors=n_processors,
-        tmp_dir=tmp_dir_fixture)
+        tmp_dir=tmp_dir_fixture,
+        layer=layer)
 
     uns_path = mkstemp_clean(
         dir=tmp_dir,
@@ -612,7 +640,15 @@ def test_serialization_of_actual_precomputed_stats(
             [{'dataset': 'raw_data_list',
               'layer': 'X'},
              {'dataset': 'log2_data_list',
-              'layer': 'X'}],
+              'layer': 'X'},
+             {'dataset': 'raw_data_list',
+              'layer': 'dummy'},
+             {'dataset': 'log2_data_list',
+              'layer': 'dummy'},
+             {'dataset': 'raw_data_list',
+              'layer': 'raw'},
+             {'dataset': 'log2_data_list',
+              'layer': 'raw'}],
             [True, False],
             [1, 3],
             [True, False]),
@@ -680,7 +716,8 @@ def test_precompute_from_many_h5ad_with_lookup(
         normalization=normalization,
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
-        copy_data_over=copy_data_over)
+        copy_data_over=copy_data_over,
+        layer=layer)
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:
@@ -763,7 +800,15 @@ def test_precompute_from_many_h5ad_with_lookup(
             [{'dataset': 'raw_data_list',
               'layer': 'X'},
              {'dataset': 'log2_data_list',
-              'layer': 'X'}],
+              'layer': 'X'},
+             {'dataset': 'raw_data_list',
+              'layer': 'dummy'},
+             {'dataset': 'log2_data_list',
+              'layer': 'dummy'},
+             {'dataset': 'raw_data_list',
+              'layer': 'raw'},
+             {'dataset': 'log2_data_list',
+              'layer': 'raw'}],
             [True, False],
             [1, 3],
             [True, False]),
@@ -835,7 +880,8 @@ def test_precompute_from_many_h5ad_with_tree(
         cell_set=cell_set,
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
-        copy_data_over=copy_data_over)
+        copy_data_over=copy_data_over,
+        layer=layer)
 
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
