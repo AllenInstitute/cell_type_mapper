@@ -309,7 +309,9 @@ def amalgamate_h5ad(
             'path': /path/to/src/file
             'rows': [ordered list of rows from that file]
             'layer': either 'X' or 'some_layer', in which case data is
-                     read from 'layers/some_layer'
+                     read from 'layers/{some_layer}' (unless '/' is in
+                     the layer specification, as in 'raw/X', in which
+                     case layer is read directly from that location)
         }
 
     dst_path:
@@ -360,10 +362,14 @@ def _amalgamate_h5ad(
     # the same dtype
     data_dtype_map = dict()
     for packet in src_rows:
+
         if packet['layer'] == 'X':
             layer = 'X'
+        elif '/' in packet['layer']:
+            layer = packet['layer']
         else:
             layer = f'layers/{packet["layer"]}'
+
         with h5py.File(packet['path'], 'r') as src:
             attrs = dict(src[layer].attrs)
             if attrs['encoding-type'] == 'array':

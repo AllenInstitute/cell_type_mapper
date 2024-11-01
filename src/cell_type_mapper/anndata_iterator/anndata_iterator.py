@@ -62,8 +62,17 @@ class AnnDataRowIterator(object):
     row_chunk_size:
         Number of rows to deliver per chunk
     layer:
-        The layer of the h5ad file we are iterating over
-        If not 'X', then look for data in 'layers/{layer}'
+        The layer of the h5ad file we are iterating over.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
+
     tmp_dir:
         Optional scratch directory. This is where a hypothetical
         CSC file will be written as a CSR file. If None, the
@@ -87,6 +96,8 @@ class AnnDataRowIterator(object):
             keep_open=True):
 
         if layer == 'X':
+            self._layer = layer
+        elif '/' in layer:
             self._layer = layer
         else:
             self._layer = f'layers/{layer}'

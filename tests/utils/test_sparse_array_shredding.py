@@ -22,7 +22,7 @@ from cell_type_mapper.utils.anndata_utils import (
 @pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
     itertools.product(
         [np.uint8, np.uint16, np.int16, float],
-        ['X', 'dummy'],
+        ['X', 'dummy', 'raw/X'],
         ['csr', 'csc', 'dense'],
         [True, False]))
 def test_csr_amalgamation(
@@ -87,15 +87,28 @@ def test_csr_amalgamation(
         if layer == 'X':
             x = data
             layers = None
-        else:
+            raw = None
+        elif layer == 'dummy':
             x = np.zeros(data.shape, dtype=int)
             layers = {layer: data}
+            raw = None
+        elif layer == 'raw/X':
+            x = np.zeros(data.shape, dtype=int)
+            layers = None
+            raw = {'X': data}
+        else:
+            raise RuntimeError(
+                f"Test does not know how to parse layer '{layer}'"
+            )
 
         a_data = anndata.AnnData(
             X=x,
             layers=layers,
+            raw=raw,
             dtype=data_dtype)
+
         a_data.write_h5ad(this_path)
+
         del a_data
 
         src_rows.append(
@@ -150,7 +163,7 @@ def test_csr_amalgamation(
 @pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
     itertools.product(
         [np.uint8, np.uint16, np.int16, float],
-        ['X', 'dummy'],
+        ['X', 'dummy', 'raw/X'],
         ['csr', 'csc', 'dense'],
         [True, False]))
 def test_csr_anndata_amalgamation(
@@ -216,15 +229,28 @@ def test_csr_anndata_amalgamation(
         if layer == 'X':
             x = data
             layers = None
-        else:
+            raw = None
+        elif layer == 'dummy':
             x = np.zeros(data.shape, dtype=int)
             layers = {layer: data}
+            raw = None
+        elif layer == 'raw/X':
+            x = np.zeros(data.shape, dtype=int)
+            layers = None
+            raw = {'X': data}
+        else:
+            raise RuntimeError(
+                f"Test does not know how to parse layer '{layer}'"
+            )
 
         a_data = anndata.AnnData(
             X=x,
             layers=layers,
+            raw=raw,
             dtype=data_dtype)
+
         a_data.write_h5ad(this_path)
+
         del a_data
 
         src_rows.append(
@@ -280,7 +306,7 @@ def test_csr_anndata_amalgamation(
         rtol=1.0e-6)
 
 
-@pytest.mark.parametrize('layer', ['X', 'dummy'])
+@pytest.mark.parametrize('layer', ['X', 'dummy', 'raw/X'])
 def test_failure_when_many_floats(tmp_dir_fixture, layer):
     """
     Test that amalgamation fails when the input arrays
@@ -322,15 +348,28 @@ def test_failure_when_many_floats(tmp_dir_fixture, layer):
         if layer == 'X':
             x = scipy_sparse.csr_matrix(data)
             layers = None
-        else:
+            raw = None
+        elif layer == 'dummy':
             x = np.zeros(data.shape, dtype=int)
             layers = {layer: scipy_sparse.csr_matrix(data.astype(data_dtype))}
+            raw = None
+        elif layer == 'raw/X':
+            x = np.zeros(data.shape, dtype=int)
+            layers = None
+            raw = {'X': scipy_sparse.csr_matrix(data.astype(data_dtype))}
+        else:
+            raise RuntimeError(
+                f"Test does not know how to parse layer '{layer}'"
+            )
 
         a_data = anndata.AnnData(
             X=x,
             layers=layers,
+            raw=raw,
             dtype=data_dtype)
+
         a_data.write_h5ad(this_path)
+
         del a_data
 
         src_rows.append(

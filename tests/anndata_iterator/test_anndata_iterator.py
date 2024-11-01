@@ -230,18 +230,23 @@ def test_anndata_row_iterator_get_chunk(
 
 
 @pytest.mark.parametrize(
-    "density,with_tmp",
+    "density,with_tmp,in_raw",
     [
-        ('dense', False),
-        ('csr', False),
-        ('csc', False),
-        ('csc', True)
+        ('dense', False, False),
+        ('csr', False, False),
+        ('csc', False, False),
+        ('csc', True, False),
+        ('dense', False, True),
+        ('csr', False, True),
+        ('csc', False, True),
+        ('csc', True, True)
     ]
 )
 def test_anndata_iterator_from_layer(
         tmp_dir_fixture,
         density,
-        with_tmp):
+        with_tmp,
+        in_raw):
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -270,9 +275,19 @@ def test_anndata_iterator_from_layer(
     else:
         raise RuntimeError(f"cannot handle density {density}")
 
+    if in_raw:
+        layers = None
+        raw = {'X': layer_data}
+        layer_key = 'raw/X'
+    else:
+        layers = {'dummy': layer_data}
+        raw = None
+        layer_key = 'dummy'
+
     a = anndata.AnnData(
         X=np.zeros((n_rows, n_cols), dtype=float),
-        layers={'dummy': layer_data})
+        layers=layers,
+        raw=raw)
 
     a.write_h5ad(
         h5ad_path,
@@ -289,7 +304,7 @@ def test_anndata_iterator_from_layer(
         h5ad_path=h5ad_path,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir,
-        layer='dummy')
+        layer=layer_key)
 
     for r0 in range(0, n_rows, chunk_size):
         r1 = min(n_rows, r0+chunk_size)
@@ -313,8 +328,11 @@ def test_anndata_iterator_from_layer(
             rtol=1.0e-6)
 
     for row in [55, 77, 112, 0, 45]:
+        chunk = iterator[row]
         np.testing.assert_allclose(
-            iterator[row][0][0,:],
+            chunk[0][0,:],
             data[row, :],
             atol=0.0,
             rtol=1.0e-6)
+        assert chunk[1] == row
+        assert chunk[2] == row+1
