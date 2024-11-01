@@ -89,7 +89,8 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 output_path=output_path,
                 cell_set=cell_set,
                 n_processors=self.args['n_processors'],
-                tmp_dir=self.args['tmp_dir'])
+                tmp_dir=self.args['tmp_dir'],
+                layer=self.args['layer'])
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['dataset'] = dataset

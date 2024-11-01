@@ -18,6 +18,22 @@ class PrecomputedStatsPathMixin(object):
         ))
 
 
+class LayerMixin(object):
+
+    layer = argschema.fields.String(
+        required=False,
+        default='X',
+        allow_none=False,
+        description=(
+            "The layer in the h5ad file from which data "
+            "will be read. If 'X', will read directly from "
+            "the 'X' object. If a string containing '/', e.g. "
+            "'raw/X', will read directly from that layer. If a "
+            "string like 'alt', then will look for the layer under "
+            "layers (i.e. as 'layers/alt')."
+        )
+    )
+
 class QueryPathMixinForSearch(object):
 
     query_path = argschema.fields.InputFile(
