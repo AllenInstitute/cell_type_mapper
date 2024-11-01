@@ -362,29 +362,45 @@ def many_raw_h5ad_fixture(
        path_list.append(this_path)
     return path_list
 
-@pytest.mark.parametrize(
-        'use_raw, n_processors',
-        itertools.product([True, False], [1, 3]))
-def test_precompute_from_data(
-        h5ad_path_fixture,
+
+@pytest.fixture
+def h5ad_input_path(
+        request,
         raw_h5ad_path_fixture,
+        h5ad_path_fixture,
+        many_raw_h5ad_fixture,
+        many_h5ad_fixture):
+
+    if request.param == 'raw_data':
+        return {'path': raw_h5ad_path_fixture, 'normalization': 'raw'}
+    elif request.param == 'log2_data':
+        return {'path': h5ad_path_fixture, 'normalization': 'log2CPM'}
+    elif request.param == 'raw_data_list':
+        return {'path': many_raw_h5ad_fixture, 'normalization': 'raw'}
+    elif request.param == 'log2_data_list':
+        return {'path': many_h5ad_fixture, 'normalization': 'log2CPM'}
+    else:
+        raise RuntimeError(
+            f"Cannot parse request {request}"
+        )
+
+@pytest.mark.parametrize(
+        'h5ad_input_path, n_processors',
+        itertools.product(['raw_data', 'log2_data'], [1, 3]),
+        indirect=['h5ad_input_path'])
+def test_precompute_from_data(
+        h5ad_input_path,
         records_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
-        use_raw,
         n_processors):
     """
     Test the generation of precomputed stats file.
 
     The test checks results against known answers.
     """
-
-    if use_raw:
-        h5ad_path = raw_h5ad_path_fixture
-        normalization = 'raw'
-    else:
-        h5ad_path = h5ad_path_fixture
-        normalization = 'log2CPM'
+    h5ad_path = h5ad_input_path['path']
+    normalization = h5ad_input_path['normalization']
 
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
@@ -462,23 +478,19 @@ def test_precompute_from_data(
 
 
 @pytest.mark.parametrize(
-        'use_raw', [True, False])
+        'h5ad_input_path',
+        ['raw_data', 'log2_data'],
+        indirect=['h5ad_input_path'])
 def test_serialization_of_actual_precomputed_stats(
-        h5ad_path_fixture,
-        raw_h5ad_path_fixture,
-        tmp_dir_fixture,
-        use_raw):
+        h5ad_input_path,
+        tmp_dir_fixture):
     """
     Test that serialization to uns works on an actual
     precomputed stats file
     """
 
-    if use_raw:
-        h5ad_path = raw_h5ad_path_fixture
-        normalization = 'raw'
-    else:
-        h5ad_path = h5ad_path_fixture
-        normalization = 'log2CPM'
+    h5ad_path = h5ad_input_path['path']
+    normalization = h5ad_input_path['normalization']
 
     n_processors = 1
 
@@ -562,19 +574,19 @@ def test_serialization_of_actual_precomputed_stats(
 
 
 @pytest.mark.parametrize(
-        'use_raw, omit_clusters, n_processors, copy_data_over',
-        itertools.product([True, False],
-                          [True, False],
-                          [1, 3],
-                          [True, False]))
+        'h5ad_input_path, omit_clusters, n_processors, copy_data_over',
+        itertools.product(
+            ['raw_data_list', 'log2_data_list'],
+            [True, False],
+            [1, 3],
+            [True, False]),
+        indirect=['h5ad_input_path'])
 def test_precompute_from_many_h5ad_with_lookup(
-        many_h5ad_fixture,
-        many_raw_h5ad_fixture,
         records_fixture,
         obs_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
-        use_raw,
+        h5ad_input_path,
         omit_clusters,
         n_processors,
         copy_data_over):
@@ -586,12 +598,8 @@ def test_precompute_from_many_h5ad_with_lookup(
 
     if omit_clusters, drop some clusters from the lookup table
     """
-    if use_raw:
-        path_list = many_raw_h5ad_fixture
-        normalization = 'raw'
-    else:
-        path_list = many_h5ad_fixture
-        normalization = 'log2CPM'
+    path_list = h5ad_input_path['path']
+    normalization = h5ad_input_path['normalization']
 
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
@@ -713,22 +721,21 @@ def test_precompute_from_many_h5ad_with_lookup(
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('use_raw,use_cell_set,n_processors,copy_data_over',
+@pytest.mark.parametrize('h5ad_input_path,use_cell_set,n_processors,copy_data_over',
         itertools.product(
-            [True, False],
+            ['raw_data_list', 'log2_data_list'],
             [True, False],
             [1, 3],
-            [True, False]))
+            [True, False]),
+        indirect=['h5ad_input_path'])
 def test_precompute_from_many_h5ad_with_tree(
-        many_h5ad_fixture,
-        many_raw_h5ad_fixture,
+        h5ad_input_path,
         records_fixture,
         obs_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
         baseline_stats_fixture_limited_cells,
         cell_set_fixture,
-        use_raw,
         use_cell_set,
         n_processors,
         copy_data_over):
@@ -738,12 +745,8 @@ def test_precompute_from_many_h5ad_with_tree(
 
     The test checks results against known answers.
     """
-    if use_raw:
-        path_list = many_raw_h5ad_fixture
-        normalization = 'raw'
-    else:
-        path_list = many_h5ad_fixture
-        normalization = 'log2CPM'
+    path_list = h5ad_input_path['path']
+    normalization = h5ad_input_path['normalization']
 
     if use_cell_set:
         cell_set = cell_set_fixture
