@@ -103,7 +103,10 @@ class AnnDataRowIterator(object):
             self._layer = f'layers/{layer}'
 
         self.log = log
+
+        # will only be set later, if needed
         self.tmp_dir = None
+
         self.max_gb = max_gb
         h5ad_path = pathlib.Path(h5ad_path)
         if not h5ad_path.is_file():
