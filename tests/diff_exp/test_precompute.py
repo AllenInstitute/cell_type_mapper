@@ -186,42 +186,24 @@ def x_fixture(raw_x_fixture):
     return np.log2(cpm_data+1.0)
 
 
-@pytest.fixture
-def h5ad_path_fixture(
-        obs_fixture,
-        x_fixture,
-        tmp_dir_fixture):
-    tmp_dir = pathlib.Path(
-        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='anndata_'))
-    a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x_fixture),
-                             obs=obs_fixture,
-                             dtype=x_fixture.dtype)
-    h5ad_path = tmp_dir / 'h5ad_file.h5ad'
-    a_data.write_h5ad(h5ad_path)
-    import h5py
-    with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
-        d = in_file['X']['data']
-    yield h5ad_path
-    _clean_up(tmp_dir)
+def create_h5ad(
+        obs,
+        x,
+        tmp_dir):
 
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='h5ad_file_',
+        suffix='.h5ad'
+    )
 
-@pytest.fixture
-def raw_h5ad_path_fixture(
-        obs_fixture,
-        raw_x_fixture,
-        tmp_dir_fixture):
-    tmp_dir = pathlib.Path(
-        tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='raw_anndata'))
-    a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(raw_x_fixture),
-                             obs=obs_fixture,
-                             dtype=raw_x_fixture.dtype)
-    h5ad_path = tmp_dir / 'h5ad_file.h5ad'
+    a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x),
+                             obs=obs,
+                             dtype=x.dtype)
+
     a_data.write_h5ad(h5ad_path)
-    import h5py
-    with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
-        d = in_file['X']['data']
-    yield h5ad_path
-    _clean_up(tmp_dir)
+
+    return h5ad_path
 
 
 @pytest.fixture
@@ -301,16 +283,15 @@ def baseline_stats_fixture_limited_cells(
     return results
 
 
-@pytest.fixture
-def many_h5ad_fixture(
-        obs_fixture,
-        x_fixture,
-        tmp_dir_fixture):
+def create_many_h5ad(
+        obs,
+        x,
+        tmp_dir):
     """
     Store the data in multiple h5ad files;
     return a list to their paths
     """
-    idx_arr =np.arange(x_fixture.shape[0])
+    idx_arr =np.arange(x.shape[0])
     rng = np.random.default_rng(663344)
     rng.shuffle(idx_arr)
     n_per = len(idx_arr) // 4
@@ -319,38 +300,8 @@ def many_h5ad_fixture(
     for i0 in range(0, len(idx_arr), n_per):
        i1 = i0+n_per
        this_idx = idx_arr[i0:i1]
-       this_obs = obs_fixture.iloc[this_idx]
-       this_x = x_fixture[this_idx, :]
-       csr = scipy_sparse.csr_matrix(this_x)
-       this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
-       this_path = mkstemp_clean(
-           dir=tmp_dir_fixture,
-           prefix='broken_up_h5ad',
-           suffix='.h5ad')
-       this_a.write_h5ad(this_path)
-       path_list.append(this_path)
-    return path_list
-
-
-def create_many_raw_h5ad(
-        obs,
-        raw_x,
-        tmp_dir):
-    """
-    Store the data in multiple h5ad files;
-    return a list to their paths
-    """
-    idx_arr =np.arange(raw_x.shape[0])
-    rng = np.random.default_rng(456312)
-    rng.shuffle(idx_arr)
-    n_per = len(idx_arr) // 4
-    assert n_per > 2
-    path_list = []
-    for i0 in range(0, len(idx_arr), n_per):
-       i1 = i0+n_per
-       this_idx = idx_arr[i0:i1]
        this_obs = obs.iloc[this_idx]
-       this_x = raw_x[this_idx, :]
+       this_x = x[this_idx, :]
        csr = scipy_sparse.csr_matrix(this_x)
        this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
        this_path = mkstemp_clean(
@@ -365,25 +316,35 @@ def create_many_raw_h5ad(
 @pytest.fixture
 def h5ad_input_path(
         request,
-        raw_h5ad_path_fixture,
-        h5ad_path_fixture,
-        many_h5ad_fixture,
         tmp_dir_fixture,
         obs_fixture,
-        raw_x_fixture):
+        raw_x_fixture,
+        x_fixture):
 
     if request.param == 'raw_data':
-        return {'path': raw_h5ad_path_fixture, 'normalization': 'raw'}
-    elif request.param == 'log2_data':
-        return {'path': h5ad_path_fixture, 'normalization': 'log2CPM'}
-    elif request.param == 'raw_data_list':
-        return {'path': create_many_raw_h5ad(
+        return {'path': create_h5ad(
                             obs=obs_fixture,
-                            raw_x=raw_x_fixture,
+                            x=raw_x_fixture,
+                            tmp_dir=tmp_dir_fixture),
+                'normalization': 'raw'}
+    elif request.param == 'log2_data':
+        return {'path': create_h5ad(
+                            obs=obs_fixture,
+                            x=x_fixture,
+                            tmp_dir=tmp_dir_fixture),
+                'normalization': 'log2CPM'}
+    elif request.param == 'raw_data_list':
+        return {'path': create_many_h5ad(
+                            obs=obs_fixture,
+                            x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture),
                 'normalization': 'raw'}
     elif request.param == 'log2_data_list':
-        return {'path': many_h5ad_fixture, 'normalization': 'log2CPM'}
+        return {'path': create_many_h5ad(
+                            obs=obs_fixture,
+                            x=x_fixture,
+                            tmp_dir=tmp_dir_fixture),
+                'normalization': 'log2CPM'}
     else:
         raise RuntimeError(
             f"Cannot parse request {request}"
