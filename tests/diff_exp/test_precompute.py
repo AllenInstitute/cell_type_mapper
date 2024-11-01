@@ -332,16 +332,15 @@ def many_h5ad_fixture(
     return path_list
 
 
-@pytest.fixture
-def many_raw_h5ad_fixture(
-        obs_fixture,
-        raw_x_fixture,
-        tmp_dir_fixture):
+def create_many_raw_h5ad(
+        obs,
+        raw_x,
+        tmp_dir):
     """
     Store the data in multiple h5ad files;
     return a list to their paths
     """
-    idx_arr =np.arange(raw_x_fixture.shape[0])
+    idx_arr =np.arange(raw_x.shape[0])
     rng = np.random.default_rng(456312)
     rng.shuffle(idx_arr)
     n_per = len(idx_arr) // 4
@@ -350,12 +349,12 @@ def many_raw_h5ad_fixture(
     for i0 in range(0, len(idx_arr), n_per):
        i1 = i0+n_per
        this_idx = idx_arr[i0:i1]
-       this_obs = obs_fixture.iloc[this_idx]
-       this_x = raw_x_fixture[this_idx, :]
+       this_obs = obs.iloc[this_idx]
+       this_x = raw_x[this_idx, :]
        csr = scipy_sparse.csr_matrix(this_x)
        this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
        this_path = mkstemp_clean(
-           dir=tmp_dir_fixture,
+           dir=tmp_dir,
            prefix='broken_up_h5ad',
            suffix='.h5ad')
        this_a.write_h5ad(this_path)
@@ -368,15 +367,21 @@ def h5ad_input_path(
         request,
         raw_h5ad_path_fixture,
         h5ad_path_fixture,
-        many_raw_h5ad_fixture,
-        many_h5ad_fixture):
+        many_h5ad_fixture,
+        tmp_dir_fixture,
+        obs_fixture,
+        raw_x_fixture):
 
     if request.param == 'raw_data':
         return {'path': raw_h5ad_path_fixture, 'normalization': 'raw'}
     elif request.param == 'log2_data':
         return {'path': h5ad_path_fixture, 'normalization': 'log2CPM'}
     elif request.param == 'raw_data_list':
-        return {'path': many_raw_h5ad_fixture, 'normalization': 'raw'}
+        return {'path': create_many_raw_h5ad(
+                            obs=obs_fixture,
+                            raw_x=raw_x_fixture,
+                            tmp_dir=tmp_dir_fixture),
+                'normalization': 'raw'}
     elif request.param == 'log2_data_list':
         return {'path': many_h5ad_fixture, 'normalization': 'log2CPM'}
     else:
