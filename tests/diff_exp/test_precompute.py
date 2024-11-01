@@ -367,7 +367,8 @@ def h5ad_input_path(
         x_fixture):
 
     dataset = request.param['dataset']
-    layer = 'X'
+    layer = request.param['layer']
+    output_layer = layer
 
     if dataset == 'raw_data':
         return {'path': create_h5ad(
@@ -375,28 +376,32 @@ def h5ad_input_path(
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer),
-                'normalization': 'raw'}
+                'normalization': 'raw',
+                'layer': output_layer}
     elif dataset == 'log2_data':
         return {'path': create_h5ad(
                             obs=obs_fixture,
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer),
-                'normalization': 'log2CPM'}
+                'normalization': 'log2CPM',
+                'layer': output_layer}
     elif dataset == 'raw_data_list':
         return {'path': create_many_h5ad(
                             obs=obs_fixture,
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer),
-                'normalization': 'raw'}
+                'normalization': 'raw',
+                'layer': output_layer}
     elif dataset == 'log2_data_list':
         return {'path': create_many_h5ad(
                             obs=obs_fixture,
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer),
-                'normalization': 'log2CPM'}
+                'normalization': 'log2CPM',
+                'layer': output_layer}
     else:
         raise RuntimeError(
             f"Cannot parse request {request}"
@@ -405,7 +410,10 @@ def h5ad_input_path(
 @pytest.mark.parametrize(
         'h5ad_input_path, n_processors',
         itertools.product(
-            [{'dataset': 'raw_data'}, {'dataset': 'log2_data'}],
+            [{'dataset': 'raw_data',
+              'layer': 'X'},
+              {'dataset': 'log2_data',
+               'layer': 'X'}],
             [1, 3]),
         indirect=['h5ad_input_path'])
 def test_precompute_from_data(
@@ -421,6 +429,7 @@ def test_precompute_from_data(
     """
     h5ad_path = h5ad_input_path['path']
     normalization = h5ad_input_path['normalization']
+    layer = h5ad_input_path['layer']
 
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
@@ -499,7 +508,10 @@ def test_precompute_from_data(
 
 @pytest.mark.parametrize(
         'h5ad_input_path',
-        [{'dataset': 'raw_data'}, {'dataset': 'log2_data'}],
+        [{'dataset': 'raw_data',
+          'layer': 'X'},
+          {'dataset': 'log2_data',
+           'layer': 'X'}],
         indirect=['h5ad_input_path'])
 def test_serialization_of_actual_precomputed_stats(
         h5ad_input_path,
@@ -511,6 +523,7 @@ def test_serialization_of_actual_precomputed_stats(
 
     h5ad_path = h5ad_input_path['path']
     normalization = h5ad_input_path['normalization']
+    layer = h5ad_input_path['layer']
 
     n_processors = 1
 
@@ -596,7 +609,10 @@ def test_serialization_of_actual_precomputed_stats(
 @pytest.mark.parametrize(
         'h5ad_input_path, omit_clusters, n_processors, copy_data_over',
         itertools.product(
-            [{'dataset': 'raw_data_list'}, {'dataset': 'log2_data_list'}],
+            [{'dataset': 'raw_data_list',
+              'layer': 'X'},
+             {'dataset': 'log2_data_list',
+              'layer': 'X'}],
             [True, False],
             [1, 3],
             [True, False]),
@@ -620,6 +636,7 @@ def test_precompute_from_many_h5ad_with_lookup(
     """
     path_list = h5ad_input_path['path']
     normalization = h5ad_input_path['normalization']
+    layer = h5ad_input_path['layer']
 
     tmp_dir = pathlib.Path(
         tempfile.mkdtemp(dir=tmp_dir_fixture, prefix='stats'))
@@ -743,7 +760,10 @@ def test_precompute_from_many_h5ad_with_lookup(
 
 @pytest.mark.parametrize('h5ad_input_path,use_cell_set,n_processors,copy_data_over',
         itertools.product(
-            [{'dataset': 'raw_data_list'}, {'dataset': 'log2_data_list'}],
+            [{'dataset': 'raw_data_list',
+              'layer': 'X'},
+             {'dataset': 'log2_data_list',
+              'layer': 'X'}],
             [True, False],
             [1, 3],
             [True, False]),
@@ -767,6 +787,7 @@ def test_precompute_from_many_h5ad_with_tree(
     """
     path_list = h5ad_input_path['path']
     normalization = h5ad_input_path['normalization']
+    layer = h5ad_input_path['layer']
 
     if use_cell_set:
         cell_set = cell_set_fixture
