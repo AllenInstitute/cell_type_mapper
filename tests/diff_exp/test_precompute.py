@@ -186,26 +186,6 @@ def x_fixture(raw_x_fixture):
     return np.log2(cpm_data+1.0)
 
 
-def create_h5ad(
-        obs,
-        x,
-        tmp_dir):
-
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir,
-        prefix='h5ad_file_',
-        suffix='.h5ad'
-    )
-
-    a_data = anndata.AnnData(X=scipy_sparse.csr_matrix(x),
-                             obs=obs,
-                             dtype=x.dtype)
-
-    a_data.write_h5ad(h5ad_path)
-
-    return h5ad_path
-
-
 @pytest.fixture
 def baseline_stats_fixture(
         records_fixture,
@@ -283,10 +263,52 @@ def baseline_stats_fixture_limited_cells(
     return results
 
 
+def create_h5ad(
+        obs,
+        x,
+        tmp_dir,
+        layer):
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='h5ad_file_',
+        suffix='.h5ad'
+    )
+
+    data = scipy_sparse.csr_matrix(x)
+
+    if layer == 'X':
+        xx = data
+        layers = None
+        raw = None
+    elif layer == 'dummy':
+        xx = np.zeros(shape(x), dtype=int)
+        layers = {'dummy': data}
+        raw = None
+    elif layer == 'raw':
+        xx = np.zeros(shape(x), dtype=int)
+        layers = None
+        raw = {'X': data}
+    else:
+        raise RuntimeError(
+            "Test cannot parse layer '{layer}'"
+        )
+
+    a_data = anndata.AnnData(X=xx,
+                             obs=obs,
+                             layers=layers,
+                             raw=raw)
+
+    a_data.write_h5ad(h5ad_path)
+
+    return h5ad_path
+
+
 def create_many_h5ad(
         obs,
         x,
-        tmp_dir):
+        tmp_dir,
+        layer):
     """
     Store the data in multiple h5ad files;
     return a list to their paths
@@ -303,11 +325,34 @@ def create_many_h5ad(
        this_obs = obs.iloc[this_idx]
        this_x = x[this_idx, :]
        csr = scipy_sparse.csr_matrix(this_x)
-       this_a = anndata.AnnData(X=csr, obs=this_obs, dtype=this_x.dtype)
+       if layer == 'X':
+           xx = csr
+           layers = None
+           raw = None
+       elif layer == 'dummy':
+           xx = np.zeros(x.shape, dtype=int)
+           layers = {'dummy': csr}
+           raw = None
+       elif layer == 'raw':
+           xx = np.zeros(x.shape, dtype=int)
+           layers = None
+           raw = {'X': csr}
+       else:
+           raise RuntimeError(
+               f"Test cannot parse layer '{layer}'"
+           )
+
+       this_a = anndata.AnnData(
+           X=xx,
+           layers=layers,
+           raw=raw,
+           obs=this_obs)
+
        this_path = mkstemp_clean(
            dir=tmp_dir,
            prefix='broken_up_h5ad',
            suffix='.h5ad')
+
        this_a.write_h5ad(this_path)
        path_list.append(this_path)
     return path_list
@@ -321,29 +366,36 @@ def h5ad_input_path(
         raw_x_fixture,
         x_fixture):
 
-    if request.param == 'raw_data':
+    dataset = request.param['dataset']
+    layer = 'X'
+
+    if dataset == 'raw_data':
         return {'path': create_h5ad(
                             obs=obs_fixture,
                             x=raw_x_fixture,
-                            tmp_dir=tmp_dir_fixture),
+                            tmp_dir=tmp_dir_fixture,
+                            layer=layer),
                 'normalization': 'raw'}
-    elif request.param == 'log2_data':
+    elif dataset == 'log2_data':
         return {'path': create_h5ad(
                             obs=obs_fixture,
                             x=x_fixture,
-                            tmp_dir=tmp_dir_fixture),
+                            tmp_dir=tmp_dir_fixture,
+                            layer=layer),
                 'normalization': 'log2CPM'}
-    elif request.param == 'raw_data_list':
+    elif dataset == 'raw_data_list':
         return {'path': create_many_h5ad(
                             obs=obs_fixture,
                             x=raw_x_fixture,
-                            tmp_dir=tmp_dir_fixture),
+                            tmp_dir=tmp_dir_fixture,
+                            layer=layer),
                 'normalization': 'raw'}
-    elif request.param == 'log2_data_list':
+    elif dataset == 'log2_data_list':
         return {'path': create_many_h5ad(
                             obs=obs_fixture,
                             x=x_fixture,
-                            tmp_dir=tmp_dir_fixture),
+                            tmp_dir=tmp_dir_fixture,
+                            layer=layer),
                 'normalization': 'log2CPM'}
     else:
         raise RuntimeError(
@@ -352,7 +404,9 @@ def h5ad_input_path(
 
 @pytest.mark.parametrize(
         'h5ad_input_path, n_processors',
-        itertools.product(['raw_data', 'log2_data'], [1, 3]),
+        itertools.product(
+            [{'dataset': 'raw_data'}, {'dataset': 'log2_data'}],
+            [1, 3]),
         indirect=['h5ad_input_path'])
 def test_precompute_from_data(
         h5ad_input_path,
@@ -445,7 +499,7 @@ def test_precompute_from_data(
 
 @pytest.mark.parametrize(
         'h5ad_input_path',
-        ['raw_data', 'log2_data'],
+        [{'dataset': 'raw_data'}, {'dataset': 'log2_data'}],
         indirect=['h5ad_input_path'])
 def test_serialization_of_actual_precomputed_stats(
         h5ad_input_path,
@@ -542,7 +596,7 @@ def test_serialization_of_actual_precomputed_stats(
 @pytest.mark.parametrize(
         'h5ad_input_path, omit_clusters, n_processors, copy_data_over',
         itertools.product(
-            ['raw_data_list', 'log2_data_list'],
+            [{'dataset': 'raw_data_list'}, {'dataset': 'log2_data_list'}],
             [True, False],
             [1, 3],
             [True, False]),
@@ -689,7 +743,7 @@ def test_precompute_from_many_h5ad_with_lookup(
 
 @pytest.mark.parametrize('h5ad_input_path,use_cell_set,n_processors,copy_data_over',
         itertools.product(
-            ['raw_data_list', 'log2_data_list'],
+            [{'dataset': 'raw_data_list'}, {'dataset': 'log2_data_list'}],
             [True, False],
             [1, 3],
             [True, False]),
