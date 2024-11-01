@@ -313,8 +313,11 @@ def test_anndata_iterator_from_layer(
             rtol=1.0e-6)
 
     for row in [55, 77, 112, 0, 45]:
+        chunk = iterator[row]
         np.testing.assert_allclose(
-            iterator[row][0][0,:],
+            chunk[0][0,:],
             data[row, :],
             atol=0.0,
             rtol=1.0e-6)
+        assert chunk[1] == row
+        assert chunk[2] == row+1
