@@ -459,7 +459,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
             dst_path=new_pth,
             tmp_dir=tmp_dir,
             max_gb=10,
-            layer=layer
+            layer=layer,
+            n_processors=min(n_processors, 3)
         )
         csr_path_list.append(new_pth)
 
