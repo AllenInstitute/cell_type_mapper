@@ -267,7 +267,8 @@ def create_h5ad(
         obs,
         x,
         tmp_dir,
-        layer):
+        layer,
+        density):
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir,
@@ -275,7 +276,16 @@ def create_h5ad(
         suffix='.h5ad'
     )
 
-    data = scipy_sparse.csr_matrix(x)
+    if density == 'csr':
+        data = scipy_sparse.csr_matrix(x)
+    elif density == 'csc':
+        data = scipy_sparse.csc_matrix(x)
+    elif density == 'dense':
+        data = x
+    else:
+        raise RuntimeError(
+            f"Cannot parse density {density}"
+        )
 
     if layer == 'X':
         xx = data
@@ -308,7 +318,8 @@ def create_many_h5ad(
         obs,
         x,
         tmp_dir,
-        layer):
+        layer,
+        density):
     """
     Store the data in multiple h5ad files;
     return a list to their paths
@@ -324,19 +335,30 @@ def create_many_h5ad(
        this_idx = idx_arr[i0:i1]
        this_obs = obs.iloc[this_idx]
        this_x = x[this_idx, :]
-       csr = scipy_sparse.csr_matrix(this_x)
+
+       if density == 'csr':
+           data = scipy_sparse.csr_matrix(this_x)
+       elif density == 'csc':
+           data = scipy_sparse.csc_matrix(this_x)
+       elif density == 'dense':
+           data = this_x
+       else:
+           raise RuntimeError(
+               f"Cannot parse density {density}"
+           )
+
        if layer == 'X':
-           xx = csr
+           xx = data
            layers = None
            raw = None
        elif layer == 'dummy':
            xx = np.zeros(this_x.shape, dtype=int)
-           layers = {'dummy': csr}
+           layers = {'dummy': data}
            raw = None
        elif layer == 'raw':
            xx = np.zeros(this_x.shape, dtype=int)
            layers = None
-           raw = {'X': csr}
+           raw = {'X': data}
        else:
            raise RuntimeError(
                f"Test cannot parse layer '{layer}'"
@@ -360,15 +382,17 @@ def create_many_h5ad(
 
 @pytest.fixture
 def h5ad_input_path(
-        request,
+        dataset_fixture,
+        layer_fixture,
+        density_fixture,
         tmp_dir_fixture,
         obs_fixture,
         raw_x_fixture,
         x_fixture):
 
-    dataset = request.param['dataset']
-
-    layer = request.param['layer']
+    dataset = dataset_fixture
+    layer = layer_fixture
+    density = density_fixture
 
     # output_layer is the layer where we will
     # instruct the precomputation function to
@@ -385,7 +409,8 @@ def h5ad_input_path(
                             obs=obs_fixture,
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
-                            layer=layer),
+                            layer=layer,
+                            density=density),
                 'normalization': 'raw',
                 'layer': output_layer}
     elif dataset == 'log2_data':
@@ -393,7 +418,8 @@ def h5ad_input_path(
                             obs=obs_fixture,
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
-                            layer=layer),
+                            layer=layer,
+                            density=density),
                 'normalization': 'log2CPM',
                 'layer': output_layer}
     elif dataset == 'raw_data_list':
@@ -401,7 +427,8 @@ def h5ad_input_path(
                             obs=obs_fixture,
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
-                            layer=layer),
+                            layer=layer,
+                            density=density),
                 'normalization': 'raw',
                 'layer': output_layer}
     elif dataset == 'log2_data_list':
@@ -409,7 +436,8 @@ def h5ad_input_path(
                             obs=obs_fixture,
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
-                            layer=layer),
+                            layer=layer,
+                            density=density),
                 'normalization': 'log2CPM',
                 'layer': output_layer}
     else:
@@ -417,26 +445,37 @@ def h5ad_input_path(
             f"Cannot parse request {request}"
         )
 
+
+@pytest.fixture
+def dataset_fixture(request):
+    return request.param
+
+
+@pytest.fixture
+def layer_fixture(request):
+    return request.param
+
+
+@pytest.fixture
+def density_fixture(request):
+    return request.param
+
+
 @pytest.mark.parametrize(
-        'h5ad_input_path, n_processors',
+        'dataset_fixture, layer_fixture, density_fixture, n_processors',
         itertools.product(
-            [{'dataset': 'raw_data',
-              'layer': 'X'},
-             {'dataset': 'log2_data',
-              'layer': 'X'},
-             {'dataset': 'raw_data',
-              'layer': 'dummy'},
-             {'dataset': 'log2_data',
-              'layer': 'dummy'},
-             {'dataset': 'raw_data',
-             'layer': 'raw'},
-             {'dataset': 'log2_data',
-              'layer': 'raw'}],
-            [1, 3]),
-        indirect=['h5ad_input_path'])
+            ['raw_data', 'log2_data'],
+            ['X', 'dummy', 'raw'],
+            ['csc', 'csr', 'dense'],
+            [1, 3]
+        ),
+        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
 def test_precompute_from_data(
         h5ad_input_path,
+        layer_fixture,
+        dataset_fixture,
         records_fixture,
+        density_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
         n_processors):
@@ -526,22 +565,18 @@ def test_precompute_from_data(
 
 
 @pytest.mark.parametrize(
-        'h5ad_input_path',
-        [{'dataset': 'raw_data',
-          'layer': 'X'},
-         {'dataset': 'log2_data',
-          'layer': 'X'},
-         {'dataset': 'raw_data',
-          'layer': 'dummy'},
-         {'dataset': 'log2_data',
-          'layer': 'dummy'},
-         {'dataset': 'raw_data',
-          'layer': 'raw'},
-         {'dataset': 'log2_data',
-          'layer': 'raw'}],
-        indirect=['h5ad_input_path'])
+        'dataset_fixture, layer_fixture, density_fixture',
+        itertools.product(
+            ['raw_data', 'log2_data'],
+            ['X', 'dummy', 'raw'],
+            ['csc', 'csr', 'dense']
+        ),
+        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
 def test_serialization_of_actual_precomputed_stats(
         h5ad_input_path,
+        dataset_fixture,
+        layer_fixture,
+        density_fixture,
         tmp_dir_fixture):
     """
     Test that serialization to uns works on an actual
@@ -635,30 +670,24 @@ def test_serialization_of_actual_precomputed_stats(
 
 
 @pytest.mark.parametrize(
-        'h5ad_input_path, omit_clusters, n_processors, copy_data_over',
+        'dataset_fixture, layer_fixture, density_fixture, omit_clusters, n_processors, copy_data_over',
         itertools.product(
-            [{'dataset': 'raw_data_list',
-              'layer': 'X'},
-             {'dataset': 'log2_data_list',
-              'layer': 'X'},
-             {'dataset': 'raw_data_list',
-              'layer': 'dummy'},
-             {'dataset': 'log2_data_list',
-              'layer': 'dummy'},
-             {'dataset': 'raw_data_list',
-              'layer': 'raw'},
-             {'dataset': 'log2_data_list',
-              'layer': 'raw'}],
+            ['raw_data_list', 'log2_data_list'],
+            ['X', 'dummy', 'raw'],
+            ['csc', 'csr', 'dense'],
             [True, False],
             [1, 3],
             [True, False]),
-        indirect=['h5ad_input_path'])
+        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
 def test_precompute_from_many_h5ad_with_lookup(
         records_fixture,
         obs_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
         h5ad_input_path,
+        dataset_fixture,
+        layer_fixture,
+        density_fixture,
         omit_clusters,
         n_processors,
         copy_data_over):
@@ -795,24 +824,16 @@ def test_precompute_from_many_h5ad_with_lookup(
     _clean_up(tmp_dir)
 
 
-@pytest.mark.parametrize('h5ad_input_path,use_cell_set,n_processors,copy_data_over',
+@pytest.mark.parametrize(
+        'dataset_fixture,layer_fixture,density_fixture,use_cell_set,n_processors,copy_data_over',
         itertools.product(
-            [{'dataset': 'raw_data_list',
-              'layer': 'X'},
-             {'dataset': 'log2_data_list',
-              'layer': 'X'},
-             {'dataset': 'raw_data_list',
-              'layer': 'dummy'},
-             {'dataset': 'log2_data_list',
-              'layer': 'dummy'},
-             {'dataset': 'raw_data_list',
-              'layer': 'raw'},
-             {'dataset': 'log2_data_list',
-              'layer': 'raw'}],
+            ['raw_data_list', 'log2_data_list'],
+            ['X', 'raw', 'dummy'],
+            ['csc', 'csr', 'dense'],
             [True, False],
             [1, 3],
             [True, False]),
-        indirect=['h5ad_input_path'])
+        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
 def test_precompute_from_many_h5ad_with_tree(
         h5ad_input_path,
         records_fixture,
