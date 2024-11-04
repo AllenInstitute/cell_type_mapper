@@ -17,7 +17,8 @@ from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
+    read_df_from_h5ad,
+    pivot_sparse_h5ad)
 
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
@@ -432,8 +433,38 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     is originally stored).
     """
 
-    gene_names = None
+    if layer != 'X' and '/' not in layer:
+        layer = f'layers/{layer}'
+
+    # make sure all h5ad files are CSR orientation
+    csr_path_list = []
     for pth in data_path_list:
+        pth = pathlib.Path(pth)
+        with h5py.File(pth, 'r') as src:
+            attrs = dict(src[layer].attrs)
+        if attrs['encoding-type'] != 'csc_matrix':
+            csr_path_list.append(pth)
+            continue
+        prefix = pth.name.replace(pth.suffix, '')
+        new_pth = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir,
+                prefix=f'{prefix}_csr_',
+                suffix='.h5ad'
+            )
+        )
+        print(f'pivoting {pth} -> {new_pth.name}')
+        pivot_sparse_h5ad(
+            src_path=pth,
+            dst_path=new_pth,
+            tmp_dir=tmp_dir,
+            max_gb=10,
+            layer=layer
+        )
+        csr_path_list.append(new_pth)
+
+    gene_names = None
+    for pth in csr_path_list:
         these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
         if gene_names is None:
             gene_names = these_genes
@@ -459,7 +490,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     path_to_cells = dict()
     n_total_cells = 0
     new_data_path_list = []
-    for data_path in data_path_list:
+    for data_path in csr_path_list:
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
 
@@ -487,7 +518,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
             n_total_cells += n_cells
 
     if buffer_dir is not None:
-        data_path_list = new_data_path_list
+        csr_path_list = new_data_path_list
 
     n_per = np.ceil(n_total_cells/n_processors).astype(int)
 
@@ -497,7 +528,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
     i_worker = 0
     this_n_cells = 0
-    for data_path in data_path_list:
+    for data_path in csr_path_list:
         if data_path not in path_to_cells:
             continue
         n_cells = path_to_cells[data_path]
