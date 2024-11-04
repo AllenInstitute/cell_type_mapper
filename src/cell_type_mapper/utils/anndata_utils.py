@@ -783,8 +783,10 @@ def pivot_sparse_h5ad(
             f'{attrs}')
 
     if layer != 'X':
+        n_rows = attrs['shape'][0]
+        n_cols = attrs['shape'][1]
         dummy_x = scipy.sparse.csr_matrix(
-            np.zeros(attrs['shape'], dtype=int)
+            ([], [], [0]*(n_rows+1)), shape=(n_rows, n_cols)
         )
     else:
         dummy_x = None
