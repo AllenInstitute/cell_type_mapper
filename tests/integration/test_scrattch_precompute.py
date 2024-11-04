@@ -348,7 +348,7 @@ def h5ad_path_fixture(
         itertools.product(
             (1, 3),
             ('csc', 'csr', 'dense'),
-            ('X',),
+            ('X', 'raw', 'dummy'),
             ('raw', 'log2CPM')
         ),
         indirect=['density_fixture', 'layer_fixture', 'normalization_fixture'])
