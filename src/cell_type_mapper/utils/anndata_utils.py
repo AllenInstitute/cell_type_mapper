@@ -6,6 +6,7 @@ import h5py
 import json
 import numpy as np
 import pandas as pd
+import scipy.sparse
 import tempfile
 import warnings
 
@@ -731,15 +732,17 @@ def shuffle_csr_h5ad_rows(
                 'indptr', data=dst_indptr)
 
 
-def pivot_csr_h5ad(
+def pivot_sparse_h5ad(
         src_path,
         dst_path,
         tmp_dir=None,
         n_processors=3,
         max_gb=10,
-        compression=True):
+        compression=True,
+        layer='X'):
     """
-    Convert a CSR-encoded h5ad file to csc.
+    Convert a sparsely encoded h5ad file from CSC to CSR
+    (or vice-versa)
 
     Parameters
     ----------
@@ -755,18 +758,48 @@ def pivot_csr_h5ad(
         Maximum GB to hold in memory at once
     compression:
         If True, use gzip compression in new file
+    layer:
+        the layer of the h5ad file to be pivoted.
+        Note: this is they only layer that will have
+        meaningful data in the destination file. If it
+        is not 'X', then 'X' will be populated with
+        nonsense data.
     """
-    with h5py.File(src_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+    if layer != 'X' and '/' not in layer:
+        layer = f'layers/{layer}'
 
-    if attrs['encoding-type'] != 'csr_matrix':
+    with h5py.File(src_path, 'r') as src:
+        attrs = dict(src[layer].attrs)
+
+    if attrs['encoding-type'] == 'csr_matrix':
+        dst_encoding = 'csc_matrix'
+        indices_max = attrs['shape'][1]
+    elif attrs['encoding-type'] == 'csc_matrix':
+        dst_encoding = 'csr_matrix'
+        indices_max = attrs['shape'][0]
+    else:
         raise RuntimeError(
-            f'{src_path} is not CSR encoded. Attrs for X are:\n'
+            f'{src_path} is not sparse-encoded. Attrs for X are:\n'
             f'{attrs}')
+
+    if layer != 'X':
+        dummy_x = scipy.sparse.csr_matrix(
+            np.zeros(attrs['shape'], dtype=int)
+        )
+    else:
+        dummy_x = None
 
     obs = read_df_from_h5ad(h5ad_path=src_path, df_name='obs')
     var = read_df_from_h5ad(h5ad_path=src_path, df_name='var')
-    dst = anndata.AnnData(obs=obs, var=var)
+
+    if dummy_x is None:
+        dst = anndata.AnnData(obs=obs, var=var)
+    else:
+        dst = anndata.AnnData(
+            X=dummy_x,
+            obs=obs,
+            var=var)
+
     dst.write_h5ad(dst_path)
 
     if compression:
@@ -784,10 +817,10 @@ def pivot_csr_h5ad(
 
         transpose_sparse_matrix_on_disk_v2(
             h5_path=src_path,
-            indices_tag='X/indices',
-            indptr_tag='X/indptr',
-            data_tag='X/data',
-            indices_max=attrs['shape'][1],
+            indices_tag=f'{layer}/indices',
+            indptr_tag=f'{layer}/indptr',
+            data_tag=f'{layer}/data',
+            indices_max=indices_max,
             max_gb=max_gb,
             output_path=tmp_path,
             output_mode='a',
@@ -797,11 +830,11 @@ def pivot_csr_h5ad(
 
         with h5py.File(tmp_path, 'r') as src:
             with h5py.File(dst_path, 'a') as dst:
-                dst_x = dst.create_group('X')
+                dst_x = dst.create_group(layer)
                 for name in attrs:
                     if name != 'encoding-type':
                         dst_x.attrs.create(name=name, data=attrs[name])
-                dst_x.attrs.create(name='encoding-type', data='csc_matrix')
+                dst_x.attrs.create(name='encoding-type', data=dst_encoding)
                 for name in ('indices', 'indptr', 'data'):
                     dataset = dst_x.create_dataset(
                         name=name,
