@@ -143,17 +143,18 @@ def transpose_sparse_matrix_on_disk(
 
     with h5py.File(output_path, 'w') as dst:
 
+        if n_non_zero > 0:
+            chunks = (min(n_non_zero, 1000000),)
+        else:
+            chunks = None
+
         if use_data_array:
             dst.create_dataset(
                 'data',
                 shape=n_non_zero,
                 dtype=data_dtype,
-                chunks=(min(n_non_zero, 1000000),))
+                chunks=chunks)
 
-        if n_non_zero > 0:
-            chunks = (min(n_non_zero, 1000000),)
-        else:
-            chunks = None
         dst.create_dataset(
             'indices',
             shape=n_non_zero,
