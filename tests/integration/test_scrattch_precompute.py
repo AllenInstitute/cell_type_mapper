@@ -238,6 +238,19 @@ def create_raw_h5ad(
     src.write_h5ad(h5ad_path)
     return h5ad_path, config
 
+@pytest.fixture
+def normalization_fixture(request):
+    return request.param
+
+@pytest.fixture
+def density_fixture(request):
+    return request.param
+
+
+@pytest.fixture
+def layer_fixture(request):
+    return request.param
+
 
 def create_log2_h5ad(
         obs,
@@ -300,9 +313,16 @@ def h5ad_path_fixture(
         log2_cell_by_gene_fixture,
         raw_cell_by_gene_fixture,
         tmp_dir_fixture,
-        request):
+        layer_fixture,
+        density_fixture,
+        normalization_fixture):
 
-    config = request.param
+    config = {
+        'layer': layer_fixture,
+        'density': density_fixture,
+        'normalization': normalization_fixture
+    }
+
     if config['normalization'] == 'raw':
         return create_raw_h5ad(
             obs=obs_fixture,
@@ -314,7 +334,7 @@ def h5ad_path_fixture(
         return create_log2_h5ad(
             obs=obs_fixture,
             log2_cell_by_gene=log2_cell_by_gene_fixture,
-            tmp_dir=tmp_dir,
+            tmp_dir=tmp_dir_fixture,
             config=config
         )
     else:
@@ -324,15 +344,14 @@ def h5ad_path_fixture(
 
 
 @pytest.mark.parametrize(
-        'h5ad_path_fixture, n_processors',
-        [({'density': 'csc', 'layer': 'X', 'normalization': 'raw'}, 1),
-         ({'density': 'csc', 'layer': 'X', 'normalization': 'raw'}, 3),
-         ({'density': 'csr', 'layer': 'X', 'normalization': 'raw'}, 1),
-         ({'density': 'csr', 'layer': 'X', 'normalization': 'raw'}, 3),
-         ({'density': 'dense', 'layer': 'X', 'normalization': 'raw'}, 1),
-         ({'density': 'dense', 'layer': 'X', 'normalization': 'raw'}, 3)
-        ],
-        indirect=['h5ad_path_fixture'])
+        ' n_processors, density_fixture, layer_fixture, normalization_fixture',
+        itertools.product(
+            (1, 3),
+            ('csc', 'csr', 'dense'),
+            ('X',),
+            ('raw', 'log2CPM')
+        ),
+        indirect=['density_fixture', 'layer_fixture', 'normalization_fixture'])
 def test_precompute_scrattch_cli(
         taxonomy_fixture,
         cluster_stats_fixture,
@@ -415,17 +434,25 @@ def test_precompute_scrattch_cli(
                     assert set(actual_taxonomy.children(level=level, node=node)) == set(expected_children)
 
 
-@pytest.mark.skip('sfd')
 @pytest.mark.parametrize(
-    'raw_h5ad_fixture', [{'density': 'csc', 'layer': 'X'}], indirect=['raw_h5ad_fixture'])
+    'density_fixture, layer_fixture, normalization_fixture',
+    itertools.product(
+        ('csc',),
+        ('X',),
+        ('raw',)
+    ),
+    indirect=['density_fixture', 'layer_fixture', 'normalization_fixture'])
 def test_precompute_scrattch_cli_clobber(
         taxonomy_fixture,
         cluster_stats_fixture,
         tmp_dir_fixture,
-        raw_h5ad_fixture):
+        h5ad_path_fixture,
+        density_fixture,
+        layer_fixture,
+        normalization_fixture):
 
-        input_path = raw_h5ad_fixture[0]
-        input_config = raw_h5ad_fixture[1]
+        input_path = h5ad_path_fixture[0]
+        input_config = h5ad_path_fixture[1]
 
         layer = input_config['layer']
         if layer == 'raw':
