@@ -25,7 +25,7 @@ from cell_type_mapper.utils.anndata_utils import (
     amalgamate_csr_to_x,
     amalgamate_dense_to_x,
     shuffle_csr_h5ad_rows,
-    pivot_csr_h5ad,
+    pivot_sparse_h5ad,
     subset_csc_h5ad_columns)
 
 
@@ -712,13 +712,33 @@ def test_shuffle_csr_h5ad_rows(
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
 
 
-def test_pivot_csr_h5ad(
-        tmp_dir_fixture):
+@pytest.mark.parametrize(
+    'pivot_from, layer, data_dtype',
+    itertools.product(
+        ['csr', 'csc'],
+        ['X', 'raw/X', 'dummy'],
+        ['uint', 'float']
+    )
+)
+def test_pivot_sparse_h5ad(
+        tmp_dir_fixture,
+        pivot_from,
+        layer,
+        data_dtype):
 
     rng = np.random.default_rng(211131)
     n_rows = 100
     n_cols = 500
-    data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
+    if data_dtype == 'uint':
+        data = np.zeros(n_rows*n_cols, dtype=np.uint8)
+        idx = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//5, replace=False)
+        data[idx] = rng.integers(1, 255, len(idx), dtype=np.uint8)
+        data = data.reshape((n_rows, n_cols))
+    else:
+        data = np.zeros(n_rows*n_cols, dtype=float)
+        idx = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//5, replace=False)
+        data[idx] = rng.random(len(idx))
+        data = data.reshape((n_rows, n_cols))
 
     data[:, -1] = 0
 
@@ -732,8 +752,39 @@ def test_pivot_csr_h5ad(
     ]
 
     obs = pd.DataFrame(obs_data).set_index('c')
+
+    dummy = np.zeros(data.shape, dtype=np.uint8)
+
+    if layer == 'X':
+        csr_x = scipy_sparse.csr_matrix(data)
+        csr_raw = None
+        csr_layers = None
+        csc_x = scipy_sparse.csc_matrix(data)
+        csc_raw = None
+        csc_layers = None
+    elif layer == 'raw/X':
+        csr_x = scipy_sparse.csr_matrix(dummy)
+        csr_raw = {'X': scipy_sparse.csr_matrix(data)}
+        csr_layers = None
+        csc_x = scipy_sparse.csc_matrix(dummy)
+        csc_raw = {'X': scipy_sparse.csc_matrix(data)}
+        csc_layers = None
+    elif layer == 'dummy':
+        csr_x = scipy_sparse.csr_matrix(dummy)
+        csr_raw = None
+        csr_layers = {'dummy': scipy_sparse.csr_matrix(data)}
+        csc_x = scipy_sparse.csc_matrix(dummy)
+        csc_raw = None
+        csc_layers = {'dummy': scipy_sparse.csc_matrix(data)}
+    else:
+        raise RuntimeError(
+            f"Test cannot parse layer '{layer}'"
+        )
+
     csr = anndata.AnnData(
-        X=scipy_sparse.csr_matrix(data),
+        X=csr_x,
+        layers=csr_layers,
+        raw=csr_raw,
         obs=obs,
         var=var)
     csr_path = mkstemp_clean(
@@ -743,7 +794,9 @@ def test_pivot_csr_h5ad(
     csr.write_h5ad(csr_path)
 
     csc = anndata.AnnData(
-        X=scipy_sparse.csc_matrix(data),
+        X=csc_x,
+        layers=csc_layers,
+        raw=csc_raw,
         obs=obs,
         var=var)
     csc_path = mkstemp_clean(
@@ -757,16 +810,33 @@ def test_pivot_csr_h5ad(
         prefix='pivoted_',
         suffix='.h5ad')
 
-    pivot_csr_h5ad(
-        src_path=csr_path,
+    if pivot_from == 'csr':
+        src_path = csr_path
+        expected_path = csc_path
+    elif pivot_from == 'csc':
+        src_path = csc_path
+        expected_path = csr_path
+    else:
+        raise RuntimeError(
+            f"Cannot parse pivot_from '{pivot_from}'"
+        )
+
+    pivot_sparse_h5ad(
+        src_path=src_path,
         dst_path=test_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=1)
+        max_gb=1,
+        layer=layer)
 
-    with h5py.File(csc_path, 'r') as expected:
+    if layer == 'dummy':
+        output_layer = 'layers/dummy'
+    else:
+        output_layer = layer
+
+    with h5py.File(expected_path, 'r') as expected:
         with h5py.File(test_path, 'r') as actual:
-            expected_attrs = dict(expected['X'].attrs)
-            actual_attrs = dict(actual['X'].attrs)
+            expected_attrs = dict(expected[output_layer].attrs)
+            actual_attrs = dict(actual[output_layer].attrs)
             for k in expected_attrs:
                 if k == 'shape':
                     np.testing.assert_array_equal(
@@ -775,13 +845,24 @@ def test_pivot_csr_h5ad(
                     assert actual_attrs[k] == expected_attrs[k]
             for k in ('indices', 'data', 'indptr'):
                 np.testing.assert_array_equal(
-                    expected[f'X/{k}'][()],
-                    actual[f'X/{k}'][()])
+                    expected[f'{output_layer}/{k}'][()],
+                    actual[f'{output_layer}/{k}'][()],
+                    err_msg=f'failure on {k}')
 
     expected = anndata.read_h5ad(csc_path, backed='r')
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+    src = anndata.read_h5ad(test_path)
+    if layer == 'X':
+        actual = src.X.toarray()
+    elif layer == 'raw/X':
+        actual = src.raw.X.toarray()
+    elif layer == 'dummy':
+        actual = src.layers['dummy'].toarray()
+
+    np.testing.assert_allclose(data, actual, atol=0.0, rtol=1.0e-7)
 
 
 def test_subset_csc_h5ad_columns(
