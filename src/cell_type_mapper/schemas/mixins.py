@@ -34,6 +34,7 @@ class LayerMixin(object):
         )
     )
 
+
 class QueryPathMixinForSearch(object):
 
     query_path = argschema.fields.InputFile(
