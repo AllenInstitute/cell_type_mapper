@@ -77,7 +77,12 @@ class DropLevelMixin(object):
         "it before doing type assignment (this is to accommmodate "
         "the fact that the official taxonomy includes the "
         "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
+        "during hierarchical type assignment). Note: though we "
+        "use the term 'drop', it is more accurate to say that "
+        "the level is ignored. It still exists in the taxonomy, "
+        "but it is not directly mapped to. Mapping values will be "
+        "backfilled from lower levels in the taxonomy after "
+        "the mapping is complete.")
 
 
 class TmpDirMixin(object):
@@ -204,6 +209,34 @@ class OutputDstForSearchMixin(object):
                 has_output_path = True
         if not has_output_path:
             msg = ("You must specify at least one of:\n"
-                   "{output_params}")
+                   f"{output_params}")
             raise RuntimeError(msg)
         return data
+
+
+class NodesToDropMixin(object):
+
+    nodes_to_drop = argschema.fields.List(
+        argschema.fields.Tuple(
+            (argschema.fields.String,
+             argschema.fields.String)
+        ),
+        cli_as_single_argument=True,
+        default=None,
+        allow_none=True,
+        description=(
+            "Nodes to drop from the taxonomy before performing any "
+            "operations. They are of the form (level, node) where "
+            "level and node are strings referring to the level in the "
+            "taxonomy and the node at that level to be dropped. Pass this "
+            "to the CLI as a list in nested quotation marks like "
+            """'[("level0", "node0"), ("level1", "node1")]' """
+            "If None, the taxonomy will be used as read from the "
+            "specified precomputed_stats files. Note: dropping "
+            "a node from the taxonomy tree also drops all of "
+            "the child nodes descended from it. If the resulting "
+            "tree has parent nodes that are no longer connected "
+            "to the leaf level of the taxonomy, those are dropped "
+            "as well."
+        )
+    )

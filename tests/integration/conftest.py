@@ -193,6 +193,36 @@ def raw_reference_cell_x_gene(
 
 
 @pytest.fixture(scope='module')
+def noisier_raw_reference_cell_x_gene(
+        n_reference_cells,
+        taxonomy_tree_dict,
+        cluster_to_signal,
+        reference_gene_names):
+    """
+    Reference data for cases where we don't need to assume what the
+    result of mapping/marker finding is, but need to test that the
+    result changes due to configuration parameter changes (increase
+    the noise amplitude relative to default raw_reference_cell_x_gene)
+    """
+    rng = np.random.default_rng(671231)
+    n_genes = len(reference_gene_names)
+    x_data = np.zeros((n_reference_cells, n_genes),
+                      dtype=float)
+    for cl in taxonomy_tree_dict['cluster']:
+        signal_lookup = cluster_to_signal[cl]
+        for i_cell in taxonomy_tree_dict['cluster'][cl]:
+            noise = rng.random(n_genes)
+            noise_amp = 0.5*rng.random()
+            signal_amp = (2.0+rng.random())
+            data = noise_amp*noise
+            for i_gene, g in enumerate(reference_gene_names):
+                if g in signal_lookup:
+                    data[i_gene] += signal_amp*signal_lookup[g]
+            x_data[i_cell, :] = data
+    return x_data
+
+
+@pytest.fixture(scope='module')
 def raw_reference_h5ad_fixture(
         raw_reference_cell_x_gene,
         reference_gene_names,
@@ -220,6 +250,37 @@ def raw_reference_h5ad_fixture(
             suffix='.h5'))
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
+
+
+@pytest.fixture(scope='module')
+def noisier_raw_reference_h5ad_fixture(
+        noisier_raw_reference_cell_x_gene,
+        reference_gene_names,
+        obs_records_fixture,
+        tmp_dir_fixture):
+
+    var_data = [{'gene_name': g, 'garbage': ii}
+                for ii, g in enumerate(reference_gene_names)]
+
+    var = pd.DataFrame(var_data)
+    var = var.set_index('gene_name')
+
+    obs = pd.DataFrame(obs_records_fixture)
+    obs = obs.set_index('cell_id')
+
+    a_data = anndata.AnnData(
+        X=noisier_raw_reference_cell_x_gene,
+        obs=obs,
+        var=var,
+        dtype=noisier_raw_reference_cell_x_gene.dtype)
+
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5'))
+    a_data.write_h5ad(h5ad_path)
+    return h5ad_path
+
 
 @pytest.fixture(scope='module')
 def expected_cluster_fixture(
@@ -256,6 +317,7 @@ def raw_query_cell_x_gene_fixture(
         x_data[i_cell, :] = data
 
     return x_data
+
 
 @pytest.fixture(scope='module')
 def raw_query_h5ad_fixture(
@@ -298,6 +360,35 @@ def precomputed_path_fixture(
 
     precompute_summary_stats_from_h5ad(
         data_path=raw_reference_h5ad_fixture,
+        column_hierarchy=None,
+        taxonomy_tree=taxonomy_tree,
+        output_path=precomputed_path,
+        rows_at_a_time=1000,
+        normalization='raw')
+
+    # make sure it is not empty
+    with h5py.File(precomputed_path, 'r') as in_file:
+        assert len(in_file.keys()) > 0
+
+    return precomputed_path
+
+
+@pytest.fixture(scope='module')
+def noisier_precomputed_path_fixture(
+        tmp_dir_fixture,
+        noisier_raw_reference_h5ad_fixture,
+        taxonomy_tree_dict):
+
+    taxonomy_tree = TaxonomyTree(
+        data=taxonomy_tree_dict)
+
+    precomputed_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_',
+        suffix='.h5')
+
+    precompute_summary_stats_from_h5ad(
+        data_path=noisier_raw_reference_h5ad_fixture,
         column_hierarchy=None,
         taxonomy_tree=taxonomy_tree,
         output_path=precomputed_path,

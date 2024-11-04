@@ -1,6 +1,7 @@
 import pytest
 
 import pathlib
+import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -53,8 +54,12 @@ def test_input_file(
         log = CommandLog()
     else:
         log = None
-    tracker = FileTracker(tmp_dir=tmp_dir_fixture, log=log)
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    tracker = FileTracker(tmp_dir=this_tmp, log=log)
+
     this_dir = str(tracker.tmp_dir.resolve().absolute())
+
     assert this_dir != str(tmp_dir_fixture.resolve().absolute())
 
     tracker.add_file(
@@ -163,3 +168,26 @@ def test_no_tmp_dir(input_only, use_log, actual_file):
     actual = str(actual.resolve().absolute())
     assert actual == str_test_path
     assert len(tracker._to_write_out) == 0
+
+
+@pytest.mark.skip('sfd')
+def test_file_already_in_tmp(tmp_dir_fixture):
+    """
+    Test that, if a file is already in the parent
+    of the file tracker's tmp_dir, it is not copied anywhere
+    """
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    file_a = mkstemp_clean(dir=tmp_dir_fixture, prefix='file_a_')
+    file_b = mkstemp_clean(dir=this_tmp, prefix='file_b')
+    file_tracker = FileTracker(tmp_dir=this_tmp, log=None)
+    file_tracker.add_file(file_a)
+
+    assert str(file_tracker.real_location(file_a).resolve().absolute()) != \
+        str(pathlib.Path(file_a).resolve().absolute())
+
+    file_tracker.add_file(file_b)
+    assert file_tracker.real_location(file_b) == file_b
+
+    tmp_contents = [n for n in file_tracker.tmp_dir.iterdir()]
+    assert len(tmp_contents) == 1
+    assert tmp_contents[0].name.startswith('file_a_')

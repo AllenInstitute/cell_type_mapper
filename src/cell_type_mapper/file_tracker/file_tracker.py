@@ -6,6 +6,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.file_tracker.utils import (
+    is_file_under_dir
+)
+
 
 class FileTracker(object):
     """
@@ -83,6 +87,13 @@ class FileTracker(object):
         if self.tmp_dir is None:
             # if there is no tmp_dir, then nothing will be
             # copied anywhere
+            self._path_to_location[path_str] = path_str
+            return
+
+        if is_file_under_dir(file_path=file_path,
+                             dir_path=self.tmp_dir.parent):
+            # If the file is already in the parent of self.tmp_dir,
+            # then nothing needs to be copied
             self._path_to_location[path_str] = path_str
             return
 

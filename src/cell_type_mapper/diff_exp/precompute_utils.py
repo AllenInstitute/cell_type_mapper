@@ -1,6 +1,7 @@
 import h5py
 import json
 import numpy as np
+import pathlib
 
 from cell_type_mapper.utils.h5_utils import (
     copy_h5_excluding_data)
@@ -135,3 +136,110 @@ def merge_precompute_files(
                     for idx in to_replace:
                         dst[key][idx, :] = src[key][idx, :]
             dst.flush()
+
+
+def drop_nodes_from_precomputed_stats(
+        src_path,
+        dst_path,
+        node_list,
+        clobber=False):
+    """
+    Create a new precomputed_stats file by dropping nodes from the
+    taxonomy tree of another precomputed_stats file.
+
+    Parameters
+    ----------
+    src_path:
+        path to the original precomputed_stats.h5 file
+    dst_path:
+        path to the new precomputed_stats.h5 file to be written
+    node_list:
+        a list of (level, node) tuples indicating which nodes are to
+        be dropped from the taxonomy tree
+    clobber:
+        a boolean. If False and dst_path already exists, throw an exception.
+        If True, overwrite pre-existing dst_path.
+    """
+    src_path = pathlib.Path(src_path)
+    dst_path = pathlib.Path(dst_path)
+    if dst_path.exists():
+        if not clobber:
+            raise RuntimeError(
+                f"{dst_path} already exists. To overwrite, run "
+                "with clobber=True."
+            )
+
+    taxonomy_tree = TaxonomyTree.from_precomputed_stats(src_path)
+    for node in node_list:
+        mapped_node = taxonomy_tree.name_to_node(
+            level=node[0],
+            node=node[1]
+        )
+
+        taxonomy_tree = taxonomy_tree.drop_node(
+            level=mapped_node[0],
+            node=mapped_node[1]
+        )
+
+    new_leaf_list = taxonomy_tree.nodes_at_level(
+        taxonomy_tree.leaf_level
+    )
+    new_leaf_list.sort()
+    new_cluster_to_idx = {
+        leaf: ii
+        for ii, leaf in enumerate(new_leaf_list)
+    }
+
+    non_numerical_keys = ('metadata',
+                          'cluster_to_row',
+                          'col_names',
+                          'taxonomy_tree',
+                          'n_cells')
+
+    with h5py.File(src_path, 'r') as src:
+        with h5py.File(dst_path, 'w') as dst:
+            dst.create_dataset(
+                'col_names',
+                data=src['col_names'][()]
+            )
+            dst.create_dataset(
+                'cluster_to_row',
+                data=json.dumps(
+                    new_cluster_to_idx
+                ).encode('utf-8')
+            )
+            dst.create_dataset(
+                'taxonomy_tree',
+                data=taxonomy_tree.to_str(
+                    indent=None,
+                    drop_cells=True
+                ).encode('utf-8')
+            )
+            src_cluster_to_idx = json.loads(
+                src['cluster_to_row'][()].decode('utf-8')
+            )
+            dst_n_cells = dst.create_dataset(
+                'n_cells',
+                shape=(len(new_cluster_to_idx),),
+                dtype=int
+            )
+            src_n_cells = src['n_cells'][()]
+            for leaf in new_leaf_list:
+                src_idx = src_cluster_to_idx[leaf]
+                dst_idx = new_cluster_to_idx[leaf]
+                dst_n_cells[dst_idx] = src_n_cells[src_idx]
+
+            for data_key in src.keys():
+                if data_key in non_numerical_keys:
+                    continue
+                dst_data = dst.create_dataset(
+                    data_key,
+                    dtype=src[data_key].dtype,
+                    shape=(len(new_cluster_to_idx), src[data_key].shape[1]),
+                    chunks=True
+                )
+                src_data = src[data_key][()]
+                for leaf in new_leaf_list:
+                    src_idx = src_cluster_to_idx[leaf]
+                    dst_idx = new_cluster_to_idx[leaf]
+                    dst_data[dst_idx, :] = src_data[src_idx, :]

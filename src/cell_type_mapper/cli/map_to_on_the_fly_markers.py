@@ -1,18 +1,27 @@
 import argschema
 import copy
-import json
 import pathlib
 import tempfile
 import time
 
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean,
+    _clean_up)
+
+from cell_type_mapper.diff_exp.precompute_utils import (
+    drop_nodes_from_precomputed_stats
+)
+
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
-from cell_type_mapper.utils.cloud_utils import (
-    sanitize_paths)
-
 from cell_type_mapper.schemas.mixins import (
-    NProcessorsMixin)
+    NProcessorsMixin,
+    NodesToDropMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
@@ -30,13 +39,10 @@ from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
 from cell_type_mapper.cli.from_specified_markers import (
-    FromSpecifiedMarkersRunner)
+    FromSpecifiedMarkersRunner,
+    write_mapping_to_disk)
 
 from cell_type_mapper.cli.cli_log import CommandLog
-
-from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
 
 
 class QueryMarkerSchema_OTF(
@@ -69,7 +75,8 @@ class ReferenceMarkerSchema_OTF(
 class MapperSchema_OTF(
         argschema.ArgSchema,
         SearchSchemaMixin_noNProcessors,
-        NProcessorsMixin):
+        NProcessorsMixin,
+        NodesToDropMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerSchema_OTF,
@@ -90,36 +97,37 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         tmp_dir = tempfile.mkdtemp(
             dir=self.args['tmp_dir'])
         try:
-            self._run(tmp_dir=tmp_dir, log=log)
+            metadata_config = config_from_args(
+                input_config=self.args,
+                cloud_safe=self.args['cloud_safe']
+            )
 
-            # modify metadata to reflect that the code was
-            # actually run with this module, rather than
-            # the from_specified_markers module
-            output_path = self.args['extended_result_path']
-            if output_path is not None:
-                metadata_config = copy.deepcopy(self.args)
-                if self.args['cloud_safe']:
-                    metadata_config = sanitize_paths(metadata_config)
-                    metadata_config.pop('extended_result_dir')
-                    metadata_config.pop('tmp_dir')
+            mapping_result = self._run(tmp_dir=tmp_dir, log=log)
 
-                with open(output_path, 'rb') as src:
-                    results = json.load(src)
-
-                results.pop('config')
-                results['config'] = metadata_config
-                results.pop('metadata')
-                results['metadata'] = get_execution_metadata(
+            mapping_result['output']['config'] = metadata_config
+            mapping_result['output']['metadata'] = get_execution_metadata(
                     module_file=__file__,
                     t0=t0)
 
-                with open(output_path, 'w') as dst:
-                    dst.write(json.dumps(results, indent=2))
+            write_mapping_to_disk(
+                output=mapping_result['output'],
+                log=log,
+                log_path=mapping_result['log_path'],
+                output_path=mapping_result['output_path'],
+                hdf5_output_path=mapping_result['hdf5_output_path'],
+                cloud_safe=self.args['cloud_safe']
+            )
+
+            if mapping_result['mapping_exception'] is not None:
+                raise mapping_result['mapping_exception']
 
         finally:
             _clean_up(tmp_dir)
 
     def _run(self, tmp_dir, log):
+
+        self.drop_nodes_from_taxonomy(tmp_dir=tmp_dir)
+
         reference_marker_dir = tempfile.mkdtemp(dir=tmp_dir)
 
         if self.args['reference_markers']['precomputed_path_list'] is None:
@@ -190,6 +198,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         for k in ('query_path',
                   'extended_result_path',
                   'extended_result_dir',
+                  'hdf5_result_path',
                   'csv_result_path',
                   'drop_level',
                   'flatten',
@@ -203,8 +212,62 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             args=[],
             input_data=mapping_config)
 
-        mapping_runner.run()
-        log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
+        mapping_result = mapping_runner.run_mapping(write_to_disk=False)
+        if mapping_result['mapping_exception'] is None:
+            log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
+        return mapping_result
+
+    def drop_nodes_from_taxonomy(self, tmp_dir):
+        """
+        Drop nodes from precomputed_stats files, if needed.
+        Write the files with the amended taxonomies to new files in
+        tmp_dir.
+        Update self.args to point to the new files.
+        """
+        if self.args['nodes_to_drop'] is None:
+            return
+
+        precompute_dir = tempfile.mkdtemp(
+            dir=tmp_dir,
+            prefix='munged_precomputed_stats_files'
+        )
+
+        src_path = pathlib.Path(self.args['precomputed_stats']['path'])
+
+        main_tmp_path = mkstemp_clean(
+            dir=precompute_dir,
+            prefix=src_path.name,
+            suffix='.h5',
+            delete=True)
+
+        drop_nodes_from_precomputed_stats(
+            src_path=src_path,
+            dst_path=main_tmp_path,
+            node_list=self.args['nodes_to_drop'],
+            clobber=False
+        )
+
+        self.args['precomputed_stats']['path'] = main_tmp_path
+
+        if self.args['reference_markers']['precomputed_path_list'] is not None:
+            new_list = []
+            for src_path in self.args[
+                    'reference_markers']['precomputed_path_list']:
+                src_path = pathlib.Path(src_path)
+                tmp_path = mkstemp_clean(
+                    dir=precompute_dir,
+                    prefix=src_path.name,
+                    suffix='.h5',
+                    delete=True
+                )
+                drop_nodes_from_precomputed_stats(
+                    src_path=src_path,
+                    dst_path=tmp_path,
+                    node_list=self.args['nodes_to_drop'],
+                    clobber=False
+                )
+                new_list.append(tmp_path)
+            self.args['reference_markers']['precomputed_path_list'] = new_list
 
 
 def main():

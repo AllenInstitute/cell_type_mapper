@@ -16,6 +16,7 @@ import pytest
 import anndata
 import copy
 import h5py
+import hashlib
 import itertools
 import json
 import numpy as np
@@ -43,15 +44,16 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    drop_nodes_from_precomputed_stats
+)
+
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     serialize_markers)
 
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
-
-from cell_type_mapper.cli.from_specified_markers import (
-    run_mapping as from_marker_run_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
@@ -1191,3 +1193,294 @@ def test_hdf5_output_from_cli(
     assert hdf5_output['gene_identifier_mapping'] == json_output['gene_identifier_mapping']
 
     assert hdf5_output == json_output
+
+
+@pytest.mark.parametrize(
+        'use_gpu,drop_nodes',
+        itertools.product(
+            (True, False),
+            ([('class', 'a'), ('subclass', 'subclass_5')],
+             [('class', 'a'), ('class', 'b')])
+        )
+)
+def test_mapping_from_markers_with_drop_nodes(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        use_gpu,
+        drop_nodes):
+    """
+    Test that the FromSpecifiedMarkersRunner correctly drops
+    nodes from the taxonomy
+    """
+
+    hasher = hashlib.md5()
+    with open(noisy_precomputed_stats_fixture, 'rb') as src:
+        hasher.update(src.read())
+    precompute_hash = hasher.hexdigest()
+
+    use_tmp_dir = True
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['csv_result_path'] = None
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    bootstrap_factor = 0.5
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': bootstrap_factor,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+
+    baseline_config = copy.deepcopy(config)
+
+    drop_nodes_config = copy.deepcopy(config)
+    drop_nodes_config['nodes_to_drop'] = drop_nodes
+
+    trimmed_precompute_path = mkstemp_clean(
+        dir=this_tmp,
+        prefix='trimmed_precompute_',
+        suffix='.h5'
+    )
+
+    drop_nodes_from_precomputed_stats(
+        src_path=noisy_precomputed_stats_fixture,
+        dst_path=trimmed_precompute_path,
+        node_list=drop_nodes,
+        clobber=True
+    )
+
+    alt_baseline_config = copy.deepcopy(config)
+    alt_baseline_config['precomputed_stats']['path'] = trimmed_precompute_path
+
+    baseline_output = mkstemp_clean(
+        dir=this_tmp,
+        prefix='baseline_',
+        suffix='.json'
+    )
+    baseline_config['extended_result_path'] = baseline_output
+
+    alt_output = mkstemp_clean(
+        dir=this_tmp,
+        prefix='pre_trimmed_',
+        suffix='.json'
+    )
+    alt_baseline_config['extended_result_path'] = alt_output
+
+    drop_output = mkstemp_clean(
+        dir=this_tmp,
+        prefix='drop_nodes_',
+        suffix='.json'
+    )
+    drop_nodes_config['extended_result_path'] = drop_output
+
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=baseline_config)
+    runner.run()
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=alt_baseline_config)
+    runner.run()
+
+    runner = FromSpecifiedMarkersRunner(
+        args= [],
+        input_data=drop_nodes_config)
+    runner.run()
+
+    baseline = json.load(open(baseline_output, 'rb'))
+    alt = json.load(open(alt_output, 'rb'))
+    drop = json.load(open(drop_output, 'rb'))
+
+    assert baseline['results'] != alt['results']
+    assert alt['results'] == drop['results']
+    assert baseline['taxonomy_tree'] != alt['taxonomy_tree']
+    assert alt['taxonomy_tree'] == drop['taxonomy_tree']
+
+    # make sure precomputed stats file did not change
+    hasher = hashlib.md5()
+    with open(noisy_precomputed_stats_fixture, 'rb') as src:
+        hasher.update(src.read())
+    assert hasher.hexdigest() == precompute_hash
+    os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize(
+        'use_gpu,drop_nodes,flatten',
+        itertools.product(
+            (True, False),
+            ([('class', 'a'), ('subclass', 'subclass_5')],
+             [('class', 'a'), ('class', 'b')]),
+            (True, False)
+        )
+)
+def test_mapping_config_roundtrip(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        use_gpu,
+        drop_nodes,
+        flatten):
+    """
+    Test that the FromSpecifiedMarkersRunner correctly drops
+    nodes from the taxonomy
+    """
+
+    hasher = hashlib.md5()
+    with open(noisy_precomputed_stats_fixture, 'rb') as src:
+        hasher.update(src.read())
+    precompute_hash = hasher.hexdigest()
+
+    use_tmp_dir = True
+
+    if use_gpu and not is_torch_available():
+        return
+
+    env_var = 'AIBS_BKP_USE_TORCH'
+    if use_gpu:
+        os.environ[env_var] = 'true'
+    else:
+        os.environ[env_var] = 'false'
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    config = dict()
+    if use_tmp_dir:
+        config['tmp_dir'] = this_tmp
+    else:
+        config['tmp_dir'] = None
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['csv_result_path'] = None
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = flatten
+    config['cloud_safe'] = False
+
+    config['query_markers'] = {
+        'serialized_lookup': str(
+            noisy_marker_gene_lookup_fixture.resolve().absolute())}
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.5,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+    config['nodes_to_drop'] = drop_nodes
+
+    baseline_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.json'
+    )
+    baseline_config = copy.deepcopy(config)
+    baseline_config['extended_result_path'] = baseline_output
+    runner = FromSpecifiedMarkersRunner(args=[], input_data=baseline_config)
+    runner.run()
+    baseline_mapping = json.load(open(baseline_output, 'rb'))
+
+    test_config = copy.deepcopy(baseline_mapping['config'])
+    test_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.json'
+    )
+    test_config['extended_result_path'] = test_output
+    runner = FromSpecifiedMarkersRunner(args=[], input_data=test_config)
+    runner.run()
+    test_mapping = json.load(open(test_output, 'rb'))
+
+    assert test_mapping['results'] == baseline_mapping['results']
+    assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
+    assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
+    assert test_mapping['metadata'] != baseline_mapping['metadata']
+
+    update_config_list = [
+        {'rng_seed': 6677112},
+        {'n_processors': 2},
+        {'bootstrap_factor': 0.8},
+        {'bootstrap_iteration': 34}
+    ]
+    for update_config in update_config_list:
+        test_config = copy.deepcopy(config)
+        for k in update_config:
+            assert k in test_config['type_assignment']
+            test_config['type_assignment'][k] = update_config[k]
+        test_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+        test_config['extended_result_path'] = test_path
+        runner = FromSpecifiedMarkersRunner(args=[], input_data=test_config)
+        runner.run()
+        test_mapping = json.load(open(test_path, 'rb'))
+        assert test_mapping['results'] != baseline_mapping['results']
+        assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
+        assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
+        assert test_mapping['metadata'] != baseline_mapping['metadata']
+
+        retest_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+        retest_config = copy.deepcopy(test_mapping['config'])
+        retest_config['extended_result_path'] = retest_path
+        runner = FromSpecifiedMarkersRunner(args=[], input_data=retest_config)
+        runner.run()
+        retest_mapping = json.load(open(retest_path, 'rb'))
+        assert retest_mapping['results'] == test_mapping['results']
+        assert retest_mapping['taxonomy_tree'] == test_mapping['taxonomy_tree']
+        assert retest_mapping['marker_genes'] == test_mapping['marker_genes']
+        assert retest_mapping['metadata'] != test_mapping['metadata']
+
+    os.environ[env_var] = ''

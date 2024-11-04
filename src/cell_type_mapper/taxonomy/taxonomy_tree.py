@@ -37,6 +37,29 @@ class TaxonomyTree(object):
         validate_taxonomy_tree(self._data)
         self._child_to_parent = get_child_to_parent(self._data)
 
+        self._name_to_level = dict()
+        for level in self.hierarchy:
+            level_name = self.level_to_name(level)
+            if level_name == level:
+                continue
+            if level_name not in self._name_to_level:
+                self._name_to_level[level_name] = []
+            self._name_to_level[level_name].append(level)
+
+        self._name_to_node = dict()
+        for level in self.hierarchy:
+            self._name_to_node[level] = dict()
+            for node in self.nodes_at_level(level):
+                node_name = self.label_to_name(
+                    level=level,
+                    label=node,
+                    name_key='name')
+                if node_name == node:
+                    continue
+                if node_name not in self._name_to_node[level]:
+                    self._name_to_node[level][node_name] = []
+                self._name_to_node[level][node_name].append(node)
+
     def __eq__(self, other):
         """
         Ignore keys 'metadata' and 'alias_mapping'
@@ -574,6 +597,56 @@ class TaxonomyTree(object):
             return label
         return name_mapper[level][label][name_key]
 
+    def name_to_node(self, level, node):
+        """
+        Map a level, node pair from human-readable to unique, machine-readable
+        values.
+
+        Parameters
+        ----------
+        level:
+            the level of the node being mapped. Either human-readable or
+            machine-readable
+        node:
+            the node being mapped. Either human-readable or machine-readable
+
+        Returns
+        -------
+        A tuple of strings denoting the machine-readable (level, node) label
+        pair
+
+        Notes
+        -----
+        Raise an exception if:
+            level does not exist in this taxonomy
+            node does not exist in this taxonomy
+            level maps to many labels
+            node maps to many labels (under level)
+        """
+        input_level = level
+        if level not in self.hierarchy:
+            level = self.name_to_level(level)
+
+        if level not in self.hierarchy:
+            msg = f'{input_level} is not a valid level in this taxonomy'
+            raise RuntimeError(msg)
+
+        if node in self._data[level]:
+            return (level, node)
+
+        if node not in self._name_to_node[level]:
+            msg = f'({input_level}, {node}) not a valid node in this taxonomy'
+            raise RuntimeError(msg)
+
+        candidates = self._name_to_node[level][node]
+        if len(candidates) > 1:
+            msg = f"""
+            ({input_level}, {node}) maps to many nodes: {candidates}
+            """
+            raise RuntimeError(msg)
+
+        return (level, candidates[0])
+
     def level_to_name(self, level_label):
         """
         Map the label for a hierarchy level to its name.
@@ -585,6 +658,33 @@ class TaxonomyTree(object):
         if level_label not in self._data['hierarchy_mapper']:
             return level_label
         return self._data['hierarchy_mapper'][level_label]
+
+    def name_to_level(self, level_name):
+        """
+        Map human readable level_name to unique label for the level
+        (if possible).
+
+        If level_name is not a valid key in self._name_to_level,
+        raise an exception.
+
+        If there are more than one possible mappings for level_name,
+        raise an exception.
+        """
+        if level_name in self.hierarchy:
+            return level_name
+
+        if level_name not in self._name_to_level:
+            msg = f"{level_name} is not a valid level in this taxonomy"
+            raise RuntimeError(msg)
+        candidates = self._name_to_level[level_name]
+
+        if len(candidates) > 1:
+            msg = f"""
+            {level_name} maps to many levels: {candidates}
+            """
+            raise RuntimeError(msg)
+
+        return candidates[0]
 
     def leaves_to_compare(
             self,
