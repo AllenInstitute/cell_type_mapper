@@ -903,8 +903,12 @@ def test_precompute_cli_from_layers(
     the two results are equal.
     """
 
-    baseline_output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
-    test_output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='baseline_')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='test_')
 
     baseline_output_path = mkstemp_clean(
         dir=baseline_output_dir,
@@ -975,3 +979,40 @@ def test_precompute_cli_from_layers(
                     )
                 for k in ('cluster_to_row', 'col_names'):
                     assert base[k][()] == test[k][()]
+    else:
+        # test on dataset 1, 2, 3 (suffix before .h5)
+        # have to blow away specified file, first.
+
+        # remove specified output paths, which would never
+        # have been correctly populated in the
+        # split_by_dataset case.
+        pathlib.Path(baseline_output_path).unlink()
+        pathlib.Path(test_output_path).unlink()
+
+        # create lookups linking dataset suffix to file path
+        # for output files
+        baseline_file_lookup = {
+            n.name.split('.')[-2]: n
+            for n in pathlib.Path(baseline_output_dir).iterdir()
+        }
+        test_file_lookup = {
+            n.name.split('.')[-2]: n
+            for n in pathlib.Path(test_output_dir).iterdir()
+        }
+
+        assert set(baseline_file_lookup.keys()) == set(test_file_lookup.keys())
+
+        for suffix in baseline_file_lookup:
+            baseline_path = baseline_file_lookup[suffix]
+            test_path = test_file_lookup[suffix]
+            with h5py.File(baseline_path, 'r') as base:
+                with h5py.File(test_path, 'r') as test:
+                    for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                        np.testing.assert_allclose(
+                            base[k][()],
+                            test[k][()],
+                            atol=0.0,
+                            rtol=1.0e-7
+                        )
+                    for k in ('cluster_to_row', 'col_names'):
+                        assert base[k][()] == test[k][()]
