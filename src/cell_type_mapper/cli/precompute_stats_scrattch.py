@@ -33,7 +33,8 @@ class PrecomputationScrattchRunner(argschema.ArgSchemaParser):
             rows_at_a_time=10000,
             normalization=self.args['normalization'],
             tmp_dir=self.args['tmp_dir'],
-            n_processors=self.args['n_processors'])
+            n_processors=self.args['n_processors'],
+            layer=self.args['layer'])
 
         metadata = {
             'config': copy.deepcopy(self.args)

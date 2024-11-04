@@ -4,13 +4,15 @@ from marshmallow import post_load
 from cell_type_mapper.schemas.mixins import (
     OutFileWithClobberMixin,
     TmpDirMixin,
-    NProcessorsMixin)
+    NProcessorsMixin,
+    LayerMixin)
 
 
 class PrecomputedStatsSchemaMixin(
         OutFileWithClobberMixin,
         TmpDirMixin,
-        NProcessorsMixin):
+        NProcessorsMixin,
+        LayerMixin):
 
     clobber = argschema.fields.Boolean(
         required=False,
