@@ -4,6 +4,7 @@ Test the CLI tool for finding query markers
 import pytest
 
 import anndata
+import copy
 import h5py
 import itertools
 import json
@@ -96,6 +97,29 @@ def test_query_marker_cli_tool(
     with open(output_path, 'rb') as src:
         actual = json.load(src)
 
+    # test roundtrip of config
+    alt_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='alt_query_markers_',
+        suffix='.json'
+    )
+
+    new_config = copy.deepcopy(actual['metadata']['config'])
+    new_config.pop('output_path')
+    new_config['output_path'] = alt_output_path
+    new_runner = QueryMarkerRunner(
+        args=[],
+        input_data=new_config)
+    new_runner.run()
+    with open(alt_output_path, 'rb') as src:
+        roundtrip = json.load(src)
+    assert set(roundtrip.keys()) == set(actual.keys())
+    for k in actual:
+        if k in ('log', 'metadata'):
+            continue
+        assert roundtrip[k] == actual[k]
+
+    # verify value of contents in actual
     assert 'log' in actual
     n_skipped = 0
     n_dur = 0
