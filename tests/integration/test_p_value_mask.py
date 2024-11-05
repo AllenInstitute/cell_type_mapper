@@ -671,6 +671,45 @@ def test_p_mask_marker_smoke(
 
         runner.run()
 
+        # test roundtrip of config
+        def _h5_match(obj0, obj1):
+            if isinstance(obj0, h5py.Dataset):
+                d0 = obj0[()]
+                d1 = obj1[()]
+                if isinstance(d0, np.ndarray):
+                    np.testing.assert_allclose(
+                        d0,
+                        d1,
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )
+                else:
+                    assert d0 == d1
+            else:
+                for k in obj0.keys():
+                    if k == 'metadata':
+                        continue
+                    _h5_match(obj0[k], obj1[k])
+
+        with h5py.File(output_path, 'r') as src:
+            new_config = json.loads(
+                src['metadata'][()].decode('utf-8'))['config']
+        new_config.pop('output_path')
+        roundtrip_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='roundtrip_markers_',
+            suffix='.h5'
+        )
+        new_config['output_path'] = roundtrip_path
+        new_runner = PValueMarkersRunner(
+            args=[],
+            input_data=new_config)
+
+        new_runner.run()
+        with h5py.File(output_path, 'r') as baseline:
+            with h5py.File(roundtrip_path, 'r') as test:
+                _h5_match(baseline, test)
+
     else:
         find_markers_for_all_taxonomy_pairs_from_p_mask(
             precomputed_stats_path=precomputed_path_fixture,

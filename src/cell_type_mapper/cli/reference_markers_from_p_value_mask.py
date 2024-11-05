@@ -1,8 +1,11 @@
 import argschema
-import copy
 import h5py
 import json
 import time
+
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
 
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
@@ -22,6 +25,12 @@ class PValueMarkersRunner(argschema.ArgSchemaParser):
     default_schema = PValueMarkersSchema
 
     def run(self):
+
+        metadata = {'config': config_from_args(
+                                input_config=self.args,
+                                cloud_safe=False),
+                    'precomputed_path': self.args['precomputed_stats_path']}
+
         if self.args['query_path'] is not None:
             gene_list = list(
                 read_df_from_h5ad(
@@ -29,9 +38,6 @@ class PValueMarkersRunner(argschema.ArgSchemaParser):
                     df_name='var').index.values)
         else:
             gene_list = None
-
-        metadata = {'config': copy.deepcopy(self.args),
-                    'precomputed_path': self.args['precomputed_stats_path']}
 
         t0 = time.time()
         find_markers_for_all_taxonomy_pairs_from_p_mask(
