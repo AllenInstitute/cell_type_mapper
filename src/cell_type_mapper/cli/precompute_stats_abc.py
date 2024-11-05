@@ -35,6 +35,10 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 from cell_type_mapper.diff_exp.precompute_utils import (
     merge_precompute_files)
 
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
 
 class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
@@ -47,7 +51,10 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
         dataset_to_output = self.create_dataset_to_output_map()
 
         parent_metadata = {
-            'config': copy.deepcopy(self.args),
+            'config': config_from_args(
+                            input_config=self.args,
+                            cloud_safe=False
+                      ),
             'dataset_to_output_map': dataset_to_output
         }
 
