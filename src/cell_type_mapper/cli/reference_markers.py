@@ -5,6 +5,10 @@ import json
 import pathlib
 import time
 
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
@@ -29,14 +33,17 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
 
     def run(self):
 
+        parent_metadata = {
+            'config': config_from_args(
+                        input_config=self.args,
+                        cloud_safe=False)
+        }
+
         log = CommandLog()
 
         input_to_output = self.create_input_to_output_map()
 
-        parent_metadata = {
-            'config': copy.deepcopy(self.args),
-            'input_to_output_map': input_to_output,
-        }
+        parent_metadata['input_to_output_map'] = input_to_output
 
         parent_metadata.update(
             get_execution_metadata(

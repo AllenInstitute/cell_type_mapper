@@ -778,6 +778,117 @@ def test_reference_cli_config(
 
 
 @pytest.mark.parametrize(
+    "exact_penetrance,drop_level",
+    itertools.product(
+        [True, False],
+        [None, 'subclass']
+    )
+)
+def test_roundtrip_reference_cli_config(
+        precomputed_stats_path_fixture,
+        dataset_list_fixture,
+        tmp_dir_fixture,
+        exact_penetrance,
+        drop_level):
+    """
+    Test that the reference marker CLI tool correctly records
+    the config dict needed to recreate its results.
+
+    This test is here because we are using the pre-established
+    multi dataset infrastructure to create the precomputed data
+    paths.
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_baseline_')
+
+    config = {
+        'precomputed_path_list': precomputed_stats_path_fixture,
+        'output_dir': baseline_output_dir,
+        'clobber': False,
+        'drop_level': drop_level,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 4,
+        'exact_penetrance': exact_penetrance,
+        'p_th': 0.5,
+        'q1_th': 0.5,
+        'q1_min_th': 0.01,
+        'qdiff_th': 0.5,
+        'qdiff_min_th': 0.01,
+        'log2_fold_th': 1.0,
+        'log2_fold_min_th': 0.01,
+        'n_valid': 5
+    }
+
+    runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    result_files = [
+        n for n in pathlib.Path(baseline_output_dir).iterdir()
+    ]
+
+    new_config = None
+    for pth in result_files:
+        with h5py.File(pth, 'r') as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        if new_config is None:
+            new_config = metadata['config']
+        else:
+            assert new_config == metadata['config']
+
+    new_config.pop('output_dir')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_test_'
+    )
+    new_config['output_dir'] = test_output_dir
+    new_runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=new_config)
+    new_runner.run()
+
+    test_files = [
+        n for n in pathlib.Path(test_output_dir).iterdir()
+    ]
+
+    def _h5_match(obj0, obj1):
+        if isinstance(obj0, h5py.Dataset):
+            d0 = obj0[()]
+            d1 = obj1[()]
+            if isinstance(d0, np.ndarray):
+                np.testing.assert_allclose(
+                    d0,
+                    d1,
+                    atol=0.0,
+                    rtol=1.0e-7
+                )
+            else:
+                assert d0 == d1
+        else:
+            for k in obj0.keys():
+                if k == 'metadata':
+                    continue
+                _h5_match(obj0[k], obj1[k])
+
+    assert len(test_files) == len(result_files)
+    for pth in result_files:
+        found_it = False
+        test_pth = None
+        for test_pth_candidate in test_files:
+            if test_pth_candidate.name == pth.name:
+                found_it = True
+                test_pth = test_pth_candidate
+                break
+        assert found_it
+        with h5py.File(pth, 'r') as baseline:
+            with h5py.File(test_pth, 'r') as test:
+                _h5_match(baseline, test)
+
+
+@pytest.mark.parametrize(
     "downsample_h5ad_list,split_by_dataset,do_pruning",
     itertools.product([True, False], [True, False], [True, False]))
 def test_precompute_cli_incomplete_cell_metadata(
