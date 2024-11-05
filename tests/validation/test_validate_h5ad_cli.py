@@ -445,17 +445,17 @@ def test_validation_cli_of_good_h5ad(
     else:
         assert result_path == orig_path
 
-        # make sure input file did not change
-        md51 = hashlib.md5()
-        with open(orig_path, 'rb') as src:
-            md51.update(src.read())
-
-        assert md50.hexdigest() == md51.hexdigest()
         md51 = hashlib.md5()
         with open(result_path, 'rb') as src:
             md51.update(src.read())
 
         assert md50.hexdigest() == md51.hexdigest()
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+    assert md50.hexdigest() == md51.hexdigest()
 
 
 @pytest.mark.parametrize(
