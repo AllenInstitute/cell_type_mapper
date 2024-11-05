@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -671,26 +675,6 @@ def test_p_mask_marker_smoke(
 
         runner.run()
 
-        # test roundtrip of config
-        def _h5_match(obj0, obj1):
-            if isinstance(obj0, h5py.Dataset):
-                d0 = obj0[()]
-                d1 = obj1[()]
-                if isinstance(d0, np.ndarray):
-                    np.testing.assert_allclose(
-                        d0,
-                        d1,
-                        atol=0.0,
-                        rtol=1.0e-7
-                    )
-                else:
-                    assert d0 == d1
-            else:
-                for k in obj0.keys():
-                    if k == 'metadata':
-                        continue
-                    _h5_match(obj0[k], obj1[k])
-
         with h5py.File(output_path, 'r') as src:
             new_config = json.loads(
                 src['metadata'][()].decode('utf-8'))['config']
@@ -708,7 +692,7 @@ def test_p_mask_marker_smoke(
         new_runner.run()
         with h5py.File(output_path, 'r') as baseline:
             with h5py.File(roundtrip_path, 'r') as test:
-                _h5_match(baseline, test)
+                h5_match(baseline, test)
 
     else:
         find_markers_for_all_taxonomy_pairs_from_p_mask(

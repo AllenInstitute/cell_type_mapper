@@ -16,6 +16,10 @@ import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
 
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -854,25 +858,6 @@ def test_roundtrip_reference_cli_config(
         n for n in pathlib.Path(test_output_dir).iterdir()
     ]
 
-    def _h5_match(obj0, obj1):
-        if isinstance(obj0, h5py.Dataset):
-            d0 = obj0[()]
-            d1 = obj1[()]
-            if isinstance(d0, np.ndarray):
-                np.testing.assert_allclose(
-                    d0,
-                    d1,
-                    atol=0.0,
-                    rtol=1.0e-7
-                )
-            else:
-                assert d0 == d1
-        else:
-            for k in obj0.keys():
-                if k == 'metadata':
-                    continue
-                _h5_match(obj0[k], obj1[k])
-
     assert len(test_files) == len(result_files)
     for pth in result_files:
         found_it = False
@@ -885,7 +870,7 @@ def test_roundtrip_reference_cli_config(
         assert found_it
         with h5py.File(pth, 'r') as baseline:
             with h5py.File(test_pth, 'r') as test:
-                _h5_match(baseline, test)
+                h5_match(baseline, test)
 
 
 @pytest.mark.parametrize(
