@@ -477,6 +477,28 @@ def test_query_markers_from_p_values(
         n_markers += len(result[k])
     assert n_markers > 0
 
+    # test roundtrip of config
+    new_config = copy.deepcopy(result['metadata']['config'])
+    new_config.pop('output_path')
+    test_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='roundtrip_query_markers_from_mask_',
+        suffix='.json'
+    )
+    new_config['output_path'] = test_output_path
+    new_runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=new_config)
+
+    new_runner.run()
+    with open(test_output_path, 'rb') as src:
+        roundtrip = json.load(src)
+    assert set(roundtrip.keys()) == set(result.keys())
+    for k in roundtrip.keys():
+        if k in ('log', 'metadata'):
+            continue
+        assert roundtrip[k] == result[k]
+
 
 @pytest.mark.parametrize("search_for_stats", [True, False])
 def test_query_markers_from_p_values_when_precompute_moved(
