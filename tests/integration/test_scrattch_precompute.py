@@ -484,3 +484,86 @@ def test_precompute_scrattch_cli_clobber(
                 args=[],
                 input_data=config)
             runner.run()
+
+
+@pytest.mark.parametrize(
+        ' n_processors, density_fixture, layer_fixture, normalization_fixture',
+        itertools.product(
+            (1, 3),
+            ('csc', 'csr', 'dense'),
+            ('X', 'raw', 'dummy'),
+            ('raw', 'log2CPM')
+        ),
+        indirect=['density_fixture', 'layer_fixture', 'normalization_fixture'])
+def test_roundtrip_scrattch_config(
+        taxonomy_fixture,
+        cluster_stats_fixture,
+        n_processors,
+        tmp_dir_fixture,
+        h5ad_path_fixture):
+    """
+    Test that the config written to the precomputed stats file
+    can be used to produce identical results
+    """
+
+    input_path = h5ad_path_fixture[0]
+    input_config = h5ad_path_fixture[1]
+
+    normalization = input_config['normalization']
+    layer = input_config['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precompute_from_scrattch_',
+        suffix='.h5')
+
+    config = {
+        'h5ad_path': input_path,
+        'n_processors': n_processors,
+        'normalization': normalization,
+        'tmp_dir': tmp_dir_fixture,
+        'output_path': output_path,
+        'hierarchy': ['class', 'subclass', 'cluster'],
+        'clobber': True,
+        'layer': layer
+    }
+
+    runner = PrecomputationScrattchRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    with h5py.File(output_path, 'r') as src:
+        config = json.loads(src['metadata'][()].decode('utf-8'))['config']
+    config.pop('output_path')
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='roundtrip_test_',
+        suffix='.h5'
+    )
+    config['output_path'] = test_path
+
+    test_runner = PrecomputationScrattchRunner(
+        args=[],
+        input_data=config)
+
+    test_runner.run()
+
+    with h5py.File(output_path, 'r') as baseline:
+        with h5py.File(test_path, 'r') as test:
+            assert test['cluster_to_row'][()] == baseline['cluster_to_row'][()]
+            test_tree = json.loads(test['taxonomy_tree'][()].decode('utf-8'))
+            base_tree = json.loads(baseline['taxonomy_tree'][()].decode('utf-8'))
+            test_tree.pop('metadata')
+            base_tree.pop('metadata')
+            assert test_tree == base_tree
+            for k in ('sum', 'sumsq', 'ge1', 'gt1', 'gt0', 'n_cells'):
+                np.testing.assert_allclose(
+                    baseline[k][()],
+                    test[k][()],
+                    atol=0.0,
+                    rtol=1.0e-7
+                )
