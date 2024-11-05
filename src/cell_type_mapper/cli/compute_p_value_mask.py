@@ -1,8 +1,11 @@
 import argschema
-import copy
 import h5py
 import json
 import time
+
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
 
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
@@ -20,7 +23,10 @@ class PValueRunner(argschema.ArgSchemaParser):
 
     def run(self):
         t0 = time.time()
-        metadata = {'config': copy.deepcopy(self.args)}
+        metadata = {'config': config_from_args(
+                                input_config=self.args,
+                                cloud_safe=False)
+                    }
 
         create_p_value_mask_file(
             precomputed_stats_path=self.args['precomputed_stats_path'],
