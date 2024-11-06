@@ -6,7 +6,16 @@ def h5_match(obj0, obj1, this_key=None, to_skip=None):
     """
     Recursively check identity of datasets and groups in
     HDF5 handles pointed to by obj0 and obj1
+
+    this_key is a string indicating which element you are
+    currently testing.
+
+    to_skip is an optional list of keys (like 'uns') to ignore
     """
+    if this_key is not None:
+        err_msg = f"Failed on {this_key}"
+    else:
+        err_msg = ""
 
     if to_skip is None:
         to_skip = []
@@ -20,17 +29,25 @@ def h5_match(obj0, obj1, this_key=None, to_skip=None):
                     d0,
                     d1,
                     atol=0.0,
-                    rtol=1.0e-7
+                    rtol=1.0e-7,
+                    err_msg=err_msg
                 )
             else:
-                np.testing.assert_array_equal(d0, d1)
+                np.testing.assert_array_equal(
+                    d0,
+                    d1,
+                    err_msg)
         else:
             if not d0 == d1:
                 raise RuntimeError(
-                    f"Mismatch on {this_key}"
+                    err_msg
                 )
     else:
         for k in obj0.keys():
             if k == 'metadata' or k in to_skip:
                 continue
-            h5_match(obj0[k], obj1[k], this_key=k)
+            if this_key is not None:
+                new_key = f"{this_key}/{k}"
+            else:
+                new_key = k
+            h5_match(obj0[k], obj1[k], this_key=new_key)
