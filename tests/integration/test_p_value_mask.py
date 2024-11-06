@@ -9,6 +9,10 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -278,6 +282,92 @@ def test_dummy_p_value_mask(
         distance_array,
         rtol=0.0,
         atol=np.finfo(np.float16).resolution)
+
+def test_roundtrip_p_value_mask_config(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        taxonomy_tree_fixture,
+        cluster_pair_fixture):
+    """
+    Test that the config recorded in the p-value mask file
+    can be used to recreate the same result
+    """
+
+    q1_min_th = 0.1
+    qdiff_min_th = 0.1
+    log2_fold_min_th=0.2
+    p_th = 0.01
+    n_processors = 3
+
+    n_per = len(cluster_pair_fixture)//5
+
+    marker_stats = get_marker_stats(
+        precomputed_path=precomputed_path_fixture,
+        taxonomy_tree=taxonomy_tree_fixture,
+        cluster_pair_list=cluster_pair_fixture,
+        p_th=p_th)
+
+    q1_th = 0.5
+    qdiff_th = 0.7
+    log2_fold_th = 1.0
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_mask_',
+        suffix='.h5')
+
+    config = {
+        'precomputed_stats_path': precomputed_path_fixture,
+        'output_path': baseline_path,
+        'p_th': p_th,
+        'q1_th': q1_th,
+        'q1_min_th': q1_min_th,
+        'qdiff_th': qdiff_th,
+        'qdiff_min_th': qdiff_min_th,
+        'log2_fold_th': log2_fold_th,
+        'log2_fold_min_th': log2_fold_min_th,
+        'n_processors': n_processors,
+        'tmp_dir': str(tmp_dir_fixture),
+        'clobber': True,
+        'rows_at_a_time': n_per
+    }
+    runner = PValueRunner(
+                args=[],
+                input_data=config)
+    runner.run()
+
+    with h5py.File(baseline_path, 'r') as src:
+        new_config = json.loads(
+            src['metadata'][()].decode('utf-8'))['config']
+    new_config.pop('output_path')
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='p_mask_roundtrip_',
+        suffix='.h5'
+    )
+    new_config['output_path'] = test_path
+
+    test_runner = PValueRunner(
+                args=[],
+                input_data=new_config)
+    test_runner.run()
+
+    with h5py.File(baseline_path, 'r') as baseline:
+        with h5py.File(test_path, 'r') as test:
+            for dataset in test.keys():
+                if dataset == 'metadata':
+                    continue
+                t_data = test[dataset][()]
+                b_data = baseline[dataset][()]
+                if isinstance(t_data, np.ndarray):
+                    np.testing.assert_allclose(
+                        t_data,
+                        b_data,
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )
+                else:
+                    assert t_data == b_data
 
 
 @pytest.mark.parametrize(
@@ -584,6 +674,25 @@ def test_p_mask_marker_smoke(
             input_data=config)
 
         runner.run()
+
+        with h5py.File(output_path, 'r') as src:
+            new_config = json.loads(
+                src['metadata'][()].decode('utf-8'))['config']
+        new_config.pop('output_path')
+        roundtrip_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='roundtrip_markers_',
+            suffix='.h5'
+        )
+        new_config['output_path'] = roundtrip_path
+        new_runner = PValueMarkersRunner(
+            args=[],
+            input_data=new_config)
+
+        new_runner.run()
+        with h5py.File(output_path, 'r') as baseline:
+            with h5py.File(roundtrip_path, 'r') as test:
+                h5_match(baseline, test)
 
     else:
         find_markers_for_all_taxonomy_pairs_from_p_mask(

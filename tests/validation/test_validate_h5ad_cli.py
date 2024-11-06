@@ -10,10 +10,19 @@ import pandas as pd
 import pathlib
 import re
 import scipy.sparse as scipy_sparse
+import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
+
+from cell_type_mapper.utils.anndata_utils import (
+    read_uns_from_h5ad
+)
 
 from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
@@ -445,17 +454,17 @@ def test_validation_cli_of_good_h5ad(
     else:
         assert result_path == orig_path
 
-        # make sure input file did not change
-        md51 = hashlib.md5()
-        with open(orig_path, 'rb') as src:
-            md51.update(src.read())
-
-        assert md50.hexdigest() == md51.hexdigest()
         md51 = hashlib.md5()
         with open(result_path, 'rb') as src:
             md51.update(src.read())
 
         assert md50.hexdigest() == md51.hexdigest()
+
+    # make sure input file did not change
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+    assert md50.hexdigest() == md51.hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -718,3 +727,100 @@ def test_validation_cli_on_ensembl_dot(
         new_h5ad = anndata.read_h5ad(output_config['valid_h5ad_path'], backed='r')
         assert list(new_h5ad.var.index.values) == expected
         assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)
+
+
+@pytest.mark.parametrize(
+        "density,preserve_norm",
+        itertools.product(("csr", "csc", "array"), (True, False)))
+def test_roundtrip_of_validation_cli(
+        good_var_fixture,
+        obs_fixture,
+        good_x_fixture,
+        x_fixture,
+        tmp_dir_fixture,
+        density,
+        preserve_norm):
+    """
+    Test behavior of validation CLI when the data is good
+    but it is in a non-X layer.
+    """
+
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    if preserve_norm:
+        baseline_data = x_fixture
+    else:
+        baseline_data = good_x_fixture
+
+    if density == "array":
+        data = baseline_data
+    elif density == "csr":
+        data = scipy_sparse.csr_matrix(baseline_data)
+    elif density == "csc":
+        data = scipy_sparse.csc_matrix(baseline_data)
+    else:
+        raise RuntimeError(f"unknown density {density}")
+
+    a_data = anndata.AnnData(
+        X=np.zeros(data.shape),
+        var=good_var_fixture,
+        obs=obs_fixture,
+        layers={'garbage': data})
+
+    a_data.write_h5ad(orig_path)
+
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
+    output_json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix=f"good_input_{density}_",
+        suffix=".json")
+
+    config = {
+        'h5ad_path': orig_path,
+        'output_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'output_json': output_json_path,
+        'layer': 'garbage',
+        'round_to_int': not preserve_norm
+    }
+
+    runner = ValidateH5adRunner(args=[], input_data=config)
+    runner.run()
+
+    with open(output_json_path, 'rb') as src:
+        output_json = json.load(src)
+
+    result_uns = read_uns_from_h5ad(output_json['valid_h5ad_path'])
+    new_config = result_uns['validation_config']
+    new_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    new_output_json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix="roundtrip_input_",
+        suffix=".json"
+    )
+    new_config.pop('output_dir')
+    new_config['output_dir'] = new_dir
+    new_config.pop('output_json')
+    new_config['output_json'] = new_output_json_path
+
+    roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
+    roundtrip_runner.run()
+    with open(new_output_json_path, 'rb') as src:
+        new_output_json = json.load(src)
+    assert new_output_json['valid_h5ad_path'] != output_json['valid_h5ad_path']
+
+    with h5py.File(output_json['valid_h5ad_path'], 'r') as baseline:
+        with h5py.File(new_output_json['valid_h5ad_path'], 'r') as test:
+            h5_match(baseline, test, to_skip=['uns'])
+
+    # make sure original file has not changed
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+    assert md50.hexdigest() == md51.hexdigest()

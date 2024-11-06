@@ -16,6 +16,10 @@ import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
 
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -778,6 +782,98 @@ def test_reference_cli_config(
 
 
 @pytest.mark.parametrize(
+    "exact_penetrance,drop_level",
+    itertools.product(
+        [True, False],
+        [None, 'subclass']
+    )
+)
+def test_roundtrip_reference_cli_config(
+        precomputed_stats_path_fixture,
+        dataset_list_fixture,
+        tmp_dir_fixture,
+        exact_penetrance,
+        drop_level):
+    """
+    Test that the reference marker CLI tool correctly records
+    the config dict needed to recreate its results.
+
+    This test is here because we are using the pre-established
+    multi dataset infrastructure to create the precomputed data
+    paths.
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_baseline_')
+
+    config = {
+        'precomputed_path_list': precomputed_stats_path_fixture,
+        'output_dir': baseline_output_dir,
+        'clobber': False,
+        'drop_level': drop_level,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 4,
+        'exact_penetrance': exact_penetrance,
+        'p_th': 0.5,
+        'q1_th': 0.5,
+        'q1_min_th': 0.01,
+        'qdiff_th': 0.5,
+        'qdiff_min_th': 0.01,
+        'log2_fold_th': 1.0,
+        'log2_fold_min_th': 0.01,
+        'n_valid': 5
+    }
+
+    runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    result_files = [
+        n for n in pathlib.Path(baseline_output_dir).iterdir()
+    ]
+
+    new_config = None
+    for pth in result_files:
+        with h5py.File(pth, 'r') as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        if new_config is None:
+            new_config = metadata['config']
+        else:
+            assert new_config == metadata['config']
+
+    new_config.pop('output_dir')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_test_'
+    )
+    new_config['output_dir'] = test_output_dir
+    new_runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=new_config)
+    new_runner.run()
+
+    test_files = [
+        n for n in pathlib.Path(test_output_dir).iterdir()
+    ]
+
+    assert len(test_files) == len(result_files)
+    for pth in result_files:
+        found_it = False
+        test_pth = None
+        for test_pth_candidate in test_files:
+            if test_pth_candidate.name == pth.name:
+                found_it = True
+                test_pth = test_pth_candidate
+                break
+        assert found_it
+        with h5py.File(pth, 'r') as baseline:
+            with h5py.File(test_pth, 'r') as test:
+                h5_match(baseline, test)
+
+
+@pytest.mark.parametrize(
     "downsample_h5ad_list,split_by_dataset,do_pruning",
     itertools.product([True, False], [True, False], [True, False]))
 def test_precompute_cli_incomplete_cell_metadata(
@@ -1016,3 +1112,134 @@ def test_precompute_cli_from_layers(
                         )
                     for k in ('cluster_to_row', 'col_names'):
                         assert base[k][()] == test[k][()]
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,h5ad_path_list_alt_layer_fixture",
+    itertools.product(
+        [True, False],
+        [True, False],
+        ['dummy', 'raw']),
+    indirect=['h5ad_path_list_alt_layer_fixture'])
+def test_roundtrip_precomputed_abc_config(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_alt_layer_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset):
+    """
+    Test that the config dict recorded in the metadata of the output
+    precomputed_stats files 'just works' when passed back into the runner
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='baseline_')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='test_')
+
+    baseline_output_path = mkstemp_clean(
+        dir=baseline_output_dir,
+        suffix='.h5')
+
+    test_output_path = mkstemp_clean(
+        dir=test_output_dir,
+        suffix='.h5')
+
+    full_alt_list = h5ad_path_list_alt_layer_fixture['path']
+    layer = h5ad_path_list_alt_layer_fixture['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
+
+    if downsample_h5ad_list:
+        h5ad_list = [full_alt_list[0],
+                     full_alt_list[1]]
+    else:
+        h5ad_list = full_alt_list
+
+    baseline_config = {
+        'output_path': baseline_output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'layer': layer}
+
+    baseline_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=baseline_config
+    )
+
+    baseline_runner.run()
+
+    if split_by_dataset:
+        # remove dummy file
+        pathlib.Path(baseline_output_path).unlink()
+        output_files = [n for n in pathlib.Path(baseline_output_dir).iterdir()]
+    else:
+        output_files = [baseline_output_path]
+
+    # make sure the same config was written to each output file
+    output_config = None
+    for pth in output_files:
+        with h5py.File(pth, 'r') as src:
+            assert src['sumsq'][()].sum() > 0.0
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            baseline_output_map = metadata['dataset_to_output_map']
+        config = metadata['config']
+        if output_config is None:
+            output_config = config
+        else:
+            assert output_config == config
+
+    config.pop('output_path')
+    config['output_path'] = test_output_path
+
+    test_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=config)
+    test_runner.run()
+
+    if split_by_dataset:
+        pathlib.Path(test_output_path).unlink()
+        test_output_files = [
+            n for n in pathlib.Path(test_output_dir).iterdir()]
+    else:
+        test_output_files = [test_output_path]
+
+    with h5py.File(test_output_files[0], 'r') as src:
+        metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        test_output_map = metadata['dataset_to_output_map']
+
+    assert set(baseline_output_map.values()) != set(test_output_map.values())
+    assert set(baseline_output_map.keys()) == set(test_output_map.keys())
+
+    for dataset in baseline_output_map:
+        b_path = baseline_output_map[dataset]
+        t_path = test_output_map[dataset]
+        with h5py.File(b_path, 'r') as baseline_src:
+            with h5py.File(t_path, 'r') as test_src:
+                assert test_src['cluster_to_row'][()] == baseline_src['cluster_to_row'][()]
+                test_tree = json.loads(test_src['taxonomy_tree'][()].decode('utf-8'))
+                base_tree = json.loads(baseline_src['taxonomy_tree'][()].decode('utf-8'))
+                test_tree.pop('metadata')
+                base_tree.pop('metadata')
+                assert test_tree == base_tree
+                for k in ('sum', 'sumsq', 'ge1', 'gt0', 'gt1', 'n_cells'):
+                    np.testing.assert_allclose(
+                        test_src[k][()],
+                        baseline_src[k][()],
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )
