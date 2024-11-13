@@ -6,8 +6,8 @@ circa June 30 2023.
 It takes an hour or two to run.
 """
 
-from cell_type_mapper.cli.precompute_stats import (
-    PrecomputationRunner)
+from cell_type_mapper.cli.precompute_stats_abc import (
+    PrecomputationABCRunner)
 
 from cell_type_mapper.utils.utils import get_timestamp
 
@@ -79,7 +79,7 @@ def main():
         'output_path': args.output_path}
 
     t0 = time.time()
-    runner = PrecomputationRunner(args=[], input_data=config)
+    runner = PrecomputationABCRunner(args=[], input_data=config)
     runner.run()
     dur = time.time()-t0
     print(f"wrote {args.output_path}")
