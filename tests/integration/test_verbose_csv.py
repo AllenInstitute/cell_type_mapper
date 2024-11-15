@@ -31,6 +31,10 @@ from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner
 )
 
+from cell_type_mapper.cli.map_to_on_the_fly_markers import (
+    OnTheFlyMapper
+)
+
 
 
 @pytest.fixture(scope='module')
@@ -87,7 +91,7 @@ def taxonomy_tree_data_fixture():
 
 @pytest.fixture(scope='module')
 def n_genes_fixture():
-    return 30
+    return 40
 
 
 @pytest.fixture(scope='module')
@@ -109,11 +113,22 @@ def reference_h5ad_fixture(
 
     rng = np.random.default_rng(8812311)
     obs_data = []
+
+    xx = np.zeros((n_cells, n_genes), dtype=float)
+
     for i_cell in range(n_cells):
         this = {
             'cell_label': f'cell_{i_cell}'
         }
         cluster = rng.choice(['cl0', 'cl1', 'cl2', 'cl3'])
+
+        gene_idx = int(cluster[-1])
+        vec = 5.0*np.ones(n_genes, dtype=float)
+        g0 = gene_idx*10
+        vec[g0:g0+5] = rng.random(5)
+        vec[g0+5:g0+10] = 7.0+5.0*rng.random(5)
+        xx[i_cell, :] = vec
+
         parentage = taxonomy_tree.parents(
             level='cluster_name_label_alias',
             node=cluster)
@@ -128,7 +143,7 @@ def reference_h5ad_fixture(
     ).set_index('gene_id')
 
     a_data = anndata.AnnData(
-        X=rng.random((n_cells, n_genes)),
+        X=xx,
         obs=obs_df,
         var=var_df
     )
@@ -225,8 +240,8 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-@pytest.mark.parametrize('bootstrap_iteration,verbose_csv',
-    itertools.product([1, 10], [True, False]))
+@pytest.mark.parametrize('bootstrap_iteration,verbose_csv,mode',
+    itertools.product([1, 10], [True, False], ['otf', 'from_spec']))
 def test_csv_column_names(
         precomputed_stats_fixture,
         marker_genes_fixture,
@@ -234,7 +249,8 @@ def test_csv_column_names(
         tmp_dir_fixture,
         bootstrap_iteration,
         verbose_csv,
-        taxonomy_tree_data_fixture):
+        taxonomy_tree_data_fixture,
+        mode):
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -248,18 +264,15 @@ def test_csv_column_names(
         suffix='.json'
     )
 
-
     config = {
         'precomputed_stats': {
             'path': precomputed_stats_fixture
         },
-        'query_markers': {
-            'serialized_lookup': marker_genes_fixture
-        },
         'type_assignment': {
             'bootstrap_iteration': bootstrap_iteration,
             'n_processors': 3,
-            'normalization': 'log2CPM'
+            'normalization': 'log2CPM',
+            'chunk_size': 100
         },
         'csv_result_path': csv_path,
         'extended_result_path': json_path,
@@ -267,10 +280,20 @@ def test_csv_column_names(
         'verbose_csv': verbose_csv
     }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config
-    )
+    if mode == 'from_spec':
+        config['query_markers'] = {
+            'serialized_lookup': marker_genes_fixture
+        }
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config
+        )
+    elif mode == 'otf':
+        config['query_markers'] = {}
+        config['reference_markers'] = {}
+        config['n_processors'] = config['type_assignment'].pop('n_processors')
+        runner = OnTheFlyMapper(args=[], input_data=config)
+
     runner.run()
 
     actual_df = pd.read_csv(csv_path, comment='#')
