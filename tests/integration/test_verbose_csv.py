@@ -8,6 +8,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -224,13 +225,15 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-@pytest.mark.parametrize('bootstrap_iteration', [1, 10])
+@pytest.mark.parametrize('bootstrap_iteration,verbose_csv',
+    itertools.product([1, 10], [True, False]))
 def test_csv_column_names(
         precomputed_stats_fixture,
         marker_genes_fixture,
         query_h5ad_fixture,
         tmp_dir_fixture,
         bootstrap_iteration,
+        verbose_csv,
         taxonomy_tree_data_fixture):
 
     csv_path = mkstemp_clean(
@@ -260,7 +263,8 @@ def test_csv_column_names(
         },
         'csv_result_path': csv_path,
         'extended_result_path': json_path,
-        'query_path': query_h5ad_fixture
+        'query_path': query_h5ad_fixture,
+        'verbose_csv': verbose_csv
     }
 
     runner = FromSpecifiedMarkersRunner(
@@ -271,15 +275,24 @@ def test_csv_column_names(
 
     actual_df = pd.read_csv(csv_path, comment='#')
 
-    if bootstrap_iteration > 1:
-        metric = 'bootstrapping_probability'
+    if verbose_csv:
+        metric_suffixes = [
+            'bootstrapping_probability',
+            'correlation_coefficient',
+            'aggregate_probability'
+        ]
     else:
-        metric = 'correlation_coefficient'
+        if bootstrap_iteration > 1:
+            metric_suffixes = ['bootstrapping_probability']
+        else:
+            metric_suffixes = ['correlation_coefficient']
+
+    all_suffixes = ['name', 'label'] + metric_suffixes
 
     expected_columns = set()
     expected_columns.add('cell_id')
     for level in taxonomy_tree_data_fixture['hierarchy']:
-        for suffix in ('name', 'label', metric):
+        for suffix in all_suffixes:
             expected_columns.add(f'{level}_{suffix}')
     leaf_level = taxonomy_tree_data_fixture['hierarchy'][-1]
     expected_columns.add(f'{leaf_level}_alias')

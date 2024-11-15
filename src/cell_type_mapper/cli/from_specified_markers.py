@@ -370,12 +370,25 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     if config['csv_result_path'] is not None:
 
-        if config['type_assignment']['bootstrap_iteration'] == 1:
+        if config['type_assignment']['bootstrap_iteration'] == 1 \
+                or config['verbose_csv']:
+
             confidence_key = 'avg_correlation'
             confidence_label = 'correlation_coefficient'
+
         else:
+
             confidence_key = 'bootstrapping_probability'
             confidence_label = 'bootstrapping_probability'
+
+        if config['verbose_csv']:
+            valid_suffixes = [
+                '_aggregate_probability',
+                '_bootstrapping_probability',
+                '_avg_correlation'
+            ]
+        else:
+            valid_suffixes = None
 
         blob_to_csv(
             results_blob=csv_result.get("assignments"),
@@ -384,7 +397,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             metadata_path=config['extended_result_path'],
             confidence_key=confidence_key,
             confidence_label=confidence_label,
-            config=config)
+            config=config,
+            valid_suffixes=valid_suffixes)
 
     if config['obsm_key']:
 
