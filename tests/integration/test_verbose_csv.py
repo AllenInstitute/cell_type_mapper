@@ -271,10 +271,10 @@ def test_csv_column_names(
 
     actual_df = pd.read_csv(csv_path, comment='#')
 
-    if bootstrap_iteration == 1:
+    if bootstrap_iteration > 1:
         metric = 'bootstrapping_probability'
     else:
-        metric = 'avg_correlation'
+        metric = 'correlation_coefficient'
 
     expected_columns = set()
     expected_columns.add('cell_id')
@@ -285,5 +285,13 @@ def test_csv_column_names(
     expected_columns.add(f'{leaf_level}_alias')
     actual_columns = set(actual_df.columns)
 
-    assert len(expected_columns-actual_columns) == 0
+    missing_columns = []
+    for col in expected_columns:
+        if col not in actual_columns:
+            missing_columns.append(col)
+    if len(missing_columns) > 0:
+        raise RuntimeError(
+            f'columns\n{missing_columns}\nnot in CSV'
+        )
+
     assert expected_columns == actual_columns

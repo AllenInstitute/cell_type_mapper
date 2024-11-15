@@ -142,13 +142,23 @@ def blob_to_csv(
         csv_df.rename(mapper=column_rename, axis=1, inplace=True)
 
         columns_to_drop = []
+        valid_suffixes = ['_name', '_label', '_alias']
         for col in csv_df.columns:
             if col == 'cell_id':
                 continue
-            if 'name' in col or 'label' in col or 'alias' in col:
+
+            keep_it = False
+            for suffix in valid_suffixes:
+                if col.endswith(suffix):
+                    keep_it = True
+                    break
+
+            if keep_it:
                 continue
-            if confidence_label in col:
+
+            if col.endswith(confidence_label):
                 continue
+
             columns_to_drop.append(col)
 
         if len(columns_to_drop) > 0:
