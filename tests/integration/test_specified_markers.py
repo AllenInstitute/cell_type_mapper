@@ -405,7 +405,6 @@ def test_mapping_from_markers(
                     if level == 'cluster':
                         conf_idx += 1
                     assert params[assn_idx] == this_cell[level]['assignment']
-                    print('params ',params)
                     delta = np.abs(this_cell[level][stat_key]-float(params[conf_idx]))
                     assert delta < 0.0001
 
