@@ -153,6 +153,17 @@ class OutputDstForSearchMixin(object):
         description="If True, allow the code to overwrite an "
         "existing element in query_path.obsm")
 
+    verbose_csv = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=(
+            "If True, recorde all confidence metrics as separate columns "
+            "in the CSV file. If False, only return one metric "
+            "(bootstrapping_probability if available; else avg_correlation)"
+        )
+    )
+
     @post_load
     def check_obsm_key(self, data, **kwargs):
         """

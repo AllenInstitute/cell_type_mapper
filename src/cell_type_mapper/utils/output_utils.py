@@ -71,7 +71,8 @@ def blob_to_csv(
         confidence_key='confidence',
         confidence_label='confidence',
         metadata_path=None,
-        config=None):
+        config=None,
+        valid_suffixes=None):
     """
     Write a set of results originally formatted for a JSON blob
     out to the CSV our users will expect.
@@ -103,8 +104,17 @@ def blob_to_csv(
     config:
         Optional dict containing the parameters with which the code
         was run.
+    valid_suffixes:
+        Optional list of strings. Columns that end with these suffixes
+        will get carried through to the CSV file.
     """
     str_hierarchy = json.dumps(taxonomy_tree.hierarchy)
+
+    default_valid_suffixes = ['_name', '_label', '_alias']
+    if valid_suffixes is None:
+        valid_suffixes = default_valid_suffixes
+    else:
+        valid_suffixes = valid_suffixes + default_valid_suffixes
 
     with open(output_path, 'w') as dst:
         if metadata_path is not None:
@@ -145,10 +155,19 @@ def blob_to_csv(
         for col in csv_df.columns:
             if col == 'cell_id':
                 continue
-            if 'name' in col or 'label' in col or 'alias' in col:
+
+            keep_it = False
+            for suffix in valid_suffixes:
+                if col.endswith(suffix):
+                    keep_it = True
+                    break
+
+            if keep_it:
                 continue
-            if confidence_label in col:
+
+            if col.endswith(confidence_label):
                 continue
+
             columns_to_drop.append(col)
 
         if len(columns_to_drop) > 0:
