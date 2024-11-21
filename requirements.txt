@@ -1,7 +1,0 @@
-pytest
-numpy
-scipy
-anndata
-matplotlib
-marshmallow==3.12.2
-argschema

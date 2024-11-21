@@ -11,7 +11,6 @@ Science.
 To install this library, clone the repository, then (ideally from a clean
 python environment)
 
-- Run `pip install -r requirements.txt` to install the required packages.
 - Run `pip install -e .` from the root directory of this repository to install
 this package itself.
 
