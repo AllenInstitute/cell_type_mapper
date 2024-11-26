@@ -464,7 +464,9 @@ class TaxonomyTree(object):
             raise RuntimeError(
                 f"{this_level} is not a valid level in this taxonomy;\n"
                 f"valid levels are:\n {self.hierarchy}")
-        return list(self._data[this_level].keys())
+        result = list(self._data[this_level].keys())
+        result.sort()
+        return result
 
     def parents(self, level, node):
         """
@@ -498,7 +500,9 @@ class TaxonomyTree(object):
                 f"{level} is not a valid level\ntry {self.hierarchy}")
         if node not in self._data[level]:
             raise RuntimeError(f"{node} not a valid node at level {level}")
-        return list(self._data[level][node])
+        result = list(self._data[level][node])
+        result.sort()
+        return result
 
     @property
     def leaf_level(self):
@@ -512,7 +516,9 @@ class TaxonomyTree(object):
         """
         List of valid leaf names
         """
-        return list(self._data[self.leaf_level].keys())
+        result = list(self._data[self.leaf_level].keys())
+        result.sort()
+        return result
 
     @property
     def n_leaves(self):
@@ -551,7 +557,7 @@ class TaxonomyTree(object):
         """
         parent_list = [None]
         for level in self._data['hierarchy'][:-1]:
-            for node in self._data[level]:
+            for node in self.nodes_at_level(level):
                 parent = (level, node)
                 parent_list.append(parent)
         return parent_list
