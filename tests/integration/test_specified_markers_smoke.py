@@ -209,6 +209,88 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
+@pytest.fixture()
+def reference_mapping_fixture(
+        query_h5ad_fixture,
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        tmp_dir_fixture):
+    """
+    A fixture returning what the mapping should be
+    (for comparing results when we are mapping data
+    that lacked the encoding-type metadata field)
+    """
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad')
+
+    output_json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_',
+        suffix='.json')
+
+    validation_config = {
+        'h5ad_path': str(query_h5ad_fixture),
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json_path}
+
+    runner = ValidateH5adRunner(
+        args=[],
+        input_data=validation_config)
+    runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='outptut_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_output_',
+        suffix='.csv')
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_',
+        suffix='.json')
+
+    config = {
+        'precomputed_stats': {
+            'path': str(precomputed_stats_fixture)
+        },
+        'query_markers': {
+            'serialized_lookup': str(marker_lookup_fixture)
+        },
+        'query_path': validated_path,
+        'extended_result_path': str(output_path),
+        'csv_result_path': str(csv_path),
+        'summary_metadata_path': metadata_path,
+        'map_to_ensembl': False,
+        'type_assignment': {
+            'normalization': 'log2CPM',
+            'bootstrap_iteration': 10,
+            'bootstrap_factor': 0.9,
+            'n_runners_up': 2,
+            'rng_seed': 5513,
+            'chunk_size': 50,
+            'n_processors': 3
+        }
+    }
+
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+    return {
+        'csv_path': csv_path,
+        'json_path': output_path
+    }
+
+
 @pytest.mark.parametrize(
         'with_encoding_type, density_fixture',
         itertools.product(
@@ -224,7 +306,9 @@ def test_online_workflow_WMB(
         tmp_dir_fixture,
         n_extra_genes_fixture,
         density_fixture,
-        with_encoding_type):
+        with_encoding_type,
+        reference_mapping_fixture
+        ):
     """
     Test the validation through mapping workflow as it will be run
     on Whole Mouse Brain data.
@@ -308,6 +392,20 @@ def test_online_workflow_WMB(
         input_data=config)
 
     runner.run()
+
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#')
+
+    baseline_df = pd.read_csv(
+        reference_mapping_fixture['csv_path'],
+        comment='#')
+
+    pd.testing.assert_frame_equal(test_df, baseline_df)
+
+    test_dict = json.load(open(output_path, 'rb'))
+    baseline_dict = json.load(open(reference_mapping_fixture['json_path'], 'rb'))
+    assert test_dict['results'] == baseline_dict['results']
 
 
 @pytest.mark.parametrize('map_to_ensembl,write_summary',
