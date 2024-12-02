@@ -152,7 +152,7 @@ def _validate_h5ad(
 
     # check that file can even be open
     try:
-        with h5py.File(original_h5ad_path, 'r') as src:
+        with h5py.File(original_h5ad_path, 'r') as _:
             pass
     except Exception:
         error_msg = f"\n{traceback.format_exc()}\n"
@@ -197,28 +197,6 @@ def _validate_h5ad(
     _check_input_gene_names(
         var_df=var_original,
         log=log)
-
-    # check that anndata metadata fields are present
-    if layer == 'X':
-        to_check = 'X'
-    else:
-        to_check = f'layers/{layer}'
-    with h5py.File(original_h5ad_path, 'r') as src:
-        attrs = dict(src[to_check].attrs)
-
-    if 'encoding-type' not in attrs:
-        msg = (
-            f"The '{to_check}' field in this h5ad file lacks the "
-            "'encoding-type' metadata field. "
-            "That field is necessary for this software to determine if this "
-            "data is stored as a sparse or dense matrix. Please see the "
-            "anndata specification here\n"
-            "https://anndata.readthedocs.io/en/latest/fileformat-prose.html"
-        )
-        if log is None:
-            raise RuntimeError(msg)
-        else:
-            log.error(msg)
 
     cast_to_int = False
     if round_to_int:

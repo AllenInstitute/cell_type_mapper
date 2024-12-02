@@ -10,6 +10,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.anndata_utils import (
+    infer_attrs
+)
+
 from cell_type_mapper.gene_id.utils import detect_species
 
 from cell_type_mapper.gene_id.gene_id_mapper import (
@@ -26,10 +30,10 @@ def is_x_integers(
     """
     layer_key = _layer_to_layer_key(layer)
 
-    with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src[layer_key].attrs)
-
-    encoding_type = attrs['encoding-type']
+    encoding_type = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )['encoding-type']
 
     if encoding_type == 'array':
         return _is_dense_x_integers(
@@ -142,20 +146,17 @@ def get_minmax_x_from_h5ad(
     """
 
     layer_key = _layer_to_layer_key(layer)
+    encoding_type = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )['encoding-type']
 
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file[layer_key].attrs)
-        if 'encoding-type' not in attrs:
-            pass
-        elif attrs['encoding-type'] == 'array':
+        if encoding_type == 'array':
             return _get_minmax_from_dense(in_file[layer_key])
-        elif 'csr' in attrs['encoding-type'] \
-                or 'csc' in attrs['encoding-type']:
+        elif 'csr' in encoding_type \
+                or 'csc' in encoding_type:
             return _get_minmax_from_sparse(in_file[layer_key])
-        else:
-            pass
-
-    return _get_minmax_x_using_anndata(h5ad_path, layer=layer)
 
 
 def map_gene_ids_in_var(

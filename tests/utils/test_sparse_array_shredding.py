@@ -15,7 +15,7 @@ import scipy.sparse as scipy_sparse
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from cell_type_mapper.utils.anndata_utils import (
+from cell_type_mapper.utils.anndata_manipulation import (
     amalgamate_h5ad)
 
 

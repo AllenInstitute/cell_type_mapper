@@ -6,12 +6,16 @@ import itertools
 import numpy as np
 import pandas as pd
 import pathlib
-import scipy.sparse as scipy_sparse
+import scipy.sparse
 import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -22,11 +26,15 @@ from cell_type_mapper.utils.anndata_utils import (
     append_to_obsm,
     does_obsm_have_key,
     update_uns,
-    amalgamate_csr_to_x,
-    amalgamate_dense_to_x,
     shuffle_csr_h5ad_rows,
     pivot_sparse_h5ad,
-    subset_csc_h5ad_columns)
+    subset_csc_h5ad_columns,
+    infer_attrs)
+
+from cell_type_mapper.utils.anndata_manipulation import (
+    amalgamate_csr_to_x,
+    amalgamate_dense_to_x
+)
 
 
 @pytest.fixture(scope='module')
@@ -154,7 +162,7 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     layer = layer.reshape((n_rows, n_cols))
     expected = np.copy(layer)
     if is_sparse:
-        layer = scipy_sparse.csr_matrix(layer)
+        layer = scipy.sparse.csr_matrix(layer)
 
     a_data = anndata.AnnData(
         X=x,
@@ -532,7 +540,7 @@ def test_amalgamate_csr_to_x(
             dir=tmp_dir_fixture,
             suffix='.h5')
         if density == "csr":
-            this = scipy_sparse.csr_matrix(
+            this = scipy.sparse.csr_matrix(
                 data[i0:i1, :])
             with h5py.File(h5_path, 'w') as dst:
                 dst.create_dataset(
@@ -556,7 +564,7 @@ def test_amalgamate_csr_to_x(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
 
-    full_csr = scipy_sparse.csr_matrix(data)
+    full_csr = scipy.sparse.csr_matrix(data)
 
     a_data = anndata.AnnData(obs=obs, var=var)
 
@@ -656,7 +664,7 @@ def test_shuffle_csr_h5ad_rows(
 
     obs = pd.DataFrame(obs_data).set_index('c')
     csr = anndata.AnnData(
-        X=scipy_sparse.csr_matrix(data),
+        X=scipy.sparse.csr_matrix(data),
         obs=obs,
         var=var)
     csr_path = mkstemp_clean(
@@ -679,7 +687,7 @@ def test_shuffle_csr_h5ad_rows(
     shuffled = anndata.AnnData(
         obs=shuffled_obs,
         var=var,
-        X=scipy_sparse.csr_matrix(shuffled_data))
+        X=scipy.sparse.csr_matrix(shuffled_data))
     shuffled.write_h5ad(shuffled_path)
 
     test_path = mkstemp_clean(
@@ -756,26 +764,26 @@ def test_pivot_sparse_h5ad(
     dummy = np.zeros(data.shape, dtype=np.uint8)
 
     if layer == 'X':
-        csr_x = scipy_sparse.csr_matrix(data)
+        csr_x = scipy.sparse.csr_matrix(data)
         csr_raw = None
         csr_layers = None
-        csc_x = scipy_sparse.csc_matrix(data)
+        csc_x = scipy.sparse.csc_matrix(data)
         csc_raw = None
         csc_layers = None
     elif layer == 'raw/X':
-        csr_x = scipy_sparse.csr_matrix(dummy)
-        csr_raw = {'X': scipy_sparse.csr_matrix(data)}
+        csr_x = scipy.sparse.csr_matrix(dummy)
+        csr_raw = {'X': scipy.sparse.csr_matrix(data)}
         csr_layers = None
-        csc_x = scipy_sparse.csc_matrix(dummy)
-        csc_raw = {'X': scipy_sparse.csc_matrix(data)}
+        csc_x = scipy.sparse.csc_matrix(dummy)
+        csc_raw = {'X': scipy.sparse.csc_matrix(data)}
         csc_layers = None
     elif layer == 'dummy':
-        csr_x = scipy_sparse.csr_matrix(dummy)
+        csr_x = scipy.sparse.csr_matrix(dummy)
         csr_raw = None
-        csr_layers = {'dummy': scipy_sparse.csr_matrix(data)}
-        csc_x = scipy_sparse.csc_matrix(dummy)
+        csr_layers = {'dummy': scipy.sparse.csr_matrix(data)}
+        csc_x = scipy.sparse.csc_matrix(dummy)
         csc_raw = None
-        csc_layers = {'dummy': scipy_sparse.csc_matrix(data)}
+        csc_layers = {'dummy': scipy.sparse.csc_matrix(data)}
     else:
         raise RuntimeError(
             f"Test cannot parse layer '{layer}'"
@@ -893,7 +901,7 @@ def test_subset_csc_h5ad_columns(
     src = anndata.AnnData(
         obs=obs,
         var=var,
-        X=scipy_sparse.csc_matrix(data))
+        X=scipy.sparse.csc_matrix(data))
     src.write_h5ad(src_path)
 
     sorted_cols = np.sort(chosen_cols)
@@ -909,7 +917,7 @@ def test_subset_csc_h5ad_columns(
     expected = anndata.AnnData(
         obs=obs,
         var=expected_var,
-        X=scipy_sparse.csc_matrix(expected_data))
+        X=scipy.sparse.csc_matrix(expected_data))
     expected.write_h5ad(expected_path)
 
     test_path = mkstemp_clean(
@@ -941,3 +949,107 @@ def test_subset_csc_h5ad_columns(
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+
+@pytest.mark.parametrize(
+        'density,layer',
+        itertools.product(
+            ['csc_matrix', 'csr_matrix', 'array'],
+            ['X', 'dummy', 'raw'])
+        )
+def test_infer_attrs(
+        tmp_dir_fixture,
+        density,
+        layer):
+    """
+    Test utility to detect density of an array in an h5ad,
+    even when the encoding-type metadata is missing
+    """
+
+    n_cells = 47
+    n_genes = 83
+    n_tot = n_cells*n_genes
+    rng = np.random.default_rng(481122)
+    obs = pd.DataFrame(
+        [{'cell_id': f'c_{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+    var = pd.DataFrame(
+        [{'gene_id': f'g_{ii}'} for ii in range(n_genes)]
+    ).set_index('gene_id')
+
+    data = np.zeros(n_tot, dtype=int)
+    chosen_idx = rng.choice(
+        np.arange(n_tot),
+        n_tot//3,
+        replace=False
+    )
+    data[chosen_idx] = rng.integers(1, 255, len(chosen_idx))
+    data = data.reshape((n_cells, n_genes))
+    if density == 'csr_matrix':
+        data = scipy.sparse.csr_matrix(data)
+    elif density == 'csc_matrix':
+        data = scipy.sparse.csc_matrix(data)
+    elif density != 'array':
+        raise RuntimeError(
+            f'cannot parse density = {dense}'
+        )
+
+    if layer == 'X':
+        dataset = 'X'
+        x = data
+        layers = None
+        raw = None
+    elif layer == 'dummy':
+        dataset = 'layers/dummy'
+        x = rng.random((n_cells, n_genes))
+        layers = {'dummy': data}
+        raw = None
+    elif layer == 'raw':
+        dataset = 'raw/X'
+        x = rng.random((n_cells, n_genes))
+        layers = None
+        raw = {'X': data}
+    else:
+        raise RuntimeError(
+            f'cannot parse layer = {layer}'
+        )
+
+    good_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='well_formatted_file_',
+        suffix='.h5ad'
+    )
+    bad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='poorly_formatted_file_',
+        suffix='.h5ad'
+    )
+
+    a_data = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=x,
+        layers=layers,
+        raw=raw
+    )
+    a_data.write_h5ad(good_path)
+
+    create_h5ad_without_encoding_type(
+        src_path=good_path,
+        dst_path=bad_path
+    )
+
+    expected = {
+        'encoding-type': density,
+        'shape': (n_cells, n_genes)
+    }
+
+    assert infer_attrs(
+        src_path=good_path,
+        dataset=dataset
+    ) == expected
+
+    assert infer_attrs(
+        src_path=bad_path,
+        dataset=dataset
+    ) == expected
