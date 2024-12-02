@@ -12,6 +12,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import scipy.sparse
 import shutil
 
 from cell_type_mapper.utils.utils import (
@@ -142,8 +143,16 @@ def n_extra_genes_fixture():
     """
     return 19
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
+def density_fixture(request):
+    if not hasattr(request, 'param'):
+        return 'dense'
+    else:
+        return request.param
+
+@pytest.fixture()
 def query_h5ad_fixture(
+        density_fixture,
         gene_name_fixture,
         tmp_dir_fixture,
         n_extra_genes_fixture):
@@ -157,7 +166,23 @@ def query_h5ad_fixture(
     n_genes = len(gene_name_fixture) + n_extra_genes_fixture
 
     rng = np.random.default_rng(77123)
-    X = rng.random((n_cells, n_genes), dtype=np.float32)
+
+    if density_fixture == 'dense':
+        X = rng.random((n_cells, n_genes), dtype=np.float32)
+    else:
+        n_tot = n_cells*n_genes
+        data = np.zeros(n_tot, dtype=int)
+        chosen_idx = rng.choice(n_tot, n_tot//3, replace=False)
+        data[chosen_idx] = rng.integers(1, 255, len(chosen_idx))
+        data = data.reshape((n_cells, n_genes))
+        if density_fixture == 'csc':
+            X = scipy.sparse.csc_matrix(data)
+        elif density_fixture == 'csr':
+            X = scipy.sparse.csr_matrix(data)
+        else:
+            raise RuntimeError(
+                f'cannot parse density {density_fixture}'
+            )
 
     obs = pd.DataFrame(
         [{'cell_id': f'cell_{ii}'}
