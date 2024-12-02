@@ -29,7 +29,11 @@ def create_h5ad_without_encoding_type(
     a_data.write_h5ad(dst_path)
 
     with h5py.File(src_path, 'r') as src:
-        with h5py.File(dst_path, 'w') as dst:
+        with h5py.File(dst_path, 'a') as dst:
+            if 'layers' in dst:
+                del dst['layers']
+            if 'X' in dst:
+                del dst['X']
             dst_layers = dst.create_group('layers')
             _copy_array_no_encoding_type(
                 src_handle=src['X'],
