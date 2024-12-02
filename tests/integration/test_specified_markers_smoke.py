@@ -19,6 +19,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
+
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
 
@@ -205,13 +209,22 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
+@pytest.mark.parametrize(
+        'with_encoding_type, density_fixture',
+        itertools.product(
+            [True, False],
+            ['dense', 'csc', 'csr']
+        ),
+        indirect=['density_fixture'])
 def test_online_workflow_WMB(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
         tmp_dir_fixture,
-        n_extra_genes_fixture):
+        n_extra_genes_fixture,
+        density_fixture,
+        with_encoding_type):
     """
     Test the validation through mapping workflow as it will be run
     on Whole Mouse Brain data.
@@ -219,6 +232,18 @@ def test_online_workflow_WMB(
     Creating this test especially so that we can verify the functionality
     to patch query data that is missing proper encoding-type metadata
     """
+    if with_encoding_type:
+        query_path = str(query_h5ad_fixture)
+    else:
+        query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='query_without_encoding_type_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=query_h5ad_fixture,
+            dst_path=query_path
+        )
 
     validated_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -231,7 +256,7 @@ def test_online_workflow_WMB(
         suffix='.json')
 
     validation_config = {
-        'h5ad_path': str(query_h5ad_fixture),
+        'h5ad_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
