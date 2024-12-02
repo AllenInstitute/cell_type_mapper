@@ -35,11 +35,24 @@ def create_h5ad_without_encoding_type(
             if 'X' in dst:
                 del dst['X']
             dst_layers = dst.create_group('layers')
+
             _copy_array_no_encoding_type(
                 src_handle=src['X'],
                 dst_grp=dst,
                 dst_handle='X'
             )
+
+            if 'raw' in src:
+                if 'raw' in dst:
+                    del dst['raw']
+                dst_raw = dst.create_group('raw')
+                for specific_layer in src['raw'].keys():
+                    _copy_array_no_encoding_type(
+                        src_handle=src['raw'][specific_layer],
+                        dst_grp=dst_raw,
+                        dst_handle=specific_layer
+                    )
+
             for specific_layer in src['layers'].keys():
                 _copy_array_no_encoding_type(
                     src_handle=src['layers'][specific_layer],

@@ -115,8 +115,8 @@ def test_validation_of_h5ad_without_encoding(
         as_layer,
         with_log):
     """
-    Test that the correct failure message is emitted when the h5ad file
-    is missing 'encoding' type fro its layer
+    Test that we can validate a file which does not have
+    'encoding-type' in its metadata
     """
 
     if with_log:
@@ -153,16 +153,15 @@ def test_validation_of_h5ad_without_encoding(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
 
-    with pytest.raises(RuntimeError, match="lacks the 'encoding-type'"):
-        validate_h5ad(
-            h5ad_path=orig_path,
-            output_dir=None,
-            valid_h5ad_path=valid_h5ad_path,
-            gene_id_mapper=gene_id_mapper,
-            tmp_dir=tmp_dir_fixture,
-            layer=layer,
-            round_to_int=True,
-            log=log)
+    validate_h5ad(
+        h5ad_path=orig_path,
+        output_dir=None,
+        valid_h5ad_path=valid_h5ad_path,
+        gene_id_mapper=gene_id_mapper,
+        tmp_dir=tmp_dir_fixture,
+        layer=layer,
+        round_to_int=True,
+        log=log)
 
 @pytest.mark.parametrize('with_log',
     [True, False])
