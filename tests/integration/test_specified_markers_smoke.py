@@ -180,6 +180,86 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
+def test_online_workflow_WMB(
+        taxonomy_tree_fixture,
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture,
+        n_extra_genes_fixture):
+    """
+    Test the validation through mapping workflow as it will be run
+    on Whole Mouse Brain data.
+
+    Creating this test especially so that we can verify the functionality
+    to patch query data that is missing proper encoding-type metadata
+    """
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad')
+
+    output_json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_',
+        suffix='.json')
+
+    validation_config = {
+        'h5ad_path': str(query_h5ad_fixture),
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json_path}
+
+    runner = ValidateH5adRunner(
+        args=[],
+        input_data=validation_config)
+    runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='outptut_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_output_',
+        suffix='.csv')
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_',
+        suffix='.json')
+
+    config = {
+        'precomputed_stats': {
+            'path': str(precomputed_stats_fixture)
+        },
+        'query_markers': {
+            'serialized_lookup': str(marker_lookup_fixture)
+        },
+        'query_path': validated_path,
+        'extended_result_path': str(output_path),
+        'csv_result_path': str(csv_path),
+        'summary_metadata_path': metadata_path,
+        'map_to_ensembl': False,
+        'type_assignment': {
+            'normalization': 'log2CPM',
+            'bootstrap_iteration': 10,
+            'bootstrap_factor': 0.9,
+            'n_runners_up': 2,
+            'rng_seed': 5513,
+            'chunk_size': 50,
+            'n_processors': 3
+        }
+    }
+
+    runner = FromSpecifiedMarkersRunner(
+        args=[],
+        input_data=config)
+
+    runner.run()
+
+
 @pytest.mark.parametrize('map_to_ensembl,write_summary',
     itertools.product([True, False], [True, False]))
 def test_ensembl_mapping_in_cli(
