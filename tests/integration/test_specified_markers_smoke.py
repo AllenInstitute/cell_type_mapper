@@ -274,6 +274,10 @@ def test_summary_from_validated_file(
 
     Additionally test that cells in the output CSV file are in the same
     order as in the input h5ad file.
+
+    Toggling map_to_ensemble makes sure that the summary metadata
+    is correctly recorded, even when the ensembl mapping was handled
+    by the validation layer
     """
 
     validated_path = mkstemp_clean(
