@@ -192,9 +192,14 @@ def _copy_layer_to_x_dense(
         original_h5ad_path,
         new_h5ad_path,
         layer_key):
+
+    attrs = infer_attrs(
+        src_path=original_h5ad_path,
+        dataset=layer_key
+    )
+
     with h5py.File(original_h5ad_path) as src:
         data = src[layer_key]
-        attrs = dict(src[layer_key].attrs)
         chunks = data.chunks
         if chunks is None:
             row_chunk = min(10000, data.shape[0]//10)
@@ -242,9 +247,14 @@ def _copy_layer_to_x_sparse(
         original_h5ad_path,
         new_h5ad_path,
         layer_key):
-    with h5py.File(original_h5ad_path) as src:
+
+    attrs = infer_attrs(
+        src_path=original_h5ad_path,
+        dataset=layer_key
+    )
+
+    with h5py.File(original_h5ad_path, 'r') as src:
         src_grp = src[layer_key]
-        attrs = dict(src_grp.attrs)
         with h5py.File(new_h5ad_path, 'a') as dst:
             if 'X' in dst:
                 del dst['X']
@@ -298,13 +308,10 @@ def shuffle_csr_h5ad_rows(
         If True, use gzip compression in new file
     """
 
-    with h5py.File(src_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
-
-    if attrs['encoding-type'] != 'csr_matrix':
-        raise RuntimeError(
-            f'{src_path} is not CSR encoded. Attrs for X are:\n'
-            f'{attrs}')
+    attrs = infer_attrs(
+        src_path=src_path,
+        dataset='X'
+    )
 
     obs = read_df_from_h5ad(
         h5ad_path=src_path, df_name='obs')
@@ -395,8 +402,10 @@ def pivot_sparse_h5ad(
     if layer != 'X' and '/' not in layer:
         layer = f'layers/{layer}'
 
-    with h5py.File(src_path, 'r') as src:
-        attrs = dict(src[layer].attrs)
+    attrs = infer_attrs(
+        src_path=src_path,
+        dataset=layer
+    )
 
     if attrs['encoding-type'] == 'csr_matrix':
         dst_encoding = 'csc_matrix'
@@ -510,8 +519,10 @@ def subset_csc_h5ad_columns(
         compressor = 'gzip'
         compression_opts = 4
 
-    with h5py.File(src_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+    attrs = infer_attrs(
+        src_path=src_path,
+        dataset='X'
+    )
 
     if attrs['encoding-type'] != 'csc_matrix':
         raise RuntimeError(
@@ -529,9 +540,13 @@ def subset_csc_h5ad_columns(
         var=new_var)
     dst.write_h5ad(dst_path)
 
+    attrs = infer_attrs(
+        src_path=src_path,
+        dataset='X'
+    )
+
     with h5py.File(src_path, 'r') as src:
         src_x = src['X']
-        attrs = dict(src_x.attrs)
         new_attrs = copy.deepcopy(attrs)
         new_attrs['shape'][1] = len(chosen_columns)
         src_indptr = src_x['indptr'][()]
@@ -595,25 +610,31 @@ def infer_attrs(
         'encoding-type' maps to a string;
         either 'array', 'csc_matrix', or 'csr_matrix'
 
-        'shape' maps to a tuple; the shape of the array
+        'encoding-version' a string indicating the version of the
+        anndata encoding
+
+        'shape' maps to an array; the shape of the array
     """
 
     array_shape = None
     encoding_type = None
+    encoding_version = None
 
     with h5py.File(src_path, 'r') as src:
         attrs = dict(src[dataset].attrs)
         if 'shape' in attrs:
-            array_shape = tuple(
-                [int(ii) for ii in attrs['shape']]
-            )
+            array_shape = attrs['shape']
+        if 'encoding-version' in attrs:
+            encoding_version = attrs['encoding-version']
 
         if 'encoding-type' in attrs:
             encoding_type = attrs['encoding-type']
         elif isinstance(src[dataset], h5py.Dataset):
             encoding_type = 'array'
             if array_shape is None:
-                array_shape = src[dataset].shape
+                array_shape = np.array(src[dataset].shape)
+            if encoding_version is None:
+                encoding_version = '0.2.0'
         else:
             indptr = src[f'{dataset}/indptr'][()]
 
@@ -635,10 +656,14 @@ def infer_attrs(
 
             raise RuntimeError(msg)
 
+    if encoding_version is None:
+        encoding_version = '0.1.0'
+
     if array_shape is None:
-        array_shape = (len(obs), len(var))
+        array_shape = np.array([len(obs), len(var)])
 
     return {
         'encoding-type': encoding_type,
-        'shape': array_shape
+        'shape': array_shape,
+        'encoding-version': encoding_version
     }
