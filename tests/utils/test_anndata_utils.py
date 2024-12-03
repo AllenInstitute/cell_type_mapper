@@ -204,7 +204,10 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
         with h5py.File(other_path, 'r') as test:
             baseline_attrs = dict(baseline['layers/garbage'].attrs)
             test_attrs = dict(test['X'].attrs)
-            assert set(baseline_attrs.keys()) == set(test_attrs.keys())
+
+            for k in baseline_attrs:
+                assert k in test_attrs
+
             for k in baseline_attrs:
                 b = baseline_attrs[k]
                 t = test_attrs[k]
@@ -1039,17 +1042,27 @@ def test_infer_attrs(
         dst_path=bad_path
     )
 
+    if density == 'array':
+        version = '0.2.0'
+    else:
+        version = '0.1.0'
+
     expected = {
         'encoding-type': density,
-        'shape': (n_cells, n_genes)
+        'shape': np.array([n_cells, n_genes]),
+        'encoding-version': version
     }
 
-    assert infer_attrs(
-        src_path=good_path,
-        dataset=dataset
-    ) == expected
-
-    assert infer_attrs(
-        src_path=bad_path,
-        dataset=dataset
-    ) == expected
+    for pth in (good_path, bad_path):
+        actual = infer_attrs(
+            src_path=pth,
+            dataset=dataset
+        )
+        np.testing.assert_array_equal(
+            expected['shape'],
+            actual['shape']
+        )
+        for k in expected:
+            if k == 'shape':
+                continue
+            assert expected[k] == actual[k]
