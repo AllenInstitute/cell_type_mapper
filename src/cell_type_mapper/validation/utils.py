@@ -78,9 +78,13 @@ def round_x_to_integers(
             prefix='data_as_int_',
             suffix='.h5'))
 
-    with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+    attrs = infer_attrs(
+        src_path=h5ad_path,
+        dataset='X'
+    )
+
     encoding_type = attrs['encoding-type']
+
     if encoding_type == 'array':
         _round_dense_x_to_integers(
             h5ad_path=h5ad_path,
@@ -112,21 +116,22 @@ def is_data_ge_zero(
     of the data is.
     """
     layer_key = _layer_to_layer_key(layer)
+    attrs = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file[layer_key].attrs)
-        if 'encoding-type' not in attrs:
-            dtype = None
-        elif attrs['encoding-type'] == 'array':
+
+        if attrs['encoding-type'] == 'array':
             dtype = in_file[layer_key].dtype
         elif 'csr' in attrs['encoding-type'] \
                 or 'csc' in attrs['encoding-type']:
             dtype = in_file[f'{layer_key}/data'].dtype
 
-        if dtype is not None:
-            if np.issubdtype(dtype, np.integer):
-                iinfo = np.iinfo(dtype)
-                if iinfo.min >= 0:
-                    return True, 0
+        if np.issubdtype(dtype, np.integer):
+            iinfo = np.iinfo(dtype)
+            if iinfo.min >= 0:
+                return True, 0
 
     minmax = get_minmax_x_from_h5ad(
         h5ad_path=h5ad_path,
