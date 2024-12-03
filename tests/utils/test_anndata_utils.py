@@ -214,7 +214,7 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
                 if not isinstance(b, np.ndarray):
                     assert b == t
                 else:
-                    assert (b==t).all()
+                    np.testing.assert_array_equal(b, t)
 
 
 def test_read_write_uns_from_h5ad(tmp_dir_fixture):
