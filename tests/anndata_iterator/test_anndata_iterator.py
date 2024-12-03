@@ -10,6 +10,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
+
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
@@ -100,11 +104,14 @@ def dense_fixture(
 
 
 @pytest.mark.parametrize(
-    'use, with_tmp',
-    [('csr', False),
-     ('csc', False),
-     ('csc', True),
-     ('dense', False)])
+    'use, with_tmp, keep_encoding',
+    [('csr', False, True),
+     ('csc', False, True),
+     ('csc', True, True),
+     ('dense', False, True),
+     ('csr', False, False),
+     ('csc', False, False),
+     ('dense', False, False)])
 def test_anndata_row_iterator(
         x_array_fixture,
         csr_fixture,
@@ -112,7 +119,8 @@ def test_anndata_row_iterator(
         dense_fixture,
         tmp_dir_fixture,
         use,
-        with_tmp):
+        with_tmp,
+        keep_encoding):
     if use == 'csr':
         fpath = csr_fixture
     elif use == 'csc':
@@ -123,6 +131,19 @@ def test_anndata_row_iterator(
         raise RuntimeError(
             f"use={use} makese no sense")
 
+    if keep_encoding:
+        src_path = fpath
+    else:
+        src_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=fpath,
+            dst_path=src_path
+        )
+
     if with_tmp:
         tmp_dir = tmp_dir_fixture
     else:
@@ -131,7 +152,7 @@ def test_anndata_row_iterator(
     chunk_size = 123
 
     iterator = AnnDataRowIterator(
-        h5ad_path=fpath,
+        h5ad_path=src_path,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir)
 
@@ -150,11 +171,14 @@ def test_anndata_row_iterator(
 
 
 @pytest.mark.parametrize(
-    'use, with_tmp',
-    [('csr', False),
-     ('csc', False),
-     ('csc', True),
-     ('dense', False)])
+    'use, with_tmp, keep_encoding',
+    [('csr', False, True),
+     ('csc', False, True),
+     ('csc', True, True),
+     ('dense', False, True),
+     ('csr', False, False),
+     ('csc', False, False),
+     ('dense', False, False)])
 def test_anndata_row_iterator_get_chunk(
         x_array_fixture,
         csr_fixture,
@@ -162,7 +186,8 @@ def test_anndata_row_iterator_get_chunk(
         dense_fixture,
         tmp_dir_fixture,
         use,
-        with_tmp):
+        with_tmp,
+        keep_encoding):
     if use == 'csr':
         fpath = csr_fixture
     elif use == 'csc':
@@ -173,6 +198,19 @@ def test_anndata_row_iterator_get_chunk(
         raise RuntimeError(
             f"use={use} makese no sense")
 
+    if keep_encoding:
+        src_path=fpath
+    else:
+        src_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=fpath,
+            dst_path=src_path
+        )
+
     if with_tmp:
         tmp_dir = tmp_dir_fixture
     else:
@@ -181,7 +219,7 @@ def test_anndata_row_iterator_get_chunk(
     chunk_size = 123
 
     iterator = AnnDataRowIterator(
-        h5ad_path=fpath,
+        h5ad_path=src_path,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir)
 
@@ -230,23 +268,32 @@ def test_anndata_row_iterator_get_chunk(
 
 
 @pytest.mark.parametrize(
-    "density,with_tmp,in_raw",
+    "density,with_tmp,in_raw,keep_encoding",
     [
-        ('dense', False, False),
-        ('csr', False, False),
-        ('csc', False, False),
-        ('csc', True, False),
-        ('dense', False, True),
-        ('csr', False, True),
-        ('csc', False, True),
-        ('csc', True, True)
+        ('dense', False, False, True),
+        ('csr', False, False, True),
+        ('csc', False, False, True),
+        ('csc', True, False, True),
+        ('dense', False, True, True),
+        ('csr', False, True, True),
+        ('csc', False, True, True),
+        ('csc', True, True, True),
+        ('dense', False, False, False),
+        ('csr', False, False, False),
+        ('csc', False, False, False),
+        ('csc', True, False, False),
+        ('dense', False, True, False),
+        ('csr', False, True, False),
+        ('csc', False, True, False),
+        ('csc', True, True, False),
     ]
 )
 def test_anndata_iterator_from_layer(
         tmp_dir_fixture,
         density,
         with_tmp,
-        in_raw):
+        in_raw,
+        keep_encoding):
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -299,9 +346,22 @@ def test_anndata_iterator_from_layer(
     else:
         tmp_dir = None
 
+    if keep_encoding:
+        src_path = h5ad_path
+    else:
+        src_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=h5ad_path,
+            dst_path=src_path
+        )
+
     chunk_size = 57
     iterator = AnnDataRowIterator(
-        h5ad_path=h5ad_path,
+        h5ad_path=src_path,
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir,
         layer=layer_key)
