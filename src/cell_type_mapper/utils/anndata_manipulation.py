@@ -12,6 +12,10 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
+from cell_type_mapper.utils.anndata_utils import (
+    infer_attrs
+)
+
 
 def amalgamate_h5ad(
         src_rows,
@@ -96,8 +100,12 @@ def _amalgamate_h5ad(
         else:
             layer = f'layers/{packet["layer"]}'
 
+        attrs = infer_attrs(
+            src_path=packet['path'],
+            dataset=layer
+        )
+
         with h5py.File(packet['path'], 'r') as src:
-            attrs = dict(src[layer].attrs)
             if attrs['encoding-type'] == 'array':
                 data_dtype_map[packet['path']] = src[layer].dtype
             else:
