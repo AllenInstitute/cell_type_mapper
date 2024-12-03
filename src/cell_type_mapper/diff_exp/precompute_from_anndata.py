@@ -18,7 +18,8 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
-    pivot_sparse_h5ad)
+    pivot_sparse_h5ad,
+    infer_attrs)
 
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
@@ -440,8 +441,12 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     csr_path_list = []
     for pth in data_path_list:
         pth = pathlib.Path(pth)
-        with h5py.File(pth, 'r') as src:
-            attrs = dict(src[layer].attrs)
+
+        attrs = infer_attrs(
+            src_path=pth,
+            dataset=layer
+        )
+
         if attrs['encoding-type'] != 'csc_matrix':
             csr_path_list.append(pth)
             continue
