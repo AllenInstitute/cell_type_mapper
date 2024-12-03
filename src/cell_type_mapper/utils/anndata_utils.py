@@ -662,8 +662,10 @@ def infer_attrs(
     if array_shape is None:
         array_shape = np.array([len(obs), len(var)])
 
-    return {
+    new_attrs = {
         'encoding-type': encoding_type,
         'shape': array_shape,
         'encoding-version': encoding_version
     }
+    attrs.update(new_attrs)
+    return attrs
