@@ -958,7 +958,7 @@ def test_subset_csc_h5ad_columns(
         'density,layer',
         itertools.product(
             ['csc_matrix', 'csr_matrix', 'array'],
-            ['X', 'dummy', 'raw'])
+            ['X', 'layers/dummy', 'raw/X'])
         )
 def test_infer_attrs(
         tmp_dir_fixture,
@@ -1002,12 +1002,12 @@ def test_infer_attrs(
         x = data
         layers = None
         raw = None
-    elif layer == 'dummy':
+    elif layer == 'layers/dummy':
         dataset = 'layers/dummy'
         x = rng.random((n_cells, n_genes))
         layers = {'dummy': data}
         raw = None
-    elif layer == 'raw':
+    elif layer == 'raw/X':
         dataset = 'raw/X'
         x = rng.random((n_cells, n_genes))
         layers = None
@@ -1042,18 +1042,31 @@ def test_infer_attrs(
         dst_path=bad_path
     )
 
+    # add a nonsense attrs field to make sure that
+    # is preserved by the infer_attrs function
+    with h5py.File(bad_path, 'a') as dst:
+        dst[layer].attrs.create(name='silly', data='foo')
+
     if density == 'array':
         version = '0.2.0'
     else:
         version = '0.1.0'
 
-    expected = {
+    good_expected = {
         'encoding-type': density,
         'shape': np.array([n_cells, n_genes]),
         'encoding-version': version
     }
 
-    for pth in (good_path, bad_path):
+    bad_expected = {
+        'encoding-type': density,
+        'shape': np.array([n_cells, n_genes]),
+        'encoding-version': version,
+        'silly': 'foo'
+    }
+
+    for pth, expected in [(good_path, good_expected),
+                          (bad_path, bad_expected)]:
         actual = infer_attrs(
             src_path=pth,
             dataset=dataset
@@ -1062,6 +1075,7 @@ def test_infer_attrs(
             expected['shape'],
             actual['shape']
         )
+        assert len(expected) == len(actual)
         for k in expected:
             if k == 'shape':
                 continue
