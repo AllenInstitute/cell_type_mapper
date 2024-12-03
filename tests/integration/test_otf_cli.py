@@ -15,6 +15,10 @@ import pathlib
 import tempfile
 from unittest.mock import patch
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
+
 from cell_type_mapper.utils.output_utils import (
     hdf5_to_blob
 )
@@ -104,8 +108,9 @@ def test_query_pipeline(
 
 
 @pytest.mark.parametrize(
-    'write_summary, cloud_safe',
+    'write_summary, cloud_safe, keep_encoding',
     itertools.product(
+        [True, False],
         [True, False],
         [True, False]))
 def test_otf_smoke(
@@ -113,7 +118,8 @@ def test_otf_smoke(
         precomputed_path_fixture,
         raw_query_h5ad_fixture,
         write_summary,
-        cloud_safe):
+        cloud_safe,
+        keep_encoding):
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
@@ -130,12 +136,25 @@ def test_otf_smoke(
     else:
         metadata_path = None
 
+    if keep_encoding:
+        src_path = str(raw_query_h5ad_fixture)
+    else:
+        src_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=raw_query_h5ad_fixture,
+            dst_path=src_path
+        )
+
     config = {
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path_fixture)},
         'drop_level': None,
-        'query_path': str(raw_query_h5ad_fixture),
+        'query_path': src_path,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {'normalization': 'raw'},
