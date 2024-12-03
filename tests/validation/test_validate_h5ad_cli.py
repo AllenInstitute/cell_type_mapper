@@ -16,6 +16,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
+
 from cell_type_mapper.test_utils.h5_utils import (
     h5_match
 )
@@ -167,13 +171,14 @@ def test_validation_cli_on_bad_genes(
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int,specify_path,species",
+        "density,as_layer,round_to_int,specify_path,species,keep_encoding",
         itertools.product(
         ("csr", "csc", "array"),
         (True, False),
         (True, False),
         (True, False),
-        ('human', 'mouse')))
+        ('human', 'mouse'),
+        (True, False)))
 def test_validation_cli_of_h5ad(
         mouse_var_fixture,
         human_var_fixture,
@@ -184,7 +189,8 @@ def test_validation_cli_of_h5ad(
         as_layer,
         round_to_int,
         specify_path,
-        species):
+        species,
+        keep_encoding):
 
     if species == 'human':
         var_fixture = human_var_fixture
@@ -247,8 +253,21 @@ def test_validation_cli_of_h5ad(
         output_dir = str(tmp_dir_fixture.resolve().absolute())
         valid_path = None
 
+    if keep_encoding:
+        src_path = orig_path
+    else:
+        src_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=orig_path,
+            dst_path=src_path
+        )
+
     config = {
-        'h5ad_path': orig_path,
+        'h5ad_path': src_path,
         'output_dir': output_dir,
         'valid_h5ad_path': valid_path,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
@@ -272,13 +291,12 @@ def test_validation_cli_of_h5ad(
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
 
-    orig_path = pathlib.Path(orig_path)
     result_path = pathlib.Path(result_path)
 
     name_parts = result_path.name.split('_')
     int_pattern = re.compile('[0-9]+')
     timestamp = int_pattern.findall(name_parts[-1])[0]
-    base_name = orig_path.name.replace('.h5ad', '')
+    base_name = pathlib.Path(src_path).name.replace('.h5ad', '')
     if specify_path:
         expected_name = pathlib.Path(valid_path).name
     else:
