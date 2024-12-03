@@ -20,6 +20,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
+
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
 )
@@ -183,8 +187,9 @@ def precomputed_stats_fixture(
     return dst_path
 
 @pytest.mark.parametrize(
-        'flatten,use_gpu,just_once,drop_subclass',
+        'flatten,use_gpu,just_once,drop_subclass,keep_encoding',
         itertools.product(
+            (True, False),
             (True, False),
             (True, False),
             (True, False),
@@ -200,7 +205,8 @@ def test_mapping_from_markers(
         flatten,
         use_gpu,
         just_once,
-        drop_subclass):
+        drop_subclass,
+        keep_encoding):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -233,13 +239,26 @@ def test_mapping_from_markers(
         suffix='.json')
 
     baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+
+    if keep_encoding:
+        test_query_path = baseline_config['query_path']
+    else:
+        test_query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=baseline_config['query_path'],
+            dst_path=test_query_path
+        )
+
     config = dict()
     if use_tmp_dir:
         config['tmp_dir'] = this_tmp
     else:
         config['tmp_dir'] = None
-    config['query_path'] = baseline_config['query_path']
-
+    config['query_path'] = test_query_path
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
@@ -410,6 +429,7 @@ def test_mapping_from_markers(
 
     query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
     input_uns = query_adata.uns
+
     assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
 
     os.environ[env_var] = ''

@@ -2,7 +2,8 @@ import anndata
 import h5py
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad
+    read_df_from_h5ad,
+    read_uns_from_h5ad
 )
 
 
@@ -25,7 +26,8 @@ def create_h5ad_without_encoding_type(
     """
     obs = read_df_from_h5ad(src_path, df_name='obs')
     var = read_df_from_h5ad(src_path, df_name='var')
-    a_data = anndata.AnnData(obs=obs, var=var)
+    uns = read_uns_from_h5ad(src_path)
+    a_data = anndata.AnnData(obs=obs, var=var, uns=uns)
     a_data.write_h5ad(dst_path)
 
     with h5py.File(src_path, 'r') as src:
