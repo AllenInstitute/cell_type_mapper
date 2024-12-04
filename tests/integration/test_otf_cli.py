@@ -6,14 +6,23 @@ import pytest
 
 import anndata
 import copy
+import h5py
 import hashlib
 import itertools
 import json
 import numpy as np
 import pandas as pd
 import pathlib
+import scipy.sparse
+import shutil
 import tempfile
-from unittest.mock import patch
+
+from cell_type_mapper.data.human_gene_id_lookup import (
+    human_gene_id_lookup)
+
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
 
 from cell_type_mapper.test_utils.anndata_utils import (
     create_h5ad_without_encoding_type
@@ -31,7 +40,8 @@ from cell_type_mapper.test_utils.cloud_safe import (
     check_not_file)
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean)
+    mkstemp_clean,
+    _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -44,6 +54,225 @@ from cell_type_mapper.cli.query_markers import (
 
 from cell_type_mapper.cli.map_to_on_the_fly_markers import (
     OnTheFlyMapper)
+
+from cell_type_mapper.cli.validate_h5ad import (
+    ValidateH5adRunner)
+
+
+@pytest.fixture(scope='module')
+def tmp_dir_fixture(
+        tmp_path_factory):
+    tmp_dir = pathlib.Path(
+        tmp_path_factory.mktemp('otf_test_'))
+    yield tmp_dir
+    _clean_up(tmp_dir)
+
+
+@pytest.fixture(scope='module')
+def noisy_query_cell_x_gene_fixture(
+        cluster_to_signal,
+        expected_cluster_fixture,
+        query_gene_names):
+    """
+    Create a noisier cell-by-gene file for querying
+    (so we get a mapping with bootstrapping_probability < 1)
+    """
+    n_cells = len(expected_cluster_fixture)
+    n_genes = len(query_gene_names)
+    x_data = np.zeros((n_cells, n_genes), dtype=float)
+    rng = np.random.default_rng(665533)
+    cluster_names = list(set(expected_cluster_fixture))
+    cluster_names.sort()
+    for i_cell in range(n_cells):
+        cl = expected_cluster_fixture[i_cell]
+        other_cl = rng.choice(cluster_names)
+
+        signal_lookup = cluster_to_signal[cl]
+        other_signal = cluster_to_signal[other_cl]
+
+        signal_amp = (2.0+rng.random())
+        alt_amp = (1.0+rng.random())
+
+        data = np.zeros(n_genes, dtype=int)
+        noise_idx = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
+        data[noise_idx] = rng.integers(1, 50, len(noise_idx))
+
+        for i_gene, g in enumerate(query_gene_names):
+            if g in signal_lookup:
+                data[i_gene] += signal_amp*signal_lookup[g]
+            if g in other_signal:
+                data[i_gene] += alt_amp*other_signal[g]
+
+        x_data[i_cell, :] = data
+
+    return np.round(x_data).astype(int)
+
+
+@pytest.fixture(scope='module')
+def noisy_query_h5ad_fixture(
+        noisy_query_cell_x_gene_fixture,
+        query_gene_names,
+        tmp_dir_fixture):
+    """
+    Create a noisier query dataset
+    (so we get a mapping with bootstrapping_probability < 1)
+    """
+    var_data = [
+        {'gene_name': g, 'garbage': ii}
+         for ii, g in enumerate(query_gene_names)]
+
+    var = pd.DataFrame(var_data)
+    var = var.set_index('gene_name')
+
+    a_data = anndata.AnnData(
+        X=noisy_query_cell_x_gene_fixture,
+        var=var,
+        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
+        dtype=noisy_query_cell_x_gene_fixture.dtype)
+
+    h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad'))
+    a_data.write_h5ad(h5ad_path)
+    return h5ad_path
+
+
+@pytest.fixture(scope='module')
+def baseline_mapping_fixture(
+        precomputed_path_fixture,
+        noisy_query_h5ad_fixture,
+        tmp_dir_fixture):
+
+    json_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_',
+        suffix='.json'
+    )
+
+    csv_output = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_',
+        suffix='.csv'
+    )
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': str(tmp_dir_fixture),
+        'precomputed_stats': {'path': str(precomputed_path_fixture)},
+        'drop_level': None,
+        'query_path': str(noisy_query_h5ad_fixture),
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5},
+        'extended_result_path': json_output,
+        'csv_result_path': csv_output,
+        'summary_metadata_path': None,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    runner = OnTheFlyMapper(
+        args=[],
+        input_data=config
+    )
+    runner.run()
+
+    return {
+        'json': json_output,
+        'csv': csv_output
+    }
+
+
+@pytest.fixture(scope='module')
+def human_gene_data_fixture(
+        precomputed_path_fixture,
+        noisy_query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    Take the cartoon fixtures created in conftest.py
+    and modify them to have valid human gene labels
+    so that we can test the full validation-through-mapping
+    pipeline.
+    """
+
+    rng = np.random.default_rng(6177112)
+    genes_to_map = set()
+    with h5py.File(precomputed_path_fixture, 'r') as src:
+        genes_to_map = genes_to_map.union(
+            set(json.loads(src['col_names'][()].decode('utf-8')))
+        )
+    var = read_df_from_h5ad(
+        noisy_query_h5ad_fixture,
+        df_name='var')
+
+    genes_to_map = genes_to_map.union(
+        set(var.index.values)
+    )
+
+    genes_to_map = list(genes_to_map)
+    genes_to_map.sort()
+
+    chosen_labels = rng.choice(
+        list(human_gene_id_lookup.keys()),
+        len(genes_to_map),
+        replace=False
+    )
+    gene_map = {
+        g:m for g, m in zip(genes_to_map, chosen_labels)
+    }
+
+    new_precompute = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='precomputed_human_',
+        suffix='.h5'
+    )
+
+    shutil.copy(src=precomputed_path_fixture, dst=new_precompute)
+    with h5py.File(new_precompute, 'a') as dst:
+        old_genes = json.loads(dst['col_names'][()].decode('utf-8'))
+        del dst['col_names']
+        new_genes = [
+            human_gene_id_lookup[gene_map[g]] for g in old_genes
+        ]
+        assert len(new_genes) == len(set(new_genes))
+        dst.create_dataset(
+            'col_names',
+            data=json.dumps(new_genes).encode('utf-8')
+        )
+
+    src = anndata.read_h5ad(noisy_query_h5ad_fixture)
+    new_var = [
+        {'gene_id': gene_map[g]}
+        for g in src.var.index.values
+    ]
+    new_var = pd.DataFrame(new_var).set_index('gene_id')
+
+    result = {'precompute': new_precompute}
+    for density in ('csc', 'csr', 'dense'):
+        x = src.X[()]
+        if density == 'csc':
+            x = scipy.sparse.csc_matrix(x)
+        elif density == 'csr':
+            x = scipy.sparse.csr_matrix(x)
+        dst_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix=f'human_query_{density}_',
+            suffix='.h5ad'
+        )
+
+        dst = anndata.AnnData(
+            obs=src.obs,
+            var=new_var,
+            X=x
+        )
+        dst.write_h5ad(dst_path)
+        result[density] = dst_path
+
+    return result
 
 
 def test_query_pipeline(
@@ -480,3 +709,115 @@ def test_otf_config_consistency(
         second_test_mapping = json.load(open(second_test_output, 'rb'))
         for k in ('results', 'taxonomy_tree', 'marker_genes'):
             assert second_test_mapping[k] == test_mapping[k]
+
+
+@pytest.mark.parametrize(
+    'keep_encoding,density',
+    itertools.product(
+        [True, False],
+        ['csc', 'csr', 'dense']))
+def test_online_workflow_OTF(
+        tmp_dir_fixture,
+        keep_encoding,
+        human_gene_data_fixture,
+        density,
+        baseline_mapping_fixture):
+    """
+    Test the validation-through-mapping flow of simulated human
+    data passing through the on-the-fly mapper
+    """
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precompute_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture[density]
+
+    if not keep_encoding:
+        new_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=query_path,
+            dst_path=new_path
+        )
+        query_path = new_path
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad'
+    )
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validation_output_',
+        suffix='.json'
+    )
+
+    validation_config = {
+        'h5ad_path': query_path,
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json
+    }
+
+    runner = ValidateH5adRunner(
+        args=[],
+        input_data=validation_config
+    )
+    runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='mapping_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_mapping_',
+        suffix='.csv'
+    )
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_metadata_',
+            suffix='.json')
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precompute_path)},
+        'drop_level': None,
+        'query_path': validated_path,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5},
+        'extended_result_path': output_path,
+        'csv_result_path': csv_path,
+        'summary_metadata_path': metadata_path,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    runner = OnTheFlyMapper(args=[], input_data=config)
+    runner.run()
+
+    baseline_df = pd.read_csv(
+        baseline_mapping_fixture['csv'],
+        comment='#'
+    )
+
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#'
+    )
+
+    pd.testing.assert_frame_equal(test_df, baseline_df)
+
+    baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
+    test = json.load(open(output_path, 'rb'))
+    assert baseline['results'] == test['results']
