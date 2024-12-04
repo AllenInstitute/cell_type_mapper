@@ -20,9 +20,13 @@ def create_h5ad_without_encoding_type(
     case where, for whatever reason, that metadata is missing
     from the h5ad file.
 
-    Note: this function will only copy over obs, var, and
-    the contents of X and layers/. It will ignore the other
-    data structures in src_path.
+    Note: this function will only copies
+        obs
+        var
+        X
+        layers/
+        raw/
+        uns
     """
     obs = read_df_from_h5ad(src_path, df_name='obs')
     var = read_df_from_h5ad(src_path, df_name='var')

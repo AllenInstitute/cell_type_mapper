@@ -186,6 +186,10 @@ def copy_layer_to_x(
             original_h5ad_path=original_h5ad_path,
             new_h5ad_path=new_h5ad_path,
             layer_key=layer_key)
+    else:
+        raise RuntimeError(
+            f"Unclear how to parse encoding-type {encoding_type}"
+        )
 
 
 def _copy_layer_to_x_dense(
@@ -312,6 +316,11 @@ def shuffle_csr_h5ad_rows(
         src_path=src_path,
         dataset='X'
     )
+
+    if attrs['encoding-type'] != 'csr_matrix':
+        raise RuntimeError(
+            f'{src_path} is not CSR encoded. Attrs for X are:\n'
+            f'{attrs}')
 
     obs = read_df_from_h5ad(
         h5ad_path=src_path, df_name='obs')

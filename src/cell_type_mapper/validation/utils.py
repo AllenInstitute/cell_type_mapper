@@ -1,5 +1,3 @@
-import anndata
-import gc
 import h5py
 import numpy as np
 import pandas as pd
@@ -127,6 +125,11 @@ def is_data_ge_zero(
         elif 'csr' in attrs['encoding-type'] \
                 or 'csc' in attrs['encoding-type']:
             dtype = in_file[f'{layer_key}/data'].dtype
+        else:
+            raise RuntimeError(
+                "Unclear what to make of encoding-typ in attrs:\n"
+                f"{attrs}"
+            )
 
         if np.issubdtype(dtype, np.integer):
             iinfo = np.iinfo(dtype)
@@ -232,41 +235,6 @@ def map_gene_ids_in_var(
     new_var = pd.DataFrame(var_df).set_index(idx_key)
 
     return new_var, mapping_output['n_unmapped']
-
-
-def _get_minmax_x_using_anndata(
-        h5ad_path,
-        rows_at_a_time=100000,
-        layer='X'):
-    """
-    If you cannot intuit how X is encoded in the h5ad file, just use
-    anndata's API
-
-    Returns
-    -------
-    (min_val, max_val)
-    """
-    if layer != 'X':
-        raise NotImplementedError(
-            "No efficient way to get minmax from layers; only X")
-
-    max_val = None
-    min_val = None
-    a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    chunk_iterator = a_data.chunked_X(rows_at_a_time)
-    for chunk_package in chunk_iterator:
-        chunk = chunk_package[0]
-        this_max = chunk.max()
-        if max_val is None or this_max > max_val:
-            max_val = this_max
-        this_min = chunk.min()
-        if min_val is None or this_min < min_val:
-            min_val = this_min
-
-    del a_data
-    gc.collect()
-
-    return (min_val, max_val)
 
 
 def _get_minmax_from_dense(x_dataset):
