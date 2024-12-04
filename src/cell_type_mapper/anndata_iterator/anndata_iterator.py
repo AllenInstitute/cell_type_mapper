@@ -19,7 +19,6 @@ from cell_type_mapper.utils.sparse_utils import (
     _load_disjoint_csr)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad,
     infer_attrs
 )
 
@@ -154,7 +153,7 @@ class AnnDataRowIterator(object):
         else:
             raise RuntimeError(
                 "Do not know how to iterate over anndata "
-                f"file\n{h5ad_path}")
+                f"with attrs\n{attrs}")
 
     @property
     def layer(self):
@@ -226,7 +225,6 @@ class AnnDataRowIterator(object):
             boolean indicating whether or not to leave the h5 handle
             open (should be false when using cuda)
         """
-        write_as_csr = True
         self.tmp_dir = tempfile.mkdtemp(
             dir=tmp_dir,
             prefix='anndata_iterator_')
@@ -239,14 +237,12 @@ class AnnDataRowIterator(object):
         file_size_bytes = file_stats.st_size
         fudge_factor = 1.1  # just in case
 
-        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
-        var = read_df_from_h5ad(h5ad_path, df_name='var')
-        array_shape = (len(obs), len(var))
+        array_shape = infer_attrs(
+            src_path=h5ad_path,
+            dataset=self.layer
+        )['shape']
 
         if free_bytes < fudge_factor*file_size_bytes:
-            write_as_csr = False
-
-        if not write_as_csr:
             raise RuntimeError(
                 "Cannot write data as CSR\n"
                 f"free_bytes {free_bytes}; file size {file_size_bytes}\n"
