@@ -202,6 +202,17 @@ def test_validate_marker_lookup(
             taxonomy_tree=taxonomy_tree_fixture,
             query_gene_names=query_gene_fixture)
 
+    # test case where there are no markers at all
+    msg = (
+        "After comparing query data to reference data, no valid marker "
+        "genes could be found at any level"
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        validate_marker_lookup(
+            marker_lookup=complete_lookup_fixture,
+            taxonomy_tree=taxonomy_tree_fixture,
+            query_gene_names=['bad', 'gene', 'name', 'list'])
+
 
 def test_patching_of_marker_lookup():
     """
