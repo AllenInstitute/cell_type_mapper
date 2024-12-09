@@ -135,7 +135,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         try:
             if self.args['tmp_dir'] is not None:
                 tmp_result_dir = tempfile.mkdtemp(
-                    dir=self.args['tmp_dir'],
+                    dir=tmp_dir,
                     prefix='result_buffer_')
             else:
                 tmp_result_dir = tempfile.mkdtemp(
