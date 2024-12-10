@@ -3,6 +3,7 @@ import h5py
 import json
 import numpy as np
 import tempfile
+import time
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -88,6 +89,8 @@ def _amalgamate_h5ad(
         tmp_dir,
         compression):
 
+    t0 = time.time()
+
     # check that all source files have data stored in
     # the same dtype
     data_dtype_map = dict()
@@ -121,12 +124,15 @@ def _amalgamate_h5ad(
         )
 
     tmp_path_list = []
+    n_packets = len(src_rows)
+    ct = 0
+    n_print = max(1, n_packets//10)
     for packet in src_rows:
 
         tmp_path = mkstemp_clean(
             dir=tmp_dir,
             suffix='.h5')
-        print(f'opening {packet["path"]}')
+
         iterator = AnnDataRowIterator(
             h5ad_path=packet['path'],
             row_chunk_size=1000,
@@ -153,8 +159,21 @@ def _amalgamate_h5ad(
 
         tmp_path_list.append(tmp_path)
 
+        ct += 1
+        if ct % n_print == 0:
+            dur = (time.time()-t0)/60.0
+            per = dur/ct
+            pred = per*n_packets
+            remain = pred-dur
+            print(
+                f"{ct} packets in {dur:.2e} minutes; "
+                f"predict {remain:.2e} of {pred:2e} left"
+            )
+
     a_data = anndata.AnnData(obs=dst_obs, var=dst_var)
     a_data.write_h5ad(dst_path)
+
+    print("joining files")
 
     if dst_sparse:
         amalgamate_csr_to_x(
