@@ -17,7 +17,7 @@ class FromSpecifiedMarkersSchema(
         NodesToDropMixin):
 
     map_to_ensembl = argschema.fields.Boolean(
-        reauired=False,
+        required=False,
         default=False,
         allow_none=False,
         description="If True, map the gene names in query_path to "
