@@ -365,7 +365,7 @@ def amalgamate_dense_to_x(
 
     if dst_grp != 'X':
         raise NotImplementedError(
-            "amalgamate_ense_to_x cannot write to layers other than 'X'")
+            "amalgamate_dense_to_x cannot write to layers other than 'X'")
 
     n_rows = 0
     n_cols = 0
