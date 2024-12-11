@@ -13,6 +13,10 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
+from cell_type_mapper.utils.utils import (
+    print_timing
+)
+
 from cell_type_mapper.utils.anndata_utils import (
     infer_attrs
 )
@@ -161,13 +165,12 @@ def _amalgamate_h5ad(
 
         ct += 1
         if ct % n_print == 0:
-            dur = (time.time()-t0)/60.0
-            per = dur/ct
-            pred = per*n_packets
-            remain = pred-dur
-            print(
-                f"{ct} packets in {dur:.2e} minutes; "
-                f"predict {remain:.2e} of {pred:2e} left"
+            print_timing(
+                t0=t0,
+                i_chunk=ct,
+                tot_chunks=n_packets,
+                unit=None,
+                chunk_unit="packets"
             )
 
     a_data = anndata.AnnData(obs=dst_obs, var=dst_var)
@@ -290,7 +293,9 @@ def amalgamate_csr_to_x(
         indptr0 = 0
         indptr_offset = 0
         data0 = 0
-        for src_path in src_path_list:
+        n_files = len(src_path_list)
+        t0 = time.time()
+        for i_path, src_path in enumerate(src_path_list):
             with h5py.File(src_path, 'r') as src:
                 n_data = src['data'].shape[0]
                 dst_data[data0:data0+n_data] = src['data'][()]
@@ -303,6 +308,16 @@ def amalgamate_csr_to_x(
                 data0 += n_data
                 indptr_offset = (src['indptr'][-1].astype(index_dtype)
                                  + indptr_offset)
+
+                if (i_path+1) % max(1, n_files//10) == 0:
+                    print_timing(
+                        t0=t0,
+                        i_chunk=i_path+1,
+                        tot_chunks=n_files,
+                        unit=None,
+                        chunk_unit="tmp files"
+                    )
+
         dst_indptr[-1] = n_valid
 
 
@@ -374,6 +389,8 @@ def amalgamate_dense_to_x(
         raise RuntimeError(
             f"Expected shape {final_shape}; found{found_shape}")
 
+    t0 = time.time()
+    n_files = len(src_path_list)
     with h5py.File(dst_path, 'a') as dst:
         dst_data = dst.create_dataset(
             dst_grp,
@@ -390,9 +407,18 @@ def amalgamate_dense_to_x(
             name='shape', data=np.array(final_shape))
 
         r0 = 0
-        for src_path in src_path_list:
+        for i_path, src_path in enumerate(src_path_list):
             with h5py.File(src_path, 'r') as src:
                 shape = src['data'].shape
                 r1 = r0 + shape[0]
                 dst_data[r0:r1, :] = src['data'][()]
                 r0 = r1
+
+            if (i_path+1) % (max(1, n_files//10)) == 0:
+                print_timing(
+                    t0=t0,
+                    i_chunk=i_path+1,
+                    tot_chunks=n_files,
+                    unit=None,
+                    chunk_unit="tmp files"
+                )
