@@ -180,7 +180,7 @@ class OutputDstForSearchMixin(object):
         default=False,
         allow_none=False,
         description=(
-            "If True, recorde all confidence metrics as separate columns "
+            "If True, record all confidence metrics as separate columns "
             "in the CSV file. If False, only return one metric "
             "(bootstrapping_probability if available; else avg_correlation)"
         )
