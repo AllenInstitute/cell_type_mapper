@@ -20,7 +20,19 @@ from cell_type_mapper.utils.cloud_utils import (
 
 class CommandLog(object):
 
-    def __init__(self):
+    def __init__(
+            self,
+            verbose_stdout=True):
+        """
+        Parameters
+        ----------
+        verbose_stdout:
+            boolean controlling whether or not
+            info messages get written to stdout
+            *in addition* to being written to the
+            log.
+        """
+        self.verbose_stdout = verbose_stdout
         self.t0 = time.time()
         self._log = []
 
@@ -41,9 +53,20 @@ class CommandLog(object):
         full_msg = f"ENV: {msg}"
         self.info(full_msg)
 
-    def info(self, msg):
+    def info(self, msg, to_stdout=False):
+        """
+        Parameters
+        ----------
+        msg:
+            The string to be logged
+        to_stdout:
+            boolean overriding self.verbose_stdout
+            (so we can force a message to be written
+            to stdout, regardless)
+        """
         full_msg = self._prepend_time(msg)
-        print(msg)
+        if to_stdout or self.verbose_stdout:
+            print(msg)
         self._log.append(full_msg)
 
     def warn(self, msg):

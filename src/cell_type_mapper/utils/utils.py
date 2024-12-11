@@ -52,9 +52,23 @@ def print_timing(
         t0: float,
         i_chunk: int,
         tot_chunks: int,
-        unit: str = 'min',
+        unit: Optional[str] = 'min',
         nametag: Optional[Any] = None,
-        msg: Optional[str] = None):
+        msg: Optional[str] = None,
+        chunk_unit: Optional[str] = None):
+
+    duration = time.time()-t0
+    per = duration/max(1, i_chunk)
+    pred = per*tot_chunks
+    remain = pred-duration
+
+    if unit is None:
+        if pred > 7200.0:
+            unit = 'hr'
+        elif pred > 120.0:
+            unit = 'min'
+        else:
+            unit = 'sec'
 
     if unit not in ('sec', 'min', 'hr'):
         raise RuntimeError(f"timing unit {unit} nonsensical")
@@ -63,11 +77,15 @@ def print_timing(
              'hr': 3600.0,
              'sec': 1.0}[unit]
 
-    duration = (time.time()-t0)/denom
-    per = duration/max(1, i_chunk)
-    pred = per*tot_chunks
-    remain = pred-duration
-    this_msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
+    duration = duration/denom
+    per = per/denom
+    pred = pred/denom
+    remain = remain/denom
+
+    this_msg = f"{i_chunk} of {tot_chunks} "
+    if chunk_unit is not None:
+        this_msg += f"{chunk_unit} "
+    this_msg += f"in {duration:.2e} {unit}; "
     this_msg += f"predict {remain:.2e} {unit} of {pred:.2e} {unit} left"
     if nametag is not None:
         this_msg = f"{nametag} -- {msg}"

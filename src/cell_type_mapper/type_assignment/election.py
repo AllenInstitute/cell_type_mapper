@@ -255,11 +255,13 @@ def run_type_assignment_on_h5ad_cpu(
             n1 = len(process_list)
             if n1 < n0:
                 row_ct += (n0-n1)*chunk_size
-                print_timing(
-                    t0=t0,
-                    i_chunk=row_ct,
-                    tot_chunks=tot_rows,
-                    unit='hr')
+                if row_ct >= n_processors*chunk_size:
+                    print_timing(
+                        t0=t0,
+                        i_chunk=row_ct,
+                        tot_chunks=tot_rows,
+                        unit=None,
+                        chunk_unit="cells")
 
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)

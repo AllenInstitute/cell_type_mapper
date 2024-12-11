@@ -21,7 +21,8 @@ from cell_type_mapper.utils.output_utils import (
 
 from cell_type_mapper.schemas.mixins import (
     NProcessorsMixin,
-    NodesToDropMixin)
+    NodesToDropMixin,
+    VerboseStdoutMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
@@ -76,7 +77,8 @@ class MapperSchema_OTF(
         argschema.ArgSchema,
         SearchSchemaMixin_noNProcessors,
         NProcessorsMixin,
-        NodesToDropMixin):
+        NodesToDropMixin,
+        VerboseStdoutMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerSchema_OTF,
@@ -206,7 +208,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                   'cloud_safe',
                   'precomputed_stats',
                   'summary_metadata_path',
-                  'verbose_csv'):
+                  'verbose_csv',
+                  'verbose_stdout'):
             mapping_config[k] = self.args[k]
 
         mapping_runner = FromSpecifiedMarkersRunner(

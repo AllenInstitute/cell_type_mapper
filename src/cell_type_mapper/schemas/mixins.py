@@ -6,6 +6,20 @@ from cell_type_mapper.utils.anndata_utils import (
     does_obsm_have_key)
 
 
+class VerboseStdoutMixin(object):
+
+    verbose_stdout = argschema.fields.Boolean(
+        required=True,
+        default=True,
+        allow_none=False,
+        description=(
+            "Controls verbosity of output written to "
+            "stdout (does not affect output recorded "
+            "in log files)"
+        )
+    )
+
+
 class PrecomputedStatsPathMixin(object):
 
     precomputed_stats_path = argschema.fields.InputFile(
@@ -180,7 +194,7 @@ class OutputDstForSearchMixin(object):
         default=False,
         allow_none=False,
         description=(
-            "If True, recorde all confidence metrics as separate columns "
+            "If True, record all confidence metrics as separate columns "
             "in the CSV file. If False, only return one metric "
             "(bootstrapping_probability if available; else avg_correlation)"
         )
