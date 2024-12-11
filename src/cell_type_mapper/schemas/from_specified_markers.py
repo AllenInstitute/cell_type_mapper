@@ -7,14 +7,16 @@ from cell_type_mapper.schemas.search_mixins import (
     SearchSchemaMixin)
 
 from cell_type_mapper.schemas.mixins import (
-    NodesToDropMixin
+    NodesToDropMixin,
+    VerboseStdoutMixin
 )
 
 
 class FromSpecifiedMarkersSchema(
         argschema.ArgSchema,
         SearchSchemaMixin,
-        NodesToDropMixin):
+        NodesToDropMixin,
+        VerboseStdoutMixin):
 
     map_to_ensembl = argschema.fields.Boolean(
         required=False,

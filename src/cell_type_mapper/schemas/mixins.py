@@ -6,6 +6,20 @@ from cell_type_mapper.utils.anndata_utils import (
     does_obsm_have_key)
 
 
+class VerboseStdoutMixin(object):
+
+    verbose_stdout = argschema.fields.Boolean(
+        required=True,
+        default=True,
+        allow_none=False,
+        description=(
+            "Controls verbosity of output written to "
+            "stdout (does not affect output recorded "
+            "in log files)"
+        )
+    )
+
+
 class PrecomputedStatsPathMixin(object):
 
     precomputed_stats_path = argschema.fields.InputFile(

@@ -82,11 +82,18 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             cloud_safe=self.args['cloud_safe']
         )
 
-        print('=== Running Hierarchical Mapping '
-              f'{cell_type_mapper.__version__} with config ===\n'
-              f'{json.dumps(metadata_config, indent=2)}')
+        msg = ('=== Running Hierarchical Mapping '
+               f'{cell_type_mapper.__version__} ')
+        if self.args['verbose_stdout']:
+            msg += ('with config ===\n'
+                    f'{json.dumps(metadata_config, indent=2)}')
+        else:
+            msg += '\n'
+        print(msg)
 
-        log = CommandLog()
+        log = CommandLog(
+            verbose_stdout=self.args['verbose_stdout']
+        )
 
         # create this now in case _run_mapping errors
         # before creating the output dict (the finally
@@ -181,7 +188,11 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                             indent=2))
 
             _clean_up(tmp_result_dir)
-            log.info("MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY")
+
+            log.info(
+                "MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY",
+                to_stdout=True)
+
         except Exception as err:
             mapping_exception = err
             traceback_msg = "an ERROR occurred ===="
@@ -190,7 +201,9 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             raise
         finally:
             _clean_up(tmp_dir)
-            log.info("CLEANING UP")
+            log.info(
+                "CLEANING UP",
+                to_stdout=True)
 
             output["config"] = metadata_config
             output_log = copy.deepcopy(log.log)
