@@ -10,6 +10,10 @@ import pathlib
 import scipy.sparse as scipy_sparse
 from unittest.mock import patch
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    write_anndata_x_to_csv
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
@@ -217,7 +221,7 @@ def test_validation_of_corrupted_h5ad(
 @pytest.mark.parametrize(
         "density,as_layer,round_to_int,specify_path",
         itertools.product(
-         ("csr", "csc", "array"),
+         ("csr", "csc", "array", "csv", "gz"),
          (True, False),
          (True, False),
          (True, False)))
@@ -232,12 +236,23 @@ def test_validation_of_h5ad(
         round_to_int,
         specify_path):
 
+    if density in ("csv", "gz"):
+        if density == "csv":
+            suffix = ".csv"
+        else:
+            suffix = ".csv.gz"
+
+        if as_layer:
+            return
+    else:
+        suffix = ".h5ad"
+
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='orig_',
-        suffix='.h5ad')
+        suffix=suffix)
 
-    if density == "array":
+    if density in ("array", "csv", "gz"):
         data = x_fixture
     elif density == "csr":
         data = scipy_sparse.csr_matrix(x_fixture)
@@ -258,7 +273,14 @@ def test_validation_of_h5ad(
         var=var_fixture,
         obs=obs_fixture,
         layers=layers)
-    a_data.write_h5ad(orig_path)
+
+    if density in ("csv", "gz"):
+        write_anndata_x_to_csv(
+            anndata_obj=a_data,
+            dst_path=orig_path
+        )
+    else:
+        a_data.write_h5ad(orig_path)
 
     md50 = hashlib.md5()
     with open(orig_path, 'rb') as src:
@@ -295,16 +317,24 @@ def test_validation_of_h5ad(
 
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
-            if density != 'array':
+            if density not in ('array', 'csv', 'gz'):
                 data_key = 'X/data'
             else:
                 data_key = 'X'
             assert in_file[data_key].dtype == np.uint8
 
     actual = anndata.read_h5ad(result_path, backed='r')
-    pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+
+    if density not in ("csv", "gz"):
+        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+    else:
+        np.testing.assert_array_equal(
+            obs_fixture.index.values,
+            actual.obs.index.values
+        )
+
     actual_x = actual.X[()]
-    if density != "array":
+    if density not in ("array", "csv", "gz"):
         actual_x = actual_x.toarray()
 
     if round_to_int:
@@ -320,9 +350,11 @@ def test_validation_of_h5ad(
             rtol=1.0e-6)
 
     actual_var = actual.var
-    assert len(actual_var.columns) == 2
-    assert list(actual_var['gene_id'].values) == list(var_fixture.index.values)
-    assert list(actual_var['val'].values) == list(var_fixture.val.values)
+
+    if density not in ("csv", "gz"):
+        assert len(actual_var.columns) == 2
+        assert list(actual_var['gene_id'].values) == list(var_fixture.index.values)
+        assert list(actual_var['val'].values) == list(var_fixture.val.values)
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
     assert actual_idx[0] == "ENSG1"

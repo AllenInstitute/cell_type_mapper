@@ -1,3 +1,4 @@
+import anndata
 import h5py
 import json
 import numpy as np
@@ -119,7 +120,13 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
-    original_h5ad_path = pathlib.Path(h5ad_path)
+    (original_h5ad_path,
+     write_to_new_path) = _convert_csv(
+         src_path=h5ad_path,
+         log=log
+     )
+
+    has_warnings = write_to_new_path
 
     tmp_h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -147,9 +154,6 @@ def _validate_h5ad(
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
-    write_to_new_path = False
-    has_warnings = False
-
     # check that file can even be open
     try:
         with h5py.File(original_h5ad_path, 'r') as _:
@@ -159,7 +163,7 @@ def _validate_h5ad(
         error_msg += (
             "This h5ad file is corrupted such that it could not "
             "even be opened with h5py. See above for the specific "
-            "error message raised by h5py."
+            f"error message raised by h5py {original_h5ad_path}."
         )
         if log is None:
             raise RuntimeError(error_msg)
@@ -399,3 +403,60 @@ def _check_input_gene_names(
             log.error(error_msg)
         else:
             raise RuntimeError(error_msg)
+
+
+def _convert_csv(
+        src_path,
+        log):
+    """
+    Convert CSV file to h5ad file (if necessary)
+
+    Parameters
+    ----------
+    src_path:
+        Path to the src file
+    log:
+        Optional logger to log messages for CLI
+
+    Returns
+    -------
+    h5ad_path:
+        Path to the h5ad file (this will be src_path
+        if src_path ends in '.h5ad')
+    was_converted:
+        Boolean indicating if the file was converted to an
+        h5ad file
+    """
+    src_path = pathlib.Path(src_path)
+    src_name = src_path.name
+
+    if not src_name.endswith('.csv') and not src_name.endswith('.csv.gz'):
+        return (src_path, False)
+
+    if src_name.endswith('.csv.gz'):
+        src_suffix = '.csv.gz'
+    elif src_name.endswith('.csv'):
+        src_suffix = '.csv'
+
+    dst_path = src_path.parent / src_name.replace(src_suffix, '.h5ad')
+    if dst_path.exists():
+        dst_path = mkstemp_clean(
+            dir=src_path.parent,
+            prefix=src_name.replace(src_suffix, '_'),
+            suffix='.h5ad'
+        )
+
+    warning_msg = (
+        "Input data is in CSV format; converting to h5ad file at "
+        f"{dst_path}"
+    )
+
+    if log is None:
+        warnings.warn(warning_msg)
+    else:
+        log.warn(warning_msg)
+
+    adata = anndata.read_csv(src_path)
+    adata.write_h5ad(dst_path)
+
+    return dst_path, True
