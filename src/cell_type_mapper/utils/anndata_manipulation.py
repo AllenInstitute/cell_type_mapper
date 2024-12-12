@@ -546,7 +546,8 @@ def amalgamate_h5ad_from_label_list(
         raise RuntimeError(
             f"Could not find data for rows\n"
             f"{missing_rows}\n"
-            f"total missing rows: {len(missing_rows)}"
+            f"total missing rows: {len(missing_rows)} "
+            f"of {len(row_label_list)}"
         )
 
     dst_obs = pd.DataFrame(obs_data).set_index(index_col)
@@ -574,6 +575,8 @@ def amalgamate_h5ad_from_label_list(
 
     if current_spec is not None:
         spec_list.append(current_spec)
+
+    print('input validated; beginning amalgamation')
 
     amalgamate_h5ad(
         src_rows=spec_list,
