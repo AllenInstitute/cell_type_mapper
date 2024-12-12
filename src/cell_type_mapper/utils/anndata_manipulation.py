@@ -2,6 +2,7 @@ import anndata
 import h5py
 import json
 import numpy as np
+import pandas as pd
 import tempfile
 import time
 
@@ -18,7 +19,8 @@ from cell_type_mapper.utils.utils import (
 )
 
 from cell_type_mapper.utils.anndata_utils import (
-    infer_attrs
+    infer_attrs,
+    read_df_from_h5ad
 )
 
 
@@ -422,3 +424,163 @@ def amalgamate_dense_to_x(
                     unit=None,
                     chunk_unit="tmp files"
                 )
+
+
+def amalgamate_h5ad_from_label_list(
+        src_h5ad_list,
+        row_label_list,
+        dst_path,
+        rows_at_a_time=10000,
+        dst_sparse=True,
+        tmp_dir=None,
+        compression=True):
+
+    """
+    Assemble an h5ad file by subsetting rows of other
+    h5ad files (which are referred to by their row labels
+    (the index of obs)
+
+    Parameters
+    ----------
+    src_h5ad_list:
+        The list of h5ad files from which to read data
+
+    row_label_list:
+        The list of rows (obs.index.values) from the source
+        h5ad files that need to be assembled into the new
+        file.
+
+    dst_path:
+        Path of file to be written
+
+    rows_at_a_time:
+        An integer. The number of rows to be read in from
+        a single h5ad file at once.
+
+    dst_sparse:
+        A boolean. If True, dst will be written as a CSR
+        matrix. Otherwise, it will be written as a dense
+        matrix.
+
+    tmp_dir:
+        Directory where temporary files will be written
+
+    compression:
+        A boolean; if True, use gzip with setting 4
+
+    """
+    row_label_set = set(row_label_list)
+
+    dst_var = None
+    reference_var_path = None
+
+    label_to_path_row = dict()
+    path_row_list = []
+    obs_data = []
+
+    index_col = None
+    index_col_path = None
+
+    for h5ad_path in src_h5ad_list:
+        h5ad_path = str(h5ad_path)
+        this_obs = read_df_from_h5ad(
+            h5ad_path,
+            df_name='obs'
+        )
+
+        row_mask = this_obs.index.isin(row_label_set)
+        if row_mask.sum() == 0:
+            continue
+
+        this_var = read_df_from_h5ad(
+            h5ad_path,
+            df_name='var'
+        )
+
+        if dst_var is None:
+            dst_var = this_var
+            reference_var_path = h5ad_path
+        elif not dst_var.equals(this_var):
+            raise RuntimeError(
+                f"{reference_var_path} and {h5ad_path} have different "
+                "var dataframes (at least; other files may also conflict)"
+            )
+
+        if index_col is None:
+            if this_obs.index.name is None:
+                raise RuntimeError(
+                    f"Index for obs in {h5ad_path} has no name"
+                )
+            index_col = this_obs.index.name
+            index_col_path = h5ad_path
+        else:
+            if index_col != this_obs.index.name:
+                raise RuntimeError(
+                    "Mismatch in obs indexes; "
+                    f"obs for {index_col_path} is indexed on {index_col}; "
+                    f"{h5ad_path} is indexed on {this_obs.index.name}"
+                )
+
+        row_idx = np.sort(np.where(row_mask)[0])
+
+        this_obs = this_obs.iloc[
+            row_idx].reset_index().to_dict(orient='records')
+
+        for idx, obs_row in zip(row_idx, this_obs):
+            label = obs_row[index_col]
+            spec = (h5ad_path, idx)
+            if label in label_to_path_row:
+                raise RuntimeError(
+                    f"Two sources of truth for label {label}:\n"
+                    f"{label_to_path_row[label]}\n"
+                    f"and\n{spec}"
+                )
+            label_to_path_row[label] = spec
+            path_row_list.append(spec)
+            obs_data.append(obs_row)
+
+    missing_rows = row_label_set-set(label_to_path_row.keys())
+    if len(missing_rows) > 0:
+        missing_rows = list(missing_rows)
+        missing_rows.sort()
+        raise RuntimeError(
+            f"Could not find data for rows\n"
+            f"{missing_rows}\n"
+            f"total missing rows: {len(missing_rows)}"
+        )
+
+    dst_obs = pd.DataFrame(obs_data).set_index(index_col)
+
+    spec_list = []
+    current_spec = None
+    for path_row in path_row_list:
+        if current_spec is not None:
+            dump = False
+            if len(current_spec['rows']) >= rows_at_a_time:
+                dump = True
+            if path_row[0] != current_spec['path']:
+                dump = True
+            if dump:
+                spec_list.append(current_spec)
+                current_spec = None
+
+        if current_spec is None:
+            current_spec = {
+                'path': path_row[0],
+                'rows': [],
+                'layer': 'X'
+            }
+        current_spec['rows'].append(path_row[1])
+
+    if current_spec is not None:
+        spec_list.append(current_spec)
+
+    amalgamate_h5ad(
+        src_rows=spec_list,
+        dst_path=dst_path,
+        dst_obs=dst_obs,
+        dst_var=dst_var,
+        dst_sparse=dst_sparse,
+        tmp_dir=tmp_dir,
+        compression=compression
+    )
