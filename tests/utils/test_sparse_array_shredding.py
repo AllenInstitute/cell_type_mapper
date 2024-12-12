@@ -13,10 +13,17 @@ import pandas as pd
 import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean)
+    mkstemp_clean
+)
+
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
 
 from cell_type_mapper.utils.anndata_manipulation import (
-    amalgamate_h5ad)
+    amalgamate_h5ad,
+    amalgamate_h5ad_from_label_list
+)
 
 
 @pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
@@ -387,3 +394,509 @@ def test_failure_when_many_floats(tmp_dir_fixture, layer):
             dst_path=dst_path,
             dst_obs=None,
             dst_var=None)
+
+
+@pytest.fixture(scope='module')
+def label_to_row_fixture():
+    """
+    Mapping from cell_label to the row of a cell-by-gene
+    matrix (for testing amalgamation from a list of cell_labels)
+    """
+    rng = np.random.default_rng(22111)
+    n_genes = 55
+    n_cells = 341
+    lookup = dict()
+    for i_cell in range(n_cells):
+        cell_label = f'cell_{i_cell}'
+        row = rng.random(n_genes)
+        zeroed_idx = rng.choice(
+            np.arange(n_genes),
+            rng.integers(5, 45),
+            replace=False)
+        row[zeroed_idx] = 0.0
+        lookup[cell_label] = row
+    return lookup
+
+
+@pytest.fixture(scope='module')
+def label_to_obs_fixture(
+        label_to_row_fixture):
+    """
+    Mapping from cell_label to obs metadata associated with
+    that cell (for testing amalgamation from a list of cell_labels)
+    """
+    rng = np.random.default_rng(7712131)
+
+    lookup = dict()
+    for i_cell, cell_label in enumerate(label_to_row_fixture):
+        this = {
+            'cell_label': cell_label,
+            'field0': f'f0_{i_cell}',
+            'field1': f'a{rng.integers(0,999)}'
+        }
+        lookup[cell_label] = this
+    return lookup
+
+
+@pytest.fixture(scope='module')
+def src_h5ad_list_fixture(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        label_to_obs_fixture):
+    """
+    List of h5ad files to use as the source for testing
+    amalgamation from a list of cell_labels
+    """
+
+    rng = np.random.default_rng(77112211)
+
+    label_list = list(label_to_row_fixture.keys())
+    n_cells = len(label_list)
+    label_list.sort()
+    label_subset_list = [
+        label_list[:93],
+        label_list[94:171],
+        label_list[172:255],
+        label_list[256:n_cells]
+    ]
+
+    n_genes = len(label_to_row_fixture[label_list[0]])
+    var = pd.DataFrame(
+        [{'gene_id': f'g_{ii}',
+          'other': f'b{rng.integers(5, 9999)}'}
+         for ii in range(n_genes)
+        ]
+    ).set_index('gene_id')
+
+    h5ad_path_list = []
+    for label_subset in label_subset_list:
+        obs = pd.DataFrame(
+            [label_to_obs_fixture[l] for l in label_subset]
+        ).set_index('cell_label')
+        X = np.vstack(
+            [label_to_row_fixture[l] for l in label_subset]
+        )
+        adata = anndata.AnnData(
+            var=var,
+            obs=obs,
+            X=X
+        )
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad'
+        )
+        adata.write_h5ad(h5ad_path)
+        h5ad_path_list.append(h5ad_path)
+    return h5ad_path_list
+
+
+@pytest.fixture
+def wrong_var_fixture(
+        tmp_dir_fixture,
+        label_to_row_fixture):
+    """
+    An h5ad file with a different var dataframe
+    from the others, to test exception when var is not uniform
+    """
+    rng = np.random.default_rng(8812)
+    row = list(label_to_row_fixture.values())[0]
+    n_genes = len(row)
+    n_cells = 5
+    var = pd.DataFrame(
+        [{'gene_id': f'g_{10*ii}',
+          'other': f'b{rng.integers(5, 9999)}'}
+         for ii in range(n_genes)
+        ]
+    ).set_index('gene_id')
+
+    rng = np.random.default_rng(22131)
+    x = rng.random((n_cells, n_genes))
+    obs = pd.DataFrame(
+        [{'cell_label': f'cell_{ii+500}'}
+         for ii in range(n_cells)]
+    ).set_index('cell_label')
+    dst_path = mkstemp_clean(
+       dir=tmp_dir_fixture,
+       suffix='.h5ad'
+    )
+    adata = anndata.AnnData(
+        var=var,
+        obs=obs,
+        X=x
+    )
+    adata.write_h5ad(dst_path)
+    return dst_path
+
+
+@pytest.fixture
+def wrong_obs_fixture(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        src_h5ad_list_fixture):
+    """
+    An h5ad file with an obs dataframe that has a different
+    index than the other files.
+    """
+    rng = np.random.default_rng(8812)
+    row = list(label_to_row_fixture.values())[0]
+    n_genes = len(row)
+    n_cells = 5
+
+    var = read_df_from_h5ad(
+        src_h5ad_list_fixture[0],
+        df_name='var'
+    )
+
+    rng = np.random.default_rng(22131)
+    x = rng.random((n_cells, n_genes))
+
+    obs = pd.DataFrame(
+        [{'cell_name': f'cell_{ii+500}'}
+         for ii in range(n_cells)]
+    ).set_index('cell_name')
+
+    dst_path = mkstemp_clean(
+       dir=tmp_dir_fixture,
+       suffix='.h5ad'
+    )
+    adata = anndata.AnnData(
+        var=var,
+        obs=obs,
+        X=x
+    )
+    adata.write_h5ad(dst_path)
+    return dst_path
+
+
+@pytest.fixture
+def duplicated_cell_fixture(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        src_h5ad_list_fixture):
+    """
+    An h5ad file that duplicates cells in other h5ad file,
+    to test error when source of truth is confused
+    """
+    rng = np.random.default_rng(8812)
+    row = list(label_to_row_fixture.values())[0]
+    n_genes = len(row)
+    n_cells = 5
+
+    var = read_df_from_h5ad(
+        src_h5ad_list_fixture[0],
+        df_name='var'
+    )
+
+    rng = np.random.default_rng(22131)
+    x = rng.random((n_cells, n_genes))
+
+    obs = pd.DataFrame(
+        [{'cell_label': f'cell_{ii}'}
+         for ii in range(300, 300+n_cells, 1)]
+    ).set_index('cell_label')
+
+    dst_path = mkstemp_clean(
+       dir=tmp_dir_fixture,
+       suffix='.h5ad'
+    )
+    adata = anndata.AnnData(
+        var=var,
+        obs=obs,
+        X=x
+    )
+    adata.write_h5ad(dst_path)
+    return dst_path
+
+
+@pytest.mark.parametrize(
+    'compression,dst_sparse',
+    itertools.product(
+        [True, False],
+        [True, False]
+    )
+)
+def test_amalgamate_from_label_list(
+        tmp_dir_fixture,
+        compression,
+        dst_sparse,
+        label_to_row_fixture,
+        label_to_obs_fixture,
+        src_h5ad_list_fixture):
+
+    label_list = [
+        'cell_300',
+        'cell_5',
+        'cell_124',
+        'cell_89',
+        'cell_222',
+        'cell_111',
+        'cell_0',
+        'cell_9',
+        'cell_306',
+        'cell_101',
+        'cell_102',
+        'cell_103',
+        'cell_104',
+        'cell_105',
+        'cell_106',
+        'cell_107',
+        'cell_108',
+        'cell_109',
+        'cell_110'
+    ]
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='amalgamated_from_labels_',
+        suffix='.h5ad'
+    )
+
+    reference_var = read_df_from_h5ad(
+        src_h5ad_list_fixture[0],
+        df_name='var')
+
+    amalgamate_h5ad_from_label_list(
+        src_h5ad_list=src_h5ad_list_fixture,
+        row_label_list=label_list,
+        dst_path=dst_path,
+        dst_sparse=dst_sparse,
+        compression=compression,
+        tmp_dir=tmp_dir_fixture,
+        rows_at_a_time=3
+    )
+
+    actual = anndata.read_h5ad(dst_path, backed='r')
+
+    pd.testing.assert_frame_equal(
+        reference_var,
+        actual.var
+    )
+
+    actual_obs = {
+        cell['cell_label']: cell
+        for cell in actual.obs.reset_index().to_dict(orient='records')
+    }
+
+    assert len(actual_obs) == len(label_list)
+
+    for label in label_list:
+        assert actual_obs[label] == label_to_obs_fixture[label]
+
+    actual_labels = actual.obs.index.values
+    for idx, label in enumerate(actual_labels):
+        expected_row = label_to_row_fixture[label]
+        actual_row = actual.X[idx, :]
+        if dst_sparse:
+            actual_row = actual_row.toarray()[0, :]
+        np.testing.assert_allclose(
+            expected_row,
+            actual_row,
+            atol=0.0,
+            rtol=1.0e-6
+        )
+
+
+def test_amalgamate_with_missing_cell(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        label_to_obs_fixture,
+        src_h5ad_list_fixture,
+        wrong_var_fixture):
+    """
+    Test that amalgamation throws expected error when you
+    ask for a cell that is not in your data.
+    """
+
+    label_list = [
+        'cell_300',
+        'cell_5',
+        'cell_110',
+        'garbage'
+    ]
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='amalgamated_from_labels_',
+        suffix='.h5ad'
+    )
+
+    msg = "Could not find data for rows"
+    with pytest.raises(RuntimeError, match=msg):
+        amalgamate_h5ad_from_label_list(
+            src_h5ad_list=src_h5ad_list_fixture,
+            row_label_list=label_list,
+            dst_path=dst_path,
+            dst_sparse=True,
+            compression=True,
+            tmp_dir=tmp_dir_fixture,
+            rows_at_a_time=100
+        )
+
+
+def test_amalgamate_with_different_var(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        label_to_obs_fixture,
+        src_h5ad_list_fixture,
+        wrong_var_fixture):
+    """
+    Test that amalgamation functions properly when
+    trying to draw from h5ad files with different
+    var dataframes
+    """
+
+    src_path_list = src_h5ad_list_fixture + [wrong_var_fixture]
+
+    label_list = [
+        'cell_300',
+        'cell_5',
+        'cell_110'
+    ]
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='amalgamated_from_labels_',
+        suffix='.h5ad'
+    )
+
+    # first check that amalgamation happens
+    # when we do not actually need cells from
+    # the file with the disparate var dataframe
+    amalgamate_h5ad_from_label_list(
+        src_h5ad_list=src_path_list,
+        row_label_list=label_list,
+        dst_path=dst_path,
+        dst_sparse=True,
+        compression=True,
+        tmp_dir=tmp_dir_fixture,
+        rows_at_a_time=100
+    )
+
+    # now check that an exception is thrown when we
+    # actually need to bring in the h5ad file with
+    # the wrong var dataframe
+    msg = (
+        "have different var dataframes"
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        amalgamate_h5ad_from_label_list(
+            src_h5ad_list=src_path_list,
+            row_label_list=label_list + ['cell_500'],
+            dst_path=dst_path,
+            dst_sparse=True,
+            compression=True,
+            tmp_dir=tmp_dir_fixture,
+            rows_at_a_time=100
+         )
+
+
+def test_amalgamate_with_different_obs(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        label_to_obs_fixture,
+        src_h5ad_list_fixture,
+        wrong_obs_fixture):
+    """
+    Test that amalgamation functions properly when
+    trying to draw from h5ad files with different
+    obs dataframes
+    """
+
+    src_path_list = src_h5ad_list_fixture + [wrong_obs_fixture]
+
+    label_list = [
+        'cell_300',
+        'cell_5',
+        'cell_110'
+    ]
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='amalgamated_from_labels_',
+        suffix='.h5ad'
+    )
+
+    # first check that amalgamation happens
+    # when we do not actually need cells from
+    # the file with the disparate obs dataframe
+    amalgamate_h5ad_from_label_list(
+        src_h5ad_list=src_path_list,
+        row_label_list=label_list,
+        dst_path=dst_path,
+        dst_sparse=True,
+        compression=True,
+        tmp_dir=tmp_dir_fixture,
+        rows_at_a_time=100
+    )
+
+    # now check that an exception is thrown when we
+    # actually need to bring in the h5ad file with
+    # the wrong obs dataframe
+    msg = (
+        "Mismatch in obs indexes"
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        amalgamate_h5ad_from_label_list(
+            src_h5ad_list=src_path_list,
+            row_label_list=label_list + ['cell_500'],
+            dst_path=dst_path,
+            dst_sparse=True,
+            compression=True,
+            tmp_dir=tmp_dir_fixture,
+            rows_at_a_time=100
+         )
+
+
+def test_amalgamate_with_duplicated_cell(
+        tmp_dir_fixture,
+        label_to_row_fixture,
+        label_to_obs_fixture,
+        src_h5ad_list_fixture,
+        duplicated_cell_fixture):
+    """
+    Test that amalgamation functions properly when
+    a desired cell is listed in more than one h5ad file
+    """
+
+    src_path_list = src_h5ad_list_fixture + [duplicated_cell_fixture]
+
+    label_list = [
+        'cell_200',
+        'cell_5',
+        'cell_110'
+    ]
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='amalgamated_from_labels_',
+        suffix='.h5ad'
+    )
+
+    # first check that amalgamation happens
+    # when we do not actually need cells that
+    # are duplicated
+    amalgamate_h5ad_from_label_list(
+        src_h5ad_list=src_path_list,
+        row_label_list=label_list,
+        dst_path=dst_path,
+        dst_sparse=True,
+        compression=True,
+        tmp_dir=tmp_dir_fixture,
+        rows_at_a_time=100
+    )
+
+    # now check that an exception is thrown when we
+    # actually need to bring in the duplicated cells
+    msg = (
+        "Two sources of truth"
+    )
+    with pytest.raises(RuntimeError, match=msg):
+        amalgamate_h5ad_from_label_list(
+            src_h5ad_list=src_path_list,
+            row_label_list=label_list + ['cell_301'],
+            dst_path=dst_path,
+            dst_sparse=True,
+            compression=True,
+            tmp_dir=tmp_dir_fixture,
+            rows_at_a_time=100
+         )
