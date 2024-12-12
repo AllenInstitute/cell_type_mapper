@@ -1,5 +1,7 @@
 import anndata
+import gzip
 import h5py
+import pathlib
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -94,3 +96,40 @@ def _copy_array_no_encoding_type(
                 dataset,
                 data=src_handle[dataset][()]
             )
+
+
+def write_anndata_x_to_csv(
+        anndata_obj,
+        dst_path):
+    """
+    Write the data in anndata_obj to a csv file at dst_path,
+    using the X layer as the matrix.
+
+    (This is for testing our validation layer's ability to
+    convert CSVs to h5ad files)
+    """
+    dst_path = pathlib.Path(dst_path)
+    if dst_path.name.endswith('gz'):
+        open_fn = gzip.open
+        is_gzip = True
+    else:
+        open_fn = open
+        is_gzip = False
+
+    with open_fn(dst_path, 'w') as dst:
+        header = ''
+        for gene_label in anndata_obj.var.index.values:
+            header += f',{gene_label}'
+        header += '\n'
+        if is_gzip:
+            header = header.encode('utf-8')
+        dst.write(header)
+        for i_row, cell_label in enumerate(anndata_obj.obs.index.values):
+            line = f'{cell_label}'
+            row = anndata_obj.X[i_row, :]
+            for value in row:
+                line += f',{value:.6f}'
+            line += '\n'
+            if is_gzip:
+                line = line.encode('utf-8')
+            dst.write(line)
