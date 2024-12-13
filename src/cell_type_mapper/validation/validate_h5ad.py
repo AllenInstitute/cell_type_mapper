@@ -494,8 +494,8 @@ def _convert_csv_to_h5ad(
         first_row = src.readline()
 
     if is_gzip:
-        header = header.decode('utf-8')
-        first_row = first_row.decode('utf-8')
+        header = header.decode()
+        first_row = first_row.decode()
 
     header_params = header.split(',')
     first_row_params = first_row.split(',')
