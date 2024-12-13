@@ -351,7 +351,13 @@ def assert_mappings_equal(
             if not compare_cell_id:
                 if k == 'cell_id':
                     continue
-            compare_field(cell0[k], cell1[k])
+            if not compare_field(cell0[k], cell1[k]):
+                msg = (
+                    f"{json.dumps(cell0, indent=2)}\n"
+                    f"{json.dumps(cell1, indent=2)}\n"
+                    f"Mismatch on {k}"
+                )
+                raise RuntimeError(msg)
 
 
 def compare_field(value0, value1):
@@ -360,25 +366,26 @@ def compare_field(value0, value1):
         value1 = np.array(value1)
     if isinstance(value0, np.ndarray):
         if np.issubdtype(value0.dtype, np.number):
-            np.testing.assert_allclose(
+            return np.allclose(
                 value0,
                 value1,
                 atol=0.0,
                 rtol=1.0e-4
             )
         else:
-            np.testing.assert_array_equal(
+            return np.array_equal(
                 value0,
                 value1
             )
     elif isinstance(value0, dict):
-        assert set(value0.keys()) == set(value1.keys())
+        if set(value0.keys()) != set(value1.keys()):
+            return False
         for k in value0:
-            compare_field(value0[k], value1[k])
+            return compare_field(value0[k], value1[k])
     elif isinstance(value0, numbers.Number):
-        np.testing.assert_allclose(value0, value1, atol=0.0, rtol=1.0e-4)
+        return np.allclose(value0, value1, atol=0.0, rtol=1.0e-4)
     else:
-        assert value0 == value1
+        return value0 == value1
 
 
 if __name__ == "__main__":
