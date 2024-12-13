@@ -189,7 +189,7 @@ def create_query_h5ad(
         rng = np.random.default_rng(77123)
 
         if density_specification == 'dense':
-            X = rng.random((n_cells, n_genes), dtype=np.float32)
+            X = rng.integers(1, 255, (n_cells, n_genes), dtype=int)
         else:
             n_tot = n_cells*n_genes
             data = np.zeros(n_tot, dtype=int)
@@ -307,7 +307,7 @@ def do_reference_mapping(
             'summary_metadata_path': metadata_path,
             'map_to_ensembl': False,
             'type_assignment': {
-                'normalization': 'log2CPM',
+                'normalization': 'raw',
                 'bootstrap_iteration': 10,
                 'bootstrap_factor': 0.9,
                 'n_runners_up': 2,

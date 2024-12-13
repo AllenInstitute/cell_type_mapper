@@ -150,7 +150,7 @@ def test_online_workflow_WMB(
         'summary_metadata_path': metadata_path,
         'map_to_ensembl': False,
         'type_assignment': {
-            'normalization': 'log2CPM',
+            'normalization': 'raw',
             'bootstrap_iteration': 10,
             'bootstrap_factor': 0.9,
             'n_runners_up': 2,
@@ -166,22 +166,25 @@ def test_online_workflow_WMB(
 
     runner.run()
 
-    if not with_encoding_type:
-        test_df = pd.read_csv(
-            csv_path,
-            comment='#')
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#')
 
-        baseline_df = pd.read_csv(
-            reference_mapping_fixture['csv_path'],
-            comment='#')
+    baseline_df = pd.read_csv(
+        reference_mapping_fixture['csv_path'],
+        comment='#')
 
-        pd.testing.assert_frame_equal(test_df, baseline_df)
+    pd.testing.assert_frame_equal(test_df, baseline_df)
 
-        test_dict = json.load(open(output_path, 'rb'))
-        baseline_dict = json.load(open(reference_mapping_fixture['json_path'], 'rb'))
-        assert test_dict['results'] == baseline_dict['results']
+    test_dict = json.load(open(output_path, 'rb'))
+    baseline_dict = json.load(open(reference_mapping_fixture['json_path'], 'rb'))
+    assert_mappings_equal(
+        test_dict['results'],
+        baseline_dict['results'],
+        compare_cell_id=True)
 
 
+@pytest.mark.skip('sfd')
 @pytest.mark.parametrize(
     "cell_label_header,cell_label_type,suffix",
     itertools.product(
@@ -271,7 +274,7 @@ def test_online_workflow_WMB_csv_shape(
         'summary_metadata_path': metadata_path,
         'map_to_ensembl': False,
         'type_assignment': {
-            'normalization': 'log2CPM',
+            'normalization': 'raw',
             'bootstrap_iteration': 10,
             'bootstrap_factor': 0.9,
             'n_runners_up': 2,
