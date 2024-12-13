@@ -3,6 +3,7 @@ import pytest
 import anndata
 import hashlib
 import h5py
+import gzip
 import itertools
 import numpy as np
 import pandas as pd
@@ -788,16 +789,18 @@ def test_cell_id_errors(tmp_dir_fixture):
 
 
 @pytest.mark.parametrize(
-    "label_heading,label_is_numerical",
+    "label_heading,label_is_numerical,suffix",
     itertools.product(
         [True, False],
-        [True, False]
+        [True, False],
+        ['.csv', '.csv.gz']
     )
 )
 def test_convert_csv(
         tmp_dir_fixture,
         label_heading,
-        label_is_numerical):
+        label_is_numerical,
+        suffix):
 
     rng = np.random.default_rng(221111)
     n_cells = 4
@@ -811,19 +814,31 @@ def test_convert_csv(
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
-        suffix='.csv'
+        suffix=suffix
     )
-    with open(csv_path, 'w') as dst:
+
+    if suffix == '.csv':
+        open_fn = open
+        is_gzip = False
+    else:
+        open_fn = gzip.open
+        is_gzip = True
+
+    with open_fn(csv_path, 'w') as dst:
+        data = ''
         if label_heading:
-            dst.write('cell_label')
+            data += 'cell_label'
         for l in gene_labels:
-            dst.write(f',{l}')
-        dst.write('\n')
+            data += f',{l}'
+        data += '\n'
         for i_row in range(n_cells):
-            dst.write(f'{cell_labels[i_row]}')
+            data += f'{cell_labels[i_row]}'
             for i_col in range(n_genes):
-                dst.write(f',{x[i_row, i_col]}')
-            dst.write('\n')
+                data += f',{x[i_row, i_col]}'
+            data += '\n'
+        if is_gzip:
+            data = data.encode('utf-8')
+        dst.write(data)
 
     h5ad_path, flag = _convert_csv_to_h5ad(
         src_path=csv_path,
@@ -831,19 +846,34 @@ def test_convert_csv(
     assert flag
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
-    reference_idx = np.array(cell_labels)
+
+    if not label_heading or not label_is_numerical:
+        expected_cell_labels = np.array(cell_labels)
+        expected_gene_labels = np.array(gene_labels)
+        expected_x = x
+    else:
+        expected_cell_labels = np.arange(n_cells)
+        expected_gene_labels = np.array(
+            ['cell_label'] + gene_labels
+        )
+        expected_x = np.hstack(
+            [np.array(cell_labels).reshape(n_cells, 1),
+             x]
+        )
 
     np.testing.assert_array_equal(
-        adata.obs.index.values.astype(reference_idx.dtype),
-        reference_idx
+        adata.obs.index.values.astype(expected_cell_labels.dtype),
+        expected_cell_labels
     )
 
     np.testing.assert_array_equal(
         adata.var.index.values,
-        np.array(gene_labels)
+        expected_gene_labels
     )
 
-    np.testing.assert_array_equal(
-        x,
-        adata.X
+    np.testing.assert_allclose(
+        expected_x,
+        adata.X,
+        atol=0.0,
+        rtol=1.0e-6
     )
