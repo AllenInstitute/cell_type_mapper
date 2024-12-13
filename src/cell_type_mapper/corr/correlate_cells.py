@@ -233,7 +233,8 @@ def correlate_cells(
                     t0=t0,
                     i_chunk=row_ct,
                     tot_chunks=n_query_rows,
-                    unit='hr')
+                    chunk_unit='cells',
+                    unit=None)
 
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)

@@ -365,7 +365,8 @@ def create_sparse_by_pair_marker_file_from_p_mask(
                     t0=t0,
                     i_chunk=ct_complete,
                     tot_chunks=n_pairs,
-                    unit='hr')
+                    chunk_unit='taxon pairs',
+                    unit=None)
 
     del cluster_stats
     del tree_as_leaves
@@ -383,7 +384,8 @@ def create_sparse_by_pair_marker_file_from_p_mask(
                 t0=t0,
                 i_chunk=ct_complete,
                 tot_chunks=n_pairs,
-                unit='hr')
+                chunk_unit='taxon pairs',
+                unit=None)
 
     _merge_sparse_by_pair_files(
         tmp_path_dict=tmp_path_dict,
