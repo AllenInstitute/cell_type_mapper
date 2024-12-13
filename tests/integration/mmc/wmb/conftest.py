@@ -40,7 +40,7 @@ from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def tmp_dir_fixture(tmp_path_factory):
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('cli_smoke_'))
@@ -48,7 +48,7 @@ def tmp_dir_fixture(tmp_path_factory):
     _clean_up(tmp_dir)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def taxonomy_tree_fixture():
     data = {
         'hierarchy': ['class', 'subclass', 'cluster'],
@@ -69,7 +69,7 @@ def taxonomy_tree_fixture():
     return TaxonomyTree(data=data)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def gene_name_fixture():
     rng = np.random.default_rng(2213)
     result = [k for k in mouse_gene_id_lookup.keys() if 'NCBI' not in k]
@@ -77,12 +77,12 @@ def gene_name_fixture():
     return list(result)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def gene_id_fixture(gene_name_fixture):
     return [mouse_gene_id_lookup[g] for g in gene_name_fixture]
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def marker_lookup_fixture(
         taxonomy_tree_fixture,
         gene_id_fixture,
@@ -107,7 +107,7 @@ def marker_lookup_fixture(
     return json_path
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def precomputed_stats_fixture(
         tmp_dir_fixture,
         gene_id_fixture,
@@ -137,7 +137,7 @@ def precomputed_stats_fixture(
     return h5_path
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope='session')
 def n_extra_genes_fixture():
     """
     Number of unmappable genes to include in the data
