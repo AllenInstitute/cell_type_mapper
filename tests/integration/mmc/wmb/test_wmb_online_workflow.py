@@ -184,7 +184,6 @@ def test_online_workflow_WMB(
         compare_cell_id=True)
 
 
-@pytest.mark.skip('sfd')
 @pytest.mark.parametrize(
     "cell_label_header,cell_label_type,suffix",
     itertools.product(

@@ -360,7 +360,7 @@ def assert_mappings_equal(
                 raise RuntimeError(msg)
 
 
-def compare_field(value0, value1):
+def compare_field(value0, value1, eps=1.0e-4):
     if isinstance(value0, list):
         value0 = np.array(value0)
         value1 = np.array(value1)
@@ -369,8 +369,8 @@ def compare_field(value0, value1):
             return np.allclose(
                 value0,
                 value1,
-                atol=0.0,
-                rtol=1.0e-4
+                atol=eps,
+                rtol=eps
             )
         else:
             return np.array_equal(
@@ -381,9 +381,12 @@ def compare_field(value0, value1):
         if set(value0.keys()) != set(value1.keys()):
             return False
         for k in value0:
-            return compare_field(value0[k], value1[k])
+            sub_k = compare_field(value0[k], value1[k])
+            if not sub_k:
+                return False
+        return True
     elif isinstance(value0, numbers.Number):
-        return np.allclose(value0, value1, atol=0.0, rtol=1.0e-4)
+        return np.allclose(value0, value1, atol=eps, rtol=eps)
     else:
         return value0 == value1
 
