@@ -340,13 +340,17 @@ def main():
 
 def assert_mappings_equal(
         mapping0,
-        mapping1):
+        mapping1,
+        compare_cell_id=True):
     """
     Assert that two cell type mappings are equivalent
     """
     for cell0, cell1 in zip(mapping0, mapping1):
         assert set(cell0.keys()) == set(cell1.keys())
         for k in cell0:
+            if not compare_cell_id:
+                if k == 'cell_id':
+                    continue
             compare_field(cell0[k], cell1[k])
 
 

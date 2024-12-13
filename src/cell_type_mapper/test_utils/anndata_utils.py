@@ -100,7 +100,9 @@ def _copy_array_no_encoding_type(
 
 def write_anndata_x_to_csv(
         anndata_obj,
-        dst_path):
+        dst_path,
+        cell_label_header=False,
+        cell_label_type='string'):
     """
     Write the data in anndata_obj to a csv file at dst_path,
     using the X layer as the matrix.
@@ -108,6 +110,11 @@ def write_anndata_x_to_csv(
     (This is for testing our validation layer's ability to
     convert CSVs to h5ad files)
     """
+
+    if cell_label_header:
+        if cell_label_type is None:
+            raise RuntimeError("this makes no sense")
+
     dst_path = pathlib.Path(dst_path)
     if dst_path.name.endswith('gz'):
         open_fn = gzip.open
@@ -118,17 +125,30 @@ def write_anndata_x_to_csv(
 
     with open_fn(dst_path, 'w') as dst:
         header = ''
-        for gene_label in anndata_obj.var.index.values:
-            header += f',{gene_label}'
+        if cell_label_type is not None:
+            if cell_label_header:
+                header += 'a_cell_label'
+        for i_gene, gene_label in enumerate(anndata_obj.var.index.values):
+            if i_gene > 0 or cell_label_type is not None:
+                header += ','
+            header += f'{gene_label}'
         header += '\n'
         if is_gzip:
             header = header.encode('utf-8')
         dst.write(header)
         for i_row, cell_label in enumerate(anndata_obj.obs.index.values):
-            line = f'{cell_label}'
+            line = ''
+            if cell_label_type is not None:
+                if cell_label_type == 'string':
+                    line = f'{cell_label}'
+                elif cell_label_type == 'numerical':
+                    line = f'{i_row}'
+
             row = anndata_obj.X[i_row, :]
-            for value in row:
-                line += f',{value:.6f}'
+            for i_value, value in enumerate(row):
+                if i_value > 0 or cell_label_type is not None:
+                    line += ','
+                line += f'{value:.6f}'
             line += '\n'
             if is_gzip:
                 line = line.encode('utf-8')
