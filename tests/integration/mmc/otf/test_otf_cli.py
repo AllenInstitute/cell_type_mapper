@@ -850,3 +850,138 @@ def test_online_workflow_OTF(
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(output_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
+
+
+
+@pytest.mark.parametrize(
+    'cell_label_header,cell_label_type,suffix',
+    itertools.product(
+        [True, False],
+        [None, 'string', 'numerical', 'big_numerical'],
+        ['.csv', '.csv.gz']
+    ))
+def test_online_workflow_OTF_csv_shape(
+        tmp_dir_fixture,
+        human_gene_data_fixture,
+        baseline_mapping_fixture,
+        cell_label_header,
+        cell_label_type,
+        suffix):
+    """
+    Test the validation-through-mapping flow of simulated human
+    data passing through the on-the-fly mapper. Specifically, check
+    different CSV schemas.
+    """
+
+
+    if cell_label_header:
+        if cell_label_type is None:
+            return
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precompute_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture['dense']
+
+    new_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='query_as_csv_',
+        suffix=suffix
+    )
+    write_anndata_x_to_csv(
+        anndata_obj=anndata.read_h5ad(query_path, backed='r'),
+        dst_path=new_path,
+        cell_label_header=cell_label_header,
+        cell_label_type=cell_label_type
+    )
+    query_path = new_path
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad'
+    )
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validation_output_',
+        suffix='.json'
+    )
+
+    validation_config = {
+        'h5ad_path': query_path,
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json
+    }
+
+    runner = ValidateH5adRunner(
+        args=[],
+        input_data=validation_config
+    )
+    runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='mapping_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_mapping_',
+        suffix='.csv'
+    )
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_metadata_',
+            suffix='.json')
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precompute_path)},
+        'drop_level': None,
+        'query_path': validated_path,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5},
+        'extended_result_path': output_path,
+        'csv_result_path': csv_path,
+        'summary_metadata_path': metadata_path,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    runner = OnTheFlyMapper(args=[], input_data=config)
+    runner.run()
+
+    baseline_df = pd.read_csv(
+        baseline_mapping_fixture['csv'],
+        comment='#'
+    )
+
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#'
+    )
+
+    compare_cell_id = False
+    if cell_label_type is not None:
+        if cell_label_type == 'string':
+            compare_cell_id = True
+
+    if not compare_cell_id:
+        test_df.drop(['cell_id'], axis='columns', inplace=True)
+        baseline_df.drop(['cell_id'], axis='columns', inplace=True)
+
+    pd.testing.assert_frame_equal(test_df, baseline_df)
+
+    baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
+    test = json.load(open(output_path, 'rb'))
+    assert_mappings_equal(
+        baseline['results'],
+        test['results'],
+        compare_cell_id=compare_cell_id)
