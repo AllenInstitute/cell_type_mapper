@@ -22,7 +22,8 @@ from cell_type_mapper.gene_id.gene_id_mapper import (
     GeneIdMapper)
 
 from cell_type_mapper.validation.validate_h5ad import (
-    validate_h5ad)
+    validate_h5ad,
+    _convert_csv_to_h5ad)
 
 from cell_type_mapper.cli.cli_log import (
     CommandLog)
@@ -784,3 +785,65 @@ def test_cell_id_errors(tmp_dir_fixture):
             h5ad_path=h5ad_path,
             valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
             gene_id_mapper=None)
+
+
+@pytest.mark.parametrize(
+    "label_heading,label_is_numerical",
+    itertools.product(
+        [True, False],
+        [True, False]
+    )
+)
+def test_convert_csv(
+        tmp_dir_fixture,
+        label_heading,
+        label_is_numerical):
+
+    rng = np.random.default_rng(221111)
+    n_cells = 4
+    n_genes = 7
+    x = rng.integers(10, 100, (n_cells, n_genes))
+    gene_labels = [f'g_{ii}' for ii in range(n_genes)]
+    if label_is_numerical:
+        cell_labels = [ii for ii in range(n_cells)]
+    else:
+        cell_labels = [f'c_{ii}' for ii in range(n_cells)]
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.csv'
+    )
+    with open(csv_path, 'w') as dst:
+        if label_heading:
+            dst.write('cell_label')
+        for l in gene_labels:
+            dst.write(f',{l}')
+        dst.write('\n')
+        for i_row in range(n_cells):
+            dst.write(f'{cell_labels[i_row]}')
+            for i_col in range(n_genes):
+                dst.write(f',{x[i_row, i_col]}')
+            dst.write('\n')
+
+    h5ad_path, flag = _convert_csv_to_h5ad(
+        src_path=csv_path,
+        log=None)
+    assert flag
+
+    adata = anndata.read_h5ad(h5ad_path, backed='r')
+    reference_idx = np.array(cell_labels)
+
+    np.testing.assert_array_equal(
+        adata.obs.index.values.astype(reference_idx.dtype),
+        reference_idx
+    )
+
+    np.testing.assert_array_equal(
+        adata.var.index.values,
+        np.array(gene_labels)
+    )
+
+    np.testing.assert_array_equal(
+        x,
+        adata.X
+    )

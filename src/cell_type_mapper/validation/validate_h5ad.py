@@ -121,7 +121,7 @@ def _validate_h5ad(
         valid_h5ad_path=None):
 
     (original_h5ad_path,
-     write_to_new_path) = _convert_csv(
+     write_to_new_path) = _convert_csv_to_h5ad(
          src_path=h5ad_path,
          log=log
      )
@@ -405,7 +405,7 @@ def _check_input_gene_names(
             raise RuntimeError(error_msg)
 
 
-def _convert_csv(
+def _convert_csv_to_h5ad(
         src_path,
         log):
     """
@@ -456,7 +456,10 @@ def _convert_csv(
     else:
         log.warn(warning_msg)
 
-    adata = anndata.read_csv(src_path)
+    adata = anndata.read_csv(
+        src_path,
+        first_column_names=True)
+
     adata.write_h5ad(dst_path)
 
-    return dst_path, True
+    return (dst_path, True)
