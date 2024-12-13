@@ -720,8 +720,8 @@ def test_otf_config_consistency(
      (False, 'csr', '.h5ad'),
      (True, 'csc', '.h5ad'),
      (False, 'csc', '.h5ad'),
-     (True, 'dense', '.csv'),
-     (True, 'dense', '.csv.gz')])
+     (True, 'dense', '.csv.gz'),
+     (True, 'dense', '.csv')])
 def test_online_workflow_OTF(
         tmp_dir_fixture,
         keep_encoding,
