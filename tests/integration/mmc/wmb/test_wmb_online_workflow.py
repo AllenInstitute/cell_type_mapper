@@ -186,7 +186,7 @@ def test_online_workflow_WMB(
     "cell_label_header,cell_label_type,suffix",
     itertools.product(
         [False, True],
-        [None, 'string', 'numerical'],
+        [None, 'string', 'numerical', 'big_numerical'],
         ['.csv', '.csv.gz']
     )
 )

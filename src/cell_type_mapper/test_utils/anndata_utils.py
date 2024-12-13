@@ -143,6 +143,8 @@ def write_anndata_x_to_csv(
                     line = f'{cell_label}'
                 elif cell_label_type == 'numerical':
                     line = f'{i_row}'
+                elif cell_label_type == 'big_numerical':
+                    line = f'{1000000+i_row}'
 
             row = anndata_obj.X[i_row, :]
             for i_value, value in enumerate(row):
