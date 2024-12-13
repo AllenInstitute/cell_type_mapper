@@ -25,7 +25,8 @@ from cell_type_mapper.utils.anndata_utils import (
 )
 
 from cell_type_mapper.test_utils.anndata_utils import (
-    create_h5ad_without_encoding_type
+    create_h5ad_without_encoding_type,
+    write_anndata_x_to_csv
 )
 
 from cell_type_mapper.utils.output_utils import (
@@ -712,16 +713,22 @@ def test_otf_config_consistency(
 
 
 @pytest.mark.parametrize(
-    'keep_encoding,density',
-    itertools.product(
-        [True, False],
-        ['csc', 'csr', 'dense']))
+    'keep_encoding,density,file_type',
+    [(True, 'dense', '.h5ad'),
+     (False, 'dense', '.h5ad'),
+     (True, 'csr', '.h5ad'),
+     (False, 'csr', '.h5ad'),
+     (True, 'csc', '.h5ad'),
+     (False, 'csc', '.h5ad'),
+     (True, 'dense', '.csv'),
+     (True, 'dense', '.csv.gz')])
 def test_online_workflow_OTF(
         tmp_dir_fixture,
         keep_encoding,
         human_gene_data_fixture,
         density,
-        baseline_mapping_fixture):
+        baseline_mapping_fixture,
+        file_type):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper
@@ -732,14 +739,26 @@ def test_online_workflow_OTF(
     precompute_path = human_gene_data_fixture['precompute']
     query_path = human_gene_data_fixture[density]
 
-    if not keep_encoding:
+    if file_type == '.h5ad':
+        if not keep_encoding:
+            new_path = mkstemp_clean(
+                dir=tmp_dir,
+                prefix='no_encoding_',
+                suffix='.h5ad'
+            )
+            create_h5ad_without_encoding_type(
+                src_path=query_path,
+                dst_path=new_path
+            )
+            query_path = new_path
+    else:
         new_path = mkstemp_clean(
             dir=tmp_dir,
-            prefix='no_encoding_',
-            suffix='.h5ad'
+            prefix='query_as_csv_',
+            suffix=file_type
         )
-        create_h5ad_without_encoding_type(
-            src_path=query_path,
+        write_anndata_x_to_csv(
+            anndata_obj=anndata.read_h5ad(query_path, backed='r'),
             dst_path=new_path
         )
         query_path = new_path

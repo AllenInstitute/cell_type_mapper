@@ -20,7 +20,8 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.test_utils.anndata_utils import (
-    create_h5ad_without_encoding_type
+    create_h5ad_without_encoding_type,
+    write_anndata_x_to_csv
 )
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -334,11 +335,16 @@ def do_reference_mapping(
 
 
 @pytest.mark.parametrize(
-        'with_encoding_type, density_fixture',
-        itertools.product(
-            [True, False],
-            ['dense', 'csc', 'csr']
-        ),
+        'with_encoding_type, density_fixture, file_type',
+        [(True, 'dense', '.h5ad'),
+         (False, 'dense', '.h5ad'),
+         (True, 'csc', '.h5ad'),
+         (False, 'csc', '.h5ad'),
+         (True, 'csr', '.h5ad'),
+         (False, 'csr', '.h5ad'),
+         (True, 'dense', '.csv'),
+         (True, 'dense', '.csv.gz')
+        ],
         indirect=['density_fixture'])
 def test_online_workflow_WMB(
         taxonomy_tree_fixture,
@@ -349,7 +355,8 @@ def test_online_workflow_WMB(
         n_extra_genes_fixture,
         density_fixture,
         with_encoding_type,
-        reference_mapping_fixture
+        reference_mapping_fixture,
+        file_type
         ):
     """
     Test the validation through mapping workflow as it will be run
@@ -358,16 +365,28 @@ def test_online_workflow_WMB(
     Creating this test especially so that we can verify the functionality
     to patch query data that is missing proper encoding-type metadata
     """
-    if with_encoding_type:
-        query_path = str(query_h5ad_fixture)
+    if file_type == '.h5ad':
+        if with_encoding_type:
+            query_path = str(query_h5ad_fixture)
+        else:
+            query_path = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='query_without_encoding_type_',
+                suffix='.h5ad'
+            )
+            create_h5ad_without_encoding_type(
+                src_path=query_h5ad_fixture,
+                dst_path=query_path
+            )
     else:
         query_path = mkstemp_clean(
             dir=tmp_dir_fixture,
-            prefix='query_without_encoding_type_',
-            suffix='.h5ad'
+            prefix='query_as_csv_',
+            suffix=file_type
         )
-        create_h5ad_without_encoding_type(
-            src_path=query_h5ad_fixture,
+
+        write_anndata_x_to_csv(
+            anndata_obj=anndata.read_h5ad(query_h5ad_fixture, backed='r'),
             dst_path=query_path
         )
 
