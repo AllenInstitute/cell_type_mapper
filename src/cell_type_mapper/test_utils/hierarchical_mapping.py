@@ -6,6 +6,7 @@ unit tests use.
 import argparse
 import h5py
 import json
+import numbers
 import numpy as np
 import os
 import pathlib
@@ -335,6 +336,45 @@ def main():
         config=config,
         output_path=result_path,
         log_path=args.log_path)
+
+
+def assert_mappings_equal(
+        mapping0,
+        mapping1):
+    """
+    Assert that two cell type mappings are equivalent
+    """
+    for cell0, cell1 in zip(mapping0, mapping1):
+        assert set(cell0.keys()) == set(cell1.keys())
+        for k in cell0:
+            compare_field(cell0[k], cell1[k])
+
+
+def compare_field(value0, value1):
+    if isinstance(value0, list):
+        value0 = np.array(value0)
+        value1 = np.array(value1)
+    if isinstance(value0, np.ndarray):
+        if np.issubdtype(value0.dtype, np.number):
+            np.testing.assert_allclose(
+                value0,
+                value1,
+                atol=0.0,
+                rtol=1.0e-4
+            )
+        else:
+            np.testing.assert_array_equal(
+                value0,
+                value1
+            )
+    elif isinstance(value0, dict):
+        assert set(value0.keys()) == set(value1.keys())
+        for k in value0:
+            compare_field(value0[k], value1[k])
+    elif isinstance(value0, numbers.Number):
+        np.testing.assert_allclose(value0, value1, atol=0.0, rtol=1.0e-4)
+    else:
+        assert value0 == value1
 
 
 if __name__ == "__main__":

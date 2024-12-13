@@ -29,6 +29,10 @@ from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
 )
 
+from cell_type_mapper.test_utils.hierarchical_mapping import (
+    assert_mappings_equal
+)
+
 from cell_type_mapper.utils.output_utils import (
     hdf5_to_blob
 )
@@ -125,9 +129,15 @@ def noisy_query_h5ad_fixture(
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
+    obs = pd.DataFrame(
+        [{'cell_id': f'c_{ii}'}
+         for ii in range(noisy_query_cell_x_gene_fixture.shape[0])]
+    ).set_index('cell_id')
+
     a_data = anndata.AnnData(
         X=noisy_query_cell_x_gene_fixture,
         var=var,
+        obs=obs,
         uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
         dtype=noisy_query_cell_x_gene_fixture.dtype)
 
@@ -839,4 +849,4 @@ def test_online_workflow_OTF(
 
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(output_path, 'rb'))
-    assert baseline['results'] == test['results']
+    assert_mappings_equal(baseline['results'], test['results'])
