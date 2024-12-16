@@ -178,7 +178,8 @@ def baseline_mapping_fixture(
         'type_assignment': {
             'normalization': 'raw',
             'rng_seed': 777,
-            'bootstrap_factor': 0.5},
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
         'extended_result_path': json_output,
         'csv_result_path': csv_output,
         'summary_metadata_path': None,
@@ -824,7 +825,8 @@ def test_online_workflow_OTF(
         'type_assignment': {
             'normalization': 'raw',
             'rng_seed': 777,
-            'bootstrap_factor': 0.5},
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
         'extended_result_path': output_path,
         'csv_result_path': csv_path,
         'summary_metadata_path': metadata_path,
@@ -947,7 +949,8 @@ def test_online_workflow_OTF_csv_shape(
         'type_assignment': {
             'normalization': 'raw',
             'rng_seed': 777,
-            'bootstrap_factor': 0.5},
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
         'extended_result_path': output_path,
         'csv_result_path': csv_path,
         'summary_metadata_path': metadata_path,

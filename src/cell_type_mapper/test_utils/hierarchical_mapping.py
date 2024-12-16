@@ -341,7 +341,8 @@ def main():
 def assert_mappings_equal(
         mapping0,
         mapping1,
-        compare_cell_id=True):
+        compare_cell_id=True,
+        eps=1.0e-6):
     """
     Assert that two cell type mappings are equivalent
     """
@@ -351,7 +352,7 @@ def assert_mappings_equal(
             if not compare_cell_id:
                 if k == 'cell_id':
                     continue
-            if not compare_field(cell0[k], cell1[k]):
+            if not compare_field(cell0[k], cell1[k], eps=eps):
                 msg = (
                     f"{json.dumps(cell0, indent=2)}\n"
                     f"{json.dumps(cell1, indent=2)}\n"
