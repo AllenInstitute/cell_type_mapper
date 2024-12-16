@@ -12,7 +12,6 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
-import tempfile
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -36,7 +35,6 @@ from cell_type_mapper.cli.map_to_on_the_fly_markers import (
 )
 
 
-
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     result = tmp_path_factory.mktemp('verbose_csv_dir_')
@@ -54,7 +52,6 @@ def taxonomy_tree_data_fixture():
         'class_name_label_alias': {
             'c0': ['s0', 's1'],
             'c1': ['s2']
-            
         },
         'subclass_name_label_alias': {
             's0': ['cl0'],
@@ -183,6 +180,7 @@ def precomputed_stats_fixture(
 
     return h5ad_path
 
+
 @pytest.fixture(scope='module')
 def marker_genes_fixture(
         tmp_dir_fixture,
@@ -240,8 +238,10 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-@pytest.mark.parametrize('bootstrap_iteration,verbose_csv,mode',
-    itertools.product([1, 10], [True, False], ['otf', 'from_spec']))
+@pytest.mark.parametrize(
+    'bootstrap_iteration,verbose_csv,mode',
+    itertools.product([1, 10], [True, False], ['otf', 'from_spec'])
+)
 def test_csv_column_names(
         precomputed_stats_fixture,
         marker_genes_fixture,

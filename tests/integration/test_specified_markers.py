@@ -5,7 +5,6 @@ import copy
 import h5py
 import itertools
 import json
-import numbers
 import numpy as np
 import os
 import pandas as pd
@@ -17,8 +16,7 @@ from cell_type_mapper.test_utils.cloud_safe import (
     check_not_file)
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
 
 from cell_type_mapper.test_utils.anndata_utils import (
     create_h5ad_without_encoding_type
@@ -38,18 +36,9 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
-
-from cell_type_mapper.diff_exp.markers import (
-    find_markers_for_all_taxonomy_pairs)
-
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     serialize_markers)
-
-from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
 
 from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
@@ -130,7 +119,7 @@ def ab_initio_assignment_fixture(
         dir=this_tmp_dir,
         suffix='.h5')
 
-    taxonomy_tree=TaxonomyTree(data=taxonomy_tree_dict)
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_path,
@@ -172,7 +161,9 @@ def precomputed_stats_fixture(
     the precomputed stats file and see if we can still
     run cell type assignment.
     """
-    src_path = ab_initio_assignment_fixture['ab_initio_config']['precomputed_stats']['path']
+    src_path = ab_initio_assignment_fixture[
+        'ab_initio_config']['precomputed_stats']['path']
+
     dst_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='precomputed_stats_cleaned_',
@@ -185,6 +176,7 @@ def precomputed_stats_fixture(
                     continue
                 dst.create_dataset(k, data=src[k][()])
     return dst_path
+
 
 @pytest.mark.parametrize(
         'flatten,use_gpu,just_once,drop_subclass,keep_encoding',
@@ -262,9 +254,12 @@ def test_mapping_from_markers(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -283,7 +278,7 @@ def test_mapping_from_markers(
     config['log_path'] = log_path
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     runner.run()
@@ -330,7 +325,9 @@ def test_mapping_from_markers(
     if not flatten:
         assert actual['marker_genes'] == expected['marker_genes']
         actual_lookup = {
-            cell['cell_id']:cell for cell in actual['results']}
+            cell['cell_id']: cell
+            for cell in actual['results']
+        }
         for cell in expected['results']:
             actual_cell = actual_lookup[cell['cell_id']]
             assert set(cell.keys()) == set(actual_cell.keys())
@@ -342,8 +339,12 @@ def test_mapping_from_markers(
                     continue
 
                 if config['type_assignment']['bootstrap_iteration'] > 1:
-                    assert cell[k]['assignment'] == actual_cell[k]['assignment']
-                    for sub_k in ('bootstrapping_probability', 'avg_correlation'):
+                    assert cell[k][
+                        'assignment'] == actual_cell[k]['assignment']
+
+                    for sub_k in ('bootstrapping_probability',
+                                  'avg_correlation'):
+
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
@@ -353,7 +354,9 @@ def test_mapping_from_markers(
         all_markers = set()
         for k in expected['marker_genes']:
             if k not in ('metadata', 'log'):
-                all_markers = all_markers.union(set(expected['marker_genes'][k]))
+                all_markers = all_markers.union(
+                    set(expected['marker_genes'][k])
+                )
 
         assert set(actual['marker_genes']['None']) == all_markers
         assert len(actual['marker_genes']['None']) == len(all_markers)
@@ -389,9 +392,13 @@ def test_mapping_from_markers(
         result_lookup = {
             cell['cell_id']: cell for cell in actual['results']}
         with open(csv_path, 'r') as in_file:
-            assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
+            assert in_file.readline() == (
+                f"# metadata = {pathlib.Path(result_path).name}\n"
+            )
             hierarchy = ['class', 'subclass', 'cluster']
-            assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+            assert in_file.readline() == (
+                f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+            )
             version_line = in_file.readline()
             if flatten:
                 assert "algorithm: 'correlation'" in version_line
@@ -403,16 +410,23 @@ def test_mapping_from_markers(
             header_line = 'cell_id'
             for level in hierarchy:
                 if level == 'cluster':
-                    header_line += (',cluster_label,cluster_name,cluster_alias,'
-                                    f'cluster_{stat_label}')
+                    header_line += (
+                        ',cluster_label,cluster_name,cluster_alias,'
+                        f'cluster_{stat_label}'
+                    )
                 else:
-                    header_line += f',{level}_label,{level}_name,{level}_{stat_label}'
+                    header_line += (
+                        f',{level}_label,{level}_name,{level}_{stat_label}'
+                    )
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []
             for line in in_file:
                 params = line.strip().split(',')
-                assert len(params) == 3*len(hierarchy)+2  # +2 is for cluster alias and cell_id
+
+                # +2 is for cluster alias and cell_id
+                assert len(params) == 3*len(hierarchy)+2
+
                 this_cell = result_lookup[params[0]]
                 found_cells.append(params[0])
                 for i_level, level in enumerate(hierarchy):
@@ -421,7 +435,9 @@ def test_mapping_from_markers(
                     if level == 'cluster':
                         conf_idx += 1
                     assert params[assn_idx] == this_cell[level]['assignment']
-                    delta = np.abs(this_cell[level][stat_key]-float(params[conf_idx]))
+                    delta = np.abs(
+                        this_cell[level][stat_key]-float(params[conf_idx])
+                    )
                     assert delta < 0.0001
 
             assert len(found_cells) == len(result_lookup)
@@ -430,7 +446,8 @@ def test_mapping_from_markers(
     query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
     input_uns = query_adata.uns
 
-    assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
+    assert actual['gene_identifier_mapping'] == input_uns[
+        'AIBS_CDM_gene_mapping']
 
     os.environ[env_var] = ''
 
@@ -474,7 +491,8 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     new_query_lookup = mkstemp_clean(
@@ -499,7 +517,7 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     config['drop_level'] = None
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
@@ -509,9 +527,10 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     os.environ[env_var] = ''
 
 
-
-@pytest.mark.parametrize('use_gpu, delete_to_none',
-    itertools.product([False, True], [False, True]))
+@pytest.mark.parametrize(
+    'use_gpu, delete_to_none',
+    itertools.product([False, True], [False, True])
+)
 def test_mapping_from_markers_when_some_markers_missing_from_query(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -555,7 +574,8 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
@@ -614,7 +634,7 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
     config['drop_level'] = None
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     runner.run()
@@ -677,7 +697,8 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
@@ -713,7 +734,7 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
     config['drop_level'] = None
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     msg = "'None' has no valid markers in query gene set"
@@ -779,7 +800,8 @@ def test_mapping_when_there_are_no_markers(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = flatten
 
     # overwrite markers with garbage
@@ -805,7 +827,7 @@ def test_mapping_when_there_are_no_markers(
            "no valid marker genes could be found")
     with pytest.raises(RuntimeError, match=msg):
         runner = FromSpecifiedMarkersRunner(
-            args= [],
+            args=[],
             input_data=config)
 
         runner.run()
@@ -905,7 +927,8 @@ def test_mapping_uint16_data(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -916,7 +939,7 @@ def test_mapping_uint16_data(
     config['max_gb'] = 1.0
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     runner.run()
@@ -954,7 +977,6 @@ def test_mapping_uint16_data(
         assert src['X'].dtype == np.int64
 
     os.environ[env_var] = ''
-
 
 
 @pytest.mark.parametrize(
@@ -1017,9 +1039,12 @@ def test_cloud_safe_mapping(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1034,7 +1059,7 @@ def test_cloud_safe_mapping(
         config['drop_level'] = 'subclass'
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     runner.run()
@@ -1088,9 +1113,12 @@ def test_output_compression(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1104,7 +1132,7 @@ def test_output_compression(
         config['drop_level'] = 'subclass'
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
 
     runner.run()
@@ -1206,9 +1234,12 @@ def test_integer_indexed_input(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1224,7 +1255,7 @@ def test_integer_indexed_input(
     control_config = copy.deepcopy(config)
 
     runner = FromSpecifiedMarkersRunner(
-        args= [],
+        args=[],
         input_data=config)
     runner.run()
 
