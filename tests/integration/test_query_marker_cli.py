@@ -33,7 +33,7 @@ from cell_type_mapper.cli.query_markers import (
 from cell_type_mapper.cli.compute_p_value_mask import (
     PValueRunner)
 
-from cell_type_mapper.cli.query_markers_from_p_value_mask import(
+from cell_type_mapper.cli.query_markers_from_p_value_mask import (
     QueryMarkersFromPValueMaskRunner)
 
 
@@ -121,7 +121,6 @@ def test_query_marker_cli_tool(
 
     # verify value of contents in actual
     assert 'log' in actual
-    n_skipped = 0
     n_dur = 0
     log = actual['log']
     for level in taxonomy_tree_dict['hierarchy'][:-1]:
@@ -131,13 +130,7 @@ def test_query_marker_cli_tool(
                 assert log_key not in log
             else:
                 assert log_key in log
-                is_skipped = False
-                if 'msg' in log[log_key]:
-                    if 'Skipping; no leaf' in log[log_key]['msg']:
-                        is_skipped = True
-                if is_skipped:
-                    n_skip += 1
-                else:
+                if 'msg' not in log[log_key]:
                     assert 'duration' in log[log_key]
                     n_dur += 1
 
@@ -249,7 +242,6 @@ def test_missing_precompute_query_marker(
         args=[],
         input_data=config)
 
-
     if search_for_stats_file:
         runner.run()
     else:
@@ -324,7 +316,7 @@ def test_transposing_markers(
 
     actual_csc = scipy.sparse.csc_matrix(
         (actual_data, actual_indices, actual_indptr),
-        shape=(n_rows,n_cols))
+        shape=(n_rows, n_cols))
 
     np.testing.assert_array_equal(
         csr.toarray(), actual_csc.toarray())
@@ -342,7 +334,6 @@ def test_genes_at_a_time(
     genes_at_a_time changes the result
     """
 
-    valid_gene_names = query_gene_names
     query_path = None
 
     baseline_path = mkstemp_clean(
@@ -514,7 +505,6 @@ def test_query_markers_from_p_values_when_precompute_moved(
     genes_at_a_time = 3
     n_valid = None
     n_processors = 3
-
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
