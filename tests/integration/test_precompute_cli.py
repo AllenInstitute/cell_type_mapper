@@ -44,7 +44,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 
 def _create_word(rng):
-    alphabet=[
+    alphabet = [
         n for n in 'abcdefghijklmnopqrstuvwxyz']
     return ''.join(rng.choice(alphabet, 5))
 
@@ -66,6 +66,7 @@ def cluster_names_fixture():
         result.append(f'cluster_{ii}')
     return result
 
+
 @pytest.fixture(scope='module')
 def cluster_to_supertype_fixture(cluster_names_fixture):
     result = dict()
@@ -78,6 +79,7 @@ def cluster_to_supertype_fixture(cluster_names_fixture):
         chosen_super = rng.choice(super_type_list)
         result[cl] = chosen_super
     return result
+
 
 @pytest.fixture(scope='module')
 def supertype_to_subclass_fixture(cluster_to_supertype_fixture):
@@ -124,6 +126,7 @@ def cell_to_cluster_fixture(cluster_names_fixture):
         chosen_cluster = rng.choice(cluster_names_fixture)
         result[cell_name] = chosen_cluster
     return result
+
 
 @pytest.fixture(scope='module')
 def missing_subclass_fixture():
@@ -193,13 +196,15 @@ def cell_metadata_fixture(
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
         out_file.write(
-            'nonsense,cell_label,more_nonsense,cluster_alias,woah,dataset_label\n')
+            'nonsense,cell_label,more_nonsense,'
+            'cluster_alias,woah,dataset_label\n')
         for cell_name in cell_to_cluster_fixture:
             cluster_name = cell_to_cluster_fixture[cell_name]
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
     return tmp_path
 
@@ -225,7 +230,8 @@ def incomplete_cell_metadata_fixture(
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
         out_file.write(
-            'nonsense,cell_label,more_nonsense,cluster_alias,woah,dataset_label\n')
+            'nonsense,cell_label,more_nonsense,'
+            'cluster_alias,woah,dataset_label\n')
         for cell_name in cell_to_cluster_fixture:
 
             cluster_name = cell_to_cluster_fixture[cell_name]
@@ -238,7 +244,8 @@ def incomplete_cell_metadata_fixture(
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
 
     return tmp_path
@@ -253,7 +260,7 @@ def term_label_to_name_fixture(
     return a dict mapping (level, label) to a human readable name
     """
     result = dict()
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     for lookup, class_name in [(cluster_to_supertype_fixture, 'cluster'),
@@ -293,7 +300,7 @@ def cluster_membership_fixture(
         'cluster_annotation_term_label',
         'garbage4']
 
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     lines = []
@@ -315,7 +322,9 @@ def cluster_membership_fixture(
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
-                    this += f'{term_label_to_name_fixture[(class_name, child)]},'
+                    this += (
+                        f'{term_label_to_name_fixture[(class_name, child)]},'
+                    )
                 else:
                     raise RuntimeError(f'cannot parse column {col}')
             this = this[:-1]+'\n'
@@ -346,10 +355,11 @@ def cluster_annotation_term_fixture(
         dir=tmp_dir_fixture,
         suffix='.csv')
 
-    #label is the label of this node
-    #cluster_annotation_term_set_label is somethign like 'subclass' or 'supertype'
-    #parent_term_label is the parent of this
-    #parent_term_set_label is what kind of thing parent is
+    # label is the label of this node
+    # cluster_annotation_term_set_label is something
+    # like 'subclass' or 'supertype'
+    # parent_term_label is the parent of this
+    # parent_term_set_label is what kind of thing parent is
 
     columns = [
         'garbage0',
@@ -390,7 +400,9 @@ def cluster_annotation_term_fixture(
                 this = this[:-1]+"\n"
                 line_list.append(this)
         for ii in range(20):
-            junk_line = ",".join([_create_word(rng) for ii in range(len(columns))])
+            junk_line = ",".join(
+                [_create_word(rng) for ii in range(len(columns))]
+            )
             junk_line += "\n"
             line_list.append(junk_line)
         rng.shuffle(line_list)
@@ -403,7 +415,7 @@ def cluster_annotation_term_fixture(
 def x_fixture(
         cell_to_cluster_fixture):
     rng = np.random.default_rng(5678)
-    n_genes= 239
+    n_genes = 239
     n_cells = len(cell_to_cluster_fixture)
     data = np.zeros(n_cells*n_genes, dtype=float)
     chosen = rng.choice(np.arange(n_cells*n_genes),
@@ -438,8 +450,9 @@ def h5ad_path_list_fixture(
         cell_names = cell_name_list[i0:i1]
         obs_data = [
             {"cell_id": c,
-            "huh": _create_word(rng)}
-            for c in cell_names]
+             "huh": _create_word(rng)}
+            for c in cell_names
+        ]
 
         obs = pd.DataFrame(obs_data).set_index('cell_id')
         this_x = scipy_sparse.csr_matrix(x_fixture[i0:i1, :])
@@ -547,28 +560,37 @@ def test_precompute_cli(
             obs = a_data.obs
 
             cell_by_gene = CellByGeneMatrix(
-                data = a_data.X.toarray(),
+                data=a_data.X.toarray(),
                 gene_identifiers=a_data.var.index.values,
                 normalization='raw')
 
             cell_by_gene.to_log2CPM_in_place()
 
             for i_row, cell_id in enumerate(obs.index.values):
-                if dataset == 'None' or cell_to_dataset_fixture[cell_id] == dataset:
+                if dataset == 'None' or \
+                        cell_to_dataset_fixture[cell_id] == dataset:
+
                     cluster_name = cell_to_cluster_fixture[cell_id]
                     cluster_to_n_cells[cluster_name] += 1
                     cluster_to_sum[cluster_name] += cell_by_gene.data[i_row, :]
-                    cluster_to_sumsq[cluster_name] += cell_by_gene.data[i_row,:]**2
+
+                    cluster_to_sumsq[cluster_name] += \
+                        cell_by_gene.data[i_row, :]**2
+
                     ge1 = (cell_by_gene.data[i_row, :] >= 1)
                     cluster_to_ge1[cluster_name][ge1] += 1
 
         with h5py.File(actual_output, 'r') as src:
             src_keys = src.keys()
-            for k in ('taxonomy_tree', 'metadata', 'col_names', 'cluster_to_row',
-                      'n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+            for k in ('taxonomy_tree', 'metadata',
+                      'col_names', 'cluster_to_row',
+                      'n_cells', 'sum', 'sumsq',
+                      'gt0', 'gt1', 'ge1'):
                 assert k in src_keys
 
-            actual_gene_names = json.loads(src['col_names'][()].decode('utf-8'))
+            actual_gene_names = json.loads(
+                src['col_names'][()].decode('utf-8')
+            )
             assert actual_gene_names == expected_gene_names
 
             # only test cluster stats at this point
@@ -665,7 +687,7 @@ def precomputed_stats_path_fixture(
 
 
 @pytest.mark.parametrize(
-    "files_exist",[True, False])
+    "files_exist", [True, False])
 def test_reference_cli_config(
         precomputed_stats_path_fixture,
         dataset_list_fixture,
@@ -732,7 +754,9 @@ def test_reference_cli_config(
             input_data=config)
         runner.run()
 
-        output_list = [str(n) for n in pathlib.Path(valid_output_dir).iterdir()]
+        output_list = [
+            str(n) for n in pathlib.Path(valid_output_dir).iterdir()
+        ]
         assert set(output_list) == set(default_output_paths)
 
         found_precompute_paths = []
@@ -778,7 +802,6 @@ def test_reference_cli_config(
         # marker file
         assert set(found_precompute_paths) == set(
                         precomputed_stats_path_fixture)
-
 
 
 @pytest.mark.parametrize(
@@ -929,7 +952,6 @@ def test_precompute_cli_incomplete_cell_metadata(
         runner.run()
 
 
-
 @pytest.fixture
 def h5ad_path_list_alt_layer_fixture(
         request,
@@ -945,7 +967,7 @@ def h5ad_path_list_alt_layer_fixture(
         src = anndata.read_h5ad(src_path, backed='r')
         dst_path = mkstemp_clean(
             dir=tmp_dir_fixture,
-            prefix=f'h5ad_alt_layer_',
+            prefix='h5ad_alt_layer_',
             suffix='.h5ad'
         )
         xx = np.zeros(src.X.shape, dtype=int)
@@ -969,8 +991,6 @@ def h5ad_path_list_alt_layer_fixture(
         dst.write_h5ad(dst_path)
         result_path_list.append(dst_path)
     return {'path': result_path_list, 'layer': layer}
-
-
 
 
 @pytest.mark.parametrize(
@@ -1230,9 +1250,16 @@ def test_roundtrip_precomputed_abc_config(
         t_path = test_output_map[dataset]
         with h5py.File(b_path, 'r') as baseline_src:
             with h5py.File(t_path, 'r') as test_src:
-                assert test_src['cluster_to_row'][()] == baseline_src['cluster_to_row'][()]
-                test_tree = json.loads(test_src['taxonomy_tree'][()].decode('utf-8'))
-                base_tree = json.loads(baseline_src['taxonomy_tree'][()].decode('utf-8'))
+                assert test_src['cluster_to_row'][()] \
+                    == baseline_src['cluster_to_row'][()]
+
+                test_tree = json.loads(
+                    test_src['taxonomy_tree'][()].decode('utf-8')
+                )
+
+                base_tree = json.loads(
+                    baseline_src['taxonomy_tree'][()].decode('utf-8')
+                )
                 test_tree.pop('metadata')
                 base_tree.pop('metadata')
                 assert test_tree == base_tree
