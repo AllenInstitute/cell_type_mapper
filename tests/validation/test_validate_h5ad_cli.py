@@ -28,6 +28,10 @@ from cell_type_mapper.utils.anndata_utils import (
     read_uns_from_h5ad
 )
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    write_anndata_x_to_csv
+)
+
 from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
@@ -170,13 +174,17 @@ def test_validation_cli_on_bad_genes(
 
 
 @pytest.mark.parametrize(
-    "density,as_layer,round_to_int,specify_path,species,keep_encoding",
+    "density,as_layer,round_to_int,"
+    "specify_path,species,keep_encoding,"
+    "csv_label_type,csv_label_header",
     itertools.product(
-        ("csr", "csc", "array"),
+        ("csr", "csc", "array", "csv", "gz"),
         (True, False),
         (True, False),
         (True, False),
         ('human', 'mouse'),
+        (True, False),
+        ('string', 'numerical', 'big_numerical', None),
         (True, False)
     )
 )
@@ -191,7 +199,24 @@ def test_validation_cli_of_h5ad(
         round_to_int,
         specify_path,
         species,
-        keep_encoding):
+        keep_encoding,
+        csv_label_type,
+        csv_label_header):
+
+    # some of these combinations are unncessary
+    if density not in ("csv", "gz"):
+        if not csv_label_header:
+            return
+        if csv_label_type != "string":
+            return
+    else:
+        if 'as_layer':
+            return
+        if not keep_encoding:
+            return
+        if csv_label_header:
+            if csv_label_type is None:
+                return
 
     if species == 'human':
         var_fixture = human_var_fixture
@@ -201,12 +226,21 @@ def test_validation_cli_of_h5ad(
         raise RuntimeError(
             f"Unknown species '{species}'")
 
+    if density not in ('csv', 'gz'):
+        suffix = '.h5ad'
+    else:
+        if density == 'gz':
+            suffix = '.csv.gz'
+        else:
+            suffix = '.csv'
+
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='orig_',
-        suffix='.h5ad')
+        suffix=suffix
+    )
 
-    if density == "array":
+    if density in ("array", "gz", "csv"):
         data = x_fixture
     elif density == "csr":
         data = scipy_sparse.csr_matrix(x_fixture)
@@ -229,7 +263,16 @@ def test_validation_cli_of_h5ad(
         var=var_fixture,
         obs=obs_fixture,
         layers=layers)
-    a_data.write_h5ad(orig_path)
+
+    if density in ("csv", "gz"):
+        write_anndata_x_to_csv(
+            anndata_obj=a_data,
+            dst_path=orig_path,
+            cell_label_header=csv_label_header,
+            cell_label_type=csv_label_type
+        )
+    else:
+        a_data.write_h5ad(orig_path)
 
     md50 = hashlib.md5()
     with open(orig_path, 'rb') as src:
@@ -254,9 +297,7 @@ def test_validation_cli_of_h5ad(
         output_dir = str(tmp_dir_fixture.resolve().absolute())
         valid_path = None
 
-    if keep_encoding:
-        src_path = orig_path
-    else:
+    if not keep_encoding:
         src_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             prefix='no_encoding_',
@@ -266,6 +307,8 @@ def test_validation_cli_of_h5ad(
             src_path=orig_path,
             dst_path=src_path
         )
+    else:
+        src_path = orig_path
 
     config = {
         'h5ad_path': src_path,
@@ -306,7 +349,7 @@ def test_validation_cli_of_h5ad(
 
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
-            if density != 'array':
+            if density not in ('array', 'csv', 'gz'):
                 data_key = 'X/data'
             else:
                 data_key = 'X'
@@ -317,7 +360,7 @@ def test_validation_cli_of_h5ad(
     pd.testing.assert_frame_equal(obs_fixture, actual.obs)
     actual_x = actual.X
 
-    if density != "array":
+    if density not in ("array", "csv", "gz"):
 
         # Sometimes X comes out as a scipy.sparse matrix,
         # sometimes it is an anndata SparseDataset. Unclear
@@ -368,9 +411,18 @@ def test_validation_cli_of_h5ad(
                 rtol=1.0e-7)
 
     actual_var = actual.var
-    assert len(actual_var.columns) == 2
-    assert list(actual_var['gene_id'].values) == list(var_fixture.index.values)
-    assert list(actual_var['val'].values) == list(var_fixture.val.values)
+
+    if density not in ("csv", "gz"):
+        assert len(actual_var.columns) == 2
+        assert (
+            list(actual_var['gene_id'].values)
+            == list(var_fixture.index.values)
+        )
+        assert (
+            list(actual_var['val'].values)
+            == list(var_fixture.val.values)
+        )
+
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
     if species == 'mouse':
