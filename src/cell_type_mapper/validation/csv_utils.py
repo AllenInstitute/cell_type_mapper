@@ -4,6 +4,7 @@ Define utility functions for accepting CSV inputs to MapMyCells
 import anndata
 import gzip
 import numpy as np
+import pandas as pd
 import pathlib
 import warnings
 
@@ -86,6 +87,33 @@ def convert_csv_to_h5ad(
     else:
         log.warn(warning_msg)
 
+    first_column_names = is_first_column_label(
+        src_path=src_path
+    )
+
+    adata = anndata.read_csv(
+        src_path,
+        first_column_names=first_column_names)
+
+    adata.write_h5ad(dst_path)
+
+    return (dst_path, True)
+
+
+def is_first_column_label(src_path):
+    """
+    Accepts path to CSV file.
+    Returns a boolean indicating whether or not the first
+    column is to be treated as cell labels.
+    """
+    src_path = pathlib.Path(src_path)
+    src_name = src_path.name
+
+    if src_name.endswith('.csv.gz'):
+        src_suffix = '.csv.gz'
+    elif src_name.endswith('.csv'):
+        src_suffix = '.csv'
+
     if src_suffix == '.csv':
         open_fn = open
         mode = 'r'
@@ -115,13 +143,19 @@ def convert_csv_to_h5ad(
         except ValueError:
             first_column_names = True
 
-    adata = anndata.read_csv(
-        src_path,
-        first_column_names=first_column_names)
+    if not first_column_names:
+        x_array = pd.read_csv(src_path).to_numpy()
+        first_column_names = is_first_column_sequential(
+            x_array=x_array
+        )
 
-    adata.write_h5ad(dst_path)
+        if not first_column_names:
+            first_column_names = is_first_column_large(
+                x_array=x_array,
+                n_sig=3
+            )
 
-    return (dst_path, True)
+    return first_column_names
 
 
 def is_first_column_sequential(x_array):
@@ -138,3 +172,22 @@ def is_first_column_sequential(x_array):
         atol=0.0,
         rtol=1.0e-6
     )
+
+
+def is_first_column_large(x_array, n_sig=3):
+    """
+    Test if the first column of a numpy array is,
+    in *all* rows, 3-sigma larger than the other
+    non-zero values in the array.
+    """
+    first_col = x_array[:, 0]
+    x_array = x_array[:, 1:]
+    masked_x = np.ma.masked_array(
+        x_array,
+        mask=(x_array == 0.0)
+    )
+    mu = np.mean(masked_x, axis=1)
+    std = np.std(masked_x, axis=1)
+    return (
+        first_col > (mu+3*std)
+    ).all()

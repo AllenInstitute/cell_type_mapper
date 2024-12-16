@@ -16,11 +16,12 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.validation.csv_utils import (
     is_first_column_sequential,
+    is_first_column_large,
     convert_csv_to_h5ad
 )
 
 
-def test_sequential():
+def test_is_first_column_sequential():
     """
     Test utility to detect if first column in a numpy array
     is sequential when sorted
@@ -54,18 +55,45 @@ def test_sequential():
     assert not is_first_column_sequential(xx)
 
 
+def test_is_first_column_large():
+    """
+    Test utility to detect if first column in array
+    is abnormally large
+    """
+    xx = np.array(
+        [[10, 2, 3, 0, 4],
+         [20, 1, 1, 0, 1],
+         [30, 4, 1, 2, 0]]
+    )
+    assert is_first_column_large(xx)
+
+    xx = np.array(
+        [[10, 2, 3, 0, 4],
+         [20, 1, 1, 0, 1],
+         [0, 4, 1, 2, 0]]
+    )
+    assert not is_first_column_large(xx)
+
+    xx = np.array(
+        [[4, 2, 3, 0, 4],
+         [1, 1, 1, 0, 1],
+         [3, 4, 1, 2, 0]]
+    )
+    assert not is_first_column_large(xx)
+
+
 @pytest.mark.parametrize(
-    "label_heading,label_is_numerical,suffix",
+    "label_heading,label_type,suffix",
     itertools.product(
         [True, False],
-        [True, False],
+        ['string', 'sequential', 'big', 'random'],
         ['.csv', '.csv.gz']
     )
 )
 def test_convert_csv(
         tmp_dir_fixture,
         label_heading,
-        label_is_numerical,
+        label_type,
         suffix):
 
     rng = np.random.default_rng(221111)
@@ -73,10 +101,16 @@ def test_convert_csv(
     n_genes = 7
     x = rng.integers(10, 100, (n_cells, n_genes))
     gene_labels = [f'g_{ii}' for ii in range(n_genes)]
-    if label_is_numerical:
+    if label_type == 'sequential':
         cell_labels = [ii for ii in range(n_cells)]
-    else:
+    elif label_type == 'string':
         cell_labels = [f'c_{ii}' for ii in range(n_cells)]
+    elif label_type == 'big':
+        cell_labels = [ii for ii in range(1000000, 1000000+80*n_cells, 80)]
+    elif label_type == 'random':
+        cell_labels = [
+           11, 7, 3, 2
+        ]
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -113,11 +147,13 @@ def test_convert_csv(
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
 
-    if not label_heading or not label_is_numerical:
+    if not label_heading or label_type != 'random':
+        # identify first column as cell labels
         expected_cell_labels = np.array(cell_labels)
         expected_gene_labels = np.array(gene_labels)
         expected_x = x
     else:
+        # has to treat first column as genes
         expected_cell_labels = np.arange(n_cells)
         expected_gene_labels = np.array(
             ['cell_label'] + gene_labels
