@@ -17,6 +17,7 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.validation.csv_utils import (
     is_first_column_sequential,
     is_first_column_large,
+    is_first_column_label,
     convert_csv_to_h5ad
 )
 
@@ -156,6 +157,48 @@ def test_is_first_column_large():
          [3, 4, 1, 2, 0]]
     )
     assert not is_first_column_large(xx)
+
+
+@pytest.mark.parametrize(
+    "label_heading_fixture,label_type_fixture,suffix_fixture",
+    itertools.product(
+        [True, False],
+        ['string', 'sequential', 'big', 'random'],
+        ['.csv', '.csv.gz']
+    ),
+    indirect=['label_heading_fixture',
+              'label_type_fixture',
+              'suffix_fixture']
+)
+def test_detection_of_cell_label_column(
+        label_heading_fixture,
+        label_type_fixture,
+        suffix_fixture,
+        csv_anndata_fixture):
+    """
+    Test function that detects whether or not the first
+    column of a CSV is cell_labels, or a gene
+    """
+    label_heading = label_heading_fixture
+    label_type = label_type_fixture
+
+    (csv_path,
+     _,
+     _,
+     _) = csv_anndata_fixture
+
+    expected = False
+
+    if not label_heading:
+        expected = True
+
+    if label_type in ('string', 'sequential', 'big'):
+        expected = True
+
+    if expected:
+        assert is_first_column_label(csv_path)
+    else:
+        assert not is_first_column_label(csv_path)
 
 
 @pytest.mark.parametrize(
