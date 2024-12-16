@@ -48,9 +48,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
 from cell_type_mapper.cli.reference_markers import (
     ReferenceMarkerRunner)
 
@@ -124,7 +121,8 @@ def noisy_query_h5ad_fixture(
     """
     var_data = [
         {'gene_name': g, 'garbage': ii}
-         for ii, g in enumerate(query_gene_names)]
+        for ii, g in enumerate(query_gene_names)
+    ]
 
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
@@ -234,7 +232,7 @@ def human_gene_data_fixture(
         replace=False
     )
     gene_map = {
-        g:m for g, m in zip(genes_to_map, chosen_labels)
+        g: m for g, m in zip(genes_to_map, chosen_labels)
     }
 
     new_precompute = mkstemp_clean(
@@ -300,10 +298,6 @@ def test_query_pipeline(
     output_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir_fixture))
     assert len([n for n in output_dir.iterdir()]) == 0
 
-    reference_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='reference_markers_',
-        suffix='.h5')
     query_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='query_markers_',
@@ -345,7 +339,6 @@ def test_query_pipeline(
     with open(query_path, 'rb') as src:
         markers = json.load(src)
     assert isinstance(markers, dict)
-
 
 
 @pytest.mark.parametrize(
@@ -486,7 +479,6 @@ def test_otf_no_markers(
         runner.run()
 
 
-
 @pytest.mark.parametrize(
     "nodes_to_drop",
     [
@@ -585,8 +577,6 @@ def test_otf_drop_nodes(
     assert munged['taxonomy_tree'] == dropped['taxonomy_tree']
 
 
-
-
 @pytest.mark.parametrize(
     "nodes_to_drop",
     [None,
@@ -666,12 +656,12 @@ def test_otf_config_consistency(
         {'n_processors': 2},
         {'type_assignment': {'rng_seed': 566122}},
         {'reference_markers': {
-                'log2_fold_min_th': 0.9,
-                'q1_th': 0.9,
-                'q1_min_th': 0.8,
-                'qdiff_min_th': 0.5
-            }
-        },
+            'log2_fold_min_th': 0.9,
+            'q1_th': 0.9,
+            'q1_min_th': 0.8,
+            'qdiff_min_th': 0.5
+          }
+         },
         {'query_markers': {'n_per_utility': 5}}
 
     ]
@@ -702,11 +692,24 @@ def test_otf_config_consistency(
 
         # make sure result changed where expected
         assert test_mapping['results'] != baseline_mapping['results']
-        assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
-        if 'reference_markers' in update_config or 'query_markers' in update_config:
-            assert test_mapping['marker_genes'] != baseline_mapping['marker_genes']
+        assert (
+            test_mapping['taxonomy_tree']
+            == baseline_mapping['taxonomy_tree']
+        )
+
+        if 'reference_markers' in update_config or \
+                'query_markers' in update_config:
+
+            assert (
+                test_mapping['marker_genes']
+                != baseline_mapping['marker_genes']
+            )
+
         else:
-            assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
+            assert (
+                test_mapping['marker_genes']
+                == baseline_mapping['marker_genes']
+            )
 
         # Make sure test_mapping recorded a config that allows you to
         # reproduce its results
@@ -812,7 +815,7 @@ def test_online_workflow_OTF(
     metadata_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='summary_metadata_',
-            suffix='.json')
+        suffix='.json')
 
     config = {
         'n_processors': 3,
@@ -854,7 +857,6 @@ def test_online_workflow_OTF(
     assert_mappings_equal(baseline['results'], test['results'])
 
 
-
 @pytest.mark.parametrize(
     'cell_label_header,cell_label_type,suffix',
     itertools.product(
@@ -874,7 +876,6 @@ def test_online_workflow_OTF_csv_shape(
     data passing through the on-the-fly mapper. Specifically, check
     different CSV schemas.
     """
-
 
     if cell_label_header:
         if cell_label_type is None:
@@ -936,7 +937,7 @@ def test_online_workflow_OTF_csv_shape(
     metadata_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='summary_metadata_',
-            suffix='.json')
+        suffix='.json')
 
     config = {
         'n_processors': 3,
