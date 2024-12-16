@@ -21,6 +21,82 @@ from cell_type_mapper.validation.csv_utils import (
 )
 
 
+@pytest.fixture()
+def suffix_fixture(request):
+    return request.param
+
+
+@pytest.fixture()
+def label_heading_fixture(request):
+    return request.param
+
+
+@pytest.fixture()
+def label_type_fixture(request):
+    return request.param
+
+
+@pytest.fixture()
+def csv_anndata_fixture(
+        suffix_fixture,
+        label_heading_fixture,
+        label_type_fixture,
+        tmp_dir_fixture):
+
+    suffix = suffix_fixture
+    label_heading = label_heading_fixture
+    label_type = label_type_fixture
+
+    assert suffix in ('.csv', '.csv.gz')
+    assert label_heading in (True, False)
+    assert label_type in ('string', 'sequential', 'big', 'random')
+
+    rng = np.random.default_rng(221111)
+    n_cells = 4
+    n_genes = 7
+    x = rng.integers(10, 100, (n_cells, n_genes))
+    gene_labels = [f'g_{ii}' for ii in range(n_genes)]
+    if label_type == 'sequential':
+        cell_labels = [ii for ii in range(n_cells)]
+    elif label_type == 'string':
+        cell_labels = [f'c_{ii}' for ii in range(n_cells)]
+    elif label_type == 'big':
+        cell_labels = [ii for ii in range(1000000, 1000000+80*n_cells, 80)]
+    elif label_type == 'random':
+        cell_labels = [
+           11, 7, 3, 2
+        ]
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix=suffix
+    )
+
+    if suffix == '.csv':
+        open_fn = open
+        is_gzip = False
+    else:
+        open_fn = gzip.open
+        is_gzip = True
+
+    with open_fn(csv_path, 'w') as dst:
+        data = ''
+        if label_heading:
+            data += 'cell_label'
+        for label in gene_labels:
+            data += f',{label}'
+        data += '\n'
+        for i_row in range(n_cells):
+            data += f'{cell_labels[i_row]}'
+            for i_col in range(n_genes):
+                data += f',{x[i_row, i_col]}'
+            data += '\n'
+        if is_gzip:
+            data = data.encode('utf-8')
+        dst.write(data)
+    return csv_path, cell_labels, gene_labels, x
+
+
 def test_is_first_column_sequential():
     """
     Test utility to detect if first column in a numpy array
@@ -83,62 +159,31 @@ def test_is_first_column_large():
 
 
 @pytest.mark.parametrize(
-    "label_heading,label_type,suffix",
+    "label_heading_fixture,label_type_fixture,suffix_fixture",
     itertools.product(
         [True, False],
         ['string', 'sequential', 'big', 'random'],
         ['.csv', '.csv.gz']
-    )
+    ),
+    indirect=['label_heading_fixture',
+              'label_type_fixture',
+              'suffix_fixture']
 )
 def test_convert_csv(
-        tmp_dir_fixture,
-        label_heading,
-        label_type,
-        suffix):
+        label_heading_fixture,
+        label_type_fixture,
+        suffix_fixture,
+        csv_anndata_fixture):
 
-    rng = np.random.default_rng(221111)
-    n_cells = 4
-    n_genes = 7
-    x = rng.integers(10, 100, (n_cells, n_genes))
-    gene_labels = [f'g_{ii}' for ii in range(n_genes)]
-    if label_type == 'sequential':
-        cell_labels = [ii for ii in range(n_cells)]
-    elif label_type == 'string':
-        cell_labels = [f'c_{ii}' for ii in range(n_cells)]
-    elif label_type == 'big':
-        cell_labels = [ii for ii in range(1000000, 1000000+80*n_cells, 80)]
-    elif label_type == 'random':
-        cell_labels = [
-           11, 7, 3, 2
-        ]
+    label_heading = label_heading_fixture
+    label_type = label_type_fixture
 
-    csv_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix=suffix
-    )
+    (csv_path,
+     cell_labels,
+     gene_labels,
+     x) = csv_anndata_fixture
 
-    if suffix == '.csv':
-        open_fn = open
-        is_gzip = False
-    else:
-        open_fn = gzip.open
-        is_gzip = True
-
-    with open_fn(csv_path, 'w') as dst:
-        data = ''
-        if label_heading:
-            data += 'cell_label'
-        for label in gene_labels:
-            data += f',{label}'
-        data += '\n'
-        for i_row in range(n_cells):
-            data += f'{cell_labels[i_row]}'
-            for i_col in range(n_genes):
-                data += f',{x[i_row, i_col]}'
-            data += '\n'
-        if is_gzip:
-            data = data.encode('utf-8')
-        dst.write(data)
+    n_cells = len(cell_labels)
 
     h5ad_path, flag = convert_csv_to_h5ad(
         src_path=csv_path,
