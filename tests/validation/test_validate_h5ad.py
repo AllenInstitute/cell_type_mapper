@@ -9,6 +9,7 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 from unittest.mock import patch
+import warnings
 
 from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
@@ -155,15 +156,18 @@ def test_validation_of_h5ad_without_encoding(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
 
-    validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=None,
-        valid_h5ad_path=valid_h5ad_path,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture,
-        layer=layer,
-        round_to_int=True,
-        log=log)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=None,
+            valid_h5ad_path=valid_h5ad_path,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            layer=layer,
+            round_to_int=True,
+            log=log)
 
 
 @pytest.mark.parametrize(
@@ -208,15 +212,17 @@ def test_validation_of_corrupted_h5ad(
         raise RuntimeError("not going to open this")
     with patch('h5py.File', bad_file):
         with pytest.raises(RuntimeError, match="could not even be opened"):
-            validate_h5ad(
-                h5ad_path=orig_path,
-                output_dir=None,
-                valid_h5ad_path=valid_h5ad_path,
-                gene_id_mapper=gene_id_mapper,
-                tmp_dir=tmp_dir_fixture,
-                layer='X',
-                round_to_int=True,
-                log=log)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                validate_h5ad(
+                    h5ad_path=orig_path,
+                    output_dir=None,
+                    valid_h5ad_path=valid_h5ad_path,
+                    gene_id_mapper=gene_id_mapper,
+                    tmp_dir=tmp_dir_fixture,
+                    layer='X',
+                    round_to_int=True,
+                    log=log)
 
 
 @pytest.mark.parametrize(
@@ -322,14 +328,16 @@ def test_validation_of_h5ad(
         output_dir = tmp_dir_fixture
         valid_h5ad_path = None
 
-    result_path, _ = validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=output_dir,
-        valid_h5ad_path=valid_h5ad_path,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture,
-        layer=layer,
-        round_to_int=round_to_int)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        result_path, _ = validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=output_dir,
+            valid_h5ad_path=valid_h5ad_path,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            layer=layer,
+            round_to_int=round_to_int)
 
     assert result_path is not None
     if specify_path:
@@ -441,11 +449,13 @@ def test_validation_of_good_h5ad(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path, _ = validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        result_path, _ = validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=tmp_dir_fixture,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture)
 
     assert result_path is None
 
@@ -490,12 +500,14 @@ def test_validation_of_h5ad_ignoring_norm(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path, _ = validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture,
-        round_to_int=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        result_path, _ = validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=tmp_dir_fixture,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            round_to_int=False)
 
     assert result_path is None
 
@@ -547,12 +559,14 @@ def test_validation_of_good_h5ad_in_layer(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path, _ = validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture,
-        layer='garbage')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        result_path, _ = validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=tmp_dir_fixture,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture,
+            layer='garbage')
 
     assert result_path is not None
 
@@ -640,11 +654,13 @@ def test_validation_of_h5ad_diverse_dtypes(
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)
 
-    result_path, _ = validate_h5ad(
-        h5ad_path=orig_path,
-        output_dir=tmp_dir_fixture,
-        gene_id_mapper=gene_id_mapper,
-        tmp_dir=tmp_dir_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        result_path, _ = validate_h5ad(
+            h5ad_path=orig_path,
+            output_dir=tmp_dir_fixture,
+            gene_id_mapper=gene_id_mapper,
+            tmp_dir=tmp_dir_fixture)
 
     assert result_path is not None
 

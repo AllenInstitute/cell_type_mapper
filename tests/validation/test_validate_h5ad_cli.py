@@ -11,6 +11,7 @@ import pathlib
 import re
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -321,8 +322,10 @@ def test_validation_cli_of_h5ad(
         'log_path': log_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     # check that log contains line about mapping to mouse genes
     found_it = False
@@ -500,8 +503,10 @@ def test_validation_cli_of_good_h5ad(
         'valid_h5ad_path': valid_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -581,8 +586,10 @@ def test_validation_cli_of_h5ad_preserve_norm(
         'round_to_int': False
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -683,8 +690,10 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'round_to_int': not preserve_norm
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -785,14 +794,18 @@ def test_validation_cli_on_ensembl_dot(
         json_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.json')
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data={
-                'h5ad_path': input_path,
-                'output_dir': str(tmp_dir_fixture),
-                'output_json': json_path
-            })
-        runner.run()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            runner = ValidateH5adRunner(
+                args=[],
+                input_data={
+                    'h5ad_path': input_path,
+                    'output_dir': str(tmp_dir_fixture),
+                    'output_json': json_path
+                })
+            runner.run()
+
         with open(json_path, 'rb') as src:
             output_config = json.load(src)
         new_h5ad = anndata.read_h5ad(
@@ -864,8 +877,10 @@ def test_roundtrip_of_validation_cli(
         'round_to_int': not preserve_norm
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     with open(output_json_path, 'rb') as src:
         output_json = json.load(src)
@@ -883,8 +898,11 @@ def test_roundtrip_of_validation_cli(
     new_config.pop('output_json')
     new_config['output_json'] = new_output_json_path
 
-    roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
-    roundtrip_runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
+        roundtrip_runner.run()
+
     with open(new_output_json_path, 'rb') as src:
         new_output_json = json.load(src)
     assert new_output_json['valid_h5ad_path'] != output_json['valid_h5ad_path']

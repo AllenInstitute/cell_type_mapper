@@ -9,6 +9,7 @@ import anndata
 import gzip
 import itertools
 import numpy as np
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean
@@ -228,9 +229,12 @@ def test_convert_csv(
 
     n_cells = len(cell_labels)
 
-    h5ad_path, flag = convert_csv_to_h5ad(
-        src_path=csv_path,
-        log=None)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        h5ad_path, flag = convert_csv_to_h5ad(
+            src_path=csv_path,
+            log=None)
+
     assert flag
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
