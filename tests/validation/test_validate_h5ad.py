@@ -236,7 +236,7 @@ def test_validation_of_corrupted_h5ad(
          ('string', 'numerical', 'big_numerical', None),
          (True, False))
 )
-def test_validation_of_h5ad(
+def test_validation_of_h5ad_simple(
         var_fixture,
         obs_fixture,
         x_fixture,
@@ -641,21 +641,22 @@ def test_validation_of_h5ad_diverse_dtypes(
     else:
         raise RuntimeError(f"unknown density {density}")
 
-    a_data = anndata.AnnData(
-        X=x,
-        var=var_fixture,
-        obs=obs_fixture,
-        dtype=np.float64)
-    a_data.write_h5ad(orig_path)
-
-    md50 = hashlib.md5()
-    with open(orig_path, 'rb') as src:
-        md50.update(src.read())
-
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            var=var_fixture,
+            obs=obs_fixture,
+            dtype=np.float64)
+        a_data.write_h5ad(orig_path)
+
+        md50 = hashlib.md5()
+        with open(orig_path, 'rb') as src:
+            md50.update(src.read())
+
+        gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
             output_dir=tmp_dir_fixture,
@@ -699,103 +700,106 @@ def test_gene_name_errors(tmp_dir_fixture):
     name is empty (that last one causes an inscrutable error in anndata
     when writing uns to the validated file, if you are not careful)
     """
-    n_cells = 5
-    obs = pd.DataFrame(
-        [{'cell_id': f'c_{ii}'}
-         for ii in range(n_cells)]).set_index('cell_id')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    # case of null gene name
-    var = pd.DataFrame(
-        [{'gene_id': 'a'},
-         {'gene_id': ''},
-         {'gene_id': 'b'}]).set_index('gene_id')
+        n_cells = 5
+        obs = pd.DataFrame(
+            [{'cell_id': f'c_{ii}'}
+             for ii in range(n_cells)]).set_index('cell_id')
 
-    a = anndata.AnnData(
-        X=np.random.random_sample((n_cells, len(var))),
-        var=var,
-        obs=obs)
+        # case of null gene name
+        var = pd.DataFrame(
+            [{'gene_id': 'a'},
+             {'gene_id': ''},
+             {'gene_id': 'b'}]).set_index('gene_id')
 
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5ad')
+        a = anndata.AnnData(
+            X=np.random.random_sample((n_cells, len(var))),
+            var=var,
+            obs=obs)
 
-    a.write_h5ad(h5ad_path)
-    with pytest.raises(RuntimeError, match="gene name '' is invalid"):
-        validate_h5ad(
-            h5ad_path=h5ad_path,
-            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=None)
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
 
-    # case of repeated gene name
-    var = pd.DataFrame(
-        [{'gene_id': 'a'},
-         {'gene_id': 'b'},
-         {'gene_id': 'b'}]).set_index('gene_id')
+        a.write_h5ad(h5ad_path)
+        with pytest.raises(RuntimeError, match="gene name '' is invalid"):
+            validate_h5ad(
+                h5ad_path=h5ad_path,
+                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+                gene_id_mapper=None)
 
-    a = anndata.AnnData(
-        X=np.random.random_sample((n_cells, len(var))),
-        var=var,
-        obs=obs)
+        # case of repeated gene name
+        var = pd.DataFrame(
+            [{'gene_id': 'a'},
+             {'gene_id': 'b'},
+             {'gene_id': 'b'}]).set_index('gene_id')
 
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5ad')
+        a = anndata.AnnData(
+            X=np.random.random_sample((n_cells, len(var))),
+            var=var,
+            obs=obs)
 
-    a.write_h5ad(h5ad_path)
-    with pytest.raises(RuntimeError, match="gene names must be unique"):
-        validate_h5ad(
-            h5ad_path=h5ad_path,
-            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=None)
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
 
-    # test that an error is raised if, after clipping the
-    # suffix from the Ensembl ID, the list of genes is not
-    # unique
-    var = pd.DataFrame(
-        [{'gene_id': 'ENSG778.3'},
-         {'gene_id': 'ENSF5'},
-         {'gene_id': 'ENSG778.9'}]).set_index('gene_id')
+        a.write_h5ad(h5ad_path)
+        with pytest.raises(RuntimeError, match="gene names must be unique"):
+            validate_h5ad(
+                h5ad_path=h5ad_path,
+                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+                gene_id_mapper=None)
 
-    a = anndata.AnnData(
-        X=np.random.random_sample((n_cells, len(var))),
-        var=var,
-        obs=obs)
+        # test that an error is raised if, after clipping the
+        # suffix from the Ensembl ID, the list of genes is not
+        # unique
+        var = pd.DataFrame(
+            [{'gene_id': 'ENSG778.3'},
+             {'gene_id': 'ENSF5'},
+             {'gene_id': 'ENSG778.9'}]).set_index('gene_id')
 
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5ad')
+        a = anndata.AnnData(
+            X=np.random.random_sample((n_cells, len(var))),
+            var=var,
+            obs=obs)
 
-    a.write_h5ad(h5ad_path)
-    msg = "mapped to identical gene identifiers"
-    with pytest.raises(RuntimeError, match=msg):
-        validate_h5ad(
-            h5ad_path=h5ad_path,
-            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=GeneIdMapper.from_mouse())
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
 
-    # check that an error is raised if two input genes map to the
-    # same gene identifiers
-    var = pd.DataFrame(
-        [{'gene_id': 'Xkr4'},
-         {'gene_id': 'ENSF5'},
-         {'gene_id': 'ENSMUSG00000051951'}]).set_index('gene_id')
+        a.write_h5ad(h5ad_path)
+        msg = "mapped to identical gene identifiers"
+        with pytest.raises(RuntimeError, match=msg):
+            validate_h5ad(
+                h5ad_path=h5ad_path,
+                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+                gene_id_mapper=GeneIdMapper.from_mouse())
 
-    a = anndata.AnnData(
-        X=np.random.random_sample((n_cells, len(var))),
-        var=var,
-        obs=obs)
+        # check that an error is raised if two input genes map to the
+        # same gene identifiers
+        var = pd.DataFrame(
+            [{'gene_id': 'Xkr4'},
+             {'gene_id': 'ENSF5'},
+             {'gene_id': 'ENSMUSG00000051951'}]).set_index('gene_id')
 
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5ad')
+        a = anndata.AnnData(
+            X=np.random.random_sample((n_cells, len(var))),
+            var=var,
+            obs=obs)
 
-    a.write_h5ad(h5ad_path)
-    msg = "mapped to identical gene identifiers"
-    with pytest.raises(RuntimeError, match=msg):
-        validate_h5ad(
-            h5ad_path=h5ad_path,
-            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=GeneIdMapper.from_mouse())
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
+
+        a.write_h5ad(h5ad_path)
+        msg = "mapped to identical gene identifiers"
+        with pytest.raises(RuntimeError, match=msg):
+            validate_h5ad(
+                h5ad_path=h5ad_path,
+                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+                gene_id_mapper=GeneIdMapper.from_mouse())
 
 
 def test_cell_id_errors(tmp_dir_fixture):
@@ -803,28 +807,32 @@ def test_cell_id_errors(tmp_dir_fixture):
     Test that an error is raised when a cell_id is
     repeated
     """
-    obs = pd.DataFrame(
-        [
-         {'cell_id': 'c0'},
-         {'cell_id': 'c1'},
-         {'cell_id': 'c0'},
-         {'cell_id': 'c2'}
-        ]).set_index('cell_id')
 
-    var = pd.DataFrame(
-        [{'g': f'g{ii}'} for ii in range(8)]).set_index('g')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    x = np.ones((len(obs), len(var)), dtype=float)
-    a_data = anndata.AnnData(
-        obs=obs, var=var, X=x)
-    h5ad_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5ad')
-    a_data.write_h5ad(h5ad_path)
+        obs = pd.DataFrame(
+            [
+             {'cell_id': 'c0'},
+             {'cell_id': 'c1'},
+             {'cell_id': 'c0'},
+             {'cell_id': 'c2'}
+            ]).set_index('cell_id')
 
-    msg = "Cell IDs need to be unique"
-    with pytest.raises(RuntimeError, match=msg):
-        validate_h5ad(
-            h5ad_path=h5ad_path,
-            valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-            gene_id_mapper=None)
+        var = pd.DataFrame(
+            [{'g': f'g{ii}'} for ii in range(8)]).set_index('g')
+
+        x = np.ones((len(obs), len(var)), dtype=float)
+        a_data = anndata.AnnData(
+            obs=obs, var=var, X=x)
+        h5ad_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad')
+        a_data.write_h5ad(h5ad_path)
+
+        msg = "Cell IDs need to be unique"
+        with pytest.raises(RuntimeError, match=msg):
+            validate_h5ad(
+                h5ad_path=h5ad_path,
+                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
+                gene_id_mapper=None)
