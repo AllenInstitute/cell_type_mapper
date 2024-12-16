@@ -1,13 +1,10 @@
 import pytest
 
-import anndata
-import numpy as np
 import pandas as pd
 import pathlib
 from unittest.mock import patch
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
     _clean_up)
 
 from cell_type_mapper.gene_id.gene_id_mapper import (
@@ -53,7 +50,8 @@ def test_var_mapping(
     def new_timestamp():
         return 'xxx'
 
-    with patch('cell_type_mapper.utils.utils.get_timestamp', new=new_timestamp):
+    with patch('cell_type_mapper.utils.utils.get_timestamp',
+               new=new_timestamp):
         gene_id_mapper = GeneIdMapper(data=map_data_fixture)
         new_var = map_gene_ids_in_var(
             var_df=var_orig,
@@ -66,8 +64,8 @@ def test_var_mapping(
 
     expected_records = [
         {'EnsemblID_VALIDATED': 'ENSG0',
-          'gene_identifier': 'allie',
-          'garbage': 'x'},
+         'gene_identifier': 'allie',
+         'garbage': 'x'},
         {'EnsemblID_VALIDATED': 'ENSG3',
          'gene_identifier': 'chuck',
          'garbage': 'y'},
@@ -98,7 +96,8 @@ def test_var_mapping_column_name_taken(
     def new_timestamp():
         return 'xxx'
 
-    with patch('cell_type_mapper.utils.utils.get_timestamp', new=new_timestamp):
+    with patch('cell_type_mapper.utils.utils.get_timestamp',
+               new=new_timestamp):
         gene_id_mapper = GeneIdMapper(data=map_data_fixture)
         new_var = map_gene_ids_in_var(
             var_df=var_orig,
@@ -111,8 +110,8 @@ def test_var_mapping_column_name_taken(
 
     expected_records = [
         {'EnsemblID_VALIDATED_0': 'ENSG0',
-          'EnsemblID_VALIDATED': 'allie',
-          'garbage': 'x'},
+         'EnsemblID_VALIDATED': 'allie',
+         'garbage': 'x'},
         {'EnsemblID_VALIDATED_0': 'ENSG3',
          'EnsemblID_VALIDATED': 'chuck',
          'garbage': 'y'},
@@ -120,7 +119,8 @@ def test_var_mapping_column_name_taken(
          'EnsemblID_VALIDATED': 'zack',
          'garbage': 'z'}
     ]
-    expected = pd.DataFrame(expected_records).set_index('EnsemblID_VALIDATED_0')
+    expected = pd.DataFrame(
+        expected_records).set_index('EnsemblID_VALIDATED_0')
     pd.testing.assert_frame_equal(new_var[0], expected)
     assert new_var[1] == 1
 

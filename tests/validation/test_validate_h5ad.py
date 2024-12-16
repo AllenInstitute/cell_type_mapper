@@ -52,6 +52,7 @@ def map_data_fixture():
 
     return data
 
+
 @pytest.fixture
 def var_fixture():
     records = [
@@ -86,7 +87,6 @@ def obs_fixture():
 def x_fixture(var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -100,7 +100,6 @@ def x_fixture(var_fixture, obs_fixture):
 def good_x_fixture(var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -110,8 +109,10 @@ def good_x_fixture(var_fixture, obs_fixture):
     return data
 
 
-@pytest.mark.parametrize('as_layer, with_log',
-    itertools.product([True, False], [True, False]))
+@pytest.mark.parametrize(
+    'as_layer, with_log',
+    itertools.product([True, False], [True, False])
+)
 def test_validation_of_h5ad_without_encoding(
         var_fixture,
         obs_fixture,
@@ -135,13 +136,10 @@ def test_validation_of_h5ad_without_encoding(
         prefix='orig_',
         suffix='.h5ad')
 
-    data = x_fixture
-
     a_data = anndata.AnnData(
         var=var_fixture,
         obs=obs_fixture)
     a_data.write_h5ad(orig_path)
-
 
     if as_layer:
         layer = 'garbage'
@@ -169,8 +167,11 @@ def test_validation_of_h5ad_without_encoding(
         round_to_int=True,
         log=log)
 
-@pytest.mark.parametrize('with_log',
-    [True, False])
+
+@pytest.mark.parametrize(
+    'with_log',
+    [True, False]
+)
 def test_validation_of_corrupted_h5ad(
         var_fixture,
         obs_fixture,
@@ -355,7 +356,10 @@ def test_validation_of_h5ad(
 
     if density not in ("csv", "gz"):
         assert len(actual_var.columns) == 2
-        assert list(actual_var['gene_id'].values) == list(var_fixture.index.values)
+        assert (
+            list(actual_var['gene_id'].values)
+            == list(var_fixture.index.values)
+        )
         assert list(actual_var['val'].values) == list(var_fixture.val.values)
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
@@ -480,6 +484,7 @@ def test_validation_of_h5ad_ignoring_norm(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
 
 @pytest.mark.parametrize(
         "density", ("csr", "csc", "array"))
@@ -828,8 +833,8 @@ def test_convert_csv(
         data = ''
         if label_heading:
             data += 'cell_label'
-        for l in gene_labels:
-            data += f',{l}'
+        for label in gene_labels:
+            data += f',{label}'
         data += '\n'
         for i_row in range(n_cells):
             data += f'{cell_labels[i_row]}'

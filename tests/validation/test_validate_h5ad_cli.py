@@ -50,6 +50,7 @@ def mouse_var_fixture():
 
     return pd.DataFrame(records).set_index('gene_id')
 
+
 @pytest.fixture
 def human_var_fixture():
     records = [
@@ -95,7 +96,6 @@ def obs_fixture():
 def x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(mouse_var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -104,11 +104,11 @@ def x_fixture(mouse_var_fixture, obs_fixture):
             data[i_row, i_col] = rng.random()*10.0+1.4
     return data
 
+
 @pytest.fixture
 def good_x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(mouse_var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -169,16 +169,17 @@ def test_validation_cli_on_bad_genes(
         runner.run()
 
 
-
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int,specify_path,species,keep_encoding",
-        itertools.product(
+    "density,as_layer,round_to_int,specify_path,species,keep_encoding",
+    itertools.product(
         ("csr", "csc", "array"),
         (True, False),
         (True, False),
         (True, False),
         ('human', 'mouse'),
-        (True, False)))
+        (True, False)
+    )
+)
 def test_validation_cli_of_h5ad(
         mouse_var_fixture,
         human_var_fixture,
@@ -322,7 +323,7 @@ def test_validation_cli_of_h5ad(
         # sometimes it is an anndata SparseDataset. Unclear
         # why.
         if not hasattr(actual_x, 'toarray'):
-           actual_x = actual_x[()]
+            actual_x = actual_x[()]
         actual_x = actual_x.toarray()
 
         # check that we can at least read back the
@@ -397,7 +398,7 @@ def test_validation_cli_of_h5ad(
 
 @pytest.mark.parametrize(
         "density,specify_path",
-        itertools.product(("csr", "csc", "array"),(True, False)))
+        itertools.product(("csr", "csc", "array"), (True, False)))
 def test_validation_cli_of_good_h5ad(
         good_var_fixture,
         obs_fixture,
@@ -462,7 +463,7 @@ def test_validation_cli_of_good_h5ad(
             assert actual.uns[k] == original.uns[k]
         actual_x = actual.X[()]
         original_x = original.X[()]
-        assert type(actual_x) == type(original_x)
+        assert isinstance(actual_x, type(original_x))
         if not isinstance(actual_x, np.ndarray):
             actual_x = actual_x.toarray()
             original_x = original_x.toarray()
@@ -655,7 +656,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
         # sometimes it is an anndata SparseDataset. Unclear
         # why.
         if not hasattr(actual_x, 'toarray'):
-           actual_x = actual_x[()]
+            actual_x = actual_x[()]
         actual_x = actual_x.toarray()
 
         # check that we can at least read back the
@@ -704,7 +705,7 @@ def test_validation_cli_on_ensembl_dot(
     obs = pd.DataFrame(
         [{'cell': '1'}, {'cell': 'b'}]
     ).set_index('cell')
-    x = rng.random((2,2))
+    x = rng.random((2, 2))
 
     mouse_var_data = [
         {'gene_id': 'ENSMUSG00000051951.5'},
@@ -742,7 +743,10 @@ def test_validation_cli_on_ensembl_dot(
         runner.run()
         with open(json_path, 'rb') as src:
             output_config = json.load(src)
-        new_h5ad = anndata.read_h5ad(output_config['valid_h5ad_path'], backed='r')
+        new_h5ad = anndata.read_h5ad(
+            output_config['valid_h5ad_path'],
+            backed='r'
+        )
         assert list(new_h5ad.var.index.values) == expected
         assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)
 
