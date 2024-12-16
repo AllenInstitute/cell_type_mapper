@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -52,7 +53,10 @@ def taxonomy_tree_fixture():
             f'c{ii}': [] for ii in range(8)
         }
     }
-    return TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=data)
+    return tree
 
 
 @pytest.fixture(scope='session')
@@ -266,10 +270,12 @@ def do_reference_mapping(
             'valid_h5ad_path': validated_path,
             'output_json': output_json_path}
 
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data=validation_config)
-        runner.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            runner = ValidateH5adRunner(
+                args=[],
+                input_data=validation_config)
+            runner.run()
 
         output_path = mkstemp_clean(
             dir=tmp_dir_path,
@@ -309,11 +315,13 @@ def do_reference_mapping(
             }
         }
 
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
 
-        runner.run()
+            runner.run()
 
         this = {
             'csv_path': csv_path,

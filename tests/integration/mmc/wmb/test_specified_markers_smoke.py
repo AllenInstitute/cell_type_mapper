@@ -10,6 +10,7 @@ import json
 import numpy as np
 import pandas as pd
 import shutil
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
@@ -85,26 +86,29 @@ def test_ensembl_mapping_in_cli(
         args=[],
         input_data=config)
 
-    if map_to_ensembl:
-        runner.run()
-        actual = json.load(open(output_path, 'rb'))
-        assert 'RAN SUCCESSFULLY' in actual['log'][-2]
-        if write_summary:
-            metadata = json.load(open(metadata_path, 'rb'))
-            assert 'n_mapped_cells' in metadata
-            assert 'n_mapped_genes' in metadata
-            _obs = read_df_from_h5ad(query_h5ad_fixture, df_name='obs')
-            _var = read_df_from_h5ad(query_h5ad_fixture, df_name='var')
-            assert metadata['n_mapped_cells'] == len(_obs)
-            assert metadata['n_mapped_genes'] == (len(_var)
-                                                  - n_extra_genes_fixture)
-    else:
-        msg = (
-            "After comparing query data to reference data, "
-            "no valid marker genes could be found"
-        )
-        with pytest.raises(RuntimeError, match=msg):
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        if map_to_ensembl:
             runner.run()
+            actual = json.load(open(output_path, 'rb'))
+            assert 'RAN SUCCESSFULLY' in actual['log'][-2]
+            if write_summary:
+                metadata = json.load(open(metadata_path, 'rb'))
+                assert 'n_mapped_cells' in metadata
+                assert 'n_mapped_genes' in metadata
+                _obs = read_df_from_h5ad(query_h5ad_fixture, df_name='obs')
+                _var = read_df_from_h5ad(query_h5ad_fixture, df_name='var')
+                assert metadata['n_mapped_cells'] == len(_obs)
+                assert metadata['n_mapped_genes'] == (
+                    len(_var) - n_extra_genes_fixture
+                )
+        else:
+            msg = (
+                "After comparing query data to reference data, "
+                "no valid marker genes could be found"
+            )
+            with pytest.raises(RuntimeError, match=msg):
+                runner.run()
 
 
 @pytest.mark.parametrize(
@@ -146,10 +150,12 @@ def test_summary_from_validated_file(
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
-    runner = ValidateH5adRunner(
-        args=[],
-        input_data=validation_config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config)
+        runner.run()
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -189,11 +195,13 @@ def test_summary_from_validated_file(
         }
     }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    runner.run()
+        runner.run()
 
     metadata = json.load(open(metadata_path, 'rb'))
     assert 'n_mapped_cells' in metadata
@@ -254,10 +262,13 @@ def test_cli_on_truncated_precompute(
         prefix='precomputed_',
         suffix='.h5')
 
-    truncate_precomputed_stats_file(
-        input_path=precomputed_stats_fixture,
-        output_path=new_precompute_path,
-        new_hierarchy=hierarchy)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        truncate_precomputed_stats_file(
+            input_path=precomputed_stats_fixture,
+            output_path=new_precompute_path,
+            new_hierarchy=hierarchy)
 
     config = {
         'precomputed_stats': {
@@ -281,10 +292,12 @@ def test_cli_on_truncated_precompute(
         }
     }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    runner.run()
+        runner.run()
     actual = json.load(open(output_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in actual['log'][-2]
