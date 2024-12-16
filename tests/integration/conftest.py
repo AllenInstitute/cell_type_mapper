@@ -7,6 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -237,11 +238,14 @@ def raw_reference_h5ad_fixture(
     obs = pd.DataFrame(obs_records_fixture)
     obs = obs.set_index('cell_id')
 
-    a_data = anndata.AnnData(
-        X=raw_reference_cell_x_gene,
-        obs=obs,
-        var=var,
-        dtype=raw_reference_cell_x_gene.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=raw_reference_cell_x_gene,
+            obs=obs,
+            var=var,
+            dtype=raw_reference_cell_x_gene.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -267,11 +271,14 @@ def noisier_raw_reference_h5ad_fixture(
     obs = pd.DataFrame(obs_records_fixture)
     obs = obs.set_index('cell_id')
 
-    a_data = anndata.AnnData(
-        X=noisier_raw_reference_cell_x_gene,
-        obs=obs,
-        var=var,
-        dtype=noisier_raw_reference_cell_x_gene.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=noisier_raw_reference_cell_x_gene,
+            obs=obs,
+            var=var,
+            dtype=noisier_raw_reference_cell_x_gene.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -330,11 +337,14 @@ def raw_query_h5ad_fixture(
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
-    a_data = anndata.AnnData(
-        X=raw_query_cell_x_gene_fixture,
-        var=var,
-        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-        dtype=raw_query_cell_x_gene_fixture.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=raw_query_cell_x_gene_fixture,
+            var=var,
+            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
+            dtype=raw_query_cell_x_gene_fixture.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
