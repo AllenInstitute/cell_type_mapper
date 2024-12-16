@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -100,8 +101,11 @@ def create_h5ad_file(
         raise RuntimeError(
             f"do not know what density={density} means")
 
-    a_data = anndata.AnnData(
-        X=data, obs=obs, var=var, dtype=data.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=data, obs=obs, var=var, dtype=data.dtype)
 
     a_data.write_h5ad(output_path)
 
@@ -365,7 +369,13 @@ def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
     if is_sparse:
         layer = scipy_sparse.csr_matrix(layer)
 
-    a_data = anndata.AnnData(X=x, layers={'garbage': layer}, dtype=x.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            layers={'garbage': layer},
+            dtype=x.dtype)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -411,7 +421,14 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
     if is_sparse:
         layer = scipy_sparse.csr_matrix(layer)
 
-    a_data = anndata.AnnData(X=x, layers={'garbage': layer}, dtype=x.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            layers={'garbage': layer},
+            dtype=x.dtype
+        )
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,

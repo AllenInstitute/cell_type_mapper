@@ -168,10 +168,11 @@ def test_validation_cli_on_bad_genes(
         'log_path': log_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-
-    with pytest.raises(RuntimeError, match="Could not find a species"):
-        runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        with pytest.raises(RuntimeError, match="Could not find a species"):
+            runner.run()
 
 
 @pytest.mark.parametrize(

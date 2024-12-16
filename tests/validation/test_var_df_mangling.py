@@ -3,6 +3,7 @@ import pytest
 import pandas as pd
 import pathlib
 from unittest.mock import patch
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up)
@@ -50,12 +51,15 @@ def test_var_mapping(
     def new_timestamp():
         return 'xxx'
 
-    with patch('cell_type_mapper.utils.utils.get_timestamp',
-               new=new_timestamp):
-        gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-        new_var = map_gene_ids_in_var(
-            var_df=var_orig,
-            gene_id_mapper=gene_id_mapper)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with patch('cell_type_mapper.utils.utils.get_timestamp',
+                   new=new_timestamp):
+            gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+            new_var = map_gene_ids_in_var(
+                var_df=var_orig,
+                gene_id_mapper=gene_id_mapper)
 
     # make sure input did not change
     pd.testing.assert_frame_equal(
@@ -96,12 +100,15 @@ def test_var_mapping_column_name_taken(
     def new_timestamp():
         return 'xxx'
 
-    with patch('cell_type_mapper.utils.utils.get_timestamp',
-               new=new_timestamp):
-        gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-        new_var = map_gene_ids_in_var(
-            var_df=var_orig,
-            gene_id_mapper=gene_id_mapper)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with patch('cell_type_mapper.utils.utils.get_timestamp',
+                   new=new_timestamp):
+            gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+            new_var = map_gene_ids_in_var(
+                var_df=var_orig,
+                gene_id_mapper=gene_id_mapper)
 
     # make sure input did not change
     pd.testing.assert_frame_equal(
