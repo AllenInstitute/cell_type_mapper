@@ -14,8 +14,44 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
-from cell_type_mapper.validation.validate_h5ad import (
-    convert_csv_to_h5ad)
+from cell_type_mapper.validation.csv_utils import (
+    is_first_column_sequential,
+    convert_csv_to_h5ad
+)
+
+
+def test_sequential():
+    """
+    Test utility to detect if first column in a numpy array
+    is sequential when sorted
+    """
+    xx = np.array(
+        [[12, 4, 6],
+         [14, 11, 13],
+         [13, 55, 66]]
+    )
+    assert is_first_column_sequential(xx)
+
+    xx = np.array(
+        [[12.0, 4.3, 6.01],
+         [14.0, 11.1, 13.98],
+         [13.0, 55.2, 66.5]]
+    )
+    assert is_first_column_sequential(xx)
+
+    xx = np.array(
+        [[2, 4, 6],
+         [5, 11, 13],
+         [3, 55, 66]]
+    )
+    assert not is_first_column_sequential(xx)
+
+    xx = np.array(
+        [[2, 4, 6],
+         [2, 11, 13],
+         [3, 55, 66]]
+    )
+    assert not is_first_column_sequential(xx)
 
 
 @pytest.mark.parametrize(

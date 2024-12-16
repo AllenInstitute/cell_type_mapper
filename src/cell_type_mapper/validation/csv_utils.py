@@ -3,6 +3,7 @@ Define utility functions for accepting CSV inputs to MapMyCells
 """
 import anndata
 import gzip
+import numpy as np
 import pathlib
 import warnings
 
@@ -121,3 +122,19 @@ def convert_csv_to_h5ad(
     adata.write_h5ad(dst_path)
 
     return (dst_path, True)
+
+
+def is_first_column_sequential(x_array):
+    """
+    Take the first column of a numpy array.
+    Sort the values.
+    If they are sequential when sorted, return True, else return False
+    """
+    sorted_col = np.sort(x_array[:, 0])
+    delta = np.diff(sorted_col)
+    return np.allclose(
+        delta,
+        np.ones(delta.shape),
+        atol=0.0,
+        rtol=1.0e-6
+    )
