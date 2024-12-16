@@ -4,20 +4,12 @@ Tests to test the workflow as implemented in the online MapMyCells app
 import pytest
 
 import anndata
-import copy
-import gzip
-import h5py
 import itertools
 import json
-import numpy as np
 import pandas as pd
-import pathlib
-import scipy.sparse
-import shutil
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
 
 from cell_type_mapper.test_utils.anndata_utils import (
     create_h5ad_without_encoding_type,
@@ -28,19 +20,6 @@ from cell_type_mapper.test_utils.hierarchical_mapping import (
     assert_mappings_equal
 )
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
-from cell_type_mapper.diff_exp.truncate_precompute import (
-    truncate_precomputed_stats_file
-)
-
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
-
-from cell_type_mapper.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
-
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
@@ -49,17 +28,18 @@ from cell_type_mapper.cli.validate_h5ad import (
 
 
 @pytest.mark.parametrize(
-        'with_encoding_type, density_fixture, file_type',
-        [(True, 'dense', '.h5ad'),
-         (False, 'dense', '.h5ad'),
-         (True, 'csc', '.h5ad'),
-         (False, 'csc', '.h5ad'),
-         (True, 'csr', '.h5ad'),
-         (False, 'csr', '.h5ad'),
-         (True, 'dense', '.csv'),
-         (True, 'dense', '.csv.gz')
-        ],
-        indirect=['density_fixture'])
+    'with_encoding_type, density_fixture, file_type',
+    [(True, 'dense', '.h5ad'),
+     (False, 'dense', '.h5ad'),
+     (True, 'csc', '.h5ad'),
+     (False, 'csc', '.h5ad'),
+     (True, 'csr', '.h5ad'),
+     (False, 'csr', '.h5ad'),
+     (True, 'dense', '.csv'),
+     (True, 'dense', '.csv.gz')
+     ],
+    indirect=['density_fixture']
+)
 def test_online_workflow_WMB(
         marker_lookup_fixture,
         precomputed_stats_fixture,
@@ -177,7 +157,9 @@ def test_online_workflow_WMB(
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
     test_dict = json.load(open(output_path, 'rb'))
-    baseline_dict = json.load(open(reference_mapping_fixture['json_path'], 'rb'))
+    baseline_dict = json.load(
+        open(reference_mapping_fixture['json_path'], 'rb')
+    )
     assert_mappings_equal(
         test_dict['results'],
         baseline_dict['results'],
@@ -308,7 +290,9 @@ def test_online_workflow_WMB_csv_shape(
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
     test_dict = json.load(open(output_path, 'rb'))
-    baseline_dict = json.load(open(reference_mapping_fixture['json_path'], 'rb'))
+    baseline_dict = json.load(
+        open(reference_mapping_fixture['json_path'], 'rb')
+    )
     assert_mappings_equal(
         test_dict['results'],
         baseline_dict['results'],
