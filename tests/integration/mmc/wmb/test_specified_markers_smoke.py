@@ -5,24 +5,14 @@ CLI tool.
 import pytest
 
 import anndata
-import copy
-import h5py
 import itertools
 import json
 import numpy as np
 import pandas as pd
-import pathlib
-import scipy.sparse
 import shutil
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
-
-from cell_type_mapper.test_utils.anndata_utils import (
-    create_h5ad_without_encoding_type,
-    write_anndata_x_to_csv
-)
+    mkstemp_clean)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad)
@@ -31,12 +21,6 @@ from cell_type_mapper.diff_exp.truncate_precompute import (
     truncate_precomputed_stats_file
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
-
-from cell_type_mapper.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
-
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
 
@@ -44,8 +28,10 @@ from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
 
-@pytest.mark.parametrize('map_to_ensembl,write_summary',
-    itertools.product([True, False], [True, False]))
+@pytest.mark.parametrize(
+    'map_to_ensembl,write_summary',
+    itertools.product([True, False], [True, False])
+)
 def test_ensembl_mapping_in_cli(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
@@ -111,7 +97,7 @@ def test_ensembl_mapping_in_cli(
             _var = read_df_from_h5ad(query_h5ad_fixture, df_name='var')
             assert metadata['n_mapped_cells'] == len(_obs)
             assert metadata['n_mapped_genes'] == (len(_var)
-                                                  -n_extra_genes_fixture)
+                                                  - n_extra_genes_fixture)
     else:
         msg = (
             "After comparing query data to reference data, "
@@ -121,9 +107,10 @@ def test_ensembl_mapping_in_cli(
             runner.run()
 
 
-
-@pytest.mark.parametrize('map_to_ensembl',
-    [True, False])
+@pytest.mark.parametrize(
+    'map_to_ensembl',
+    [True, False]
+)
 def test_summary_from_validated_file(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
@@ -221,14 +208,13 @@ def test_summary_from_validated_file(
     query_data = anndata.read_h5ad(query_h5ad_path, backed='r')
     assert metadata['n_mapped_cells'] == len(query_data.obs)
     assert metadata['n_mapped_genes'] == (len(query_data.var)
-                                          -n_extra_genes_fixture)
+                                          - n_extra_genes_fixture)
 
     src_obs = read_df_from_h5ad(query_h5ad_fixture, df_name='obs')
     mapping_df = pd.read_csv(csv_path, comment='#')
     assert len(mapping_df) == len(src_obs)
     np.testing.assert_array_equal(
         mapping_df.cell_id.values, src_obs.index.values)
-
 
 
 @pytest.mark.parametrize(

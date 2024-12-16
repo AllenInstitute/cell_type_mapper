@@ -3,29 +3,15 @@ import pytest
 import anndata
 import copy
 import h5py
-import itertools
 import json
 import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse
-import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
-
-from cell_type_mapper.test_utils.anndata_utils import (
-    create_h5ad_without_encoding_type,
-    write_anndata_x_to_csv
-)
-
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
-from cell_type_mapper.diff_exp.truncate_precompute import (
-    truncate_precomputed_stats_file
-)
 
 from cell_type_mapper.data.mouse_gene_id_lookup import (
     mouse_gene_id_lookup)
@@ -128,11 +114,16 @@ def precomputed_stats_fixture(
         src.create_dataset(
             'taxonomy_tree',
             data=taxonomy_tree_fixture.to_str().encode('utf-8'))
-        src.create_dataset('col_names',
-            data=json.dumps(gene_id_fixture).encode('utf-8'))
-        src.create_dataset('cluster_to_row',
+        src.create_dataset(
+            'col_names',
+            data=json.dumps(gene_id_fixture).encode('utf-8')
+        )
+        src.create_dataset(
+            'cluster_to_row',
             data=json.dumps(
-                {f'c{ii}': ii for ii in range(n_clusters)}).encode('utf-8'))
+                {f'c{ii}': ii
+                 for ii in range(n_clusters)}).encode('utf-8')
+            )
 
     return h5_path
 
@@ -144,13 +135,13 @@ def n_extra_genes_fixture():
     """
     return 19
 
+
 @pytest.fixture()
 def density_fixture(request):
     if not hasattr(request, 'param'):
         return 'dense'
     else:
         return request.param
-
 
 
 @pytest.fixture()
@@ -215,7 +206,8 @@ def create_query_h5ad(
         rng.shuffle(these_gene_names)
 
         var = pd.DataFrame(
-            [{'gene_name': g} for g in these_gene_names]).set_index('gene_name')
+            [{'gene_name': g}
+             for g in these_gene_names]).set_index('gene_name')
 
         a_data = anndata.AnnData(
             X=X,
