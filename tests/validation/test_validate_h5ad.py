@@ -220,12 +220,16 @@ def test_validation_of_corrupted_h5ad(
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int,specify_path",
+        "density,as_layer,round_to_int,specify_path,"
+        "csv_label_type,csv_label_header",
         itertools.product(
          ("csr", "csc", "array", "csv", "gz"),
          (True, False),
          (True, False),
-         (True, False)))
+         (True, False),
+         ('string', 'numerical', 'big_numerical', None),
+         (True, False))
+)
 def test_validation_of_h5ad(
         var_fixture,
         obs_fixture,
@@ -235,7 +239,20 @@ def test_validation_of_h5ad(
         density,
         as_layer,
         round_to_int,
-        specify_path):
+        specify_path,
+        csv_label_type,
+        csv_label_header):
+
+    # some of these combinations are unncessary
+    if density not in ("csv", "gz"):
+        if not csv_label_header:
+            return
+        if csv_label_type != "string":
+            return
+    else:
+        if csv_label_header:
+            if csv_label_type is None:
+                return
 
     if density in ("csv", "gz"):
         if density == "csv":
@@ -278,7 +295,9 @@ def test_validation_of_h5ad(
     if density in ("csv", "gz"):
         write_anndata_x_to_csv(
             anndata_obj=a_data,
-            dst_path=orig_path
+            dst_path=orig_path,
+            cell_label_header=csv_label_header,
+            cell_label_type=csv_label_type
         )
     else:
         a_data.write_h5ad(orig_path)
@@ -326,13 +345,17 @@ def test_validation_of_h5ad(
 
     actual = anndata.read_h5ad(result_path, backed='r')
 
-    if density not in ("csv", "gz"):
-        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
-    else:
+    if density in ("csv", "gz") \
+            and csv_label_type is not None \
+            and csv_label_type == "string":
+
         np.testing.assert_array_equal(
             obs_fixture.index.values,
             actual.obs.index.values
         )
+
+    elif density not in ("csv", "gz"):
+        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
 
     actual_x = actual.X[()]
     if density not in ("array", "csv", "gz"):

@@ -110,6 +110,9 @@ def write_anndata_x_to_csv(
 
     (This is for testing our validation layer's ability to
     convert CSVs to h5ad files)
+
+    Valid entries for cell_label_type:
+        'string', 'numerical', 'big_numerical' or None
     """
 
     if cell_label_header:
