@@ -15,7 +15,7 @@ from cell_type_mapper.utils.utils import (
 )
 
 from cell_type_mapper.validation.validate_h5ad import (
-    _convert_csv_to_h5ad)
+    convert_csv_to_h5ad)
 
 
 @pytest.mark.parametrize(
@@ -70,7 +70,7 @@ def test_convert_csv(
             data = data.encode('utf-8')
         dst.write(data)
 
-    h5ad_path, flag = _convert_csv_to_h5ad(
+    h5ad_path, flag = convert_csv_to_h5ad(
         src_path=csv_path,
         log=None)
     assert flag
