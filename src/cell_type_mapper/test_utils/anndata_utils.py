@@ -1,6 +1,7 @@
 import anndata
 import gzip
 import h5py
+import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.anndata_utils import (
@@ -123,6 +124,23 @@ def write_anndata_x_to_csv(
         open_fn = open
         is_gzip = False
 
+    # find an offset for cell_label_type == 'numerical'
+    # that would break the results of a unit test
+    numerical_offset = 0
+    if cell_label_type == 'numerical':
+        masked_x = np.ma.masked_array(
+            anndata_obj.X,
+            mask=(anndata_obj.X == 0)
+        )
+        mu = np.mean(masked_x, axis=1)
+        std = np.std(masked_x, axis=1, ddof=1)
+        numerical_offset = np.round(np.min((mu+2*std))).astype(int)
+        extremal = np.min(mu+3*std)
+
+        # make sure we would not trigger the "is the first
+        # column just too big" filter on numerical cell labels
+        assert numerical_offset < extremal
+
     with open_fn(dst_path, 'w') as dst:
         header = ''
         if cell_label_type is not None:
@@ -142,7 +160,7 @@ def write_anndata_x_to_csv(
                 if cell_label_type == 'string':
                     line = f'{cell_label}'
                 elif cell_label_type == 'numerical':
-                    line = f'{i_row}'
+                    line = f'{numerical_offset + i_row}'
                 elif cell_label_type == 'big_numerical':
                     line = f'{1000000+800*i_row}'
 
