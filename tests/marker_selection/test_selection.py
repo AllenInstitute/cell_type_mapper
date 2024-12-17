@@ -38,9 +38,11 @@ def tmp_dir_fixture(
 def n_genes():
     return 14
 
+
 @pytest.fixture
 def n_cols():
     return 31
+
 
 @pytest.fixture
 def taxonomy_tree_fixture():
@@ -56,6 +58,7 @@ def taxonomy_tree_fixture():
     tree['cluster'] = {str(ii): [ii*10] for ii in range(1, 9)}
 
     return tree
+
 
 @pytest.fixture
 def pair_to_idx_fixture():
@@ -104,6 +107,7 @@ def pair_to_idx_fixture():
 
     return pair_to_idx
 
+
 @pytest.fixture
 def is_marker_fixture(n_genes, n_cols):
     data = np.zeros((n_genes, n_cols), dtype=bool)
@@ -112,6 +116,7 @@ def is_marker_fixture(n_genes, n_cols):
     data[11, 4] = True
     return data
 
+
 @pytest.fixture
 def up_reg_fixture(n_genes, n_cols):
     data = np.zeros((n_genes, n_cols), dtype=bool)
@@ -119,9 +124,11 @@ def up_reg_fixture(n_genes, n_cols):
     data[11, 4] = True
     return data
 
+
 @pytest.fixture
 def gene_names_fixture(n_genes):
     return [f"g_{ii}" for ii in range(n_genes)]
+
 
 @pytest.fixture
 def marker_cache_fixture(
@@ -212,6 +219,7 @@ def test_recalculate_utilty_array(
             marker_gene_array=arr,
             pair_idx=4,
             sign=3)
+
 
 def test_recalculate_utility_array_batch(
         marker_cache_fixture,

@@ -7,7 +7,6 @@ import json
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
-import shutil
 import warnings
 
 from cell_type_mapper.utils.utils import (
@@ -36,8 +35,7 @@ from cell_type_mapper.marker_selection.selection_pipeline import (
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     create_marker_cache_from_specified_markers,
-    serialize_markers,
-    write_query_markers_to_h5)
+    serialize_markers)
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
@@ -61,7 +59,7 @@ def taxonomy_tree_fixture():
 
     tree = dict()
     tree['hierarchy'] = ['class', 'subclass', 'cluster']
-    tree['class']  = {
+    tree['class'] = {
         'aa': ['a', 'b', 'c', 'd'],
         'bb': ['e'],
         'cc': ['f', 'g', 'h']}
@@ -90,6 +88,7 @@ def taxonomy_tree_fixture():
         c0 += rows
 
     return tree
+
 
 @pytest.fixture
 def pair_to_idx_fixture(
@@ -152,7 +151,6 @@ def marker_cache_fixture(
             prefix='markers_',
             suffix='.h5'))
 
-    n_rows = len(gene_names_fixture)
     n_cols = pair_to_idx_fixture['n_pairs']
 
     up_regulated = np.logical_and(
@@ -223,7 +221,6 @@ def blank_marker_cache_fixture(
 
     csc_up = scipy_sparse.csc_array(up_regulated)
     csc_down = scipy_sparse.csc_array(down_regulated)
-
 
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
@@ -743,8 +740,8 @@ def test_marker_serialization_roundtrip(
                 min_markers=1)
         if use_log:
             found_warning = False
-            for l in log._log:
-                if "not present in the query dataset" in l:
+            for log_line in log._log:
+                if "not present in the query dataset" in log_line:
                     found_warning = True
             assert found_warning
     else:
@@ -765,13 +762,13 @@ def test_marker_serialization_roundtrip(
     assert set(baseline_dataset_list) == set(round_trip_dataset_list)
 
     with h5py.File(baseline_path, 'r') as baseline:
-       with h5py.File(round_trip_path, 'r') as round_trip:
-           for dataset in baseline_dataset_list:
-               if provoke_warning and dataset == 'reference_gene_names':
-                   continue
-               expected = baseline[dataset][()]
-               actual = round_trip[dataset][()]
-               np.testing.assert_array_equal(expected, actual)
+        with h5py.File(round_trip_path, 'r') as round_trip:
+            for dataset in baseline_dataset_list:
+                if provoke_warning and dataset == 'reference_gene_names':
+                    continue
+                expected = baseline[dataset][()]
+                actual = round_trip[dataset][()]
+                np.testing.assert_array_equal(expected, actual)
 
 
 def test_specified_marker_failure(tmp_dir_fixture):
@@ -782,7 +779,7 @@ def test_specified_marker_failure(tmp_dir_fixture):
 
     marker_lookup = dict()
     marker_lookup['None'] = ['a', 'b', 'c']
-    marker_lookup['class/ClassA'] = ['d', 'e' ,'f']
+    marker_lookup['class/ClassA'] = ['d', 'e', 'f']
 
     query_gene_names = [n for n in 'abcdefghij']
     reference_gene_names = [n for n in 'abcdfg']
@@ -823,7 +820,7 @@ def test_specified_marker_parent_failure(tmp_dir_fixture):
                     'f': ['9', '10'],
                     'g': ['11', '12']
                 },
-                'cluster': { str(ii): [] for ii in range(1, 13, 1)}
+                'cluster': {str(ii): [] for ii in range(1, 13, 1)}
             })
 
         reference_gene_names = [f'g_{ii}' for ii in range(22)]
@@ -924,11 +921,6 @@ def test_parent_limitation(
     assert n_list[len(n_list)//4] < behemoth_cutoff
     assert n_list[3*len(n_list)//4] > behemoth_cutoff
 
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='marker_cache_',
-        suffix='.h5')
-
     rng = np.random.default_rng(62234)
     query_gene_names = copy.deepcopy(gene_names_fixture)
     rng.shuffle(query_gene_names)
@@ -962,7 +954,6 @@ def test_parent_limitation(
         assert set(actual[k]) == set(expected[k])
 
 
-
 def test_n_per_override(
          marker_cache_fixture,
          gene_names_fixture,
@@ -973,11 +964,6 @@ def test_n_per_override(
     """
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='marker_cache_',
-        suffix='.h5')
 
     rng = np.random.default_rng(62234)
     query_gene_names = copy.deepcopy(gene_names_fixture)

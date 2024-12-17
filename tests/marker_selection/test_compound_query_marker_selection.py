@@ -11,7 +11,6 @@ import itertools
 import json
 import numpy as np
 import pathlib
-import shutil
 import tempfile
 import warnings
 
@@ -19,7 +18,7 @@ from cell_type_mapper.test_utils.reference_markers import (
     move_precomputed_stats_from_reference_markers
 )
 
-from cell_type_mapper.utils.utils import(
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
@@ -58,7 +57,7 @@ def taxonomy_tree_fixture():
             'subclassD': ['c6', 'c7']
         },
         'cluster': {
-            f'c{ii}':[] for ii in range(8)
+            f'c{ii}': [] for ii in range(8)
         }
     }
     with warnings.catch_warnings():
@@ -128,6 +127,7 @@ def precompute_path_to_n_cluster(
         }
     }
     return result
+
 
 @pytest.fixture(scope='module')
 def gene_fixture():
@@ -200,17 +200,10 @@ def reference_marker_fixture(
         gene_fixture,
         tmp_dir_fixture):
 
-    n_genes = len(gene_fixture)
-
     output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
     path_list = []
     for precompute_path in precomputed_stats_files:
-        output_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix=pathlib.Path(precompute_path).stem,
-            suffix='.reference.h5')
-
         precompute_name = pathlib.Path(precompute_path).name
         old_str = precompute_name.split('.')[0]
         new_str = precompute_name.replace(old_str, 'reference_markers', 1)
@@ -297,6 +290,7 @@ def expected_query_marker_fixture(
         assert ct_compare > 0
 
     return result
+
 
 def test_query_infrastructure(
         reference_marker_fixture,
@@ -395,8 +389,14 @@ def test_misplaced_stats_infrastructure(
 
             # these expected values are based on the number cells in
             # the n_cells array of the precomputed stats files
-            assert set(actual['class/classA']) == set(expected[pth1]['class/classA'])
-            assert set(actual['class/classB']) == set(expected[pth0]['class/classB'])
+            assert (
+                set(actual['class/classA'])
+                == set(expected[pth1]['class/classA'])
+            )
+            assert (
+                set(actual['class/classB'])
+                == set(expected[pth0]['class/classB'])
+            )
             assert set(actual['subclass/subclassA']) == set(
                 expected[pth0]['subclass/subclassA'])
             assert set(actual['subclass/subclassB']) == set(

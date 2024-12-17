@@ -6,8 +6,6 @@ import json
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
-import shutil
-import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -33,9 +31,11 @@ def tmp_dir_fixture(
 def n_genes():
     return 114
 
+
 @pytest.fixture
 def n_cols():
     return 229
+
 
 @pytest.fixture
 def pair_to_idx_fixture():
@@ -48,17 +48,20 @@ def pair_to_idx_fixture():
         'e': {'f': 7, 'g': 8}}
     return pair_to_idx
 
+
 @pytest.fixture
 def is_marker_fixture(n_genes, n_cols):
     rng = np.random.default_rng(7401923)
     data = rng.integers(0, 2, (n_genes, n_cols), dtype=bool)
     return data
 
+
 @pytest.fixture
 def up_reg_fixture(n_genes, n_cols):
     rng = np.random.default_rng(1234567)
     data = rng.integers(0, 2, (n_genes, n_cols), dtype=bool)
     return data
+
 
 @pytest.fixture
 def gene_names_fixture(n_genes):
@@ -74,6 +77,7 @@ def up_reg_truth(up_reg_fixture, is_marker_fixture):
 
     return up_reg
 
+
 @pytest.fixture
 def down_reg_truth(up_reg_fixture, is_marker_fixture):
 
@@ -82,6 +86,7 @@ def down_reg_truth(up_reg_fixture, is_marker_fixture):
         is_marker_fixture)
 
     return down_reg
+
 
 @pytest.fixture
 def backed_array_fixture(
@@ -98,13 +103,11 @@ def backed_array_fixture(
             dir=tmp_dir_fixture,
             suffix='.h5'))
 
-
     up_by_gene = scipy_sparse.csr_array(up_reg_truth)
     up_by_pair = scipy_sparse.csc_array(up_reg_truth)
 
     down_by_gene = scipy_sparse.csr_array(down_reg_truth)
     down_by_pair = scipy_sparse.csc_array(down_reg_truth)
-
 
     with h5py.File(h5_path, 'a') as dst:
         dst.create_dataset('n_pairs', data=n_cols)
@@ -156,6 +159,7 @@ def test_idx_of_pair_error(backed_array_fixture):
     with pytest.raises(RuntimeError, match="not a valid taxonomy pair"):
         arr.idx_of_pair(level='level1', node1='aa', node2='ff')
 
+
 def test_idx_of_pair_idx(backed_array_fixture, pair_to_idx_fixture):
     arr = MarkerGeneArray.from_cache_path(cache_path=backed_array_fixture)
     for level in pair_to_idx_fixture:
@@ -167,6 +171,7 @@ def test_idx_of_pair_idx(backed_array_fixture, pair_to_idx_fixture):
                     node2=node2)
                 expected = pair_to_idx_fixture[level][node1][node2]
                 assert actual == expected
+
 
 def test_marker_mask_from_gene_idx(
         backed_array_fixture,
@@ -219,6 +224,7 @@ def test_marker_mask_from_pair_idx(
             arr.down_mask_from_pair_idx(pair_idx=i_col),
             np.logical_and(expected_marker, ~expected_up))
 
+
 @pytest.mark.parametrize('to_other', [True, False])
 def test_marker_downsample_genes(
         backed_array_fixture,
@@ -239,10 +245,17 @@ def test_marker_downsample_genes(
     subsample = rng.choice(np.arange(n_genes), 8, replace=False)
     if to_other:
         arr0 = arr
-        np.testing.assert_array_equal(arr0.up_by_gene.indices, arr.up_by_gene.indices)
+        np.testing.assert_array_equal(
+            arr0.up_by_gene.indices,
+            arr.up_by_gene.indices
+        )
         arr = arr.downsample_genes_to_other(gene_idx_array=subsample)
         assert arr is not arr0
-        assert not np.array_equal(arr0.up_by_gene.indices, arr.up_by_gene.indices)
+        assert not (
+           np.array_equal(
+               arr0.up_by_gene.indices,
+               arr.up_by_gene.indices)
+        )
     else:
         arr.downsample_genes(gene_idx_array=subsample)
 
@@ -490,7 +503,6 @@ def test_thin_array_by_gene(
     np.testing.assert_array_equal(
         arr.up_by_pair.indices, up_csc.indices)
 
-
     down_csr = scipy_sparse.csr_array(new_down)
     np.testing.assert_array_equal(
         arr.down_by_gene.indptr, down_csr.indptr)
@@ -504,7 +516,7 @@ def test_thin_array_by_gene(
         arr.down_by_pair.indices, down_csc.indices)
 
 
-@pytest.mark.parametrize('downsample_genes',[True, False])
+@pytest.mark.parametrize('downsample_genes', [True, False])
 def test_thin_array_by_gene_on_load(
         backed_array_fixture,
         gene_names_fixture,
@@ -553,7 +565,6 @@ def test_thin_array_by_gene_on_load(
         arr.up_by_pair.indptr, up_csc.indptr)
     np.testing.assert_array_equal(
         arr.up_by_pair.indices, up_csc.indices)
-
 
     down_csr = scipy_sparse.csr_array(new_down)
     np.testing.assert_array_equal(
