@@ -7,6 +7,7 @@ import anndata
 import itertools
 import json
 import pandas as pd
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
@@ -97,10 +98,13 @@ def test_online_workflow_WMB(
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
-    runner = ValidateH5adRunner(
-        args=[],
-        input_data=validation_config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config)
+        runner.run()
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -140,11 +144,14 @@ def test_online_workflow_WMB(
         }
     }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     test_df = pd.read_csv(
         csv_path,
@@ -222,10 +229,13 @@ def test_online_workflow_WMB_csv_shape(
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
-    runner = ValidateH5adRunner(
-        args=[],
-        input_data=validation_config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config)
+        runner.run()
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -265,11 +275,14 @@ def test_online_workflow_WMB_csv_shape(
         }
     }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     test_df = pd.read_csv(
         csv_path,
