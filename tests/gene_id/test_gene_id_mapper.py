@@ -1,4 +1,6 @@
 import pytest
+import re
+import warnings
 
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
@@ -25,35 +27,45 @@ def test_gene_id_mapper_class(map_data_fixture):
     """
     Test that gene_id_mapper maps genes as expected
     """
-    mapper = GeneIdMapper(data=map_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
-    actual = mapper.map_gene_identifiers(good)
-    assert actual['mapped_genes'] == good
-    assert actual['n_unmapped'] == 0
+        mapper = GeneIdMapper(data=map_data_fixture)
 
-    names = ["charlie", "alice", "zachary", "mark", "robert"]
-    actual = mapper.map_gene_identifiers(names)
-    actual_genes = actual['mapped_genes']
-    assert len(actual_genes) == 5
-    assert actual_genes[0] == 'ENSG3'
-    assert actual_genes[1] == 'ENSG0'
-    assert 'unmapped_0' in actual_genes[2]
-    assert 'unmapped_1' in actual_genes[3]
-    assert actual_genes[4] == 'ENSG1'
-    assert actual['n_unmapped'] == 2
+        good = ["ENSG1", "ENSG0", "ENSG3", "ENSG1"]
+        actual = mapper.map_gene_identifiers(good)
+        assert actual['mapped_genes'] == good
+        assert actual['n_unmapped'] == 0
 
-    nicknames = ["alice", "hammer", "allie", "kyle", "chuck", "hammer"]
-    actual = mapper.map_gene_identifiers(nicknames)
-    actual_genes = actual['mapped_genes']
-    assert len(actual_genes) == 6
-    assert actual_genes[0] == 'ENSG0'
-    assert actual_genes[1] == 'ENSG2'
-    assert actual_genes[2] == 'ENSG0'
-    assert 'unmapped_2' in actual_genes[3]
-    assert actual_genes[4] == 'ENSG3'
-    assert actual_genes[5] == 'ENSG2'
-    assert actual['n_unmapped'] == 1
+        names = ["charlie", "alice", "zachary", "mark", "robert"]
+        actual = mapper.map_gene_identifiers(names)
+        actual_genes = actual['mapped_genes']
+        assert len(actual_genes) == 5
+        assert actual_genes[0] == 'ENSG3'
+        assert actual_genes[1] == 'ENSG0'
+        assert 'unmapped_0' in actual_genes[2]
+        assert 'unmapped_1' in actual_genes[3]
+        assert actual_genes[4] == 'ENSG1'
+        assert actual['n_unmapped'] == 2
+
+        nicknames = [
+            "alice",
+            "hammer",
+            "allie",
+            "kyle",
+            "chuck",
+            "hammer"
+        ]
+        actual = mapper.map_gene_identifiers(nicknames)
+        actual_genes = actual['mapped_genes']
+        assert len(actual_genes) == 6
+        assert actual_genes[0] == 'ENSG0'
+        assert actual_genes[1] == 'ENSG2'
+        assert actual_genes[2] == 'ENSG0'
+        assert 'unmapped_2' in actual_genes[3]
+        assert actual_genes[4] == 'ENSG3'
+        assert actual_genes[5] == 'ENSG2'
+        assert actual['n_unmapped'] == 1
 
 
 def test_gene_id_mapper_strict(map_data_fixture):
@@ -105,20 +117,24 @@ def test_is_ens():
 
 
 def test_suffix_clipping():
-    data = {
-        "alice": "ENSG0",
-        "allie": "ENSG0",
-        "robert": "ENSG1",
-        "hammer": "ENSG2",
-        "charlie": "ENSG3",
-        "chuck": "ENSG3"
-    }
-    mapper = GeneIdMapper(data=data)
-    input_arr = ['hammer', 'chuck', 'allie', 'ENSG555.7', 'robert']
-    expected = ['ENSG2', 'ENSG3', 'ENSG0', 'ENSG555', 'ENSG1']
-    actual = mapper.map_gene_identifiers(input_arr)
-    assert actual['mapped_genes'] == expected
-    assert actual['n_unmapped'] == 0
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        data = {
+            "alice": "ENSG0",
+            "allie": "ENSG0",
+            "robert": "ENSG1",
+            "hammer": "ENSG2",
+            "charlie": "ENSG3",
+            "chuck": "ENSG3"
+        }
+        mapper = GeneIdMapper(data=data)
+        input_arr = ['hammer', 'chuck', 'allie', 'ENSG555.7', 'robert']
+        expected = ['ENSG2', 'ENSG3', 'ENSG0', 'ENSG555', 'ENSG1']
+        actual = mapper.map_gene_identifiers(input_arr)
+        assert actual['mapped_genes'] == expected
+        assert actual['n_unmapped'] == 0
 
 
 @pytest.mark.parametrize('strict', [True, False])
@@ -126,12 +142,14 @@ def test_when_all_bad(strict):
     """
     Make sure an error is raised when no genes can be mapped
     """
+
     mapper = GeneIdMapper.from_mouse()
     gene_id_list = ['garbage_a', 'garbage_b', 'garbage_c']
     msg = (
         "Could not map any of your genes to EnsemblID\n"
         "First five gene identifiers are:\n"
-        "\['garbage_a', 'garbage_b', 'garbage_c'\]"
+        "['garbage_a', 'garbage_b', 'garbage_c']"
     )
-    with pytest.raises(RuntimeError, match=msg):
+
+    with pytest.raises(RuntimeError, match=re.escape(msg)):
         mapper.map_gene_identifiers(gene_id_list, strict=strict)

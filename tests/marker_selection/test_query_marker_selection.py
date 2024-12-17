@@ -4,6 +4,7 @@ import h5py
 import json
 import numpy as np
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -60,7 +61,10 @@ def precomputed_fixture(
         prefix='precomputed__',
         suffix='.h5')
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
 
     with h5py.File(h5_path, 'w') as dst:
         dst.create_dataset(
@@ -225,9 +229,11 @@ def test_query_marker_function(
         pair_to_idx_fixture,
         marker_raw_fixture):
 
-    with h5py.File(precomputed_fixture, 'r') as src:
-        taxonomy_tree = TaxonomyTree(
-            data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with h5py.File(precomputed_fixture, 'r') as src:
+            taxonomy_tree = TaxonomyTree(
+                data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
     with h5py.File(reference_marker_fixture, 'r') as src:
         query_gene_names = json.loads(src['gene_names'][()].decode('utf-8'))

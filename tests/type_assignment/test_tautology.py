@@ -11,6 +11,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -134,12 +135,17 @@ def query_fixture(
         prefix='query_',
         suffix='.h5ad')
 
-    a = anndata.AnnData(
-        X=x_matrix,
-        obs=obs_df,
-        var=var_df,
-        dtype=x_matrix.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a = anndata.AnnData(
+            X=x_matrix,
+            obs=obs_df,
+            var=var_df,
+            dtype=x_matrix.dtype)
+
     a.write_h5ad(anndata_path)
+
     return anndata_path
 
 
@@ -194,8 +200,10 @@ def test_tautological_assignment(
     Test that if the query data *is* the mean gene expression profiles,
     we get the exact assignments out that we expected
     """
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
+        taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
 
     factor = 0.9
     bootstrap_factor_lookup = {

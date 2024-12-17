@@ -10,6 +10,7 @@ import os
 import tempfile
 import json
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,

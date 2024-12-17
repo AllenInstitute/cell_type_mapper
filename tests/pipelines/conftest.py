@@ -10,6 +10,7 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -275,10 +276,15 @@ def h5ad_path_fixture(
 
     csr = scipy_sparse.csr_matrix(cell_x_gene_fixture)
 
-    a_data = anndata.AnnData(X=csr,
-                             obs=obs,
-                             var=var,
-                             dtype=csr.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=csr,
+            obs=obs,
+            var=var,
+            dtype=csr.dtype)
+
     a_data.write_h5ad(a_data_path)
 
     return a_data_path
@@ -343,10 +349,14 @@ def query_h5ad_path_fixture(
                 for g in query_genes]
     var = pd.DataFrame(var_data).set_index('gene_name')
 
-    a_data = anndata.AnnData(
-                    X=x_data,
-                    var=var,
-                    dtype=x_data.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+                        X=x_data,
+                        var=var,
+                        dtype=x_data.dtype)
+
     a_data.write_h5ad(h5ad_path)
     del a_data
 

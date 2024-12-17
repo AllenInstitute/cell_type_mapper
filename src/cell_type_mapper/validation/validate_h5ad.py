@@ -29,6 +29,10 @@ from cell_type_mapper.validation.utils import (
     get_minmax_x_from_h5ad,
     map_gene_ids_in_var)
 
+from cell_type_mapper.validation.csv_utils import (
+    convert_csv_to_h5ad
+)
+
 
 def validate_h5ad(
         h5ad_path,
@@ -119,7 +123,13 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
-    original_h5ad_path = pathlib.Path(h5ad_path)
+    (original_h5ad_path,
+     write_to_new_path) = convert_csv_to_h5ad(
+         src_path=h5ad_path,
+         log=log
+     )
+
+    has_warnings = write_to_new_path
 
     tmp_h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -147,9 +157,6 @@ def _validate_h5ad(
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
-    write_to_new_path = False
-    has_warnings = False
-
     # check that file can even be open
     try:
         with h5py.File(original_h5ad_path, 'r') as _:
@@ -159,7 +166,7 @@ def _validate_h5ad(
         error_msg += (
             "This h5ad file is corrupted such that it could not "
             "even be opened with h5py. See above for the specific "
-            "error message raised by h5py."
+            f"error message raised by h5py {original_h5ad_path}."
         )
         if log is None:
             raise RuntimeError(error_msg)

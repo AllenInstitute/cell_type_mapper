@@ -11,6 +11,7 @@ import pathlib
 import re
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -26,6 +27,10 @@ from cell_type_mapper.test_utils.h5_utils import (
 
 from cell_type_mapper.utils.anndata_utils import (
     read_uns_from_h5ad
+)
+
+from cell_type_mapper.test_utils.anndata_utils import (
+    write_anndata_x_to_csv
 )
 
 from cell_type_mapper.cli.validate_h5ad import (
@@ -49,6 +54,7 @@ def mouse_var_fixture():
         {'gene_id': 'hammer', 'val': 'uw'}]
 
     return pd.DataFrame(records).set_index('gene_id')
+
 
 @pytest.fixture
 def human_var_fixture():
@@ -95,7 +101,6 @@ def obs_fixture():
 def x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(mouse_var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -104,11 +109,11 @@ def x_fixture(mouse_var_fixture, obs_fixture):
             data[i_row, i_col] = rng.random()*10.0+1.4
     return data
 
+
 @pytest.fixture
 def good_x_fixture(mouse_var_fixture, obs_fixture):
     n_rows = len(obs_fixture)
     n_cols = len(mouse_var_fixture)
-    n_tot = n_rows*n_cols
     data = np.zeros((n_rows, n_cols), dtype=float)
     rng = np.random.default_rng(77123)
     for i_row in range(n_rows):
@@ -163,22 +168,28 @@ def test_validation_cli_on_bad_genes(
         'log_path': log_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-
-    with pytest.raises(RuntimeError, match="Could not find a species"):
-        runner.run()
-
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        with pytest.raises(RuntimeError, match="Could not find a species"):
+            runner.run()
 
 
 @pytest.mark.parametrize(
-        "density,as_layer,round_to_int,specify_path,species,keep_encoding",
-        itertools.product(
-        ("csr", "csc", "array"),
+    "density,as_layer,round_to_int,"
+    "specify_path,species,keep_encoding,"
+    "csv_label_type,csv_label_header",
+    itertools.product(
+        ("csr", "csc", "array", "csv", "gz"),
         (True, False),
         (True, False),
         (True, False),
         ('human', 'mouse'),
-        (True, False)))
+        (True, False),
+        ('string', 'numerical', 'big_numerical', None),
+        (True, False)
+    )
+)
 def test_validation_cli_of_h5ad(
         mouse_var_fixture,
         human_var_fixture,
@@ -190,7 +201,24 @@ def test_validation_cli_of_h5ad(
         round_to_int,
         specify_path,
         species,
-        keep_encoding):
+        keep_encoding,
+        csv_label_type,
+        csv_label_header):
+
+    # some of these combinations are unncessary
+    if density not in ("csv", "gz"):
+        if not csv_label_header:
+            return
+        if csv_label_type != "string":
+            return
+    else:
+        if as_layer:
+            return
+        if not keep_encoding:
+            return
+        if csv_label_header:
+            if csv_label_type is None:
+                return
 
     if species == 'human':
         var_fixture = human_var_fixture
@@ -200,12 +228,21 @@ def test_validation_cli_of_h5ad(
         raise RuntimeError(
             f"Unknown species '{species}'")
 
+    if density not in ('csv', 'gz'):
+        suffix = '.h5ad'
+    else:
+        if density == 'gz':
+            suffix = '.csv.gz'
+        else:
+            suffix = '.csv'
+
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='orig_',
-        suffix='.h5ad')
+        suffix=suffix
+    )
 
-    if density == "array":
+    if density in ("array", "gz", "csv"):
         data = x_fixture
     elif density == "csr":
         data = scipy_sparse.csr_matrix(x_fixture)
@@ -228,7 +265,16 @@ def test_validation_cli_of_h5ad(
         var=var_fixture,
         obs=obs_fixture,
         layers=layers)
-    a_data.write_h5ad(orig_path)
+
+    if density in ("csv", "gz"):
+        write_anndata_x_to_csv(
+            anndata_obj=a_data,
+            dst_path=orig_path,
+            cell_label_header=csv_label_header,
+            cell_label_type=csv_label_type
+        )
+    else:
+        a_data.write_h5ad(orig_path)
 
     md50 = hashlib.md5()
     with open(orig_path, 'rb') as src:
@@ -253,9 +299,7 @@ def test_validation_cli_of_h5ad(
         output_dir = str(tmp_dir_fixture.resolve().absolute())
         valid_path = None
 
-    if keep_encoding:
-        src_path = orig_path
-    else:
+    if not keep_encoding:
         src_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             prefix='no_encoding_',
@@ -265,6 +309,8 @@ def test_validation_cli_of_h5ad(
             src_path=orig_path,
             dst_path=src_path
         )
+    else:
+        src_path = orig_path
 
     config = {
         'h5ad_path': src_path,
@@ -277,8 +323,10 @@ def test_validation_cli_of_h5ad(
         'log_path': log_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     # check that log contains line about mapping to mouse genes
     found_it = False
@@ -297,15 +345,24 @@ def test_validation_cli_of_h5ad(
     int_pattern = re.compile('[0-9]+')
     timestamp = int_pattern.findall(name_parts[-1])[0]
     base_name = pathlib.Path(src_path).name.replace('.h5ad', '')
+
     if specify_path:
         expected_name = pathlib.Path(valid_path).name
+    elif density in ('csv', 'gz'):
+        if density == 'csv':
+            suffix = '.csv'
+        else:
+            suffix = '.csv.gz'
+        expected_name = (
+            f'{base_name.replace(suffix, "")}_VALIDATED_{timestamp}.h5ad'
+        )
     else:
         expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
 
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
-            if density != 'array':
+            if density not in ('array', 'csv', 'gz'):
                 data_key = 'X/data'
             else:
                 data_key = 'X'
@@ -313,16 +370,23 @@ def test_validation_cli_of_h5ad(
 
     actual = anndata.read_h5ad(result_path, backed='r')
     assert actual.uns['AIBS_CDM_n_mapped_genes'] == 3
-    pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+
+    if density not in ('csv', 'gz'):
+        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+    elif csv_label_type == 'string':
+        np.testing.assert_array_equal(
+            obs_fixture.index.values,
+            actual.obs.index.values
+        )
     actual_x = actual.X
 
-    if density != "array":
+    if density not in ("array", "csv", "gz"):
 
         # Sometimes X comes out as a scipy.sparse matrix,
         # sometimes it is an anndata SparseDataset. Unclear
         # why.
         if not hasattr(actual_x, 'toarray'):
-           actual_x = actual_x[()]
+            actual_x = actual_x[()]
         actual_x = actual_x.toarray()
 
         # check that we can at least read back the
@@ -367,9 +431,18 @@ def test_validation_cli_of_h5ad(
                 rtol=1.0e-7)
 
     actual_var = actual.var
-    assert len(actual_var.columns) == 2
-    assert list(actual_var['gene_id'].values) == list(var_fixture.index.values)
-    assert list(actual_var['val'].values) == list(var_fixture.val.values)
+
+    if density not in ("csv", "gz"):
+        assert len(actual_var.columns) == 2
+        assert (
+            list(actual_var['gene_id'].values)
+            == list(var_fixture.index.values)
+        )
+        assert (
+            list(actual_var['val'].values)
+            == list(var_fixture.val.values)
+        )
+
     actual_idx = list(actual_var.index.values)
     assert len(actual_idx) == 4
     if species == 'mouse':
@@ -397,7 +470,7 @@ def test_validation_cli_of_h5ad(
 
 @pytest.mark.parametrize(
         "density,specify_path",
-        itertools.product(("csr", "csc", "array"),(True, False)))
+        itertools.product(("csr", "csc", "array"), (True, False)))
 def test_validation_cli_of_good_h5ad(
         good_var_fixture,
         obs_fixture,
@@ -447,8 +520,10 @@ def test_validation_cli_of_good_h5ad(
         'valid_h5ad_path': valid_path
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -462,7 +537,7 @@ def test_validation_cli_of_good_h5ad(
             assert actual.uns[k] == original.uns[k]
         actual_x = actual.X[()]
         original_x = original.X[()]
-        assert type(actual_x) == type(original_x)
+        assert isinstance(actual_x, type(original_x))
         if not isinstance(actual_x, np.ndarray):
             actual_x = actual_x.toarray()
             original_x = original_x.toarray()
@@ -528,8 +603,10 @@ def test_validation_cli_of_h5ad_preserve_norm(
         'round_to_int': False
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -630,8 +707,10 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'round_to_int': not preserve_norm
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     output_manifest = json.load(open(output_json, 'rb'))
     result_path = output_manifest['valid_h5ad_path']
@@ -655,7 +734,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
         # sometimes it is an anndata SparseDataset. Unclear
         # why.
         if not hasattr(actual_x, 'toarray'):
-           actual_x = actual_x[()]
+            actual_x = actual_x[()]
         actual_x = actual_x.toarray()
 
         # check that we can at least read back the
@@ -704,7 +783,7 @@ def test_validation_cli_on_ensembl_dot(
     obs = pd.DataFrame(
         [{'cell': '1'}, {'cell': 'b'}]
     ).set_index('cell')
-    x = rng.random((2,2))
+    x = rng.random((2, 2))
 
     mouse_var_data = [
         {'gene_id': 'ENSMUSG00000051951.5'},
@@ -732,17 +811,24 @@ def test_validation_cli_on_ensembl_dot(
         json_path = mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.json')
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data={
-                'h5ad_path': input_path,
-                'output_dir': str(tmp_dir_fixture),
-                'output_json': json_path
-            })
-        runner.run()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            runner = ValidateH5adRunner(
+                args=[],
+                input_data={
+                    'h5ad_path': input_path,
+                    'output_dir': str(tmp_dir_fixture),
+                    'output_json': json_path
+                })
+            runner.run()
+
         with open(json_path, 'rb') as src:
             output_config = json.load(src)
-        new_h5ad = anndata.read_h5ad(output_config['valid_h5ad_path'], backed='r')
+        new_h5ad = anndata.read_h5ad(
+            output_config['valid_h5ad_path'],
+            backed='r'
+        )
         assert list(new_h5ad.var.index.values) == expected
         assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)
 
@@ -808,8 +894,10 @@ def test_roundtrip_of_validation_cli(
         'round_to_int': not preserve_norm
     }
 
-    runner = ValidateH5adRunner(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        runner = ValidateH5adRunner(args=[], input_data=config)
+        runner.run()
 
     with open(output_json_path, 'rb') as src:
         output_json = json.load(src)
@@ -827,8 +915,11 @@ def test_roundtrip_of_validation_cli(
     new_config.pop('output_json')
     new_config['output_json'] = new_output_json_path
 
-    roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
-    roundtrip_runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
+        roundtrip_runner.run()
+
     with open(new_output_json_path, 'rb') as src:
         new_output_json = json.load(src)
     assert new_output_json['valid_h5ad_path'] != output_json['valid_h5ad_path']

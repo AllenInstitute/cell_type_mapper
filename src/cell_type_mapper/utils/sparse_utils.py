@@ -478,7 +478,8 @@ def remap_csr_matrix(
                 t0=t0,
                 tot_chunks=row_chunk[1]-row_chunk[0],
                 i_chunk=row_ct,
-                unit='hr',
+                chunk_unit='rows',
+                unit=None,
                 nametag=process_name)
 
     _update_buffers(

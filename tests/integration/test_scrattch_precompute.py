@@ -114,11 +114,11 @@ def taxonomy_data_fixture(raw_cell_by_gene_fixture):
 @pytest.fixture(scope='module')
 def log2_cell_by_gene_fixture(
         raw_cell_by_gene_fixture):
-   result = dict()
-   for cell in raw_cell_by_gene_fixture:
-       cpm = convert_to_cpm(np.array([raw_cell_by_gene_fixture[cell]]))
-       result[cell] = np.log2(1.0+cpm[0, :])
-   return result        
+    result = dict()
+    for cell in raw_cell_by_gene_fixture:
+        cpm = convert_to_cpm(np.array([raw_cell_by_gene_fixture[cell]]))
+        result[cell] = np.log2(1.0+cpm[0, :])
+    return result
 
 
 @pytest.fixture(scope='module')
@@ -136,12 +136,14 @@ def cluster_stats_fixture(
     cluster_list = list(cell_to_cluster.values())
     cluster_list.sort()
     for cluster in cluster_list:
-        result[cluster] = {'n_cells': 0,
-                        'sum': np.zeros(n_genes_fixture),
-                        'sumsq': np.zeros(n_genes_fixture),
-                        'ge1': np.zeros(n_genes_fixture),
-                        'gt0': np.zeros(n_genes_fixture),
-                        'gt1': np.zeros(n_genes_fixture)}
+        result[cluster] = {
+            'n_cells': 0,
+            'sum': np.zeros(n_genes_fixture),
+            'sumsq': np.zeros(n_genes_fixture),
+            'ge1': np.zeros(n_genes_fixture),
+            'gt0': np.zeros(n_genes_fixture),
+            'gt1': np.zeros(n_genes_fixture)
+        }
 
     for cell in cell_to_cluster:
         cluster = cell_to_cluster[cell]
@@ -177,9 +179,9 @@ def obs_fixture(taxonomy_data_fixture, taxonomy_fixture):
             'cluster': cluster,
             'subclass': subclass,
             'class': class_}
-        if class_ == 'class_0':
-            n_c0 += 1
+
         data.append(this)
+
     obs = pd.DataFrame(data).set_index('cell_id')
     return obs
 
@@ -204,7 +206,7 @@ def create_raw_h5ad(
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir,
-        prefix=f'raw_scrattch_',
+        prefix='raw_scrattch_',
         suffix='.h5ad')
 
     var = pd.DataFrame(
@@ -238,9 +240,11 @@ def create_raw_h5ad(
     src.write_h5ad(h5ad_path)
     return h5ad_path, config
 
+
 @pytest.fixture
 def normalization_fixture(request):
     return request.param
+
 
 @pytest.fixture
 def density_fixture(request):
@@ -272,7 +276,7 @@ def create_log2_h5ad(
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir,
-        prefix=f'raw_scrattch_',
+        prefix='raw_scrattch_',
         suffix='.h5ad')
 
     var = pd.DataFrame(
@@ -424,14 +428,19 @@ def test_precompute_scrattch_cli(
     for level in actual_taxonomy.hierarchy:
         actual_nodes = actual_taxonomy.nodes_at_level(level)
         for node in taxonomy_fixture.nodes_at_level(level):
-            expected_children = taxonomy_fixture.children(level=level, node=node)
+            expected_children = taxonomy_fixture.children(
+                level=level,
+                node=node
+            )
             if len(expected_children) == 0:
                 assert node not in actual_nodes
             else:
-               if level != actual_taxonomy.leaf_level:
+                if level != actual_taxonomy.leaf_level:
                     # cells in actual_taxonomy are referred to by row number;
                     # in taxonomy_fixture they are referred to by cell_id
-                    assert set(actual_taxonomy.children(level=level, node=node)) == set(expected_children)
+                    assert set(
+                        actual_taxonomy.children(level=level, node=node)) \
+                        == set(expected_children)
 
 
 @pytest.mark.parametrize(
@@ -451,39 +460,39 @@ def test_precompute_scrattch_cli_clobber(
         layer_fixture,
         normalization_fixture):
 
-        input_path = h5ad_path_fixture[0]
-        input_config = h5ad_path_fixture[1]
+    input_path = h5ad_path_fixture[0]
+    input_config = h5ad_path_fixture[1]
 
-        layer = input_config['layer']
-        if layer == 'raw':
-            layer = 'raw/X'
+    layer = input_config['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
 
-        output_path = pathlib.Path(
-                mkstemp_clean(
-                    dir=tmp_dir_fixture,
-                    prefix='precompute_from_scrattch_',
-                    suffix='.h5'))
+    output_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='precompute_from_scrattch_',
+                suffix='.h5'))
 
-        # tempfile will have already created it
-        assert output_path.exists()
+    # tempfile will have already created it
+    assert output_path.exists()
 
-        config = {
-            'h5ad_path': input_path,
-            'n_processors': 1,
-            'normalization': 'raw',
-            'tmp_dir': tmp_dir_fixture,
-            'output_path': str(output_path),
-            'hierarchy': ['class', 'subclass', 'cluster'],
-            'clobber': False,
-            'layer': layer
-        }
+    config = {
+        'h5ad_path': input_path,
+        'n_processors': 1,
+        'normalization': 'raw',
+        'tmp_dir': tmp_dir_fixture,
+        'output_path': str(output_path),
+        'hierarchy': ['class', 'subclass', 'cluster'],
+        'clobber': False,
+        'layer': layer
+    }
 
-        msg = 'already exists. To overwrite, run with clobber=True'
-        with pytest.raises(RuntimeError, match=msg):
-            runner = PrecomputationScrattchRunner(
-                args=[],
-                input_data=config)
-            runner.run()
+    msg = 'already exists. To overwrite, run with clobber=True'
+    with pytest.raises(RuntimeError, match=msg):
+        runner = PrecomputationScrattchRunner(
+            args=[],
+            input_data=config)
+        runner.run()
 
 
 @pytest.mark.parametrize(
@@ -556,7 +565,8 @@ def test_roundtrip_scrattch_config(
         with h5py.File(test_path, 'r') as test:
             assert test['cluster_to_row'][()] == baseline['cluster_to_row'][()]
             test_tree = json.loads(test['taxonomy_tree'][()].decode('utf-8'))
-            base_tree = json.loads(baseline['taxonomy_tree'][()].decode('utf-8'))
+            base_tree = json.loads(
+                baseline['taxonomy_tree'][()].decode('utf-8'))
             test_tree.pop('metadata')
             base_tree.pop('metadata')
             assert test_tree == base_tree

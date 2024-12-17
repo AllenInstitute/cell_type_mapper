@@ -16,6 +16,7 @@ import pathlib
 import scipy.sparse
 import shutil
 import tempfile
+import warnings
 
 from cell_type_mapper.data.human_gene_id_lookup import (
     human_gene_id_lookup)
@@ -25,7 +26,12 @@ from cell_type_mapper.utils.anndata_utils import (
 )
 
 from cell_type_mapper.test_utils.anndata_utils import (
-    create_h5ad_without_encoding_type
+    create_h5ad_without_encoding_type,
+    write_anndata_x_to_csv
+)
+
+from cell_type_mapper.test_utils.hierarchical_mapping import (
+    assert_mappings_equal
 )
 
 from cell_type_mapper.utils.output_utils import (
@@ -42,9 +48,6 @@ from cell_type_mapper.test_utils.cloud_safe import (
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
-
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
 
 from cell_type_mapper.cli.reference_markers import (
     ReferenceMarkerRunner)
@@ -119,16 +122,26 @@ def noisy_query_h5ad_fixture(
     """
     var_data = [
         {'gene_name': g, 'garbage': ii}
-         for ii, g in enumerate(query_gene_names)]
+        for ii, g in enumerate(query_gene_names)
+    ]
 
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
-    a_data = anndata.AnnData(
-        X=noisy_query_cell_x_gene_fixture,
-        var=var,
-        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-        dtype=noisy_query_cell_x_gene_fixture.dtype)
+    obs = pd.DataFrame(
+        [{'cell_id': f'c_{ii}'}
+         for ii in range(noisy_query_cell_x_gene_fixture.shape[0])]
+    ).set_index('cell_id')
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=noisy_query_cell_x_gene_fixture,
+            var=var,
+            obs=obs,
+            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
+            dtype=noisy_query_cell_x_gene_fixture.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -167,7 +180,8 @@ def baseline_mapping_fixture(
         'type_assignment': {
             'normalization': 'raw',
             'rng_seed': 777,
-            'bootstrap_factor': 0.5},
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
         'extended_result_path': json_output,
         'csv_result_path': csv_output,
         'summary_metadata_path': None,
@@ -175,11 +189,14 @@ def baseline_mapping_fixture(
         'nodes_to_drop': None
     }
 
-    runner = OnTheFlyMapper(
-        args=[],
-        input_data=config
-    )
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(
+            args=[],
+            input_data=config
+        )
+        runner.run()
 
     return {
         'json': json_output,
@@ -222,7 +239,7 @@ def human_gene_data_fixture(
         replace=False
     )
     gene_map = {
-        g:m for g, m in zip(genes_to_map, chosen_labels)
+        g: m for g, m in zip(genes_to_map, chosen_labels)
     }
 
     new_precompute = mkstemp_clean(
@@ -288,10 +305,6 @@ def test_query_pipeline(
     output_dir = pathlib.Path(tempfile.mkdtemp(dir=tmp_dir_fixture))
     assert len([n for n in output_dir.iterdir()]) == 0
 
-    reference_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='reference_markers_',
-        suffix='.h5')
     query_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='query_markers_',
@@ -305,10 +318,13 @@ def test_query_pipeline(
         'output_dir': str(output_dir)
     }
 
-    ref_runner = ReferenceMarkerRunner(
-        args=[],
-        input_data=reference_config)
-    ref_runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ref_runner = ReferenceMarkerRunner(
+            args=[],
+            input_data=reference_config)
+        ref_runner.run()
 
     assert len([n for n in output_dir.iterdir()]) == 1
     ref_path = [n for n in output_dir.iterdir()][0]
@@ -325,15 +341,17 @@ def test_query_pipeline(
         'tmp_dir': str(tmp_dir_fixture)
     }
 
-    query_runner = QueryMarkerRunner(
-        args=[],
-        input_data=query_config)
-    query_runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        query_runner = QueryMarkerRunner(
+            args=[],
+            input_data=query_config)
+        query_runner.run()
 
     with open(query_path, 'rb') as src:
         markers = json.load(src)
     assert isinstance(markers, dict)
-
 
 
 @pytest.mark.parametrize(
@@ -393,8 +411,11 @@ def test_otf_smoke(
         'nodes_to_drop': None
     }
 
-    runner = OnTheFlyMapper(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
 
     result = json.load(open(output_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in result['log'][-2]
@@ -474,7 +495,6 @@ def test_otf_no_markers(
         runner.run()
 
 
-
 @pytest.mark.parametrize(
     "nodes_to_drop",
     [
@@ -550,8 +570,11 @@ def test_otf_drop_nodes(
             'nodes_to_drop': drop_nodes
         }
 
-        runner = OnTheFlyMapper(args=[], input_data=config)
-        runner.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = OnTheFlyMapper(args=[], input_data=config)
+            runner.run()
 
     hasher = hashlib.md5()
     with open(precomputed_path_fixture, 'rb') as src:
@@ -573,8 +596,6 @@ def test_otf_drop_nodes(
     assert munged['taxonomy_tree'] == dropped['taxonomy_tree']
 
 
-
-
 @pytest.mark.parametrize(
     "nodes_to_drop",
     [None,
@@ -589,139 +610,162 @@ def test_otf_config_consistency(
     Test that you can just pass the config file from the mapping
     result JSON back into the module, and get the same result.
     """
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    hdf5_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5'
-    )
-    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+        hdf5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5'
+        )
+        this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    base_config = {
-        'n_processors': 3,
-        'tmp_dir': this_tmp,
-        'precomputed_stats': {'path': str(noisier_precomputed_path_fixture)},
-        'drop_level': None,
-        'query_path': str(raw_query_h5ad_fixture),
-        'query_markers': {
-            'n_per_utility': 30
-        },
-        'reference_markers': {
-            'log2_fold_min_th': 0.8,
-            'q1_th': 0.5,
-            'q1_min_th': 0.1,
-            'qdiff_min_th': 0.1
-        },
-        'type_assignment': {
-            'normalization': 'raw',
-            'rng_seed': 11235,
-            'bootstrap_factor': 0.4},
-        'summary_metadata_path': None,
-        'cloud_safe': False,
-        'nodes_to_drop': nodes_to_drop,
-        'hdf5_result_path': hdf5_path
-    }
+        base_config = {
+            'n_processors': 3,
+            'tmp_dir': this_tmp,
+            'precomputed_stats': {
+                'path': str(noisier_precomputed_path_fixture)
+            },
+            'drop_level': None,
+            'query_path': str(raw_query_h5ad_fixture),
+            'query_markers': {
+                'n_per_utility': 30
+            },
+            'reference_markers': {
+                'log2_fold_min_th': 0.8,
+                'q1_th': 0.5,
+                'q1_min_th': 0.1,
+                'qdiff_min_th': 0.1
+            },
+            'type_assignment': {
+                'normalization': 'raw',
+                'rng_seed': 11235,
+                'bootstrap_factor': 0.4},
+            'summary_metadata_path': None,
+            'cloud_safe': False,
+            'nodes_to_drop': nodes_to_drop,
+            'hdf5_result_path': hdf5_path
+        }
 
-    baseline_output = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a_',
-        suffix='.json'
-    )
+        baseline_output = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='output_a_',
+            suffix='.json'
+        )
 
-    base_config['extended_result_path'] = baseline_output
+        base_config['extended_result_path'] = baseline_output
 
-    runner = OnTheFlyMapper(args=[], input_data=base_config)
-    runner.run()
-    baseline_mapping = json.load(open(baseline_output, 'rb'))
+        runner = OnTheFlyMapper(args=[], input_data=base_config)
+        runner.run()
+        baseline_mapping = json.load(open(baseline_output, 'rb'))
 
-    blob = hdf5_to_blob(hdf5_path)
-    assert blob['config'] == baseline_mapping['config']
-    assert blob['metadata'] == baseline_mapping['metadata']
+        blob = hdf5_to_blob(hdf5_path)
+        assert blob['config'] == baseline_mapping['config']
+        assert blob['metadata'] == baseline_mapping['metadata']
 
-    test_config = copy.deepcopy(baseline_mapping['config'])
-    test_output = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_a2_',
-        suffix='.json'
-    )
-    test_config['extended_result_path'] = test_output
-    runner = OnTheFlyMapper(args=[], input_data=test_config)
-    runner.run()
-    test_mapping = json.load(open(test_output, 'rb'))
-    for k in ('results', 'marker_genes', 'taxonomy_tree'):
-        assert test_mapping[k] == baseline_mapping[k]
+        test_config = copy.deepcopy(baseline_mapping['config'])
+        test_output = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='output_a2_',
+            suffix='.json'
+        )
+        test_config['extended_result_path'] = test_output
+        runner = OnTheFlyMapper(args=[], input_data=test_config)
+        runner.run()
+        test_mapping = json.load(open(test_output, 'rb'))
+        for k in ('results', 'marker_genes', 'taxonomy_tree'):
+            assert test_mapping[k] == baseline_mapping[k]
 
-    update_config_list = [
-        {'n_processors': 2},
-        {'type_assignment': {'rng_seed': 566122}},
-        {'reference_markers': {
+        update_config_list = [
+            {'n_processors': 2},
+            {'type_assignment': {'rng_seed': 566122}},
+            {'reference_markers': {
                 'log2_fold_min_th': 0.9,
                 'q1_th': 0.9,
                 'q1_min_th': 0.8,
                 'qdiff_min_th': 0.5
-            }
-        },
-        {'query_markers': {'n_per_utility': 5}}
+              }
+             },
+            {'query_markers': {'n_per_utility': 5}}
 
-    ]
-    for update_config in update_config_list:
-        test_config = copy.deepcopy(base_config)
-        test_output = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.json'
-        )
-        test_config['extended_result_path'] = test_output
+        ]
+        for update_config in update_config_list:
+            test_config = copy.deepcopy(base_config)
+            test_output = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'
+            )
+            test_config['extended_result_path'] = test_output
 
-        # change test_config parametrs
-        for k in update_config:
-            if not isinstance(update_config[k], dict):
-                assert k in test_config
-                test_config[k] = update_config[k]
+            # change test_config parametrs
+            for k in update_config:
+                if not isinstance(update_config[k], dict):
+                    assert k in test_config
+                    test_config[k] = update_config[k]
+                else:
+                    for k2 in update_config[k]:
+                        assert k2 in test_config[k]
+                        test_config[k][k2] = update_config[k][k2]
+
+            runner = OnTheFlyMapper(args=[], input_data=test_config)
+            runner.run()
+            test_mapping = json.load(open(test_output, 'rb'))
+            blob = hdf5_to_blob(test_config['hdf5_result_path'])
+            assert blob['config'] == test_mapping['config']
+            assert blob['metadata'] == test_mapping['metadata']
+
+            # make sure result changed where expected
+            assert test_mapping['results'] != baseline_mapping['results']
+            assert (
+                test_mapping['taxonomy_tree']
+                == baseline_mapping['taxonomy_tree']
+            )
+
+            if 'reference_markers' in update_config or \
+                    'query_markers' in update_config:
+
+                assert (
+                    test_mapping['marker_genes']
+                    != baseline_mapping['marker_genes']
+                )
+
             else:
-                for k2 in update_config[k]:
-                    assert k2 in test_config[k]
-                    test_config[k][k2] = update_config[k][k2]
+                assert (
+                    test_mapping['marker_genes']
+                    == baseline_mapping['marker_genes']
+                )
 
-        runner = OnTheFlyMapper(args=[], input_data=test_config)
-        runner.run()
-        test_mapping = json.load(open(test_output, 'rb'))
-        blob = hdf5_to_blob(test_config['hdf5_result_path'])
-        assert blob['config'] == test_mapping['config']
-        assert blob['metadata'] == test_mapping['metadata']
-
-        # make sure result changed where expected
-        assert test_mapping['results'] != baseline_mapping['results']
-        assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
-        if 'reference_markers' in update_config or 'query_markers' in update_config:
-            assert test_mapping['marker_genes'] != baseline_mapping['marker_genes']
-        else:
-            assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
-
-        # Make sure test_mapping recorded a config that allows you to
-        # reproduce its results
-        second_test_config = copy.deepcopy(test_mapping['config'])
-        second_test_output = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.json'
-        )
-        second_test_config['extended_result_path'] = second_test_output
-        runner = OnTheFlyMapper(args=[], input_data=second_test_config)
-        runner.run()
-        second_test_mapping = json.load(open(second_test_output, 'rb'))
-        for k in ('results', 'taxonomy_tree', 'marker_genes'):
-            assert second_test_mapping[k] == test_mapping[k]
+            # Make sure test_mapping recorded a config that allows you to
+            # reproduce its results
+            second_test_config = copy.deepcopy(test_mapping['config'])
+            second_test_output = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                suffix='.json'
+            )
+            second_test_config['extended_result_path'] = second_test_output
+            runner = OnTheFlyMapper(args=[], input_data=second_test_config)
+            runner.run()
+            second_test_mapping = json.load(open(second_test_output, 'rb'))
+            for k in ('results', 'taxonomy_tree', 'marker_genes'):
+                assert second_test_mapping[k] == test_mapping[k]
 
 
 @pytest.mark.parametrize(
-    'keep_encoding,density',
-    itertools.product(
-        [True, False],
-        ['csc', 'csr', 'dense']))
+    'keep_encoding,density,file_type',
+    [(True, 'dense', '.h5ad'),
+     (False, 'dense', '.h5ad'),
+     (True, 'csr', '.h5ad'),
+     (False, 'csr', '.h5ad'),
+     (True, 'csc', '.h5ad'),
+     (False, 'csc', '.h5ad'),
+     (True, 'dense', '.csv.gz'),
+     (True, 'dense', '.csv')])
 def test_online_workflow_OTF(
         tmp_dir_fixture,
         keep_encoding,
         human_gene_data_fixture,
         density,
-        baseline_mapping_fixture):
+        baseline_mapping_fixture,
+        file_type):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper
@@ -732,14 +776,26 @@ def test_online_workflow_OTF(
     precompute_path = human_gene_data_fixture['precompute']
     query_path = human_gene_data_fixture[density]
 
-    if not keep_encoding:
+    if file_type == '.h5ad':
+        if not keep_encoding:
+            new_path = mkstemp_clean(
+                dir=tmp_dir,
+                prefix='no_encoding_',
+                suffix='.h5ad'
+            )
+            create_h5ad_without_encoding_type(
+                src_path=query_path,
+                dst_path=new_path
+            )
+            query_path = new_path
+    else:
         new_path = mkstemp_clean(
             dir=tmp_dir,
-            prefix='no_encoding_',
-            suffix='.h5ad'
+            prefix='query_as_csv_',
+            suffix=file_type
         )
-        create_h5ad_without_encoding_type(
-            src_path=query_path,
+        write_anndata_x_to_csv(
+            anndata_obj=anndata.read_h5ad(query_path, backed='r'),
             dst_path=new_path
         )
         query_path = new_path
@@ -762,11 +818,14 @@ def test_online_workflow_OTF(
         'output_json': output_json
     }
 
-    runner = ValidateH5adRunner(
-        args=[],
-        input_data=validation_config
-    )
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config
+        )
+        runner.run()
 
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -782,7 +841,7 @@ def test_online_workflow_OTF(
     metadata_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='summary_metadata_',
-            suffix='.json')
+        suffix='.json')
 
     config = {
         'n_processors': 3,
@@ -795,7 +854,8 @@ def test_online_workflow_OTF(
         'type_assignment': {
             'normalization': 'raw',
             'rng_seed': 777,
-            'bootstrap_factor': 0.5},
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
         'extended_result_path': output_path,
         'csv_result_path': csv_path,
         'summary_metadata_path': metadata_path,
@@ -803,8 +863,11 @@ def test_online_workflow_OTF(
         'nodes_to_drop': None
     }
 
-    runner = OnTheFlyMapper(args=[], input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
 
     baseline_df = pd.read_csv(
         baseline_mapping_fixture['csv'],
@@ -820,4 +883,144 @@ def test_online_workflow_OTF(
 
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(output_path, 'rb'))
-    assert baseline['results'] == test['results']
+    assert_mappings_equal(baseline['results'], test['results'])
+
+
+@pytest.mark.parametrize(
+    'cell_label_header,cell_label_type,suffix',
+    itertools.product(
+        [True, False],
+        [None, 'string', 'numerical', 'big_numerical'],
+        ['.csv', '.csv.gz']
+    ))
+def test_online_workflow_OTF_csv_shape(
+        tmp_dir_fixture,
+        human_gene_data_fixture,
+        baseline_mapping_fixture,
+        cell_label_header,
+        cell_label_type,
+        suffix):
+    """
+    Test the validation-through-mapping flow of simulated human
+    data passing through the on-the-fly mapper. Specifically, check
+    different CSV schemas.
+    """
+
+    if cell_label_header:
+        if cell_label_type is None:
+            return
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precompute_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture['dense']
+
+    new_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='query_as_csv_',
+        suffix=suffix
+    )
+    write_anndata_x_to_csv(
+        anndata_obj=anndata.read_h5ad(query_path, backed='r'),
+        dst_path=new_path,
+        cell_label_header=cell_label_header,
+        cell_label_type=cell_label_type
+    )
+    query_path = new_path
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_',
+        suffix='.h5ad'
+    )
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validation_output_',
+        suffix='.json'
+    )
+
+    validation_config = {
+        'h5ad_path': query_path,
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config
+        )
+        runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='mapping_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_mapping_',
+        suffix='.csv'
+    )
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='summary_metadata_',
+        suffix='.json')
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precompute_path)},
+        'drop_level': None,
+        'query_path': validated_path,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
+        'extended_result_path': output_path,
+        'csv_result_path': csv_path,
+        'summary_metadata_path': metadata_path,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    baseline_df = pd.read_csv(
+        baseline_mapping_fixture['csv'],
+        comment='#'
+    )
+
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#'
+    )
+
+    compare_cell_id = False
+    if cell_label_type is not None:
+        if cell_label_type == 'string':
+            compare_cell_id = True
+
+    if not compare_cell_id:
+        test_df.drop(['cell_id'], axis='columns', inplace=True)
+        baseline_df.drop(['cell_id'], axis='columns', inplace=True)
+
+    pd.testing.assert_frame_equal(test_df, baseline_df)
+
+    baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
+    test = json.load(open(output_path, 'rb'))
+    assert_mappings_equal(
+        baseline['results'],
+        test['results'],
+        compare_cell_id=compare_cell_id)

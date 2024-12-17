@@ -15,7 +15,6 @@ import pytest
 
 import anndata
 import copy
-import h5py
 import hashlib
 import itertools
 import json
@@ -25,12 +24,11 @@ import os
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
-import shutil
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
@@ -41,19 +39,9 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
 
-from cell_type_mapper.diff_exp.markers import (
-    find_markers_for_all_taxonomy_pairs)
-
 from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
 )
-
-from cell_type_mapper.type_assignment.marker_cache_v2 import (
-    create_marker_cache_from_reference_markers,
-    serialize_markers)
-
-from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
@@ -85,11 +73,14 @@ def noisy_raw_reference_h5ad_fixture(
     obs = pd.DataFrame(obs_records_fixture)
     obs = obs.set_index('cell_id')
 
-    a_data = anndata.AnnData(
-        X=scipy_sparse.csr_matrix(data),
-        obs=obs,
-        var=var,
-        dtype=int)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=scipy_sparse.csr_matrix(data),
+            obs=obs,
+            var=var,
+            dtype=int)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -99,24 +90,30 @@ def noisy_raw_reference_h5ad_fixture(
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
 
+
 @pytest.fixture(scope='module')
 def noisy_precomputed_stats_fixture(
         tmp_dir_fixture,
         taxonomy_tree_dict,
         noisy_raw_reference_h5ad_fixture):
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
-    output_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix='noisy_precomputed_stats_',
-            suffix='.h5'))
-    precompute_summary_stats_from_h5ad(
-        data_path=noisy_raw_reference_h5ad_fixture,
-        column_hierarchy=None,
-        taxonomy_tree=taxonomy_tree,
-        output_path=output_path,
-        rows_at_a_time=10000,
-        normalization='raw')
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+
+        output_path = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='noisy_precomputed_stats_',
+                suffix='.h5'))
+        precompute_summary_stats_from_h5ad(
+            data_path=noisy_raw_reference_h5ad_fixture,
+            column_hierarchy=None,
+            taxonomy_tree=taxonomy_tree,
+            output_path=output_path,
+            rows_at_a_time=10000,
+            normalization='raw')
 
     return output_path
 
@@ -135,16 +132,20 @@ def noisy_raw_query_h5ad_fixture(
 
     var_data = [
         {'gene_name': g, 'garbage': ii}
-         for ii, g in enumerate(query_gene_names)]
+        for ii, g in enumerate(query_gene_names)
+    ]
 
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
-    a_data = anndata.AnnData(
-        X=data,
-        var=var,
-        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-        dtype=int)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=data,
+            var=var,
+            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
+            dtype=int)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -152,6 +153,7 @@ def noisy_raw_query_h5ad_fixture(
             suffix='.h5ad'))
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
+
 
 @pytest.fixture(scope='module')
 def noisy_marker_gene_lookup_fixture(
@@ -299,17 +301,23 @@ def test_mapping_from_markers_smoke(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     actual = json.load(open(result_path, 'rb'))
 
-    # make sure taxonomy tree was recorded in metadata
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        # make sure taxonomy tree was recorded in metadata
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     expected_tree = taxonomy_tree.to_str(drop_cells=True)
     expected_tree = json.loads(expected_tree)
@@ -344,7 +352,10 @@ def test_mapping_from_markers_smoke(
     assert len(actual['results']) == n_query_cells
 
     input_uns = query_adata.uns
-    assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
+    assert (
+        actual['gene_identifier_mapping']
+        == input_uns['AIBS_CDM_gene_mapping']
+    )
     os.environ[env_var] = ''
 
     with_runners_up = 0
@@ -395,21 +406,36 @@ def test_mapping_from_markers_smoke(
 
             # check consistency of inheritance
             for parent_level in family_tree:
-                assert cell[parent_level]['assignment'] == family_tree[parent_level]
+                assert (
+                    cell[parent_level]['assignment']
+                    == family_tree[parent_level]
+                )
 
             n_runners_up_actual = len(this_level['runner_up_assignment'])
 
             # make sure runners up are unique and do not include the assigned
             # taxon
-            assert this_level['assignment'] not in this_level['runner_up_assignment']
-            assert len(set(this_level['runner_up_assignment'])) == n_runners_up_actual
+            assert (
+                this_level['assignment']
+                not in this_level['runner_up_assignment']
+            )
+            assert (
+                len(set(this_level['runner_up_assignment']))
+                == n_runners_up_actual
+            )
 
             if n_runners_up_actual > max_runners_up:
                 max_runners_up = n_runners_up_actual
             assert n_runners_up_actual <= n_runners_up
 
-            assert len(this_level['runner_up_correlation']) == n_runners_up_actual
-            assert len(this_level['runner_up_probability']) == n_runners_up_actual
+            assert (
+                len(this_level['runner_up_correlation'])
+                == n_runners_up_actual
+            )
+            assert (
+                len(this_level['runner_up_probability'])
+                == n_runners_up_actual
+            )
             if n_runners_up_actual == 0:
                 without_runners_up += 1
                 np.testing.assert_allclose(
@@ -428,11 +454,15 @@ def test_mapping_from_markers_smoke(
                         assert r0 > 0.0
                         assert r0 <= r1
 
-                assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+                assert this_level['runner_up_probability'][0] <= \
+                    this_level['bootstrapping_probability']
 
                 # check that probability sums to <= 1
                 assert this_level['bootstrapping_probability'] < 1.0
-                p_sum = this_level['bootstrapping_probability'] + sum(this_level['runner_up_probability'])
+                p_sum = (
+                    this_level['bootstrapping_probability']
+                    + sum(this_level['runner_up_probability'])
+                )
                 eps = 1.0e-6
                 assert p_sum <= (1.0+eps)
 
@@ -541,11 +571,14 @@ def test_mapping_from_markers_to_query_h5ad(
     else:
         obsm = None
 
-    dst = anndata.AnnData(
-            X=src.X[()],
-            obs=src.obs,
-            var=src.var,
-            obsm=obsm)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+                X=src.X[()],
+                obs=src.obs,
+                var=src.var,
+                obsm=obsm)
 
     dst.write_h5ad(query_path)
 
@@ -608,15 +641,22 @@ def test_mapping_from_markers_to_query_h5ad(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     json_results = json.load(open(result_path, 'rb'))
 
-    taxonomy_tree = TaxonomyTree(data=json_results['taxonomy_tree'])
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=json_results['taxonomy_tree'])
 
     a_data = anndata.read_h5ad(query_path, backed='r')
     obs = a_data.obs
@@ -720,11 +760,14 @@ def test_mapping_from_markers_to_query_h5ad_config_errors(
 
     obsm = {'cdm_mapping': src.obs}
 
-    dst = anndata.AnnData(
-            X=src.X[()],
-            obs=src.obs,
-            var=src.var,
-            obsm=obsm)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+                X=src.X[()],
+                obs=src.obs,
+                var=src.var,
+                obsm=obsm)
 
     dst.write_h5ad(query_path)
 
@@ -735,7 +778,6 @@ def test_mapping_from_markers_to_query_h5ad_config_errors(
             suffix='.json')
     else:
         result_path = None
-
 
     config = dict()
     config['tmp_dir'] = None
@@ -768,16 +810,19 @@ def test_mapping_from_markers_to_query_h5ad_config_errors(
         'n_runners_up': 10
     }
 
-    if error_msg is not None:
-        with pytest.raises(RuntimeError, match=error_msg):
-            FromSpecifiedMarkersRunner(
-                args= [],
-                input_data=config)
-    else:
-        runner = FromSpecifiedMarkersRunner(
-                args= [],
-                input_data=config)
-        runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        if error_msg is not None:
+            with pytest.raises(RuntimeError, match=error_msg):
+                FromSpecifiedMarkersRunner(
+                    args=[],
+                    input_data=config)
+        else:
+            runner = FromSpecifiedMarkersRunner(
+                    args=[],
+                    input_data=config)
+            runner.run()
 
 
 @pytest.mark.parametrize(
@@ -852,27 +897,30 @@ def test_compression_noisy_markers(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    output_blob = json.load(open(result_path, 'rb'))
+        runner.run()
 
-    hdf5_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='blob_to_hdf5_',
-        suffix='.h5')
+        output_blob = json.load(open(result_path, 'rb'))
 
-    blob_to_hdf5(
-        output_blob=output_blob,
-        dst_path=hdf5_path)
+        hdf5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='blob_to_hdf5_',
+            suffix='.h5')
 
-    roundtrip = hdf5_to_blob(
-        src_path=hdf5_path)
+        blob_to_hdf5(
+            output_blob=output_blob,
+            dst_path=hdf5_path)
 
-    assert roundtrip == output_blob
+        roundtrip = hdf5_to_blob(
+            src_path=hdf5_path)
+
+        assert roundtrip == output_blob
 
 
 @pytest.mark.parametrize(
@@ -948,16 +996,22 @@ def test_cli_compression_noisy_markers(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     output_blob = json.load(open(json_result_path, 'rb'))
 
-    from_hdf5 = hdf5_to_blob(
-        src_path=hdf5_result_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        from_hdf5 = hdf5_to_blob(
+            src_path=hdf5_result_path)
 
     assert len(output_blob['results']) > 0
     assert from_hdf5 == output_blob
@@ -1001,10 +1055,15 @@ def test_failure_cli_compression_of_noisy_markers(
         [{'g': f'garbage_{ii}'} for ii in range(n_genes)]).set_index('g')
     obs = pd.DataFrame(
         [{'c': f'c_{ii}'} for ii in range(n_cells)]).set_index('c')
-    a_data = anndata.AnnData(
-        obs=obs,
-        var=var,
-        X=rng.random((n_cells, n_genes)))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            obs=obs,
+            var=var,
+            X=rng.random((n_cells, n_genes)))
+
     a_data.write_h5ad(nonsense_path)
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
@@ -1052,14 +1111,17 @@ def test_failure_cli_compression_of_noisy_markers(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    try:
-        runner.run()
-    except:
-        pass
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        try:
+            runner.run()
+        except Exception:
+            pass
 
     output_blob = json.load(open(json_result_path, 'rb'))
     assert 'results' not in output_blob
@@ -1146,11 +1208,14 @@ def test_hdf5_output_from_cli(
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     json_output = json.load(open(result_path, 'rb'))
 
@@ -1162,14 +1227,17 @@ def test_hdf5_output_from_cli(
     config.pop('extended_result_path')
     config['hdf5_result_path'] = hdf5_path
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    hdf5_output = hdf5_to_blob(
-        src_path=hdf5_path)
+        runner.run()
+
+        hdf5_output = hdf5_to_blob(
+            src_path=hdf5_path)
 
     # remove fields that will be different because
     # of the different configs/runtimes
@@ -1190,7 +1258,8 @@ def test_hdf5_output_from_cli(
     assert hdf5_output['marker_genes'] == json_output['marker_genes']
     assert hdf5_output['n_unmapped_genes'] == json_output['n_unmapped_genes']
     assert hdf5_output['marker_genes'] == json_output['marker_genes']
-    assert hdf5_output['gene_identifier_mapping'] == json_output['gene_identifier_mapping']
+    assert hdf5_output['gene_identifier_mapping'] == \
+        json_output['gene_identifier_mapping']
 
     assert hdf5_output == json_output
 
@@ -1280,12 +1349,15 @@ def test_mapping_from_markers_with_drop_nodes(
         suffix='.h5'
     )
 
-    drop_nodes_from_precomputed_stats(
-        src_path=noisy_precomputed_stats_fixture,
-        dst_path=trimmed_precompute_path,
-        node_list=drop_nodes,
-        clobber=True
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        drop_nodes_from_precomputed_stats(
+            src_path=noisy_precomputed_stats_fixture,
+            dst_path=trimmed_precompute_path,
+            node_list=drop_nodes,
+            clobber=True
+        )
 
     alt_baseline_config = copy.deepcopy(config)
     alt_baseline_config['precomputed_stats']['path'] = trimmed_precompute_path
@@ -1311,21 +1383,23 @@ def test_mapping_from_markers_with_drop_nodes(
     )
     drop_nodes_config['extended_result_path'] = drop_output
 
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=baseline_config)
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=baseline_config)
+        runner.run()
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=alt_baseline_config)
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=alt_baseline_config)
+        runner.run()
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=drop_nodes_config)
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=drop_nodes_config)
+        runner.run()
 
     baseline = json.load(open(baseline_output, 'rb'))
     alt = json.load(open(alt_output, 'rb'))
@@ -1370,7 +1444,6 @@ def test_mapping_config_roundtrip(
     hasher = hashlib.md5()
     with open(noisy_precomputed_stats_fixture, 'rb') as src:
         hasher.update(src.read())
-    precompute_hash = hasher.hexdigest()
 
     use_tmp_dir = True
 
@@ -1426,8 +1499,16 @@ def test_mapping_config_roundtrip(
     )
     baseline_config = copy.deepcopy(config)
     baseline_config['extended_result_path'] = baseline_output
-    runner = FromSpecifiedMarkersRunner(args=[], input_data=baseline_config)
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=baseline_config
+        )
+        runner.run()
+
     baseline_mapping = json.load(open(baseline_output, 'rb'))
 
     test_config = copy.deepcopy(baseline_mapping['config'])
@@ -1436,8 +1517,16 @@ def test_mapping_config_roundtrip(
         suffix='.json'
     )
     test_config['extended_result_path'] = test_output
-    runner = FromSpecifiedMarkersRunner(args=[], input_data=test_config)
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=test_config
+        )
+        runner.run()
+
     test_mapping = json.load(open(test_output, 'rb'))
 
     assert test_mapping['results'] == baseline_mapping['results']
@@ -1461,11 +1550,20 @@ def test_mapping_config_roundtrip(
             suffix='.json'
         )
         test_config['extended_result_path'] = test_path
-        runner = FromSpecifiedMarkersRunner(args=[], input_data=test_config)
-        runner.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=test_config
+            )
+            runner.run()
         test_mapping = json.load(open(test_path, 'rb'))
         assert test_mapping['results'] != baseline_mapping['results']
-        assert test_mapping['taxonomy_tree'] == baseline_mapping['taxonomy_tree']
+
+        assert test_mapping['taxonomy_tree'] == \
+            baseline_mapping['taxonomy_tree']
+
         assert test_mapping['marker_genes'] == baseline_mapping['marker_genes']
         assert test_mapping['metadata'] != baseline_mapping['metadata']
 
@@ -1475,8 +1573,14 @@ def test_mapping_config_roundtrip(
         )
         retest_config = copy.deepcopy(test_mapping['config'])
         retest_config['extended_result_path'] = retest_path
-        runner = FromSpecifiedMarkersRunner(args=[], input_data=retest_config)
-        runner.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=retest_config
+            )
+            runner.run()
         retest_mapping = json.load(open(retest_path, 'rb'))
         assert retest_mapping['results'] == test_mapping['results']
         assert retest_mapping['taxonomy_tree'] == test_mapping['taxonomy_tree']

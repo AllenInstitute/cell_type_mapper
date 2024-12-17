@@ -5,6 +5,7 @@ import h5py
 import itertools
 import json
 import numpy as np
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -46,7 +47,10 @@ def taxonomy_tree_fixture():
             'g': []
         }
     }
-    return TaxonomyTree(data=data)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=data)
 
 
 @pytest.fixture(scope='module')

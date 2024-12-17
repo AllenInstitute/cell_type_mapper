@@ -11,6 +11,7 @@ import itertools
 import numpy as np
 import pandas as pd
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean
@@ -108,11 +109,13 @@ def test_csr_amalgamation(
                 f"Test does not know how to parse layer '{layer}'"
             )
 
-        a_data = anndata.AnnData(
-            X=x,
-            layers=layers,
-            raw=raw,
-            dtype=data_dtype)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            a_data = anndata.AnnData(
+                X=x,
+                layers=layers,
+                raw=raw,
+                dtype=data_dtype)
 
         a_data.write_h5ad(this_path)
 
@@ -250,11 +253,13 @@ def test_csr_anndata_amalgamation(
                 f"Test does not know how to parse layer '{layer}'"
             )
 
-        a_data = anndata.AnnData(
-            X=x,
-            layers=layers,
-            raw=raw,
-            dtype=data_dtype)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            a_data = anndata.AnnData(
+                X=x,
+                layers=layers,
+                raw=raw,
+                dtype=data_dtype)
 
         a_data.write_h5ad(this_path)
 
@@ -369,11 +374,14 @@ def test_failure_when_many_floats(tmp_dir_fixture, layer):
                 f"Test does not know how to parse layer '{layer}'"
             )
 
-        a_data = anndata.AnnData(
-            X=x,
-            layers=layers,
-            raw=raw,
-            dtype=data_dtype)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            a_data = anndata.AnnData(
+                X=x,
+                layers=layers,
+                raw=raw,
+                dtype=data_dtype)
 
         a_data.write_h5ad(this_path)
 

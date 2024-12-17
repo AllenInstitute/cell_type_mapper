@@ -5,13 +5,10 @@ clusters cells should be assigned to
 
 import pytest
 
-import anndata
-import copy
 import h5py
 import json
 import numpy as np
 import os
-import pandas as pd
 import pathlib
 import tempfile
 
@@ -20,17 +17,10 @@ from cell_type_mapper.utils.torch_utils import (
     use_torch)
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
-
-from cell_type_mapper.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
-
-from cell_type_mapper.diff_exp.markers import (
-    find_markers_for_all_taxonomy_pairs)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
@@ -253,7 +243,8 @@ def test_cli_pipeline(
             out_file.write(json.dumps(taxonomy_tree_dict))
         config['precomputed_stats']['taxonomy_tree'] = tree_path
     else:
-        config['precomputed_stats']['column_hierarchy'] = taxonomy_tree_dict['hierarchy']
+        config['precomputed_stats']['column_hierarchy'] \
+            = taxonomy_tree_dict['hierarchy']
 
     config['reference_markers'] = {
         'n_processors': 3,
@@ -408,7 +399,7 @@ def test_cli_pipeline(
             dir=tmp_dir_fixture,
             suffix='.h5')
 
-        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_dict)
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
         create_marker_cache_from_reference_markers(
             output_cache_path=query_marker_path,
@@ -460,7 +451,6 @@ def test_cli_error_log(
 
     ref_marker_out = to_store / 'ref_markers.h5'
 
-
     # this will be a bad path
     precompute_out = '/nonexsistent/directory/precomputed.h5'
 
@@ -476,7 +466,7 @@ def test_cli_error_log(
 
     tree_path = mkstemp_clean(dir=tmp_dir_fixture, suffix='.json')
     with open(tree_path, 'w') as out_file:
-            out_file.write(json.dumps(taxonomy_tree_dict))
+        out_file.write(json.dumps(taxonomy_tree_dict))
     config['precomputed_stats']['taxonomy_tree'] = tree_path
 
     config['reference_markers'] = {

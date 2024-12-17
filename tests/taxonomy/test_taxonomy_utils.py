@@ -3,6 +3,7 @@ import copy
 import numpy as np
 import json
 import itertools
+import warnings
 
 from cell_type_mapper.utils.utils import clean_for_json
 
@@ -544,7 +545,10 @@ def test_get_child_to_parent():
         }
     }
 
-    validate_taxonomy_tree(tree)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        validate_taxonomy_tree(tree)
 
     actual = get_child_to_parent(tree_data=tree)
 

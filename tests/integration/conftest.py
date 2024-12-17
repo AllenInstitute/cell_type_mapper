@@ -7,7 +7,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
-import scipy.sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -24,9 +24,6 @@ from cell_type_mapper.diff_exp.markers import (
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
-
-from cell_type_mapper.diff_exp.p_value_mask import (
-    create_p_value_mask_file)
 
 
 @pytest.fixture(scope='module')
@@ -145,13 +142,16 @@ def gene_names(
 def reference_gene_names(gene_names):
     return gene_names[0]
 
+
 @pytest.fixture(scope='module')
 def query_gene_names(gene_names):
     return gene_names[1]
 
+
 @pytest.fixture(scope='module')
 def marker_gene_names(gene_names):
     return gene_names[2]
+
 
 @pytest.fixture(scope='module')
 def cluster_to_signal(
@@ -238,11 +238,14 @@ def raw_reference_h5ad_fixture(
     obs = pd.DataFrame(obs_records_fixture)
     obs = obs.set_index('cell_id')
 
-    a_data = anndata.AnnData(
-        X=raw_reference_cell_x_gene,
-        obs=obs,
-        var=var,
-        dtype=raw_reference_cell_x_gene.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=raw_reference_cell_x_gene,
+            obs=obs,
+            var=var,
+            dtype=raw_reference_cell_x_gene.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -268,11 +271,14 @@ def noisier_raw_reference_h5ad_fixture(
     obs = pd.DataFrame(obs_records_fixture)
     obs = obs.set_index('cell_id')
 
-    a_data = anndata.AnnData(
-        X=noisier_raw_reference_cell_x_gene,
-        obs=obs,
-        var=var,
-        dtype=noisier_raw_reference_cell_x_gene.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=noisier_raw_reference_cell_x_gene,
+            obs=obs,
+            var=var,
+            dtype=noisier_raw_reference_cell_x_gene.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -326,16 +332,19 @@ def raw_query_h5ad_fixture(
         tmp_dir_fixture):
     var_data = [
         {'gene_name': g, 'garbage': ii}
-         for ii, g in enumerate(query_gene_names)]
+        for ii, g in enumerate(query_gene_names)]
 
     var = pd.DataFrame(var_data)
     var = var.set_index('gene_name')
 
-    a_data = anndata.AnnData(
-        X=raw_query_cell_x_gene_fixture,
-        var=var,
-        uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-        dtype=raw_query_cell_x_gene_fixture.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=raw_query_cell_x_gene_fixture,
+            var=var,
+            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
+            dtype=raw_query_cell_x_gene_fixture.dtype)
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(
@@ -344,14 +353,18 @@ def raw_query_h5ad_fixture(
     a_data.write_h5ad(h5ad_path)
     return h5ad_path
 
+
 @pytest.fixture(scope='module')
 def precomputed_path_fixture(
         tmp_dir_fixture,
         raw_reference_h5ad_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     precomputed_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -379,8 +392,11 @@ def noisier_precomputed_path_fixture(
         noisier_raw_reference_h5ad_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     precomputed_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -408,8 +424,11 @@ def ref_marker_path_fixture(
         precomputed_path_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     ref_marker_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -430,7 +449,7 @@ def ref_marker_path_fixture(
     with h5py.File(ref_marker_path, 'a') as dst:
         dst.create_dataset(
             'metadata',
-            data = json.dumps(metadata).encode('utf-8'))
+            data=json.dumps(metadata).encode('utf-8'))
 
     with h5py.File(ref_marker_path, 'r') as in_file:
         assert len(in_file.keys()) > 0
@@ -449,8 +468,11 @@ def marker_cache_path_fixture(
         ref_marker_path_fixture,
         query_gene_names):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     marker_cache_path = mkstemp_clean(
         dir=tmp_dir_fixture,

@@ -19,6 +19,7 @@ import pytest
 
 import pathlib
 import numpy as np
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -108,11 +109,15 @@ def test_all_this(
         baseline_tree_fixture,
         baseline_tree_without_cells_fixture):
 
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=cell_metadata_fixture,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        test_tree = TaxonomyTree.from_data_release(
+                cell_metadata_path=cell_metadata_fixture,
+                cluster_annotation_path=cluster_annotation_term_fixture,
+                cluster_membership_path=cluster_membership_fixture,
+                hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
     assert test_tree == baseline_tree_fixture
     assert test_tree != baseline_tree_without_cells_fixture
 
@@ -153,11 +158,15 @@ def test_no_cell_metadata(
         baseline_tree_without_cells_fixture,
         baseline_tree_fixture):
 
-    test_tree = TaxonomyTree.from_data_release(
-            cell_metadata_path=None,
-            cluster_annotation_path=cluster_annotation_term_fixture,
-            cluster_membership_path=cluster_membership_fixture,
-            hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        test_tree = TaxonomyTree.from_data_release(
+                cell_metadata_path=None,
+                cluster_annotation_path=cluster_annotation_term_fixture,
+                cluster_membership_path=cluster_membership_fixture,
+                hierarchy=['class', 'subclass', 'supertype', 'cluster'])
+
     assert test_tree == baseline_tree_without_cells_fixture
     assert test_tree != baseline_tree_fixture
 
@@ -214,7 +223,12 @@ def test_name_mapping(
             'd': [], 'f': []
         }
     }
-    other_tree = TaxonomyTree(data=other_data)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        other_tree = TaxonomyTree(data=other_data)
+
     assert test_tree.label_to_name('a', 'x') == 'x'
 
 
@@ -270,5 +284,9 @@ def test_de_aliasing_when_no_map():
         'b': {'aaa': ['1', '2'],
               'bbb': ['3']}}
 
-    tree = TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tree = TaxonomyTree(data=data)
+
     assert tree.label_to_name(level='cluster', label='3') == '3'

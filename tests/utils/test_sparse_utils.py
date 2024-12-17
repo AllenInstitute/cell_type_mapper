@@ -7,6 +7,7 @@ import os
 import h5py
 import tempfile
 import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -40,7 +41,11 @@ def test_load_csr(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -88,7 +93,12 @@ def test_load_csc(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csc = scipy_sparse.csc_matrix(data)
-    ann = anndata.AnnData(csc, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csc, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -136,7 +146,12 @@ def test_load_csr_chunk(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -186,7 +201,12 @@ def test_load_csr_chunk_very_sparse(tmp_dir_fixture):
     data[7, 11] = 1
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -317,7 +337,12 @@ def test_load_disjoint_csr(tmp_dir_fixture):
     data = data.reshape((nrows, ncols))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     index_list = np.unique(rng.integers(0, nrows, 45))
