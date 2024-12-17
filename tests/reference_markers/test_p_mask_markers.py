@@ -1,11 +1,8 @@
 import pytest
 
-import h5py
-import itertools
 import numpy as np
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
     _clean_up)
 
 from cell_type_mapper.diff_exp.p_value_markers import (
@@ -21,18 +18,28 @@ def tmp_dir(tmp_path_factory):
 
 @pytest.mark.parametrize(
     "n_valid, valid_gene_idx, expected_markers",
-    [(3, None, (6, 9, 11)),  # genes that absolutely pass penetrance test
-     (5, None, (5, 6, 7, 9, 11)),  # grab smallest 2 distances after absolute passing genes
-     (5, np.array([2, 3, 5, 6, 11, 12, 13]), (5, 6, 11, 12, 13)),  # 2, 3 do not pass p-value test
-     (5, np.array([2, 3, 5, 6, 7, 8, 10, 11]), (5, 6, 7, 8, 11)),  # do not need 10, 11 (distance too large)
-     (5, np.array([2, 3, 5, 6, 8, 10, 11, 12, 13]), (5, 6, 8, 10, 11, 12)),  # degeneracy in distance between 10 and 12
-    ]
+    [(3,
+      None,
+      (6, 9, 11)),  # genes that absolutely pass penetrance test
+     (5,
+      None,
+      (5, 6, 7, 9, 11)),
+     # grab smallest 2 distances after absolute passing genes
+     (5,
+      np.array([2, 3, 5, 6, 11, 12, 13]),
+      (5, 6, 11, 12, 13)),  # 2, 3 do not pass p-value test
+     (5,
+      np.array([2, 3, 5, 6, 7, 8, 10, 11]),
+      (5, 6, 7, 8, 11)),  # do not need 10, 11 (distance too large)
+     (5,
+      np.array([2, 3, 5, 6, 8, 10, 11, 12, 13]),
+      (5, 6, 8, 10, 11, 12)),  # degeneracy in distance between 10 and 12
+     ]
 )
 def test_get_validity_mask(
         n_valid,
         valid_gene_idx,
         expected_markers):
-    rng = np.random.default_rng(2131)
 
     n_genes = 20
     gene_indices = np.arange(5, 16, dtype=int)

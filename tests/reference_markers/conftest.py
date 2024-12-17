@@ -1,6 +1,5 @@
 import pytest
 
-import copy
 import h5py
 import itertools
 import json
@@ -57,6 +56,7 @@ def taxonomy_tree_fixture():
 def n_genes():
     return 85
 
+
 @pytest.fixture(scope='module')
 def cluster_profile_fixture(taxonomy_tree_fixture, n_genes):
     """
@@ -104,9 +104,15 @@ def p_value_fixture(
         data1 = cluster_profile_fixture[cl1]
 
         mu0 = data0['sum']/data0['n_cells']
-        var0 = (data0['sumsq']-data0['sum']**2/data0['n_cells'])/(data0['n_cells']-1)
+        var0 = (
+            (data0['sumsq']-data0['sum']**2/data0['n_cells'])
+            / (data0['n_cells']-1)
+        )
         mu1 = data1['sum']/data1['n_cells']
-        var1 = (data1['sumsq']-data1['sum']**2/data1['n_cells'])/(data1['n_cells']-1)
+        var1 = (
+            (data1['sumsq']-data1['sum']**2 / data1['n_cells'])
+            / (data1['n_cells']-1)
+        )
 
         p_values = diffexp_p_values(
             mean1=mu0,
@@ -124,6 +130,7 @@ def p_value_fixture(
         n_interesting += (p_values < 0.4).sum()
     assert n_interesting > 1000
     return result
+
 
 @pytest.fixture(scope='module')
 def penetrance_fixture(
@@ -148,13 +155,14 @@ def penetrance_fixture(
         pij0 = data0['ge1']/data0['n_cells']
         pij1 = data1['ge1']/data1['n_cells']
 
-        q1_score = np.where(pij0>pij1, pij0, pij1)
+        q1_score = np.where(pij0 > pij1, pij0, pij1)
         qdiff_score = np.abs(pij0-pij1)/q1_score
         log2f = np.abs(mu0-mu1)
         this = {'q1': q1_score, 'qdiff': qdiff_score, 'log2_fold': log2f}
         result[cl0][cl1] = this
         result[cl1][cl0] = this
     return result
+
 
 @pytest.fixture(scope='module')
 def threshold_mask_generator_fixture(
@@ -217,10 +225,13 @@ def threshold_mask_generator_fixture(
         valid = np.logical_and(
             q1_mask,
             np.logical_and(
-            qdiff_mask,
-            np.logical_and(
-                log2_mask,
-                p_mask)))
+                qdiff_mask,
+                np.logical_and(
+                    log2_mask,
+                    p_mask
+                )
+            )
+        )
 
         n0 = valid.sum()
         assert n0 > 0
@@ -293,10 +304,13 @@ def threshold_mask_generator_fixture(
             valid = np.logical_and(
                 q1_mask,
                 np.logical_and(
-                qdiff_mask,
-                np.logical_and(
-                    log2_mask,
-                    p_mask)))
+                    qdiff_mask,
+                    np.logical_and(
+                        log2_mask,
+                        p_mask
+                    )
+                )
+            )
 
             this = {'config': config,
                     'expected': valid,
@@ -317,7 +331,6 @@ def threshold_mask_generator_fixture(
         if boring_t is not None:
             universal_configs.append(this_universal)
 
-
     # make sure each pair gets a diversity of 'expected' arrays
     for cl0 in idx_lookup:
         for cl1 in idx_lookup[cl0]:
@@ -337,6 +350,7 @@ def threshold_mask_fixture(
     thresholds on penetrance stats are actually interesting)
     """
     return threshold_mask_generator_fixture[0]
+
 
 @pytest.fixture(scope='module')
 def threshold_mask_fixture_all_pairs(
@@ -454,7 +468,8 @@ def precomputed_fixture_no_up_markers(
             'n_cells', shape=(n_clusters,), dtype=int)
 
         cluster_to_row = dict()
-        for row_idx, cluster in enumerate(cluster_profile_fixture_no_up_markers):
+        for row_idx, cluster in enumerate(
+                    cluster_profile_fixture_no_up_markers):
             cluster_to_row[cluster] = row_idx
             this = cluster_profile_fixture_no_up_markers[cluster]
             dst['sum'][row_idx, :] = this['sum']
@@ -525,7 +540,8 @@ def precomputed_fixture_no_down_markers(
             'n_cells', shape=(n_clusters,), dtype=int)
 
         cluster_to_row = dict()
-        for row_idx, cluster in enumerate(cluster_profile_fixture_no_up_markers):
+        for row_idx, cluster in enumerate(
+                    cluster_profile_fixture_no_up_markers):
             cluster_to_row[cluster] = row_idx
             this = cluster_profile_fixture_no_up_markers[cluster]
             dst['sum'][row_idx, :] = this['sum']
