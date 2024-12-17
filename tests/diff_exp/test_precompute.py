@@ -87,6 +87,7 @@ def l2_to_class_fixture():
             backward[i] = k
     return forward, backward
 
+
 @pytest.fixture
 def class_to_cluster_fixture(l2_to_class_fixture):
     """
@@ -164,6 +165,7 @@ def obs_fixture(records_fixture):
 def nrows(records_fixture):
     return len(records_fixture)
 
+
 @pytest.fixture
 def raw_x_fixture(ncols, nrows):
     rng = np.random.default_rng(66213)
@@ -174,7 +176,7 @@ def raw_x_fixture(ncols, nrows):
     data[chosen_dex] = rng.random(len(chosen_dex))*10000.0
     data = data.reshape((nrows, ncols))
     # set one row to have a CPM = 1 gene
-    data[5, : ] =0
+    data[5, :] = 0
     data[5, 16] = 999999
     data[5, 12] = 1
     return data
@@ -224,6 +226,7 @@ def cell_set_fixture(records_fixture):
     return set(rng.choice(cell_id_list,
                           len(cell_id_list)//3,
                           replace=False))
+
 
 @pytest.fixture
 def baseline_stats_fixture_limited_cells(
@@ -324,59 +327,59 @@ def create_many_h5ad(
     Store the data in multiple h5ad files;
     return a list to their paths
     """
-    idx_arr =np.arange(x.shape[0])
+    idx_arr = np.arange(x.shape[0])
     rng = np.random.default_rng(663344)
     rng.shuffle(idx_arr)
     n_per = len(idx_arr) // 4
     assert n_per > 2
     path_list = []
     for i0 in range(0, len(idx_arr), n_per):
-       i1 = i0+n_per
-       this_idx = idx_arr[i0:i1]
-       this_obs = obs.iloc[this_idx]
-       this_x = x[this_idx, :]
+        i1 = i0+n_per
+        this_idx = idx_arr[i0:i1]
+        this_obs = obs.iloc[this_idx]
+        this_x = x[this_idx, :]
 
-       if density == 'csr':
-           data = scipy_sparse.csr_matrix(this_x)
-       elif density == 'csc':
-           data = scipy_sparse.csc_matrix(this_x)
-       elif density == 'dense':
-           data = this_x
-       else:
-           raise RuntimeError(
-               f"Cannot parse density {density}"
-           )
+        if density == 'csr':
+            data = scipy_sparse.csr_matrix(this_x)
+        elif density == 'csc':
+            data = scipy_sparse.csc_matrix(this_x)
+        elif density == 'dense':
+            data = this_x
+        else:
+            raise RuntimeError(
+                f"Cannot parse density {density}"
+            )
 
-       if layer == 'X':
-           xx = data
-           layers = None
-           raw = None
-       elif layer == 'dummy':
-           xx = np.zeros(this_x.shape, dtype=int)
-           layers = {'dummy': data}
-           raw = None
-       elif layer == 'raw':
-           xx = np.zeros(this_x.shape, dtype=int)
-           layers = None
-           raw = {'X': data}
-       else:
-           raise RuntimeError(
-               f"Test cannot parse layer '{layer}'"
-           )
+        if layer == 'X':
+            xx = data
+            layers = None
+            raw = None
+        elif layer == 'dummy':
+            xx = np.zeros(this_x.shape, dtype=int)
+            layers = {'dummy': data}
+            raw = None
+        elif layer == 'raw':
+            xx = np.zeros(this_x.shape, dtype=int)
+            layers = None
+            raw = {'X': data}
+        else:
+            raise RuntimeError(
+                f"Test cannot parse layer '{layer}'"
+            )
 
-       this_a = anndata.AnnData(
-           X=xx,
-           layers=layers,
-           raw=raw,
-           obs=this_obs)
+        this_a = anndata.AnnData(
+            X=xx,
+            layers=layers,
+            raw=raw,
+            obs=this_obs)
 
-       this_path = mkstemp_clean(
-           dir=tmp_dir,
-           prefix='broken_up_h5ad',
-           suffix='.h5ad')
+        this_path = mkstemp_clean(
+            dir=tmp_dir,
+            prefix='broken_up_h5ad',
+            suffix='.h5ad')
 
-       this_a.write_h5ad(this_path)
-       path_list.append(this_path)
+        this_a.write_h5ad(this_path)
+        path_list.append(this_path)
     return path_list
 
 
@@ -442,7 +445,7 @@ def h5ad_input_path(
                 'layer': output_layer}
     else:
         raise RuntimeError(
-            f"Cannot parse request {request}"
+            f"Cannot parse dataset {dataset}"
         )
 
 
@@ -670,7 +673,8 @@ def test_serialization_of_actual_precomputed_stats(
 
 
 @pytest.mark.parametrize(
-        'dataset_fixture, layer_fixture, density_fixture, omit_clusters, n_processors, copy_data_over',
+        'dataset_fixture, layer_fixture, density_fixture, '
+        'omit_clusters, n_processors, copy_data_over',
         itertools.product(
             ['raw_data_list', 'log2_data_list'],
             ['X', 'dummy', 'raw'],
@@ -731,7 +735,7 @@ def test_precompute_from_many_h5ad_with_lookup(
         if to_omit is None or cluster not in to_omit}
 
     cluster_to_output_row = {
-        n:ii
+        n: ii
         for ii, n in enumerate(expected_tree['cluster'].keys())}
 
     gene_names = list(read_df_from_h5ad(path_list[0], 'var').index.values)
@@ -825,7 +829,8 @@ def test_precompute_from_many_h5ad_with_lookup(
 
 
 @pytest.mark.parametrize(
-        'dataset_fixture,layer_fixture,density_fixture,use_cell_set,n_processors,copy_data_over',
+        'dataset_fixture,layer_fixture,density_fixture,'
+        'use_cell_set,n_processors,copy_data_over',
         itertools.product(
             ['raw_data_list', 'log2_data_list'],
             ['X', 'raw', 'dummy'],

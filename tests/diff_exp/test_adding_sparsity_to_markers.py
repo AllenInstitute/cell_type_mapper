@@ -33,17 +33,21 @@ def tmp_dir_fixture(
     yield tmp_dir
     _clean_up(tmp_dir)
 
+
 @pytest.fixture(scope='module')
 def n_genes():
     return 54
+
 
 @pytest.fixture(scope='module')
 def n_nodes():
     return 37
 
+
 @pytest.fixture(scope='module')
 def n_pairs(n_nodes):
     return n_nodes*(n_nodes-1)//2
+
 
 @pytest.fixture(scope='module')
 def marker_array_fixture(
@@ -60,7 +64,7 @@ def marker_array_fixture(
 
 @pytest.fixture(scope='module')
 def pair_to_idx_fixture(
-    n_nodes):
+        n_nodes):
 
     pair_to_idx = dict()
     i_row = 0
@@ -72,6 +76,7 @@ def pair_to_idx_fixture(
 
     pair_to_idx = {'cluster': pair_to_idx}
     return pair_to_idx
+
 
 @pytest.fixture(scope='module')
 def marker_file_fixture(
@@ -149,7 +154,6 @@ def test_adding_by_gene_sparse(
 
     assert sparse_markers.has_sparse
 
-
     # test that the two sparse arrays are transposes of each other
     with h5py.File(new_path, 'r') as src:
         for direction in ('up', 'down'):
@@ -174,7 +178,11 @@ def test_adding_by_gene_sparse(
 
 @pytest.mark.parametrize(
    "downsample, n_processors",
-   itertools.product(['genes', 'pairs', 'pair_gene', 'gene_pair', None], [1, 3]))
+   itertools.product(
+       ['genes', 'pairs', 'pair_gene', 'gene_pair', None],
+       [1, 3]
+   )
+)
 def test_sparse_markers_specific_classes(
         marker_file_fixture,
         n_genes,
@@ -219,18 +227,30 @@ def test_sparse_markers_specific_classes(
         this_n_pairs = n_pairs
         this_n_genes = n_genes
         if downsample == 'genes':
-            gene_idx = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
+            gene_idx = rng.choice(
+                np.arange(n_genes),
+                n_genes//3,
+                replace=False)
             by_pair.keep_only_genes(gene_idx)
             by_gene.keep_only_genes(gene_idx)
             this_n_genes = len(gene_idx)
         elif downsample == 'pairs':
-            pair_idx = rng.choice(np.arange(n_pairs), n_pairs//3, replace=False)
+            pair_idx = rng.choice(
+                np.arange(n_pairs),
+                n_pairs//3,
+                replace=False)
             by_pair.keep_only_pairs(pair_idx)
             by_gene.keep_only_pairs(pair_idx)
             this_n_pairs = len(pair_idx)
-        elif downsample == 'pair_gene' or downsample=='gene_pair':
-            gene_idx = rng.choice(np.arange(n_genes), n_genes//3, replace=False)
-            pair_idx = rng.choice(np.arange(n_pairs), n_pairs//3, replace=False)
+        elif downsample == 'pair_gene' or downsample == 'gene_pair':
+            gene_idx = rng.choice(
+                np.arange(n_genes),
+                n_genes//3,
+                replace=False)
+            pair_idx = rng.choice(
+                np.arange(n_pairs),
+                n_pairs//3,
+                replace=False)
 
             # make sure order of downsampling does not matter
             if downsample == 'pair_gene':
@@ -268,7 +288,9 @@ def test_sparse_markers_specific_classes(
     "downsampling,n_processors",
     itertools.product(
         [None, ('genes',), ('pairs',), ('genes', 'pairs'), ('pairs', 'genes')],
-        [1,3]))
+        [1, 3]
+    )
+)
 def test_sparse_marker_access_class(
         marker_file_fixture,
         marker_array_fixture,
@@ -335,7 +357,8 @@ def test_sparse_marker_access_class(
             sparse_markers.downsample_genes(chosen_genes)
             expected_n_genes = len(chosen_genes)
         elif downsampling[0] == 'pairs':
-            sparse_markers = sparse_markers.downsample_pairs_to_other(chosen_pairs)
+            sparse_markers = sparse_markers.downsample_pairs_to_other(
+                chosen_pairs)
             expected_n_pairs = len(chosen_pairs)
         else:
             raise RuntimeError(f"invalid downsampling {downsampling}")
@@ -344,7 +367,8 @@ def test_sparse_marker_access_class(
                 sparse_markers.downsample_genes(chosen_genes)
                 expected_n_genes = len(chosen_genes)
             elif downsampling[1] == 'pairs':
-                sparse_markers = sparse_markers.downsample_pairs_to_other(chosen_pairs)
+                sparse_markers = sparse_markers.downsample_pairs_to_other(
+                    chosen_pairs)
                 expected_n_pairs = len(chosen_pairs)
             else:
                 raise RuntimeError(f"invalid downsampling {downsampling}")

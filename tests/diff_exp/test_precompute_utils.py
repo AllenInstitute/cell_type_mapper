@@ -39,7 +39,7 @@ def taxonomy_tree_fixture():
             'B': ['d', 'e', 'f', 'g']
         },
         'cluster': {
-            n:[] for n in 'abcdefghij'
+            n: [] for n in 'abcdefghij'
         }
     }
 
@@ -137,9 +137,8 @@ def test_merge_precompute(
     ssq2 = rng.random((n_clusters, n_genes))
 
     cluster_to_row = {
-        f'c{ii}':int(ii) for ii in range(n_clusters)
+        f'c{ii}': int(ii) for ii in range(n_clusters)
     }
-    col_names = [f'g{ii}' for ii in range(n_genes)]
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -227,7 +226,6 @@ def test_merge_precompute(
             atol=0.0, rtol=1.0e-6)
 
 
-
 @pytest.mark.parametrize(
     'drop_node_list',
     [[('class', 'CLAS01')],
@@ -241,7 +239,7 @@ def test_merge_precompute(
      [('readable_supertype', 'readable_SUPT03')],
      [('readable_cluster', 'readable_C06'),
       ('readable_supertype', 'readable_SUPT01')]
-    ]
+     ]
 )
 def test_drop_node_from_precompute(
         tmp_dir_fixture,
@@ -434,7 +432,10 @@ def test_drop_node_from_precompute(
             baseline_src['cluster_to_row'][()].decode('utf-8')
         )
         with h5py.File(trimmed_precompute_path, 'r') as trimmed_src:
-            assert trimmed_src['col_names'][()] == baseline_src['col_names'][()]
+            assert (
+                trimmed_src['col_names'][()]
+                == baseline_src['col_names'][()]
+            )
             trimmed_cluster_to_row = json.loads(
                 trimmed_src['cluster_to_row'][()].decode('utf-8')
             )
@@ -443,7 +444,8 @@ def test_drop_node_from_precompute(
                 baseline_idx = baseline_cluster_to_row[cluster_id]
                 trimmed_idx = trimmed_cluster_to_row[cluster_id]
                 assert (
-                    baseline_src['n_cells'][baseline_idx] == trimmed_src['n_cells'][trimmed_idx]
+                    baseline_src['n_cells'][baseline_idx]
+                    == trimmed_src['n_cells'][trimmed_idx]
                 )
                 for data_key in baseline_src.keys():
                     if data_key in ('taxonomy_tree',
