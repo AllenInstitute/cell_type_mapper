@@ -15,6 +15,7 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.test_utils.h5_utils import (
     h5_match
@@ -456,11 +457,15 @@ def h5ad_path_list_fixture(
 
         obs = pd.DataFrame(obs_data).set_index('cell_id')
         this_x = scipy_sparse.csr_matrix(x_fixture[i0:i1, :])
-        this_a = anndata.AnnData(
-            X=this_x,
-            obs=obs,
-            var=var,
-            dtype=x_fixture.dtype)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            this_a = anndata.AnnData(
+                X=this_x,
+                obs=obs,
+                var=var,
+                dtype=x_fixture.dtype)
 
         this_path = mkstemp_clean(
             dir=tmp_dir_fixture,
