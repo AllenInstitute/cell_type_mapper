@@ -9,7 +9,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    _transpose_subset_of_indices)
+    _re_encode_subset_of_indices)
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def sparse_array_fixture():
             [(0, 25), (0, 89), (23, 89), (34, 65)],
             [True, False]
         ))
-def test_transpose_chunk_of_indices(
+def test_re_encode_chunk_of_indices(
         sparse_array_fixture,
         tmp_dir_fixture,
         indices_slice,
@@ -65,7 +65,7 @@ def test_transpose_chunk_of_indices(
     else:
         data_tag = None
 
-    _transpose_subset_of_indices(
+    _re_encode_subset_of_indices(
         h5_path=csr_path,
         indices_tag='indices',
         indptr_tag='indptr',

@@ -14,11 +14,11 @@ from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from cell_type_mapper.utils.csc_to_csr import (
-    transpose_sparse_matrix_on_disk
+    re_encode_sparse_matrix_on_disk
 )
 
 
-def transpose_sparse_matrix_on_disk_v2(
+def re_encode_sparse_matrix_on_disk_v2(
         h5_path,
         indices_tag,
         indptr_tag,
@@ -46,7 +46,7 @@ def transpose_sparse_matrix_on_disk_v2(
         prefix='transposition')
 
     try:
-        _transpose_sparse_matrix_on_disk_v2(
+        _re_encode_sparse_matrix_on_disk_v2(
             h5_path=h5_path,
             indices_tag=indices_tag,
             indptr_tag=indptr_tag,
@@ -63,7 +63,7 @@ def transpose_sparse_matrix_on_disk_v2(
         _clean_up(tmp_dir)
 
 
-def _transpose_sparse_matrix_on_disk_v2(
+def _re_encode_sparse_matrix_on_disk_v2(
         h5_path,
         indices_tag,
         indptr_tag,
@@ -97,10 +97,10 @@ def _transpose_sparse_matrix_on_disk_v2(
                 mkstemp_clean(
                     dir=tmp_dir,
                     suffix='.h5',
-                    prefix=f'transpose_{i0}_{i1}_'))
+                    prefix=f're_encode_{i0}_{i1}_'))
 
         p = multiprocessing.Process(
-            target=_transpose_subset_of_indices,
+            target=_re_encode_subset_of_indices,
             kwargs={
                 'h5_path': h5_path,
                 'indices_tag': indices_tag,
@@ -202,7 +202,7 @@ def _transpose_sparse_matrix_on_disk_v2(
     print(f'joining took {dur:2e} seconds')
 
 
-def _transpose_subset_of_indices(
+def _re_encode_subset_of_indices(
         h5_path,
         indices_tag,
         indptr_tag,
@@ -221,7 +221,7 @@ def _transpose_subset_of_indices(
         else:
             data_handle = None
 
-        transpose_sparse_matrix_on_disk(
+        re_encode_sparse_matrix_on_disk(
             indices_handle=indices_handle,
             indptr_handle=indptr_handle,
             data_handle=data_handle,

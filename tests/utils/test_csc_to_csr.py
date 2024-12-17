@@ -17,10 +17,10 @@ from cell_type_mapper.utils.sparse_utils import (
 
 from cell_type_mapper.utils.csc_to_csr import (
     csc_to_csr_on_disk,
-    transpose_sparse_matrix_on_disk)
+    re_encode_sparse_matrix_on_disk)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 
 @pytest.fixture(scope='module')
@@ -149,7 +149,7 @@ def test_csc_to_csr_on_disk(
             [True, False],
             [1, 2])
 )
-def test_transpose_sparse_matrix_on_disk(
+def test_re_encode_sparse_matrix_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
         csc_fixture,
@@ -166,7 +166,7 @@ def test_transpose_sparse_matrix_on_disk(
                 data_handle = None
 
             if version == 1:
-                transpose_sparse_matrix_on_disk(
+                re_encode_sparse_matrix_on_disk(
                     indices_handle=original['X/indices'],
                     indptr_handle=original['X/indptr'],
                     data_handle=data_handle,
@@ -179,7 +179,7 @@ def test_transpose_sparse_matrix_on_disk(
         else:
             data_tag = None
 
-        transpose_sparse_matrix_on_disk_v2(
+        re_encode_sparse_matrix_on_disk_v2(
             h5_path=csc_fixture,
             indices_tag='X/indices',
             indptr_tag='X/indptr',
@@ -258,7 +258,7 @@ def test_csc_to_csr_on_disk_without_data_array(
         (0, 97)
     ]
 )
-def test_transpose_subset_of_matrix(
+def test_re_encode_subset_of_matrix(
         indices_slice,
         tmp_dir_fixture):
     """
@@ -299,7 +299,7 @@ def test_transpose_subset_of_matrix(
         suffix='.h5')
 
     with h5py.File(csc_path, 'r') as src:
-        transpose_sparse_matrix_on_disk(
+        re_encode_sparse_matrix_on_disk(
             indices_handle=src['indices'],
             indptr_handle=src['indptr'],
             data_handle=src['data'],

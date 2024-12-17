@@ -25,7 +25,7 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
@@ -287,7 +287,7 @@ def test_transposing_markers(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
-    transpose_sparse_matrix_on_disk_v2(
+    re_encode_sparse_matrix_on_disk_v2(
         h5_path=src_path,
         indices_tag='indices',
         indptr_tag='indptr',

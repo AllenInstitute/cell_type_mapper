@@ -13,7 +13,7 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 
 def read_df_from_h5ad(h5ad_path, df_name):
@@ -462,7 +462,7 @@ def pivot_sparse_h5ad(
             dir=tmp_dir,
             suffix='.h5')
 
-        transpose_sparse_matrix_on_disk_v2(
+        re_encode_sparse_matrix_on_disk_v2(
             h5_path=src_path,
             indices_tag=f'{layer}/indices',
             indptr_tag=f'{layer}/indptr',
