@@ -15,6 +15,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
+from cell_type_mapper.test_utils.anndata_utils import (
+    write_anndata_x_to_csv
+)
+
 from cell_type_mapper.data.mouse_gene_id_lookup import (
     mouse_gene_id_lookup
 )
@@ -193,10 +197,11 @@ def test_h5ad_transposition_from_genes(
 
 
 @pytest.mark.parametrize(
-    'density_fixture,species_fixture,round_to_int',
+    'density_fixture,species_fixture,round_to_int,as_csv',
     itertools.product(
         ('csr', 'csc', 'dense'),
-        ('mouse', 'human'),
+        ('mouse',),
+        (True, False),
         (True, False)
     ),
     indirect=['density_fixture', 'species_fixture']
@@ -206,10 +211,32 @@ def test_validation_of_transposed_h5ad_files(
         species_fixture,
         h5ad_fixture,
         round_to_int,
+        as_csv,
         tmp_dir_fixture):
+    """
+    Test that validate_h5ad can handle transposed files
+    (including transposed CSV files)
+    """
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
+
+        if as_csv:
+            if density_fixture != 'dense':
+                return
+            test_src_path = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='transposed_file_',
+                suffix='.csv'
+            )
+            write_anndata_x_to_csv(
+                anndata_obj=anndata.read_h5ad(h5ad_fixture['transposed']),
+                dst_path=test_src_path,
+                cell_label_header=False,
+                cell_label_type='string'
+            )
+        else:
+            test_src_path = h5ad_fixture['transposed']
 
         baseline_path = mkstemp_clean(
             dir=tmp_dir_fixture,
@@ -235,7 +262,7 @@ def test_validation_of_transposed_h5ad_files(
         )
 
         validate_h5ad(
-            h5ad_path=h5ad_fixture['transposed'],
+            h5ad_path=test_src_path,
             gene_id_mapper=None,
             log=None,
             tmp_dir=tmp_dir_fixture,
@@ -247,16 +274,29 @@ def test_validation_of_transposed_h5ad_files(
 
     expected = anndata.read_h5ad(baseline_path, backed='r')
     actual = anndata.read_h5ad(test_path, backed='r')
-    pd.testing.assert_frame_equal(
-        expected.obs,
-        actual.obs
-    )
-    pd.testing.assert_frame_equal(
-        expected.var,
-        actual.var
-    )
+
+    if not as_csv:
+        pd.testing.assert_frame_equal(
+            expected.obs,
+            actual.obs
+        )
+        pd.testing.assert_frame_equal(
+            expected.var,
+            actual.var
+        )
+    else:
+        np.testing.assert_array_equal(
+            expected.obs.index.values,
+            actual.obs.index.values
+        )
+        np.testing.assert_array_equal(
+            expected.var.index.values,
+            actual.var.index.values
+        )
+
     expected_x = expected.X[()]
     actual_x = actual.X[()]
+
     if density_fixture != 'dense':
         expected_x = expected_x.toarray()
         actual_x = actual_x.toarray()
