@@ -69,6 +69,7 @@ def csc_fixture(
     assert attrs['encoding-type'] == 'csc_matrix'
     return h5ad_path
 
+
 @pytest.fixture
 def csc_array_without_data_fixture(
         csc_fixture,
@@ -93,7 +94,11 @@ def csc_array_without_data_fixture(
 
     return h5_path
 
-@pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
+
+@pytest.mark.parametrize(
+    'max_gb',
+    [0.1, 0.01, 0.001, 0.0001]
+)
 def test_csc_to_csr_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
@@ -139,7 +144,11 @@ def test_csc_to_csr_on_disk(
 
 @pytest.mark.parametrize(
         'max_gb,use_data,version',
-        itertools.product([0.1, 0.01, 0.001, 0.0001],[True,False],[1,2]))
+        itertools.product(
+            [0.1, 0.01, 0.001, 0.0001],
+            [True, False],
+            [1, 2])
+)
 def test_transpose_sparse_matrix_on_disk(
         tmp_dir_fixture,
         x_array_fixture,

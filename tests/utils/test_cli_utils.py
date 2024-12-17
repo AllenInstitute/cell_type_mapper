@@ -12,8 +12,13 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.cli_utils import _get_query_gene_names
 
 
-@pytest.mark.parametrize('as_ensembl,species',
-        itertools.product([True, False], ['human', 'mouse', 'nonsense']))
+@pytest.mark.parametrize(
+    'as_ensembl,species',
+    itertools.product(
+        [True, False],
+        ['human', 'mouse', 'nonsense']
+    )
+)
 def test_get_query_gene_names(tmp_dir_fixture, as_ensembl, species):
 
     if species == 'mouse':

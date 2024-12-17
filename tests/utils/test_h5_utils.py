@@ -114,7 +114,7 @@ def test_h5_copy_util(
             else:
                 assert data_fixture[name] == src[name][()]
 
-    to_exclude =[]
+    to_exclude = []
     if excluded_datasets is not None:
         to_exclude += list(excluded_datasets)
     if excluded_groups is not None:
@@ -131,15 +131,14 @@ def test_h5_copy_util(
             if is_excluded:
                 assert name not in src
             else:
-               if isinstance(data_fixture[name], np.ndarray):
-                   np.testing.assert_allclose(
-                       data_fixture[name],
-                       src[name][()],
-                       atol=0.0,
-                       rtol=1.0e-6)
-               else:
-                   assert data_fixture[name] == src[name][()]
-
+                if isinstance(data_fixture[name], np.ndarray):
+                    np.testing.assert_allclose(
+                        data_fixture[name],
+                        src[name][()],
+                        atol=0.0,
+                        rtol=1.0e-6)
+                else:
+                    assert data_fixture[name] == src[name][()]
 
 
 @pytest.mark.parametrize(
@@ -158,7 +157,7 @@ def test_h5_copy_util_on_h5ad(
     rng = np.random.default_rng(87123)
     n_cells = 151
     n_genes = 431
-    n_tot =n_cells*n_genes
+    n_tot = n_cells*n_genes
     data = np.zeros(n_tot, dtype=np.float32)
     chosen = rng.choice(np.arange(n_tot, dtype=int), n_tot//3, replace=False)
     data[chosen] = rng.random(len(chosen)).astype(np.float32)
@@ -192,10 +191,11 @@ def test_h5_copy_util_on_h5ad(
 
     varm = {
         'gene_mask': rng.integers(0, 2, n_genes).astype(bool),
-        'gene_df': pd.DataFrame([{'gene_id': f'gene_{ii}',
-                                  'value': f'something_{ii}',
-                                  'cube': ii**3}
-                                 for ii in range(n_genes)]).set_index('gene_id')
+        'gene_df': pd.DataFrame(
+            [{'gene_id': f'gene_{ii}',
+              'value': f'something_{ii}',
+              'cube': ii**3}
+             for ii in range(n_genes)]).set_index('gene_id')
     }
 
     uns = {'date': 'today', 'author': 'me'}
@@ -222,7 +222,6 @@ def test_h5_copy_util_on_h5ad(
         excluded_groups=excluded_groups,
         excluded_datasets=excluded_groups,
         max_elements=1000)
-
 
     dst_a_data = anndata.read_h5ad(dst_path, backed='r')
     if 'X' not in excluded_groups:
@@ -261,7 +260,6 @@ def test_h5_copy_util_on_h5ad(
     else:
         dst_obsm = dst_a_data.obsm
         assert dst_obsm == dict()
-
 
     if 'varm' not in excluded_groups:
         dst_varm = dst_a_data.varm
