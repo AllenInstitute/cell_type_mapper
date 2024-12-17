@@ -10,9 +10,6 @@ from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from cell_type_mapper.taxonomy.utils import (
-    convert_tree_to_leaves)
-
 from cell_type_mapper.type_assignment.matching import (
     assemble_query_data)
 
@@ -36,9 +33,11 @@ def tmp_dir_fixture(
 def n_genes():
     return 35
 
+
 @pytest.fixture
 def n_markers():
     return 17
+
 
 @pytest.fixture
 def marker_fixture(n_genes, n_markers):
@@ -103,11 +102,17 @@ def raw_mean_matrix_fixture(mean_lookup_fixture, n_genes, marker_fixture):
 
 @pytest.mark.parametrize(
     "parent_node, expected_n_reference, expected_types, expected_clusters",
-    [(None, 13, ['A', 'B', 'C', 'C', 'C', 'A', 'B', 'B', 'A', 'A', 'B', 'B', 'B'],
+    [(None,
+      13,
+      ['A', 'B', 'C', 'C', 'C', 'A', 'B', 'B', 'A', 'A', 'B', 'B', 'B'],
      [str(ii) for ii in range(13)]),
      (('subclass', 'cc'), 3, ['0', '5', '6'], ['0', '5', '6']),
-     (('class', 'B'), 6, ['aa', 'aa', 'aa', 'ee', 'dd', 'ee'], ['1', '3', '4', '8', '7', '9'])
-    ])
+     (('class', 'B'),
+      6,
+      ['aa', 'aa', 'aa', 'ee', 'dd', 'ee'],
+      ['1', '3', '4', '8', '7', '9'])
+     ]
+)
 def test_assemble_query_data(
         tree_fixture,
         marker_fixture,
@@ -132,13 +137,16 @@ def test_assemble_query_data(
         parent_grp = f"{parent_node[0]}/{parent_node[1]}"
 
     with h5py.File(marker_cache_path, 'w') as out_file:
-        out_file.create_dataset(f"{parent_grp}/reference",
+        out_file.create_dataset(
+            f"{parent_grp}/reference",
             data=marker_fixture['reference'])
-        out_file.create_dataset(f"{parent_grp}/query",
+        out_file.create_dataset(
+            f"{parent_grp}/query",
             data=marker_fixture['query'])
         out_file.create_dataset(
             'reference_gene_names',
-            data=json.dumps(marker_fixture['reference_names']).encode('utf-8')),
+            data=json.dumps(
+                marker_fixture['reference_names']).encode('utf-8')),
         out_file.create_dataset(
             'query_gene_names',
             data=json.dumps(marker_fixture['query_names']).encode('utf-8'))
@@ -179,7 +187,10 @@ def test_assemble_query_data(
     for ii in range(n_query):
         for jj in range(n_markers):
             jj_o = marker_fixture['query'][jj]
-            assert actual['query_data'].data[ii, jj] == full_query_data[ii, jj_o]
+            assert (
+                actual['query_data'].data[ii, jj]
+                == full_query_data[ii, jj_o]
+            )
 
     assert actual['reference_types'] == expected_types
     assert actual['reference_data'].n_cells == expected_n_reference
@@ -190,7 +201,10 @@ def test_assemble_query_data(
     for ii, ref in enumerate(cluster_list):
         for jj in range(n_markers):
             jj_o = marker_fixture['reference'][jj]
-            assert actual['reference_data'].data[ii, jj] == mean_lookup_fixture[ref][jj_o]
+            assert (
+                actual['reference_data'].data[ii, jj]
+                == mean_lookup_fixture[ref][jj_o]
+            )
 
 
 def test_assemble_query_data_errors(
@@ -211,13 +225,17 @@ def test_assemble_query_data_errors(
     parent_grp = 'None'
 
     with h5py.File(marker_cache_path, 'w') as out_file:
-        out_file.create_dataset(f"{parent_grp}/reference",
+        out_file.create_dataset(
+            f"{parent_grp}/reference",
             data=marker_fixture['reference'])
-        out_file.create_dataset(f"{parent_grp}/query",
+        out_file.create_dataset(
+            f"{parent_grp}/query",
             data=marker_fixture['query'])
         out_file.create_dataset(
             'reference_gene_names',
-            data=json.dumps(marker_fixture['reference_names']).encode('utf-8')),
+            data=json.dumps(
+                marker_fixture['reference_names']).encode('utf-8')
+            ),
         out_file.create_dataset(
             'query_gene_names',
             data=json.dumps(marker_fixture['query_names']).encode('utf-8'))

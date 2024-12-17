@@ -59,7 +59,7 @@ def taxonomy_dict_fixture():
     }
     taxonomy['cluster'] = {
         f'c{ii}': [ii, ii+22]
-        for ii in range(1,14,1)
+        for ii in range(1, 14, 1)
     }
     return taxonomy
 

@@ -31,7 +31,7 @@ def taxonomy_tree_fixture():
             'f': ['9', '10'],
             'g': ['11', '12']
         },
-        'cluster': { str(ii): [] for ii in range(1, 13, 1)}
+        'cluster': {str(ii): [] for ii in range(1, 13, 1)}
     }
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -60,6 +60,7 @@ def complete_lookup_fixture(
         lookup[parent_str] = list(
             rng.choice(query_gene_fixture, 3, replace=False))
     return lookup
+
 
 def test_validate_marker_lookup(
         taxonomy_tree_fixture,
@@ -116,7 +117,8 @@ def test_validate_marker_lookup(
             lookup = copy.deepcopy(complete_lookup_fixture)
             lookup.pop(to_drop)
             lookup[to_drop] = [f'j_{ii}' for ii in range(3)]
-            with pytest.raises(RuntimeError, match="has no valid markers in query"):
+            with pytest.raises(RuntimeError,
+                               match="has no valid markers in query"):
                 validate_marker_lookup(
                     marker_lookup=lookup,
                     taxonomy_tree=taxonomy_tree_fixture,
@@ -139,7 +141,10 @@ def test_validate_marker_lookup(
                 assert set(new_lookup['class/A']) == set(lookup['None'])
             else:
                 assert set(new_lookup['subclass/f']) == set(lookup['class/C'])
-            expected = f"'{to_drop}' had too few markers in query set; augmenting"
+            expected = (
+                f"'{to_drop}' had too few markers "
+                "in query set; augmenting"
+            )
             found = False
             for msg in log.log:
                 if expected in msg:
@@ -165,10 +170,6 @@ def test_validate_marker_lookup(
         assert set(new_lookup['subclass/e']) != set(lookup['None'])
 
         for to_drop in ('class/C', 'subclass/f'):
-            if to_drop == 'class/C':
-                the_patch = f"{['None']}"
-            else:
-                the_patch = f"{['class/C']}"
             expected = (f"'{to_drop}' had too few markers in query set; "
                         "augmenting with markers from")
             found = False
@@ -242,7 +243,7 @@ def test_patching_of_marker_lookup():
                 'd': ['7', '8'],
                 'e': ['9', '10']
             },
-            'cluster':{
+            'cluster': {
                 str(k): [] for k in range(1, 11, 1)
             }
         }
