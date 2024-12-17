@@ -1,5 +1,3 @@
-import pytest
-
 import tempfile
 
 from cell_type_mapper.utils.utils import (
