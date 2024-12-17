@@ -30,7 +30,9 @@ from cell_type_mapper.utils.anndata_utils import (
     shuffle_csr_h5ad_rows,
     pivot_sparse_h5ad,
     subset_csc_h5ad_columns,
-    infer_attrs)
+    infer_attrs,
+    transpose_h5ad_file
+)
 
 from cell_type_mapper.utils.anndata_manipulation import (
     amalgamate_csr_to_x,
@@ -1109,3 +1111,106 @@ def test_infer_attrs(
             if k == 'shape':
                 continue
             assert expected[k] == actual[k]
+
+
+@pytest.mark.parametrize(
+    "density,compression",
+    itertools.product(
+        ["array", "csc", "csr"],
+        [("gzip", None), ("gzip", 4), ("lzf", None)]
+    )
+)
+def test_transpose_h5ad_file(
+        tmp_dir_fixture,
+        density,
+        compression):
+    """
+    Test function to transpose an h5ad file
+    """
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='src_',
+        suffix='.h5ad'
+    )
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dst_',
+        suffix='.h5ad'
+    )
+
+    n_cells = 512
+    n_genes = 447
+    n_tot = n_cells*n_genes
+
+    rng = np.random.default_rng(211778213)
+    data = np.zeros(n_tot, dtype=int)
+    chosen_idx = rng.choice(
+        np.arange(n_tot, dtype=int),
+        n_tot//3,
+        replace=False
+    )
+    data[chosen_idx] = rng.integers(2, 1000, len(chosen_idx))
+    data = data.reshape((n_cells, n_genes))
+    if density == 'csc':
+        xx = scipy.sparse.csc_matrix(data)
+    elif density == 'csr':
+        xx = scipy.sparse.csr_matrix(data)
+    else:
+        xx = data
+
+    obs = pd.DataFrame(
+        [
+         {'cell_id': f'c_{ii}', 'sq': ii**2}
+         for ii in range(n_cells)
+        ]
+    ).set_index('cell_id')
+
+    var = pd.DataFrame(
+        [
+         {'gene_id': f'g_{ii}', 'cube': ii**3}
+         for ii in range(n_genes)
+        ]
+    ).set_index('gene_id')
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=xx
+    )
+
+    src.write_h5ad(
+        src_path,
+        compression=compression[0],
+        compression_opts=compression[1])
+
+    transpose_h5ad_file(
+        src_path=src_path,
+        dst_path=dst_path
+    )
+
+    actual = anndata.read_h5ad(
+        dst_path
+    )
+
+    pd.testing.assert_frame_equal(
+        src.var,
+        actual.obs
+    )
+
+    pd.testing.assert_frame_equal(
+        src.obs,
+        actual.var
+    )
+
+    expected = data.transpose()
+
+    actual_x = actual.X
+    if density != 'array':
+        actual_x = actual_x.toarray()
+
+    np.testing.assert_array_equal(
+        expected,
+        actual_x
+    )

@@ -678,3 +678,153 @@ def infer_attrs(
     }
     attrs.update(new_attrs)
     return attrs
+
+
+def transpose_h5ad_file(
+        src_path,
+        dst_path):
+    """
+    Transpose an h5ad file (i.e. convert obs -> var and vice versa)
+    and write the data to a new file
+
+    Only works on X dataset.
+
+    Parameters
+    ----------
+    src_path:
+        Path to the h5ad file being transposed
+    dst_path:
+        Path to the file that will be written
+    """
+    src_attrs = infer_attrs(
+        src_path=src_path,
+        dataset='X'
+    )
+
+    if src_attrs['encoding-type'] == 'array':
+        _transpose_dense_h5ad(
+            src_path=src_path,
+            dst_path=dst_path
+        )
+    else:
+        _transpose_sparse_h5ad(
+            src_path=src_path,
+            src_attrs=src_attrs,
+            dst_path=dst_path
+        )
+
+
+def _transpose_sparse_h5ad(
+        src_path,
+        src_attrs,
+        dst_path):
+    """
+    Transpose a sparse array encoding h5ad file
+    """
+    dst_attrs = copy.deepcopy(src_attrs)
+    encoding_type = src_attrs['encoding-type']
+    if encoding_type.startswith('csc'):
+        encoding_type = encoding_type.replace('csc', 'csr')
+    elif encoding_type.startswith('csr'):
+        encoding_type = encoding_type.replace('csr', 'csc')
+    dst_attrs['encoding-type'] = encoding_type
+    dst_attrs['shape'] = src_attrs['shape'][-1::-1]
+
+    obs = read_df_from_h5ad(
+        src_path,
+        df_name='obs')
+
+    var = read_df_from_h5ad(
+        src_path,
+        df_name='var'
+    )
+
+    dst = anndata.AnnData(
+        var=obs,
+        obs=var
+    )
+    dst.write_h5ad(dst_path)
+
+    with h5py.File(src_path, 'r') as src:
+        with h5py.File(dst_path, 'a') as dst:
+            dst_grp = dst.create_group('X')
+            for attr_k in dst_attrs:
+                dst_grp.attrs.create(
+                    name=attr_k,
+                    data=dst_attrs[attr_k]
+                )
+            for data_key in ('data', 'indices', 'indptr'):
+                src_data = src[f'X/{data_key}']
+                src_chunks = src_data.chunks
+                src_compression = src_data.compression
+                src_compression_opts = src_data.compression_opts
+                if src_chunks is None:
+                    dst_grp.create_dataset(
+                        data_key,
+                        data=src_data[()],
+                        compression=src_compression,
+                        compression_opts=src_compression_opts
+                    )
+                else:
+                    dst_data = dst_grp.create_dataset(
+                        data_key,
+                        dtype=src_data.dtype,
+                        shape=src_data.shape,
+                        chunks=src_chunks,
+                        compression=src_compression,
+                        compression_opts=src_compression_opts
+                    )
+                    src_shape = src_data.shape
+                    for i0 in range(0, src_shape[0], src_chunks[0]):
+                        i1 = min(i0+src_chunks[0], src_shape[0])
+                        dst_data[i0:i1] = src_data[i0:i1]
+
+
+def _transpose_dense_h5ad(
+        src_path,
+        dst_path):
+    """
+    Transpose a dense array encoding h5ad file
+    """
+    obs = read_df_from_h5ad(
+        src_path,
+        df_name='obs'
+    )
+    var = read_df_from_h5ad(
+        src_path,
+        df_name='var'
+    )
+    dst = anndata.AnnData(var=obs, obs=var)
+    dst.write_h5ad(dst_path)
+
+    with h5py.File(src_path, 'r') as src:
+        with h5py.File(dst_path, 'a') as dst:
+            encoding_dict = dict(src['X'].attrs)
+            dst_chunks = src['X'].chunks
+            if dst_chunks is not None:
+                dst_chunks = dst_chunks[-1::-1]
+            dst_x = dst.create_dataset(
+                'X',
+                dtype=src['X'].dtype,
+                shape=src['X'].shape[-1::-1],
+                chunks=dst_chunks,
+                compression=src['X'].compression,
+                compression_opts=src['X'].compression_opts
+            )
+            for k in encoding_dict:
+                dst_x.attrs.create(
+                    name=k,
+                    data=encoding_dict[k]
+                )
+            if dst_chunks is None:
+                dst_x[:, :] = src['X'][()].transpose()
+            else:
+                x_chunk = dst_chunks[0]
+                y_chunk = dst_chunks[1]
+                for x0 in range(0, src['X'].shape[1], x_chunk):
+                    x1 = min(src['X'].shape[1], x0+x_chunk)
+                    for y0 in range(0, src['X'].shape[0], y_chunk):
+                        y1 = min(src['X'].shape[0], y0+y_chunk)
+                        dst_x[x0:x1, y0:y1] = (
+                            src['X'][y0:y1, x0:x1].transpose()
+                        )
