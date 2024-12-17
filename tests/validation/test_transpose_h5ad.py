@@ -24,7 +24,8 @@ from cell_type_mapper.data.human_gene_id_lookup import (
 )
 
 from cell_type_mapper.validation.validate_h5ad import (
-    _transpose_file_if_necessary
+    _transpose_file_if_necessary,
+    validate_h5ad
 )
 
 
@@ -53,7 +54,7 @@ def h5ad_fixture(
         np.arange(n_tot, dtype=int),
         n_tot//5,
         replace=False)
-    data[chosen_idx] = rng.integers(1, 999, len(chosen_idx))
+    data[chosen_idx] = 100.0*rng.random(len(chosen_idx))
     data = data.reshape((n_cells, n_genes))
 
     obs = pd.DataFrame(
@@ -180,10 +181,88 @@ def test_h5ad_transposition_from_genes(
         if density_fixture != 'dense':
             expected_x = expected_x.toarray()
             actual_x = actual_x.toarray()
-        np.testing.assert_array_equal(
+        np.testing.assert_allclose(
             expected_x,
-            actual_x
+            actual_x,
+            atol=0.0,
+            rtol=1.0e-7
         )
     else:
         assert not was_transposed
         assert new_path == h5ad_fixture['transposed']
+
+
+@pytest.mark.parametrize(
+    'density_fixture,species_fixture,round_to_int',
+    itertools.product(
+        ('csr', 'csc', 'dense'),
+        ('mouse', 'human'),
+        (True, False)
+    ),
+    indirect=['density_fixture', 'species_fixture']
+)
+def test_validation_of_transposed_h5ad_files(
+        density_fixture,
+        species_fixture,
+        h5ad_fixture,
+        round_to_int,
+        tmp_dir_fixture):
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        baseline_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='validated_baseline_',
+            suffix='.h5ad'
+        )
+
+        validate_h5ad(
+            h5ad_path=h5ad_fixture['correct'],
+            gene_id_mapper=None,
+            log=None,
+            tmp_dir=tmp_dir_fixture,
+            layer='X',
+            round_to_int=round_to_int,
+            output_dir=None,
+            valid_h5ad_path=baseline_path
+        )
+
+        test_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='validated_test_',
+            suffix='.h5ad'
+        )
+
+        validate_h5ad(
+            h5ad_path=h5ad_fixture['transposed'],
+            gene_id_mapper=None,
+            log=None,
+            tmp_dir=tmp_dir_fixture,
+            layer='X',
+            round_to_int=round_to_int,
+            output_dir=None,
+            valid_h5ad_path=test_path
+        )
+
+    expected = anndata.read_h5ad(baseline_path, backed='r')
+    actual = anndata.read_h5ad(test_path, backed='r')
+    pd.testing.assert_frame_equal(
+        expected.obs,
+        actual.obs
+    )
+    pd.testing.assert_frame_equal(
+        expected.var,
+        actual.var
+    )
+    expected_x = expected.X[()]
+    actual_x = actual.X[()]
+    if density_fixture != 'dense':
+        expected_x = expected_x.toarray()
+        actual_x = actual_x.toarray()
+    np.testing.assert_allclose(
+        expected_x,
+        actual_x,
+        atol=0.0,
+        rtol=1.0e-7
+    )

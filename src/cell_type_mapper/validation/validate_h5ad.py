@@ -167,6 +167,7 @@ def _validate_h5ad(
          tmp_dir=tmp_dir,
          log=log
     )
+    original_h5ad_path = pathlib.Path(original_h5ad_path)
 
     if was_transposed:
         has_warnings = True
