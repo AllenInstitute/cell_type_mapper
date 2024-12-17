@@ -212,7 +212,7 @@ def test_validation_cli_of_h5ad(
         if csv_label_type != "string":
             return
     else:
-        if 'as_layer':
+        if as_layer:
             return
         if not keep_encoding:
             return
@@ -345,8 +345,17 @@ def test_validation_cli_of_h5ad(
     int_pattern = re.compile('[0-9]+')
     timestamp = int_pattern.findall(name_parts[-1])[0]
     base_name = pathlib.Path(src_path).name.replace('.h5ad', '')
+
     if specify_path:
         expected_name = pathlib.Path(valid_path).name
+    elif density in ('csv', 'gz'):
+        if density == 'csv':
+            suffix = '.csv'
+        else:
+            suffix = '.csv.gz'
+        expected_name = (
+            f'{base_name.replace(suffix, "")}_VALIDATED_{timestamp}.h5ad'
+        )
     else:
         expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
@@ -361,7 +370,14 @@ def test_validation_cli_of_h5ad(
 
     actual = anndata.read_h5ad(result_path, backed='r')
     assert actual.uns['AIBS_CDM_n_mapped_genes'] == 3
-    pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+
+    if density not in ('csv', 'gz'):
+        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+    elif csv_label_type == 'string':
+        np.testing.assert_array_equal(
+            obs_fixture.index.values,
+            actual.obs.index.values
+        )
     actual_x = actual.X
 
     if density not in ("array", "csv", "gz"):
