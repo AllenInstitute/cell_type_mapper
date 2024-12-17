@@ -5,6 +5,7 @@ import numpy as np
 import pathlib
 import shutil
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -388,7 +389,10 @@ def baseline_tree_data_fixture(
 @pytest.fixture(scope='module')
 def baseline_tree_fixture(
         baseline_tree_data_fixture):
-    return TaxonomyTree(data=baseline_tree_data_fixture)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=baseline_tree_data_fixture)
 
 
 @pytest.fixture(scope='module')
@@ -397,7 +401,10 @@ def baseline_tree_without_cells_fixture(
     data = copy.deepcopy(baseline_tree_data_fixture)
     for k in data['cluster']:
         data['cluster'][k] = []
-    return TaxonomyTree(data=data)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=data)
 
 
 @pytest.fixture(scope='module')
@@ -421,7 +428,9 @@ def baseline_incomplete_tree_fixture(
     for cluster in cluster_list:
         tree_data['cluster'].pop(cluster)
 
-    return TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=tree_data)
 
 
 @pytest.fixture(scope='module')
