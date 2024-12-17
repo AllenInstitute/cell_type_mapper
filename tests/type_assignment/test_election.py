@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pathlib
 from unittest.mock import patch
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -408,7 +409,10 @@ def test_run_type_assignment(
         }
     }
 
-    taxonomy_tree = TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=tree_data)
 
     reference_gene_names = [f'gene_{ii}' for ii in range(40)]
 
