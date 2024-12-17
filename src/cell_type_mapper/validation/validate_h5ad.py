@@ -123,6 +123,15 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
+    if valid_h5ad_path is not None and output_dir is not None:
+        raise RuntimeError(
+            "Cannot specify both valid_h5ad_path and output_dir; "
+            "only specify one")
+
+    if valid_h5ad_path is None and output_dir is None:
+        raise RuntimeError(
+            "Must specify one of either valid_h5ad_path or output_dir")
+
     (original_h5ad_path,
      write_to_new_path) = convert_csv_to_h5ad(
          src_path=h5ad_path,
@@ -137,15 +146,6 @@ def _validate_h5ad(
             prefix=original_h5ad_path.name,
             suffix='.h5ad')
         )
-
-    if valid_h5ad_path is not None and output_dir is not None:
-        raise RuntimeError(
-            "Cannot specify both valid_h5ad_path and output_dir; "
-            "only specify one")
-
-    if valid_h5ad_path is None and output_dir is None:
-        raise RuntimeError(
-            "Must specify one of either valid_h5ad_path or output_dir")
 
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
