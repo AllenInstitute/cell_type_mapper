@@ -9,6 +9,7 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.corr.utils import (
     match_genes)
@@ -149,10 +150,14 @@ def h5ad_fixture(
 
     csr = scipy_sparse.csr_matrix(x_data_fixture)
 
-    a_data = anndata.AnnData(
-        X=csr,
-        var=var_fixture,
-        dtype=csr.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=csr,
+            var=var_fixture,
+            dtype=csr.dtype)
+
     a_data.write_h5ad(h5ad_path)
 
     yield h5ad_path
@@ -176,10 +181,14 @@ def h5ad_fixture_raw(
 
     csr = scipy_sparse.csr_matrix(raw_data_fixture)
 
-    a_data = anndata.AnnData(
-        X=csr,
-        var=var_fixture,
-        dtype=csr.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=csr,
+            var=var_fixture,
+            dtype=csr.dtype)
+
     a_data.write_h5ad(h5ad_path)
 
     yield h5ad_path

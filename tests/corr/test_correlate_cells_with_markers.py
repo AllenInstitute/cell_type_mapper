@@ -6,6 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
    _clean_up,
@@ -132,12 +133,17 @@ def query_h5ad_fixture(
         prefix='query_',
         suffix='.h5ad')
 
-    a = anndata.AnnData(
-            X=query_x_fixture,
-            obs=var_and_obs[1],
-            var=var_and_obs[0],
-            dtype=query_x_fixture.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a = anndata.AnnData(
+                X=query_x_fixture,
+                obs=var_and_obs[1],
+                var=var_and_obs[0],
+                dtype=query_x_fixture.dtype)
+
     a.write_h5ad(h5ad_path)
+
     return h5ad_path
 
 
@@ -152,12 +158,16 @@ def query_h5ad_fixture_raw(
         prefix='query_raw_',
         suffix='.h5ad')
 
-    a = anndata.AnnData(
-            X=query_raw_fixture,
-            obs=var_and_obs[1],
-            var=var_and_obs[0],
-            dtype=query_raw_fixture.dtype)
-    a.write_h5ad(h5ad_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a = anndata.AnnData(
+                X=query_raw_fixture,
+                obs=var_and_obs[1],
+                var=var_and_obs[0],
+                dtype=query_raw_fixture.dtype)
+        a.write_h5ad(h5ad_path)
+
     return h5ad_path
 
 
@@ -206,13 +216,16 @@ def test_correlate_cells_with_markers(
             prefix='output_',
             suffix='.h5')
 
-    correlate_cells(
-        query_path=query_h5ad_fixture,
-        precomputed_path=precompute_fixture,
-        output_path=output_path,
-        rows_at_a_time=17,
-        n_processors=3,
-        marker_gene_list=marker_gene_names)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        correlate_cells(
+            query_path=query_h5ad_fixture,
+            precomputed_path=precompute_fixture,
+            output_path=output_path,
+            rows_at_a_time=17,
+            n_processors=3,
+            marker_gene_list=marker_gene_names)
 
     with h5py.File(output_path, 'r') as in_file:
         actual = in_file['correlation'][()]
@@ -245,13 +258,16 @@ def test_corrmap_cells_with_markers(
     cluster_list = list(cluster_to_profile.keys())
     cluster_list.sort()
 
-    result = corrmap_cells(
-        query_path=query_path,
-        precomputed_path=precompute_fixture,
-        rows_at_a_time=17,
-        n_processors=3,
-        marker_gene_list=marker_gene_names,
-        query_normalization=query_norm)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        result = corrmap_cells(
+            query_path=query_path,
+            precomputed_path=precompute_fixture,
+            rows_at_a_time=17,
+            n_processors=3,
+            marker_gene_list=marker_gene_names,
+            query_normalization=query_norm)
 
     a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
     cell_id_list = a_data.obs_names
