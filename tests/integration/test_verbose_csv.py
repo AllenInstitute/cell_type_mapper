@@ -12,6 +12,7 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -97,7 +98,9 @@ def reference_h5ad_fixture(
         taxonomy_tree_data_fixture,
         n_genes_fixture):
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -170,7 +173,10 @@ def precomputed_stats_fixture(
         tmp_dir=tmp_dir_fixture,
         n_processors=1)
 
-    tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+
     with h5py.File(h5ad_path, 'a') as src:
         del src['taxonomy_tree']
         src.create_dataset(
@@ -187,7 +193,10 @@ def marker_genes_fixture(
         n_genes_fixture,
         taxonomy_tree_data_fixture):
 
-    tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='marker_genes_',
@@ -280,21 +289,26 @@ def test_csv_column_names(
         'verbose_csv': verbose_csv
     }
 
-    if mode == 'from_spec':
-        config['query_markers'] = {
-            'serialized_lookup': marker_genes_fixture
-        }
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config
-        )
-    elif mode == 'otf':
-        config['query_markers'] = {}
-        config['reference_markers'] = {}
-        config['n_processors'] = config['type_assignment'].pop('n_processors')
-        runner = OnTheFlyMapper(args=[], input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        if mode == 'from_spec':
+            config['query_markers'] = {
+                'serialized_lookup': marker_genes_fixture
+            }
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config
+            )
+        elif mode == 'otf':
+            config['query_markers'] = {}
+            config['reference_markers'] = {}
+            config['n_processors'] = (
+                config['type_assignment'].pop('n_processors')
+            )
+            runner = OnTheFlyMapper(args=[], input_data=config)
+
+        runner.run()
 
     actual_df = pd.read_csv(csv_path, comment='#')
 
