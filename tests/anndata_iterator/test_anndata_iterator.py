@@ -199,7 +199,7 @@ def test_anndata_row_iterator_get_chunk(
             f"use={use} makese no sense")
 
     if keep_encoding:
-        src_path=fpath
+        src_path = fpath
     else:
         src_path = mkstemp_clean(
             dir=tmp_dir_fixture,
@@ -390,7 +390,7 @@ def test_anndata_iterator_from_layer(
     for row in [55, 77, 112, 0, 45]:
         chunk = iterator[row]
         np.testing.assert_allclose(
-            chunk[0][0,:],
+            chunk[0][0, :],
             data[row, :],
             atol=0.0,
             rtol=1.0e-6)
