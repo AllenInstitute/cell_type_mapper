@@ -5,6 +5,7 @@ import h5py
 import json
 import numpy as np
 import pandas as pd
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -41,7 +42,12 @@ def taxonomy_tree_fixture():
             n:[] for n in 'abcdefghij'
         }
     }
-    tree = TaxonomyTree(data=data)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tree = TaxonomyTree(data=data)
+
     return tree
 
 
@@ -87,8 +93,13 @@ def test_leaf_census(
         expected_census,
         taxonomy_tree_fixture):
     precompute_path_list = list(expected_census['a'].keys())
-    (actual_census,
-     actual_tree) = run_leaf_census(precompute_path_list)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        (actual_census,
+         actual_tree) = run_leaf_census(precompute_path_list)
+
     assert actual_census == expected_census
     assert actual_tree.is_equal_to(taxonomy_tree_fixture)
 
@@ -130,17 +141,20 @@ def test_merge_precompute(
     }
     col_names = [f'g{ii}' for ii in range(n_genes)]
 
-    tree = TaxonomyTree(
-        data={
-            'hierarchy': ['class', 'cluster'],
-            'class': {
-                'A': ['c0', 'c1'],
-                'B': ['c2', 'c3', 'c4', 'c5']
-            },
-            'cluster': {
-                f'c{ii}': [] for ii in range(n_clusters)
-            }
-        })
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tree = TaxonomyTree(
+            data={
+                'hierarchy': ['class', 'cluster'],
+                'class': {
+                    'A': ['c0', 'c1'],
+                    'B': ['c2', 'c3', 'c4', 'c5']
+                },
+                'cluster': {
+                    f'c{ii}': [] for ii in range(n_clusters)
+                }
+            })
 
     for (pth, ncells, sumarr, sumsqarr) in [
                 (pth0, n0, s0, ssq0),
@@ -170,11 +184,15 @@ def test_merge_precompute(
         prefix='merged_',
         suffix='.h5')
 
-    merge_precompute_files(
-        precompute_path_list=[pth1, pth2, pth0],
-        output_path=output_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    actual_tree = TaxonomyTree.from_precomputed_stats(output_path)
+        merge_precompute_files(
+            precompute_path_list=[pth1, pth2, pth0],
+            output_path=output_path)
+
+        actual_tree = TaxonomyTree.from_precomputed_stats(output_path)
+
     assert actual_tree.is_equal_to(tree)
 
     with h5py.File(output_path, 'r') as src:
@@ -283,8 +301,11 @@ def test_drop_node_from_precompute(
         }
     }
 
-    baseline_tree = TaxonomyTree(data=tree_data)
-    baseline_trimmed_tree = TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        baseline_tree = TaxonomyTree(data=tree_data)
+        baseline_trimmed_tree = TaxonomyTree(data=tree_data)
 
     mapped_drop_node_list = []
     for drop_node in drop_node_list:
@@ -295,10 +316,14 @@ def test_drop_node_from_precompute(
             )
         )
 
-    for drop_node in mapped_drop_node_list:
-        baseline_trimmed_tree = baseline_trimmed_tree.drop_node(
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        for drop_node in mapped_drop_node_list:
+            baseline_trimmed_tree = baseline_trimmed_tree.drop_node(
                 level=drop_node[0],
                 node=drop_node[1])
+
     assert baseline_trimmed_tree != baseline_tree
 
     trimmed_cluster_list = baseline_trimmed_tree.nodes_at_level(
@@ -346,16 +371,19 @@ def test_drop_node_from_precompute(
         suffix='.h5'
     )
 
-    precompute_summary_stats_from_h5ad(
-        data_path=src_h5ad_path,
-        column_hierarchy=['class', 'subclass', 'supertype', 'cluster'],
-        taxonomy_tree=None,
-        output_path=baseline_precompute_path,
-        rows_at_a_time=1000,
-        normalization='raw',
-        tmp_dir=tmp_dir_fixture,
-        n_processors=1
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        precompute_summary_stats_from_h5ad(
+            data_path=src_h5ad_path,
+            column_hierarchy=['class', 'subclass', 'supertype', 'cluster'],
+            taxonomy_tree=None,
+            output_path=baseline_precompute_path,
+            rows_at_a_time=1000,
+            normalization='raw',
+            tmp_dir=tmp_dir_fixture,
+            n_processors=1
+        )
 
     # patch h5 file taxonomy tree with name mapper and hierarchy mapper
     with h5py.File(baseline_precompute_path, 'a') as src:
@@ -368,9 +396,13 @@ def test_drop_node_from_precompute(
             data=json.dumps(src_data).encode('utf-8')
         )
 
-    p_tree = TaxonomyTree.from_precomputed_stats(
-        baseline_precompute_path
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        p_tree = TaxonomyTree.from_precomputed_stats(
+            baseline_precompute_path
+        )
+
     assert p_tree.is_equal_to(baseline_tree)
     assert not p_tree.is_equal_to(baseline_trimmed_tree)
 
@@ -380,16 +412,19 @@ def test_drop_node_from_precompute(
         suffix='.h5'
     )
 
-    drop_nodes_from_precomputed_stats(
-        src_path=baseline_precompute_path,
-        dst_path=trimmed_precompute_path,
-        node_list=drop_node_list,
-        clobber=True
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    test_tree = TaxonomyTree.from_precomputed_stats(
-        trimmed_precompute_path
-    )
+        drop_nodes_from_precomputed_stats(
+            src_path=baseline_precompute_path,
+            dst_path=trimmed_precompute_path,
+            node_list=drop_node_list,
+            clobber=True
+        )
+
+        test_tree = TaxonomyTree.from_precomputed_stats(
+            trimmed_precompute_path
+        )
     assert test_tree.is_equal_to(baseline_trimmed_tree)
 
     # make sure only changes to content of trimmed file are the
