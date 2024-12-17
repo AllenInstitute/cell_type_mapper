@@ -11,6 +11,7 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.test_utils.cloud_safe import (
     check_not_file)
@@ -187,7 +188,7 @@ def precomputed_stats_fixture(
             (True, False),
             (True, False)
         ))
-def test_mapping_from_markers(
+def test_mapping_from_markers_basic(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
         raw_query_h5ad_fixture,
@@ -277,18 +278,22 @@ def test_mapping_from_markers(
         suffix='.txt')
     config['log_path'] = log_path
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
+
+        # make sure taxonomy tree was recorded in metadata
+        expected_tree = TaxonomyTree(
+            data=taxonomy_tree_dict).to_str(drop_cells=True)
 
     actual = json.load(open(result_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in actual['log'][-2]
 
-    # make sure taxonomy tree was recorded in metadata
-    expected_tree = TaxonomyTree(
-        data=taxonomy_tree_dict).to_str(drop_cells=True)
     expected_tree = json.loads(expected_tree)
     assert actual['taxonomy_tree'] == expected_tree
 
@@ -516,13 +521,16 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
-    with pytest.warns(UserWarning, match=msg):
-        runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
+        with pytest.warns(UserWarning, match=msg):
+            runner.run()
 
     os.environ[env_var] = ''
 
@@ -582,7 +590,11 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
         markers = json.load(src)
 
     assert len(markers['subclass/subclass_5']) > 0
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+
     parents = taxonomy_tree.parents(
         level='subclass', node='subclass_5')
 
@@ -633,11 +645,14 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     # subclass/subclass_5 marker genes should now be identical to
     # its parent's, since we removed its default markers from the
@@ -733,14 +748,17 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    msg = "'None' has no valid markers in query gene set"
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    with pytest.raises(RuntimeError, match=msg):
-        runner.run()
+        msg = "'None' has no valid markers in query gene set"
+
+        with pytest.raises(RuntimeError, match=msg):
+            runner.run()
 
     os.environ[env_var] = ''
 
@@ -823,14 +841,19 @@ def test_mapping_when_there_are_no_markers(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
-    msg = ("After comparing query data to reference data, "
-           "no valid marker genes could be found")
-    with pytest.raises(RuntimeError, match=msg):
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-        runner.run()
+        msg = ("After comparing query data to reference data, "
+               "no valid marker genes could be found")
+
+        with pytest.raises(RuntimeError, match=msg):
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()
 
     os.environ[env_var] = ''
 
@@ -938,11 +961,14 @@ def test_mapping_uint16_data(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     actual = json.load(open(result_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in actual['log'][-2]
@@ -959,10 +985,14 @@ def test_mapping_uint16_data(
         dir=tmp_dir_fixture,
         suffix='.json')
     config['extended_result_path'] = baseline_output
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+        runner.run()
 
     expected = json.load(open(baseline_output, 'rb'))
     actual_results = {
@@ -1058,11 +1088,14 @@ def test_cloud_safe_mapping(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     with open(result_path, 'rb') as src:
         data = json.load(src)
@@ -1131,26 +1164,29 @@ def test_output_compression(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    with open(result_path, 'rb') as src:
-        output_blob = json.load(src)
+        runner.run()
 
-    hdf5_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='blob_to_hdf5_',
-        suffix='.h5')
+        with open(result_path, 'rb') as src:
+            output_blob = json.load(src)
 
-    blob_to_hdf5(
-        output_blob=output_blob,
-        dst_path=hdf5_path)
+        hdf5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='blob_to_hdf5_',
+            suffix='.h5')
 
-    roundtrip = hdf5_to_blob(
-        src_path=hdf5_path)
+        blob_to_hdf5(
+            output_blob=output_blob,
+            dst_path=hdf5_path)
+
+        roundtrip = hdf5_to_blob(
+            src_path=hdf5_path)
 
     assert roundtrip == output_blob
 
@@ -1206,28 +1242,31 @@ def test_integer_indexed_input(
         old_label_to_new_label[old_idx[ii]] = new_label
         new_obs.append({'cell_label': new_label})
 
-    new_obs = pd.DataFrame(new_obs).set_index('cell_label')
-    new_obs.index.astype(np.int64, copy=False)
-    new_data = anndata.AnnData(
-        obs=new_obs,
-        var=query_data.var,
-        X=query_data.X)
-    new_data.write_h5ad(new_query_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    # doctor h5ad file to force the index to have integer values
-    # (I'm not sure that anndata thinks this should be possible,
-    # https://github.com/scverse/anndata/issues/35
-    # but it has been encountered "in the wild")
-    with h5py.File(new_query_path, 'a') as src:
-        old_index = src['obs']['cell_label'][()]
-        del src['obs']['cell_label']
-        src['obs'].create_dataset(
-            'cell_label',
-            data=old_index.astype(np.int64)
-        )
+        new_obs = pd.DataFrame(new_obs).set_index('cell_label')
+        new_obs.index.astype(np.int64, copy=False)
+        new_data = anndata.AnnData(
+            obs=new_obs,
+            var=query_data.var,
+            X=query_data.X)
+        new_data.write_h5ad(new_query_path)
 
-    checking = read_df_from_h5ad(new_query_path, df_name='obs')
-    assert checking.index.dtype == np.int64
+        # doctor h5ad file to force the index to have integer values
+        # (I'm not sure that anndata thinks this should be possible,
+        # https://github.com/scverse/anndata/issues/35
+        # but it has been encountered "in the wild")
+        with h5py.File(new_query_path, 'a') as src:
+            old_index = src['obs']['cell_label'][()]
+            del src['obs']['cell_label']
+            src['obs'].create_dataset(
+                'cell_label',
+                data=old_index.astype(np.int64)
+            )
+
+        checking = read_df_from_h5ad(new_query_path, df_name='obs')
+        assert checking.index.dtype == np.int64
 
     config['query_path'] = str(new_query_path)
 
@@ -1254,10 +1293,13 @@ def test_integer_indexed_input(
 
     control_config = copy.deepcopy(config)
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+        runner.run()
 
     # re-run with the original anndata file (that doesn't use
     # integers to index obs) and make sure that results are identical
@@ -1268,11 +1310,15 @@ def test_integer_indexed_input(
     )
     control_config['query_path'] = baseline_config['query_path']
     control_config['extended_result_path'] = control_output
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=control_config
-    )
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=control_config
+        )
+        runner.run()
 
     with open(config['extended_result_path'], 'rb') as src:
         actual = json.load(src)
