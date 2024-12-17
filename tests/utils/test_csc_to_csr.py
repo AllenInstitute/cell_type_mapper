@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -57,9 +58,11 @@ def csc_fixture(
             prefix='csr_',
             suffix='.h5ad'))
 
-    a = anndata.AnnData(
-            X=scipy_sparse.csc_matrix(x_array_fixture),
-            dtype=x_array_fixture.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        a = anndata.AnnData(
+                X=scipy_sparse.csc_matrix(x_array_fixture),
+                dtype=x_array_fixture.dtype)
     a.write_h5ad(h5ad_path)
     with h5py.File(h5ad_path, 'r') as src:
         attrs = dict(src['X'].attrs)
