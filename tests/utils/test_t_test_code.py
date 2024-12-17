@@ -29,7 +29,6 @@ def test_t_test_approx(boring_t, big_nu):
     def _alt_nu(*args, **kwargs):
         return t_values, nu_values
 
-
     with patch('cell_type_mapper.utils.stats_utils._calculate_tt_nu',
                new=_alt_nu):
 
@@ -143,6 +142,7 @@ def test_when_boring_t_is_zero():
         atol=0.0,
         rtol=1.0e-6)
 
+
 @pytest.mark.parametrize(
     'p_value', [0.01, 0.02, 0.005, 0.003])
 def test_boring_t_calc(p_value):
@@ -160,13 +160,13 @@ def test_approx_correct_ttest(p_th):
     log_vals = rng.integers(-10, 0, 32000)
     raw = np.power(10.0, log_vals)
 
-    shld_match = (raw<p_th)
+    shld_match = (raw < p_th)
     assert shld_match.sum() > 0
 
     exact = stats_utils.correct_ttest(raw)
     approx = stats_utils.approx_correct_ttest(raw, p_th=p_th)
 
-    assert (exact[raw>=p_th] >= p_th).all()
+    assert (exact[raw >= p_th] >= p_th).all()
     assert not np.allclose(exact, raw)
 
     np.testing.assert_allclose(
