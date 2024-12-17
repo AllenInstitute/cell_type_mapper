@@ -11,6 +11,7 @@ import json
 import scipy.sparse as scipy_sparse
 import tempfile
 import os
+import warnings
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
@@ -107,9 +108,12 @@ def test_running_single_election(
 
     assert precompute_path.is_file()
 
-    with h5py.File(precompute_path, 'r') as src:
-        taxonomy_tree = TaxonomyTree.from_str(
-            src['taxonomy_tree'][()].decode('utf-8'))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with h5py.File(precompute_path, 'r') as src:
+            taxonomy_tree = TaxonomyTree.from_str(
+                src['taxonomy_tree'][()].decode('utf-8'))
 
     assert not score_path.is_file()
 
@@ -208,127 +212,130 @@ def test_running_full_election(
     """
     Just a smoke test
     """
-    rng = np.random.default_rng(2213122)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    n_genes = len(gene_names)
-    if to_keep_frac is not None:
-        genes_to_keep = n_genes // to_keep_frac
-        assert genes_to_keep > 0
-        assert genes_to_keep < n_genes
-    else:
-        genes_to_keep = None
+        rng = np.random.default_rng(2213122)
 
-    tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-    zarr_path = tmp_dir / 'zarr.zarr'
-    hdf5_tmp = tmp_dir / 'hdf5'
-    hdf5_tmp.mkdir()
-    score_path = tmp_dir / 'score_results.h5'
-    marker_cache_path = tmp_dir / 'marker_cache.h5'
-    precompute_path = tmp_dir / 'precomputed.h5'
+        n_genes = len(gene_names)
+        if to_keep_frac is not None:
+            genes_to_keep = n_genes // to_keep_frac
+            assert genes_to_keep > 0
+            assert genes_to_keep < n_genes
+        else:
+            genes_to_keep = None
 
-    precompute_summary_stats_from_h5ad(
-        data_path=h5ad_path_fixture,
-        column_hierarchy=column_hierarchy,
-        taxonomy_tree=None,
-        output_path=precompute_path,
-        rows_at_a_time=10000,
-        normalization="log2CPM")
+        tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
+        zarr_path = tmp_dir / 'zarr.zarr'
+        hdf5_tmp = tmp_dir / 'hdf5'
+        hdf5_tmp.mkdir()
+        score_path = tmp_dir / 'score_results.h5'
+        marker_cache_path = tmp_dir / 'marker_cache.h5'
+        precompute_path = tmp_dir / 'precomputed.h5'
 
-    assert precompute_path.is_file()
+        precompute_summary_stats_from_h5ad(
+            data_path=h5ad_path_fixture,
+            column_hierarchy=column_hierarchy,
+            taxonomy_tree=None,
+            output_path=precompute_path,
+            rows_at_a_time=10000,
+            normalization="log2CPM")
 
-    with h5py.File(precompute_path, 'r') as src:
-        taxonomy_tree_dict = json.loads(
-            src['taxonomy_tree'][()].decode('utf-8'))
-        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+        assert precompute_path.is_file()
 
-    assert not score_path.is_file()
+        with h5py.File(precompute_path, 'r') as src:
+            taxonomy_tree_dict = json.loads(
+                src['taxonomy_tree'][()].decode('utf-8'))
+            taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
-    n_processors = 3
+        assert not score_path.is_file()
 
-    find_markers_for_all_taxonomy_pairs(
-        precomputed_stats_path=precompute_path,
-        taxonomy_tree=taxonomy_tree,
-        output_path=score_path,
-        n_processors=n_processors,
-        tmp_dir=tmp_dir)
+        n_processors = 3
 
-    assert score_path.is_file()
+        find_markers_for_all_taxonomy_pairs(
+            precomputed_stats_path=precompute_path,
+            taxonomy_tree=taxonomy_tree,
+            output_path=score_path,
+            n_processors=n_processors,
+            tmp_dir=tmp_dir)
 
-    rng = np.random.default_rng(556623)
-    query_genes = rng.choice(gene_names, n_genes//3, replace=False)
-    query_genes = list(query_genes)
+        assert score_path.is_file()
 
-    query_genes += ["nonsense_0", "nonsense_1", "nonsense_2"]
-    rng.shuffle(query_genes)
+        rng = np.random.default_rng(556623)
+        query_genes = rng.choice(gene_names, n_genes//3, replace=False)
+        query_genes = list(query_genes)
 
-    n_query_cells = 446
-    query_data = rng.random((n_query_cells, len(query_genes)))
+        query_genes += ["nonsense_0", "nonsense_1", "nonsense_2"]
+        rng.shuffle(query_genes)
 
-    assert not marker_cache_path.is_file()
+        n_query_cells = 446
+        query_data = rng.random((n_query_cells, len(query_genes)))
 
-    genes_per_pair = 7
+        assert not marker_cache_path.is_file()
 
-    create_marker_cache_from_reference_markers(
-        output_cache_path=marker_cache_path,
-        input_cache_path=score_path,
-        query_gene_names=query_genes,
-        taxonomy_tree=taxonomy_tree,
-        n_per_utility=genes_per_pair,
-        n_processors=n_selection_processors)
+        genes_per_pair = 7
 
-    assert marker_cache_path.is_file()
-    with h5py.File(marker_cache_path, 'r') as in_file:
-        query_gene_id = json.loads(
+        create_marker_cache_from_reference_markers(
+            output_cache_path=marker_cache_path,
+            input_cache_path=score_path,
+            query_gene_names=query_genes,
+            taxonomy_tree=taxonomy_tree,
+            n_per_utility=genes_per_pair,
+            n_processors=n_selection_processors)
+
+        assert marker_cache_path.is_file()
+        with h5py.File(marker_cache_path, 'r') as in_file:
+            query_gene_id = json.loads(
                              in_file["query_gene_names"][()].decode("utf-8"))
-        query_markers = [query_gene_id[ii]
-                         for ii in in_file['all_query_markers'][()]]
+            query_markers = [query_gene_id[ii]
+                             for ii in in_file['all_query_markers'][()]]
 
-    query_cell_by_gene = CellByGeneMatrix(
-        data=query_data,
-        gene_identifiers=query_gene_id,
-        normalization="log2CPM")
+        query_cell_by_gene = CellByGeneMatrix(
+            data=query_data,
+            gene_identifiers=query_gene_id,
+            normalization="log2CPM")
 
-    query_cell_by_gene.downsample_genes_in_place(
-        selected_genes=query_markers)
+        query_cell_by_gene.downsample_genes_in_place(
+            selected_genes=query_markers)
 
-    # get a CellByGeneMatrix of average expression
-    # profiles for each leaf in the taxonomy
-    leaf_node_matrix = get_leaf_means(
-        taxonomy_tree=taxonomy_tree,
-        precompute_path=precompute_path)
+        # get a CellByGeneMatrix of average expression
+        # profiles for each leaf in the taxonomy
+        leaf_node_matrix = get_leaf_means(
+            taxonomy_tree=taxonomy_tree,
+            precompute_path=precompute_path)
 
-    bootstrap_factor = 0.8
-    bootstrap_factor_lookup = {
-        level: bootstrap_factor
-        for level in taxonomy_tree.hierarchy}
-    bootstrap_factor_lookup['None'] = bootstrap_factor
+        bootstrap_factor = 0.8
+        bootstrap_factor_lookup = {
+            level: bootstrap_factor
+            for level in taxonomy_tree.hierarchy}
+        bootstrap_factor_lookup['None'] = bootstrap_factor
 
-    result = run_type_assignment(
-        full_query_gene_data=query_cell_by_gene,
-        leaf_node_matrix=leaf_node_matrix,
-        marker_gene_cache_path=marker_cache_path,
-        taxonomy_tree=taxonomy_tree,
-        bootstrap_factor_lookup=bootstrap_factor_lookup,
-        bootstrap_iteration=23,
-        rng=rng)
+        result = run_type_assignment(
+            full_query_gene_data=query_cell_by_gene,
+            leaf_node_matrix=leaf_node_matrix,
+            marker_gene_cache_path=marker_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
+            bootstrap_iteration=23,
+            rng=rng)
 
-    assert len(result) == n_query_cells
-    for i_cell in range(n_query_cells):
-        for level in taxonomy_tree_dict['hierarchy']:
-            assert result[i_cell][level] is not None
+        assert len(result) == n_query_cells
+        for i_cell in range(n_query_cells):
+            for level in taxonomy_tree_dict['hierarchy']:
+                assert result[i_cell][level] is not None
 
-    # check that every cell is assigned to a
-    # taxonomically consistent set of types
-    hierarchy = taxonomy_tree_dict['hierarchy']
-    for i_cell in range(n_query_cells):
-        this_cell = result[i_cell]
-        for level in hierarchy:
-            assert level in this_cell
-        for k in this_cell:
-            assert this_cell[k] is not None
-        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
-        for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+        # check that every cell is assigned to a
+        # taxonomically consistent set of types
+        hierarchy = taxonomy_tree_dict['hierarchy']
+        for i_cell in range(n_query_cells):
+            this_cell = result[i_cell]
+            for level in hierarchy:
+                assert level in this_cell
+            for k in this_cell:
+                assert this_cell[k] is not None
+            assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
+            for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
+                assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
 
     _clean_up(tmp_dir)
 
@@ -610,9 +617,13 @@ def query_h5ad_fixture(
     obs = pd.DataFrame(obs_data)
     obs = obs.set_index('name')
 
-    a_data = anndata.AnnData(X=query_data,
-                             obs=obs,
-                             dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(X=query_data,
+                                 obs=obs,
+                                 dtype=float)
+
     a_data.write_h5ad(query_h5ad_path)
 
     return query_h5ad_path
@@ -964,9 +975,13 @@ def query_h5ad_fixture_negative(
     obs = pd.DataFrame(obs_data)
     obs = obs.set_index('name')
 
-    a_data = anndata.AnnData(X=query_data,
-                             obs=obs,
-                             dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(X=query_data,
+                                 obs=obs,
+                                 dtype=float)
+
     a_data.write_h5ad(query_h5ad_path)
 
     return query_h5ad_path
