@@ -52,6 +52,7 @@ def cluster_to_profile(reference_gene_names):
         result[n] = rng.random(n_genes)
     return result
 
+
 @pytest.fixture
 def precompute_fixture(
         tmp_dir_fixture,
@@ -80,7 +81,7 @@ def precompute_fixture(
         out_file.create_dataset(
             'cluster_to_row',
             data=json.dumps(
-                {n:int(ii)
+                {n: int(ii)
                  for ii, n in
                  enumerate(cluster_list)}).encode('utf-8'))
         out_file.create_dataset(
@@ -95,7 +96,7 @@ def precompute_fixture(
 def query_raw_fixture(
         query_gene_names):
     rng = np.random.default_rng(645221)
-    n_genes =len(query_gene_names)
+    n_genes = len(query_gene_names)
     n_cells = 213
     return rng.integers(14, 200000, (n_cells, n_genes))
 
@@ -121,6 +122,7 @@ def var_and_obs(
         for ii in range(query_x_fixture.shape[0])]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
     return var, obs
+
 
 @pytest.fixture
 def query_h5ad_fixture(
@@ -169,7 +171,6 @@ def query_h5ad_fixture_raw(
         a.write_h5ad(h5ad_path)
 
     return h5ad_path
-
 
 
 @pytest.fixture
@@ -286,7 +287,10 @@ def test_corrmap_cells_with_markers(
     for i_query in range(query_x_fixture.shape[0]):
         cell_id = result[i_query]['cell_id']
         expected = expected_lookup[cell_id]['cluster']
-        assert result[i_query]['cluster']['assignment'] == expected['assignment']
+        assert (
+            result[i_query]['cluster']['assignment']
+            == expected['assignment']
+        )
         assert np.isclose(expected['confidence'],
                           result[i_query]['cluster']['confidence'],
                           atol=1.0e-5,

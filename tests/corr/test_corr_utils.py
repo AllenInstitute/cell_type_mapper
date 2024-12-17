@@ -11,14 +11,15 @@ from cell_type_mapper.corr.utils import (
         [(['b', 'x', 'f', 'e', 'w'],
           {'reference': np.array([0, 5, 3]),
            'query': np.array([0, 3, 2])}),
-          (['w', 'x', 'y'],
-           {'reference': [],
-            'query': []}
+         (['w', 'x', 'y'],
+            {'reference': [],
+             'query': []}
           ),
-          (['x', 'f', 'e', 'w', 'b'],
+         (['x', 'f', 'e', 'w', 'b'],
           {'reference': np.array([0, 5, 3]),
            'query': np.array([4, 2, 1])}),
-        ])
+         ]
+)
 def test_match_genes(
         query,
         expected):
@@ -26,7 +27,6 @@ def test_match_genes(
     actual = match_genes(
                 reference_gene_names=reference_gene_names,
                 query_gene_names=query)
-
 
     if len(expected['reference']) > 0:
         np.testing.assert_array_equal(actual['reference'],
@@ -73,7 +73,6 @@ def test_match_genes_with_markers():
         np.array([5, 2]))
 
     assert result['names'] == ['c', 'e']
-
 
     result = match_genes(
         reference_gene_names=['a', 'e', 'b', 'c', 'd', 'f'],
