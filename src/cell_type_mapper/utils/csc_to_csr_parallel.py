@@ -37,8 +37,8 @@ def transpose_sparse_matrix_on_disk_v2(
     if uint_ok is True, allow uints for the dtypes of indptr and indices
     in final array (also allow them to have different dtypes).
 
-    This is not generally acceptable for arrays that will be read in as
-    scipy.sparse arrays.
+    uint indices are not generally acceptable for arrays that will be
+    read in as scipy.sparse arrays.
     """
 
     tmp_dir = tempfile.mkdtemp(
