@@ -68,6 +68,7 @@ def l2_to_class_fixture():
             backward[i] = k
     return forward, backward, siblings
 
+
 @pytest.fixture
 def class_to_cluster_fixture(l2_to_class_fixture):
     """
@@ -119,6 +120,7 @@ def records_fixture(
 
     rng.shuffle(records)
     return records
+
 
 @pytest.fixture
 def parent_to_leaves(

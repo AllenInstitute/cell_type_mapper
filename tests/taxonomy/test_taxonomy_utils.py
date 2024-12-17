@@ -1,6 +1,5 @@
 import pytest
 import copy
-import numpy as np
 import json
 import itertools
 import warnings
@@ -249,7 +248,7 @@ def test_get_all_pairs(
     for level, lookup in zip(('level1', 'level2', 'class'),
                              (l1_to_l2_fixture[0],
                               l2_to_class_fixture[0],
-                               class_to_cluster_fixture[0])):
+                              class_to_cluster_fixture[0])):
         elements = list(lookup.keys())
         elements.sort()
         for i0 in range(len(elements)):
@@ -276,7 +275,7 @@ def test_get_all_leaf_pairs():
         'level1': {'l1a': set(['l2b', 'l2d']),
                    'l1b': set(['l2a', 'l2c', 'l2e']),
                    'l1c': set(['l2f',])
-                  },
+                   },
         'level2': {'l2a': set(['l3b',]),
                    'l2b': set(['l3a', 'l3c']),
                    'l2c': set(['l3e',]),
@@ -292,7 +291,7 @@ def test_get_all_leaf_pairs():
                    'l3g': set([str(ii) for ii in range(19, 21)]),
                    'l3h': set([str(ii) for ii in range(21, 23)]),
                    'l3i': set(['23',])},
-        'leaf': {str(k): range(k,26*k, 26*(k+1))
+        'leaf': {str(k): range(k, 26*k, 26*(k+1))
                  for k in range(24)}}
 
     # check non-None parent Node
@@ -415,7 +414,6 @@ def test_validate_taxonomy_tree():
                        match="Expect tree to have keys"):
         validate_taxonomy_tree(tree)
 
-
     # missing 'hierarchy' key
     tree = {
         'a': {
@@ -446,13 +444,12 @@ def test_validate_taxonomy_tree():
                        match="Expect tree to have keys"):
         validate_taxonomy_tree(tree)
 
-
     # case of missing child
     tree = {
         'hierarchy': ['a', 'b'],
         'a': {
             'aa': ['1', '2'],
-            'bb': ['3','4']
+            'bb': ['3', '4']
         },
         'b': {
             '1': [1, 2, 3, 4],
@@ -601,7 +598,6 @@ def test_prune_tree():
             'z': []
         }
     }
-
 
     expected = {
         'hierarchy': ['a', 'b', 'c'],
