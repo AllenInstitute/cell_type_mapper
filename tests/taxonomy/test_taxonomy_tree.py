@@ -3,6 +3,8 @@ import copy
 import numpy as np
 import json
 import itertools
+import re
+import warnings
 
 from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree)
@@ -373,7 +375,10 @@ def test_parents_method():
         }
     }
 
-    taxonomy_tree = TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=data)
 
     actual = taxonomy_tree.parents('c', 'u')
     expected = {'b': '3', 'a': 'bb'}
@@ -409,7 +414,11 @@ def test_tree_to_str(drop_cells):
         'leaf': {str(k): list(range(26*k, 26*(k+1)))
                  for k in range(24)}}
 
-    taxonomy_tree = TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=tree_data)
+
     tree_str = taxonomy_tree.to_str(drop_cells=drop_cells)
 
     tree_str_rehydrated = json.loads(tree_str)
@@ -428,7 +437,12 @@ def test_tree_to_str(drop_cells):
         assert taxonomy_tree.children(level='leaf', node=leaf) == expected
 
     # try re-instantiating tree without cells
-    new_tree = TaxonomyTree(data=json.loads(tree_str))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        new_tree = TaxonomyTree(data=json.loads(tree_str))
+
     assert set(new_tree.all_leaves) == set(taxonomy_tree.all_leaves)
 
 
@@ -879,7 +893,10 @@ def test_reverse_name_lookup():
         }
     }
 
-    tree = TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tree = TaxonomyTree(data=data)
 
     for level in ('A', 'B', 'C', 'D'):
         if level == 'D':
@@ -906,8 +923,8 @@ def test_reverse_name_lookup():
                 label=node,
                 name_key='name') == expected_node
             if expected_node == 'node_b1':
-                msg = '\(B, node_b1\) maps to many nodes'
-                with pytest.raises(RuntimeError, match=msg):
+                msg = '(B, node_b1) maps to many nodes'
+                with pytest.raises(RuntimeError, match=re.escape(msg)):
                     tree.name_to_node(level=level, node=expected_node)
             else:
                 assert tree.name_to_node(
@@ -926,8 +943,8 @@ def test_reverse_name_lookup():
     with pytest.raises(RuntimeError, match=msg):
         tree.name_to_node(level='E', node='a2')
 
-    msg = "\(A, a3\) not a valid node in this taxonomy"
-    with pytest.raises(RuntimeError, match=msg):
+    msg = "(A, a3) not a valid node in this taxonomy"
+    with pytest.raises(RuntimeError, match=re.escape(msg)):
         tree.name_to_node(level='A', node='a3')
 
     assert tree.name_to_level('A') == 'A'
