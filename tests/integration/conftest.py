@@ -360,8 +360,11 @@ def precomputed_path_fixture(
         raw_reference_h5ad_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     precomputed_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -389,8 +392,11 @@ def noisier_precomputed_path_fixture(
         noisier_raw_reference_h5ad_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     precomputed_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -418,8 +424,11 @@ def ref_marker_path_fixture(
         precomputed_path_fixture,
         taxonomy_tree_dict):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     ref_marker_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -459,8 +468,11 @@ def marker_cache_path_fixture(
         ref_marker_path_fixture,
         query_gene_names):
 
-    taxonomy_tree = TaxonomyTree(
-        data=taxonomy_tree_dict)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(
+            data=taxonomy_tree_dict)
 
     marker_cache_path = mkstemp_clean(
         dir=tmp_dir_fixture,
