@@ -7,6 +7,7 @@ import traceback
 import pathlib
 import shutil
 from marshmallow import post_load
+import warnings
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
@@ -28,10 +29,19 @@ from cell_type_mapper.utils.output_utils import (
 
 class ValidationInputSchema(argschema.ArgSchema):
 
-    h5ad_path = argschema.fields.InputFile(
-        required=True,
+    input_path = argschema.fields.InputFile(
+        required=False,
         default=None,
-        allow_none=False,
+        allow_none=True,
+        description=(
+            "Path to the file, either h5ad or CSV, being "
+            "validated."
+        ))
+
+    h5ad_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
         description="Path to the h5ad file to be validated")
 
     valid_h5ad_path = argschema.fields.String(
@@ -101,6 +111,29 @@ class ValidationInputSchema(argschema.ArgSchema):
         default=True,
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
+
+    @post_load
+    def reconcile_input(self, data, **kwargs):
+        """
+        Eventually, will do away with h5ad_path in favor of
+        input_path. For now, just transcribe h5ad_path to
+        input_path.
+        """
+        if data['input_path'] is not None and data['h5ad_path'] is not None:
+            raise RuntimeError(
+                "Cannot specify both input_path and h5ad_path"
+            )
+        if data['h5ad_path'] is not None:
+            msg = (
+                "The configuration parameter 'h5ad_path' is being "
+                "deprecated in favor of 'input_path'"
+            )
+            warnings.warn(
+                msg, DeprecationWarning
+            )
+            data['input_path'] = data['h5ad_path']
+            data['h5ad_path'] = None
+        return data
 
     @post_load
     def check_for_output_json(self, data, **kwargs):
@@ -193,7 +226,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 expected_max = None
 
             result_path, has_warnings = validate_h5ad(
-                h5ad_path=self.args['h5ad_path'],
+                h5ad_path=self.args['input_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
                 gene_id_mapper=None,
@@ -208,7 +241,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 if self.args['valid_h5ad_path'] is not None:
                     result_path = self.args['valid_h5ad_path']
                     shutil.copy(
-                        src=self.args['h5ad_path'],
+                        src=self.args['input_path'],
                         dst=result_path)
 
                     # need to update uns to contain the number of mapped genes
@@ -224,7 +257,9 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                     output_manifest['valid_h5ad_path'] = result_path
 
                 else:
-                    output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
+                    output_manifest['valid_h5ad_path'] = (
+                        self.args['input_path']
+                    )
 
             else:
                 result_path = str(result_path.resolve().absolute())

@@ -463,7 +463,18 @@ def test_validation_cli_of_h5ad(
     assert md50.hexdigest() == md51.hexdigest()
 
     for k in config:
-        assert output_manifest['config'][k] == config[k]
+        if k not in ('input_path', 'h5ad_path'):
+            assert output_manifest['config'][k] == config[k]
+    if 'h5ad_path' in config:
+        assert (
+            output_manifest['config']['input_path']
+            == config['h5ad_path']
+        )
+    else:
+        assert (
+            output_manifest['config']['input_path']
+            == config['input_path']
+        )
 
     assert len(output_manifest['log_messages']) > 0
 
