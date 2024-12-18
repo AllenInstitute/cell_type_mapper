@@ -146,7 +146,7 @@ def test_summary_from_validated_file(
         suffix='.json')
 
     validation_config = {
-        'h5ad_path': str(query_h5ad_fixture),
+        'input_path': str(query_h5ad_fixture),
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 

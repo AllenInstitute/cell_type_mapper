@@ -813,7 +813,7 @@ def test_online_workflow_OTF(
     )
 
     validation_config = {
-        'h5ad_path': query_path,
+        'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json
     }
@@ -941,7 +941,7 @@ def test_online_workflow_OTF_csv_shape(
     )
 
     validation_config = {
-        'h5ad_path': query_path,
+        'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json
     }

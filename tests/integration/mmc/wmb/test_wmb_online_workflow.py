@@ -94,7 +94,7 @@ def test_online_workflow_WMB(
         suffix='.json')
 
     validation_config = {
-        'h5ad_path': query_path,
+        'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
@@ -225,7 +225,7 @@ def test_online_workflow_WMB_csv_shape(
         suffix='.json')
 
     validation_config = {
-        'h5ad_path': query_path,
+        'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path}
 
