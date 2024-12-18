@@ -34,7 +34,7 @@ children. This is documented in more detail
 To map an unlabeled cell to the taxonomy, the algorithm
 starts with the root node as the "designated parent" and
 
-1. Take a random subset of 90% of the marker genes for the
+1. Take a random subset of 50% of the marker genes for the
 designated parent node.
 2. Correlate the cell's gene expression profile (`log2(CPM+1)`
 normalization) with the average gene expression profile of

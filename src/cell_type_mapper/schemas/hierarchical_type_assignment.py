@@ -17,7 +17,7 @@ class HierarchicalConfigMixin(object):
 
     bootstrap_factor = argschema.fields.Float(
         required=False,
-        default=0.9,
+        default=0.5,
         allow_none=True,
         description="Factor by which to downsample the number of genes when "
         "performing bootstrapped nearest neighbor cell type searches.")
