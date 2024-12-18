@@ -1,4 +1,5 @@
 import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -485,3 +486,46 @@ def _layer_to_layer_key(layer):
     else:
         layer_key = f'layers/{layer}'
     return layer_key
+
+
+def create_uniquely_indexed_df(input_df):
+    """
+    Take a dataframe. If that dataframe's index has unique values,
+    return that same data frame. If it does not, create a dataframe
+    with the same data, replacing the index with a string that records
+    the original index as well as the row number of the entry.
+    """
+    index_name = input_df.index.name
+    index_values = input_df.index.values
+    unq, ct = np.unique(index_values, return_counts=True)
+
+    if len(index_values) == len(unq):
+        return input_df
+
+    offenders = [
+        unq[ii]
+        for ii in range(len(unq))
+        if ct[ii] > 1
+    ]
+
+    if index_name is None:
+        msg = (
+            "Index does not have unique values, but index also "
+            "is not named. Unclear how to proceed.\n"
+            f"Repeated index values are\n{offenders}"
+        )
+        raise RuntimeError(msg)
+
+    offenders = set(offenders)
+    data = input_df.reset_index().to_dict(orient='records')
+    for i_row in range(len(data)):
+        row = data[i_row]
+        if row[index_name] in offenders:
+            new_name = {
+                index_name: row[index_name],
+                'row': i_row
+            }
+            row[index_name] = json.dumps(new_name)
+
+    new_df = pd.DataFrame(data).set_index(index_name)
+    return new_df
