@@ -49,10 +49,9 @@ def test_scoring_with_min_thresholds(
             taxonomy_tree=taxonomy_tree_fixture,
             for_marker_selection=True)
 
-        qdiff_min_th_list = [0.01, 0.4]
-        log2_fold_min_th_list = [0.01, 0.5]
-
-        cluster_name_list = list(taxonomy_tree_fixture.nodes_at_level('cluster'))
+        cluster_name_list = list(
+            taxonomy_tree_fixture.nodes_at_level('cluster')
+        )
 
         for cl0, cl1 in itertools.combinations(cluster_name_list, 2):
             for test_case in threshold_mask_fixture[cl0][cl1]:
@@ -76,7 +75,7 @@ def test_scoring_with_min_thresholds(
                          big_nu=None,
                          exact_penetrance=False,
                          n_valid=n_genes*10)
-            
+
                 np.testing.assert_array_equal(
                     valid,
                     test_case['expected'])
@@ -210,11 +209,13 @@ def test_find_all_markers_given_min_thresholds(
         leaf_pairs = np.sort(np.array(leaf_pairs))
 
         for i_gene in range(n_genes):
-            # This will be a bit more complicated because marker_array, for legacy
-            # reasons, has pairs above the leaf level, which are not included
+            # This will be a bit more complicated because marker_array,
+            # for legacy
+            # reasons, has pairs above the leaf level, which
+            # are not included
             # in our ground truth set.
             (actual,
-            _) = marker_array.marker_mask_from_gene_idx(i_gene)
+             _) = marker_array.marker_mask_from_gene_idx(i_gene)
             np.testing.assert_array_equal(
                 actual[leaf_pairs],
                 expected_array[i_gene, leaf_pairs])
@@ -311,7 +312,7 @@ def test_find_all_markers_given_thresholds(
                     q1_th=config['q1_min_th']+d_q1,
                     qdiff_th=config['qdiff_min_th']+d_qdiff,
                     log2_fold_th=config['log2_fold_min_th']+d_log2_fold,
-                     q1_min_th=config['q1_min_th'],
+                    q1_min_th=config['q1_min_th'],
                     qdiff_min_th=config['qdiff_min_th'],
                     log2_fold_min_th=config['log2_fold_min_th'],
                     n_processors=3,
@@ -324,7 +325,9 @@ def test_find_all_markers_given_thresholds(
             # transposes of each other
 
             with h5py.File(h5_path, 'r') as src:
-                n_genes = len(json.loads(src['gene_names'][()].decode('utf-8')))
+                n_genes = len(
+                    json.loads(src['gene_names'][()].decode('utf-8'))
+                )
                 n_pairs = src['n_pairs'][()]
                 for dir_ in ('up', 'down'):
                     csr_indices = src[f'sparse_by_pair/{dir_}_gene_idx'][()]
@@ -350,8 +353,11 @@ def test_find_all_markers_given_thresholds(
                 cache_path=h5_path)
 
             # assemble an (n_genes, n_pairs) array of validity indicators
-            # so that we can test marker_array.marker_mask_from_gene_idx as well
-            expected_array = np.zeros((n_genes, marker_array.n_pairs), dtype=bool)
+            # so that we can test marker_array.marker_mask_from_gene_idx
+            # as well
+            expected_array = np.zeros(
+                (n_genes, marker_array.n_pairs),
+                dtype=bool)
             leaf_pairs = []
 
             for cl0 in test_case['expected']:
@@ -373,11 +379,13 @@ def test_find_all_markers_given_thresholds(
             leaf_pairs = np.sort(np.array(leaf_pairs))
 
             for i_gene in range(n_genes):
-                # This will be a bit more complicated because marker_array, for legacy
-                # reasons, has pairs above the leaf level, which are not included
+                # This will be a bit more complicated because
+                # marker_array, for legacy
+                # reasons, has pairs above the leaf level,
+                # which are not included
                 # in our ground truth set.
                 (actual,
-                _) = marker_array.marker_mask_from_gene_idx(i_gene)
+                 _) = marker_array.marker_mask_from_gene_idx(i_gene)
 
                 actual = actual[leaf_pairs]
                 expected = expected_array[i_gene, leaf_pairs]
@@ -398,7 +406,6 @@ def test_find_all_markers_given_thresholds(
 
             if h5_path.exists():
                 h5_path.unlink()
-
 
 
 def test_find_all_markers_limit_genes(
@@ -467,7 +474,6 @@ def test_find_all_markers_limit_genes(
                     dir=tmp_dir_fixture,
                     prefix='baseline_reference_markers_',
                     suffix='.h5'))
-
 
     unlimited_path = pathlib.Path(
                 mkstemp_clean(

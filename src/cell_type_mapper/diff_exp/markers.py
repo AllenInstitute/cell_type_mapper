@@ -29,10 +29,10 @@ from cell_type_mapper.diff_exp.scores import (
     score_differential_genes)
 
 from cell_type_mapper.utils.csc_to_csr import (
-    transpose_sparse_matrix_on_disk)
+    re_encode_sparse_matrix_on_disk)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 
 def find_markers_for_all_taxonomy_pairs(
@@ -537,7 +537,7 @@ def add_sparse_by_gene_markers_to_file(
 
         if n_processors == 1:
             with h5py.File(h5_path, 'r') as src:
-                transpose_sparse_matrix_on_disk(
+                re_encode_sparse_matrix_on_disk(
                     indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
                     indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
                     data_handle=None,
@@ -545,7 +545,7 @@ def add_sparse_by_gene_markers_to_file(
                     max_gb=max_gb,
                     output_path=transposed_path)
         else:
-            transpose_sparse_matrix_on_disk_v2(
+            re_encode_sparse_matrix_on_disk_v2(
                 h5_path=h5_path,
                 indices_tag=f'sparse_by_pair/{direction}_gene_idx',
                 indptr_tag=f'sparse_by_pair/{direction}_pair_idx',

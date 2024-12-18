@@ -132,7 +132,9 @@ def test_tally_votes_mocked_result():
         (actual_votes,
          actual_corr_sum) = tally_votes(
                  query_gene_data=np.zeros((n_query, n_genes), dtype=float),
-                 reference_gene_data=np.zeros((n_reference, n_genes), dtype=float),
+                 reference_gene_data=np.zeros(
+                     (n_reference, n_genes),
+                     dtype=float),
                  bootstrap_factor=0.5,
                  bootstrap_iteration=4,
                  rng=np.random.default_rng(2213))
@@ -211,6 +213,7 @@ def test_tally_votes_gpu(
         rtol=1.0e-5)
 
     assert cpu_result[1].max() > 1.0e-6
+
 
 @pytest.mark.parametrize(
     "bootstrap_factor, bootstrap_iteration",
@@ -341,7 +344,7 @@ def test_runners_up():
     # probability from bootstrap_iteration, hence the uniform
     # denominators in the 2nd element of the tuples below
     expected_runners_up = [
-        [('a', mock_corr_sum[0,0]/7, 7.0/bootstrap_iteration),
+        [('a', mock_corr_sum[0, 0]/7, 7.0/bootstrap_iteration),
          ('c', mock_corr_sum[0, 2]/6, 6.0/bootstrap_iteration)],
         [('d', mock_corr_sum[1, 3]/5, 5.0/bootstrap_iteration),
          ('b', mock_corr_sum[1, 1]/4, 4.0/bootstrap_iteration)],
@@ -425,7 +428,10 @@ def test_run_type_assignment(
         'l2/l2e': ['gene_13', 'gene_14', 'gene_15', 'gene_23']
     }
 
-    cluster_to_gene = np.zeros((n_clusters, len(reference_gene_names)), dtype=float)
+    cluster_to_gene = np.zeros(
+        (n_clusters,
+         len(reference_gene_names)),
+        dtype=float)
     cluster_name_list = list(tree_data['cluster'].keys())
     cluster_name_list.sort()
     for i_cluster, cluster_name in enumerate(cluster_name_list):
@@ -434,12 +440,15 @@ def test_run_type_assignment(
         for level in parents:
             parent_key = f'{level}/{parents[level]}'
             if parent_key in marker_lookup:
-                these_genes += [int(g.replace('gene_','')) for g in marker_lookup[parent_key]]
+                these_genes += [
+                    int(g.replace('gene_', ''))
+                    for g in marker_lookup[parent_key]
+                ]
         these_genes = list(set(these_genes))
         these_genes.sort()
         signal = np.zeros(len(reference_gene_names))
         signal[these_genes] = 2.0*rng.random(len(these_genes)) + 1.0
-        cluster_to_gene[i_cluster,: ] = signal
+        cluster_to_gene[i_cluster, :] = signal
 
     reference_data = CellByGeneMatrix(
         data=cluster_to_gene,
@@ -520,11 +529,17 @@ def test_run_type_assignment(
                         assert r0 > 0.0
                         assert r0 <= r1
 
-                assert this_level['runner_up_probability'][0] <= this_level['bootstrapping_probability']
+                assert (
+                    this_level['runner_up_probability'][0]
+                    <= this_level['bootstrapping_probability']
+                )
 
                 # check that probability sums to <= 1.0
                 assert this_level['bootstrapping_probability'] < 1.0
-                p_sum = this_level['bootstrapping_probability'] + sum(this_level['runner_up_probability'])
+                p_sum = (
+                    this_level['bootstrapping_probability']
+                    + sum(this_level['runner_up_probability'])
+                )
                 eps = 1.0e-6
                 assert p_sum <= (1.0+eps)
 
@@ -532,7 +547,8 @@ def test_run_type_assignment(
                 # as the assigned node
                 for ru in this_level['runner_up_assignment']:
                     if level == taxonomy_tree.leaf_level:
-                        # Note: at higher than the leaf level it is possible for
+                        # Note: at higher than the leaf level
+                        # it is possible for
                         # the same level to appear as a runner up
                         assert ru != this_level['assignment']
 
@@ -612,7 +628,7 @@ def test_aggregate_votes():
     rng = np.random.default_rng(2213)
 
     reference_types = ['b', 'b', 'a', 'd', 'a', 'c', 'b']
-    
+
     n_query = 17
     votes = rng.integers(2, 15, (n_query, len(reference_types)))
     corr = rng.random((n_query, len(reference_types)))

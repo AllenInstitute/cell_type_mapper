@@ -5,7 +5,7 @@ import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.csc_to_csr import (
-    transpose_by_way_of_disk)
+    re_encode_by_way_of_disk)
 
 from cell_type_mapper.utils.sparse_utils import (
     downsample_indptr)
@@ -215,7 +215,7 @@ class MarkerGeneArray(object):
             in_place=True)
 
         (by_pair_indptr,
-         by_pair_indices) = transpose_by_way_of_disk(
+         by_pair_indices) = re_encode_by_way_of_disk(
              indices=up_by_gene.indices,
              indptr=up_by_gene.indptr,
              indices_max=n_pairs,
@@ -237,7 +237,7 @@ class MarkerGeneArray(object):
             in_place=True)
 
         (by_pair_indptr,
-         by_pair_indices) = transpose_by_way_of_disk(
+         by_pair_indices) = re_encode_by_way_of_disk(
              indices=down_by_gene.indices,
              indptr=down_by_gene.indptr,
              indices_max=n_pairs,
@@ -289,7 +289,7 @@ class MarkerGeneArray(object):
             pair_idx=new_pair_idx)
 
         (by_gene_gene,
-         by_gene_pair) = transpose_by_way_of_disk(
+         by_gene_pair) = re_encode_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
              indices_max=self.n_genes,
@@ -311,7 +311,7 @@ class MarkerGeneArray(object):
             pair_idx=new_pair_idx)
 
         (by_gene_gene,
-         by_gene_pair) = transpose_by_way_of_disk(
+         by_gene_pair) = re_encode_by_way_of_disk(
              indices=new_gene_idx,
              indptr=new_pair_idx,
              indices_max=self.n_genes,
@@ -355,7 +355,7 @@ class MarkerGeneArray(object):
             pair_idx=new_pair_idx)
 
         (by_pair_pair,
-         by_pair_gene) = transpose_by_way_of_disk(
+         by_pair_gene) = re_encode_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
              indices_max=self.n_pairs,
@@ -377,7 +377,7 @@ class MarkerGeneArray(object):
             pair_idx=new_pair_idx)
 
         (by_pair_pair,
-         by_pair_gene) = transpose_by_way_of_disk(
+         by_pair_gene) = re_encode_by_way_of_disk(
              indices=new_pair_idx,
              indptr=new_gene_idx,
              indices_max=self.n_pairs,

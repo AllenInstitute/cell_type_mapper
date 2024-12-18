@@ -247,18 +247,21 @@ def test_no_op_truncation(
 @pytest.mark.parametrize(
     'hierarchy,use_cli',
     itertools.product(
-    [('class', 'subclass', 'cluster'),
-     ('class', 'cluster'),
-     ('class', 'subclass', 'supertype'),
-     ('class', 'subclass'),
-     ('subclass', 'supertype', 'cluster'),
-     ('supertype', 'cluster'),
-     ('subclass', 'supertype'),
-     ('class',),
-     ('subclass',),
-     ('supertype',),
-     ('cluster',)
-    ], [True, False]))
+        [('class', 'subclass', 'cluster'),
+         ('class', 'cluster'),
+         ('class', 'subclass', 'supertype'),
+         ('class', 'subclass'),
+         ('subclass', 'supertype', 'cluster'),
+         ('supertype', 'cluster'),
+         ('subclass', 'supertype'),
+         ('class',),
+         ('subclass',),
+         ('supertype',),
+         ('cluster',)
+         ],
+        [True, False]
+    )
+)
 def test_truncation(
         precomputed_stats_fixture,
         hierarchy,

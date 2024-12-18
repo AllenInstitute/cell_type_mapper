@@ -21,7 +21,7 @@ def tmp_dir_fixture(
 
 
 def test_get_header_map(
-    tmp_dir_fixture):
+        tmp_dir_fixture):
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -31,7 +31,7 @@ def test_get_header_map(
 
     actual = get_header_map(
         csv_path=csv_path,
-        desired_columns = ['b', 'f', 'c'])
+        desired_columns=['b', 'f', 'c'])
 
     expected = {'b': 1, 'c': 2, 'f': 5}
     assert expected == actual

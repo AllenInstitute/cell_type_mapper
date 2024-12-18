@@ -30,7 +30,9 @@ from cell_type_mapper.utils.anndata_utils import (
     shuffle_csr_h5ad_rows,
     pivot_sparse_h5ad,
     subset_csc_h5ad_columns,
-    infer_attrs)
+    infer_attrs,
+    transpose_h5ad_file
+)
 
 from cell_type_mapper.utils.anndata_manipulation import (
     amalgamate_csr_to_x,
@@ -67,7 +69,7 @@ def test_read_df(
         warnings.simplefilter('ignore')
 
         ad = anndata.AnnData(
-            X=np.random.random((3,4)),
+            X=np.random.random((3, 4)),
             obs=obs,
             var=var,
             dtype=float)
@@ -105,16 +107,16 @@ def test_write_df(
     var = pd.DataFrame(var_data)
     var = var.set_index('var_id')
 
-    x = np.random.random((3,4))
+    x = np.random.random((3, 4))
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
         ad = anndata.AnnData(
-           X=np.random.random((3,4)),
-            obs=obs,
-            var=var,
-            dtype=float)
+           X=np.random.random((3, 4)),
+           obs=obs,
+           var=var,
+           dtype=float)
 
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('anndata_reader'))
@@ -159,7 +161,8 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     obs = pd.DataFrame(
         [{'a': str(ii), 'b': ii**2} for ii in range(n_rows)]).set_index('a')
     var = pd.DataFrame(
-        [{'c': str(ii**3), 'd': ii*0.8} for ii in range(n_cols)]).set_index('c')
+        [{'c': str(ii**3), 'd': ii*0.8}
+         for ii in range(n_cols)]).set_index('c')
     layer = np.zeros(n_rows*n_cols, dtype=float)
     chosen = rng.choice(np.arange(n_rows*n_cols),
                         n_rows*n_cols//3,
@@ -305,7 +308,7 @@ def test_update_uns(tmp_dir_fixture, which_test):
 
     elif which_test == 'error':
         with pytest.raises(RuntimeError, match="keys already exist"):
-            update_uns(h5ad_path, new_uns={'a':2, 'f': 6}, clobber=False)
+            update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=False)
 
     elif which_test == 'clobber':
         update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=True)
@@ -318,6 +321,7 @@ def test_update_uns(tmp_dir_fixture, which_test):
     else:
         raise RuntimeError(f"cannot parse which_test = {which_test}")
 
+
 def test_read_empty_uns(tmp_dir_fixture):
     """
     Make sure that reading uns from an h5ad file that
@@ -329,9 +333,9 @@ def test_read_empty_uns(tmp_dir_fixture):
         warnings.simplefilter('ignore')
 
         a_data = anndata.AnnData(
-            X=np.zeros((5,4)),
-            obs=pd.DataFrame([{'a':ii} for ii in range(5)]),
-            var=pd.DataFrame([{'b':ii} for ii in range(4)]),
+            X=np.zeros((5, 4)),
+            obs=pd.DataFrame([{'a': ii} for ii in range(5)]),
+            var=pd.DataFrame([{'b': ii} for ii in range(4)]),
             dtype=float)
 
     h5ad_path = mkstemp_clean(
@@ -483,7 +487,6 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
             obsm_key='test',
             obsm_value=bad_obsm)
 
-
     reordered_obsm_data = [
         {'d': 'baz', 'z': 3},
         {'d': 'foo', 'z': 4},
@@ -584,12 +587,10 @@ def test_amalgamate_csr_to_x(
     var = pd.DataFrame(
         [{'g': f'g_{ii}'} for ii in range(n_cols)]).set_index('g')
     obs = pd.DataFrame(
-        [{'c': f'c_{ii}'} for ii  in range(n_rows)]).set_index('c')
+        [{'c': f'c_{ii}'} for ii in range(n_rows)]).set_index('c')
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
-
-    full_csr = scipy.sparse.csr_matrix(data)
 
     a_data = anndata.AnnData(obs=obs, var=var)
 
@@ -629,7 +630,7 @@ def test_amalgamate_csr_to_x(
     if layer == 'X':
         actual = round_trip.X[()]
     else:
-        actual = round_trip.layers[layer.replace('layers/','')][()]
+        actual = round_trip.layers[layer.replace('layers/', '')][()]
 
     if density == "csr":
         actual = actual.toarray()
@@ -764,12 +765,20 @@ def test_pivot_sparse_h5ad(
     n_cols = 500
     if data_dtype == 'uint':
         data = np.zeros(n_rows*n_cols, dtype=np.uint8)
-        idx = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//5, replace=False)
+        idx = rng.choice(
+            np.arange(n_rows*n_cols),
+            n_rows*n_cols//5,
+            replace=False
+        )
         data[idx] = rng.integers(1, 255, len(idx), dtype=np.uint8)
         data = data.reshape((n_rows, n_cols))
     else:
         data = np.zeros(n_rows*n_cols, dtype=float)
-        idx = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//5, replace=False)
+        idx = rng.choice(
+            np.arange(n_rows*n_cols),
+            n_rows*n_cols//5,
+            replace=False
+        )
         data[idx] = rng.random(len(idx))
         data = data.reshape((n_rows, n_cols))
 
@@ -1016,7 +1025,7 @@ def test_infer_attrs(
         data = scipy.sparse.csc_matrix(data)
     elif density != 'array':
         raise RuntimeError(
-            f'cannot parse density = {dense}'
+            f'cannot parse density = {density}'
         )
 
     if layer == 'X':
@@ -1102,3 +1111,106 @@ def test_infer_attrs(
             if k == 'shape':
                 continue
             assert expected[k] == actual[k]
+
+
+@pytest.mark.parametrize(
+    "density,compression",
+    itertools.product(
+        ["array", "csc", "csr"],
+        [("gzip", None), ("gzip", 4), ("lzf", None)]
+    )
+)
+def test_transpose_h5ad_file(
+        tmp_dir_fixture,
+        density,
+        compression):
+    """
+    Test function to transpose an h5ad file
+    """
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='src_',
+        suffix='.h5ad'
+    )
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dst_',
+        suffix='.h5ad'
+    )
+
+    n_cells = 512
+    n_genes = 447
+    n_tot = n_cells*n_genes
+
+    rng = np.random.default_rng(211778213)
+    data = np.zeros(n_tot, dtype=int)
+    chosen_idx = rng.choice(
+        np.arange(n_tot, dtype=int),
+        n_tot//3,
+        replace=False
+    )
+    data[chosen_idx] = rng.integers(2, 1000, len(chosen_idx))
+    data = data.reshape((n_cells, n_genes))
+    if density == 'csc':
+        xx = scipy.sparse.csc_matrix(data)
+    elif density == 'csr':
+        xx = scipy.sparse.csr_matrix(data)
+    else:
+        xx = data
+
+    obs = pd.DataFrame(
+        [
+         {'cell_id': f'c_{ii}', 'sq': ii**2}
+         for ii in range(n_cells)
+        ]
+    ).set_index('cell_id')
+
+    var = pd.DataFrame(
+        [
+         {'gene_id': f'g_{ii}', 'cube': ii**3}
+         for ii in range(n_genes)
+        ]
+    ).set_index('gene_id')
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=xx
+    )
+
+    src.write_h5ad(
+        src_path,
+        compression=compression[0],
+        compression_opts=compression[1])
+
+    transpose_h5ad_file(
+        src_path=src_path,
+        dst_path=dst_path
+    )
+
+    actual = anndata.read_h5ad(
+        dst_path
+    )
+
+    pd.testing.assert_frame_equal(
+        src.var,
+        actual.obs
+    )
+
+    pd.testing.assert_frame_equal(
+        src.obs,
+        actual.var
+    )
+
+    expected = data.transpose()
+
+    actual_x = actual.X
+    if density != 'array':
+        actual_x = actual_x.toarray()
+
+    np.testing.assert_array_equal(
+        expected,
+        actual_x
+    )

@@ -1,10 +1,11 @@
 import pytest
 
 import multiprocessing
-multiprocessing.set_start_method('fork', force=True)
 
 from cell_type_mapper.utils.utils import (
     _clean_up)
+
+multiprocessing.set_start_method('fork', force=True)
 
 
 @pytest.fixture(scope='session')

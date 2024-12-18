@@ -5,7 +5,6 @@ import copy
 import pandas as pd
 import numpy as np
 import h5py
-import anndata
 import pathlib
 import json
 import scipy.sparse as scipy_sparse
@@ -25,15 +24,6 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
-
-from cell_type_mapper.taxonomy.utils import (
-    get_taxonomy_tree,
-    _get_rows_from_tree,
-    get_all_pairs,
-    get_all_leaf_pairs)
-
-from cell_type_mapper.diff_exp.scores import (
-    diffexp_score)
 
 from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
@@ -226,7 +216,6 @@ def test_running_full_election(
             genes_to_keep = None
 
         tmp_dir = pathlib.Path(tmp_path_factory.mktemp('pipeline_process'))
-        zarr_path = tmp_dir / 'zarr.zarr'
         hdf5_tmp = tmp_dir / 'hdf5'
         hdf5_tmp.mkdir()
         score_path = tmp_dir / 'score_results.h5'
@@ -333,9 +322,17 @@ def test_running_full_election(
                 assert level in this_cell
             for k in this_cell:
                 assert this_cell[k] is not None
-            assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
-            for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-                assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+            assert (
+                this_cell[hierarchy[0]]['assignment']
+                in taxonomy_tree_dict[hierarchy[0]].keys()
+            )
+            for parent_level, child_level in zip(hierarchy[:-1],
+                                                 hierarchy[1:]):
+                assert (
+                    this_cell[child_level]['assignment']
+                    in taxonomy_tree_dict[parent_level][
+                        this_cell[parent_level]['assignment']]
+                )
 
     _clean_up(tmp_dir)
 
@@ -507,6 +504,7 @@ def taxonomy_tree_fixture(precompute_stats_path_fixture):
         taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
     return taxonomy_tree, taxonomy_tree_dict
 
+
 @pytest.fixture(scope='module')
 def marker_score_fixture(
         tmp_dir_fixture,
@@ -544,6 +542,7 @@ def query_gene_fixture(gene_names):
 
     return query_genes
 
+
 @pytest.fixture(scope='function')
 def query_data_fixture(
         query_gene_fixture,
@@ -568,6 +567,7 @@ def query_data_fixture(
         query_data = rng.random((n_query_cells, len(query_genes)))
 
     return query_data
+
 
 @pytest.fixture(scope='module')
 def query_marker_cache_fixture(
@@ -607,7 +607,6 @@ def query_h5ad_fixture(
         suffix='.h5ad')
 
     query_data = query_data_fixture
-    query_genes = query_gene_fixture
     n_query_cells = query_data.shape[0]
 
     query_cell_names = [f'q{ii}' for ii in range(n_query_cells)]
@@ -688,9 +687,16 @@ def test_running_h5ad_election(
         for k in this_cell:
             assert this_cell[k] is not None
         name_set.add(this_cell['cell_id'])
-        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
+        assert (
+            this_cell[hierarchy[0]]['assignment']
+            in taxonomy_tree_dict[hierarchy[0]].keys()
+        )
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+            assert (
+                this_cell[child_level]['assignment']
+                in taxonomy_tree_dict[
+                    parent_level][this_cell[parent_level]['assignment']]
+            )
 
     a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
     query_cell_names = a_data.obs.index.values
@@ -717,10 +723,8 @@ def test_running_h5ad_election_with_tmp_dir(
     and then de-serialized
     """
     rng_seed = 6712312
-    rng = np.random.default_rng(6712312)
 
     taxonomy_tree = taxonomy_tree_fixture[0]
-    taxonomy_tree_dict = taxonomy_tree_fixture[1]
 
     n_processors = 3
     chunk_size = 21
@@ -844,9 +848,16 @@ def test_running_h5ad_election_gpu(
         for k in this_cell:
             assert this_cell[k] is not None
         name_set.add(this_cell['cell_id'])
-        assert this_cell[hierarchy[0]]['assignment'] in taxonomy_tree_dict[hierarchy[0]].keys()
+        assert (
+            this_cell[hierarchy[0]]['assignment']
+            in taxonomy_tree_dict[hierarchy[0]].keys()
+        )
         for parent_level, child_level in zip(hierarchy[:-1], hierarchy[1:]):
-            assert this_cell[child_level]['assignment'] in taxonomy_tree_dict[parent_level][this_cell[parent_level]['assignment']]
+            assert (
+                this_cell[child_level]['assignment']
+                in taxonomy_tree_dict[parent_level][
+                    this_cell[parent_level]['assignment']]
+            )
 
     a_data = anndata.read_h5ad(query_h5ad_fixture, backed='r')
     query_cell_names = a_data.obs.index.values
@@ -874,10 +885,8 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
     and then de-serialized
     """
     rng_seed = 6712312
-    rng = np.random.default_rng(6712312)
 
     taxonomy_tree = taxonomy_tree_fixture[0]
-    taxonomy_tree_dict = taxonomy_tree_fixture[1]
 
     n_processors = 3
     chunk_size = 21
@@ -940,6 +949,7 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
                 (test[level]['bootstrapping_probability'],
                  test[level]['avg_correlation']))
 
+
 @pytest.fixture(scope='function')
 def query_h5ad_fixture_negative(
         tmp_dir_fixture,
@@ -954,18 +964,17 @@ def query_h5ad_fixture_negative(
     if isinstance(query_data_fixture, np.ndarray):
         query_data = np.copy(query_data_fixture)
         data_median = np.median(query_data)
-        query_data[query_data<data_median] -= data_median
+        query_data[query_data < data_median] -= data_median
     else:
         data_median = np.median(query_data_fixture.data)
         new_data = np.copy(query_data_fixture.data)
-        new_data[new_data<data_median] -= data_median
+        new_data[new_data < data_median] -= data_median
         query_data = scipy_sparse.csr_matrix(
             (new_data,
              query_data_fixture.indices,
              query_data_fixture.indptr),
             shape=query_data_fixture.shape)
 
-    query_genes = query_gene_fixture
     n_query_cells = query_data.shape[0]
 
     query_cell_names = [f'q{ii}' for ii in range(n_query_cells)]
@@ -1004,7 +1013,6 @@ def test_running_h5ad_election_negative_expression(
     rng = np.random.default_rng(6712312)
 
     taxonomy_tree = taxonomy_tree_fixture[0]
-    taxonomy_tree_dict = taxonomy_tree_fixture[1]
 
     n_processors = 3
     chunk_size = 21

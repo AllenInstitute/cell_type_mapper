@@ -10,7 +10,6 @@ from cell_type_mapper.diff_exp.scores import (
     exact_penetrance_test)
 
 
-
 def test_penetrance_tests():
 
     pij_1 = np.array([0.1, 0.2, 0.3, 0.7, 0.04])
@@ -77,7 +76,6 @@ def test_approx_penetrance_test(n_valid):
     q1_th = 0.5
     qdiff_th = 0.7
     log2_fold_th = 1.0
-
 
     n_genes = 60
     q1_score = 0.1+0.05*rng.random(n_genes)
@@ -293,10 +291,12 @@ def test_approx_penetrance_invalidity():
 def n_genes():
     return 47
 
+
 @pytest.fixture
 def a_mean(n_genes):
     rng = np.random.default_rng(2213)
     return 5.0+rng.random(n_genes)
+
 
 @pytest.fixture
 def b_mean(a_mean):
@@ -307,13 +307,16 @@ def b_mean(a_mean):
     result[25:35] -= np.log2(1.5)+0.01
     return result
 
+
 @pytest.fixture
 def n_a():
     return 15
 
+
 @pytest.fixture
 def n_b():
     return 27
+
 
 @pytest.fixture
 def summary_stats_fixture(
@@ -323,12 +326,12 @@ def summary_stats_fixture(
         b_mean,
         n_genes):
     result = {
-        'a':{
+        'a': {
             'mean': a_mean,
             'n_cells': n_a,
             'var': np.zeros(n_genes),
             'ge1': np.zeros(n_genes, dtype=int)},
-        'b':{
+        'b': {
             'mean': b_mean,
             'n_cells': n_b,
             'var': np.zeros(n_genes),
@@ -346,8 +349,9 @@ def p_values_fixture(n_genes):
     for ii in range(20, 36, 2):
         result[ii] = 0.009
     for ii in range(21, 36, 2):
-        result[ii]= 0.019
+        result[ii] = 0.019
     return result
+
 
 @pytest.fixture
 def penetrance_mask_fixture(n_genes):
@@ -369,9 +373,9 @@ def penetrance_mask_fixture(n_genes):
      (0.02, 2.0, [0, 3, 4, 20, 23, 24]),
      (0.01, 1.5, [0, 4, 6, 8, 20, 24, 26, 30, 32, 34]),
      (0.02, 1.5,
-      [0, 3, 4, 5, 6, 7, 8, 9 ,20, 23, 24, 25, 26, 29,
+      [0, 3, 4, 5, 6, 7, 8, 9, 20, 23, 24, 25, 26, 29,
        30, 31, 32, 33, 34])
-    ])
+     ])
 def test_score_differential_genes_quantitatively(
         summary_stats_fixture,
         p_values_fixture,
@@ -381,8 +385,9 @@ def test_score_differential_genes_quantitatively(
         expected_idx,
         n_genes):
 
-    def new_penetrance(*args,**kwargs):
+    def new_penetrance(*args, **kwargs):
         return penetrance_mask_fixture
+
     def new_p_values(*args, **kwargs):
         return p_values_fixture
 

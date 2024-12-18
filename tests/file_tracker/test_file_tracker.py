@@ -13,6 +13,7 @@ from cell_type_mapper.cli.cli_log import (
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
 
+
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
@@ -28,6 +29,7 @@ def actual_file(tmp_dir_fixture):
     with open(fpath, 'w') as out_file:
         out_file.write('hello')
     return str(pathlib.Path(fpath).resolve().absolute())
+
 
 @pytest.fixture
 def actual_file_bytes(actual_file):
@@ -150,9 +152,14 @@ def test_creating_new_file(
     assert actual_bytes == expected_bytes
 
 
-@pytest.mark.parametrize("input_only, use_log",
-        [(True, True), (True, False),
-         (False, True), (False, False)])
+@pytest.mark.parametrize(
+    "input_only, use_log",
+    [(True, True),
+     (True, False),
+     (False, True),
+     (False, False)
+     ]
+)
 def test_no_tmp_dir(input_only, use_log, actual_file):
 
     if use_log:

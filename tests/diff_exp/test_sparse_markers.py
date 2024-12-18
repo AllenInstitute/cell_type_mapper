@@ -10,24 +10,26 @@ from cell_type_mapper.diff_exp.sparse_markers_by_pair import (
 from cell_type_mapper.diff_exp.sparse_markers_by_gene import (
     SparseMarkersByGene)
 
+
 @pytest.fixture(scope='module')
 def n_cols():
     return 122
+
 
 @pytest.fixture(scope='module')
 def n_rows():
     return 2**7
 
+
 @pytest.fixture(scope='module')
 def mask_array_fixture(n_cols, n_rows):
-    n_bits = 8
-
     rng = np.random.default_rng(118231)
     up_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
     marker_truth = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
     marker_truth[:, 17] = False
 
     return np.logical_and(marker_truth, up_truth)
+
 
 @pytest.fixture(scope='module')
 def csc_mask_array_fixture(mask_array_fixture):
@@ -202,7 +204,6 @@ def test_sparse_by_genes_class_downsample_genes(
         genes_to_keep,
         in_place):
     n_bits = 8
-    expected_dtype = np.uint8
     rng = np.random.default_rng(118231)
     rng.shuffle(genes_to_keep)
     n_rows = 2**(n_bits-1)

@@ -27,12 +27,14 @@ from cell_type_mapper.utils.anndata_manipulation import (
 )
 
 
-@pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
+@pytest.mark.parametrize(
+    'data_dtype, layer, density, dst_sparse',
     itertools.product(
         [np.uint8, np.uint16, np.int16, float],
         ['X', 'dummy', 'raw/X'],
         ['csr', 'csc', 'dense'],
-        [True, False]))
+        [True, False])
+)
 def test_csr_amalgamation(
         tmp_dir_fixture,
         data_dtype,
@@ -170,12 +172,14 @@ def test_csr_amalgamation(
     assert actual.dtype == data_dtype
 
 
-@pytest.mark.parametrize('data_dtype, layer, density, dst_sparse',
+@pytest.mark.parametrize(
+    'data_dtype, layer, density, dst_sparse',
     itertools.product(
         [np.uint8, np.uint16, np.int16, float],
         ['X', 'dummy', 'raw/X'],
         ['csr', 'csc', 'dense'],
-        [True, False]))
+        [True, False])
+)
 def test_csr_anndata_amalgamation(
         tmp_dir_fixture,
         data_dtype,
@@ -192,7 +196,6 @@ def test_csr_anndata_amalgamation(
         d_min = iinfo.min
         if d_min == 0:
             d_min = 1
-
 
     src_rows = []
     expected_rows = []
@@ -326,7 +329,6 @@ def test_failure_when_many_floats(tmp_dir_fixture, layer):
     """
     rng = np.random.default_rng(712231)
     n_cols = 15
-
 
     src_rows = []
     expected_rows = []
@@ -473,16 +475,16 @@ def src_h5ad_list_fixture(
         [{'gene_id': f'g_{ii}',
           'other': f'b{rng.integers(5, 9999)}'}
          for ii in range(n_genes)
-        ]
+         ]
     ).set_index('gene_id')
 
     h5ad_path_list = []
     for label_subset in label_subset_list:
         obs = pd.DataFrame(
-            [label_to_obs_fixture[l] for l in label_subset]
+            [label_to_obs_fixture[label] for label in label_subset]
         ).set_index('cell_label')
         X = np.vstack(
-            [label_to_row_fixture[l] for l in label_subset]
+            [label_to_row_fixture[label] for label in label_subset]
         )
         adata = anndata.AnnData(
             var=var,
@@ -514,7 +516,7 @@ def wrong_var_fixture(
         [{'gene_id': f'g_{10*ii}',
           'other': f'b{rng.integers(5, 9999)}'}
          for ii in range(n_genes)
-        ]
+         ]
     ).set_index('gene_id')
 
     rng = np.random.default_rng(22131)

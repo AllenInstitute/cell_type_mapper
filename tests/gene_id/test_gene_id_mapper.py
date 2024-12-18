@@ -10,6 +10,7 @@ from cell_type_mapper.gene_id.gene_id_mapper import (
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
+
 @pytest.fixture
 def map_data_fixture():
     data = {
@@ -22,6 +23,7 @@ def map_data_fixture():
     }
 
     return data
+
 
 def test_gene_id_mapper_class(map_data_fixture):
     """
@@ -88,6 +90,7 @@ def test_gene_id_mapper_strict(map_data_fixture):
     names = ["charlie", "alice", "zachary", "mark", "robert"]
     with pytest.raises(RuntimeError, match="could not be mapped"):
         mapper.map_gene_identifiers(names, strict=True)
+
 
 def test_class_methods():
     """

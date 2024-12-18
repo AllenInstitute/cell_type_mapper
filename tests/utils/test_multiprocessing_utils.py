@@ -10,6 +10,7 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 def successful_fn(x):
     return
 
+
 def unsuccessful_fn(x):
     raise RuntimeError("oh no")
 
@@ -25,13 +26,12 @@ def test_winnow_process_list():
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-
     with pytest.raises(RuntimeError, match="One of the processes"):
         process_list = []
         for ii in range(3):
             p = multiprocessing.Process(
                     target=successful_fn,
-                   args=(2,))
+                    args=(2,))
             p.start()
             process_list.append(p)
 
@@ -60,9 +60,9 @@ def test_winnow_process_dict():
         for ii in range(3):
             p = multiprocessing.Process(
                     target=successful_fn,
-                   args=(2,))
+                    args=(2, ))
             p.start()
-            process_dict[ii] =p
+            process_dict[ii] = p
 
         p = multiprocessing.Process(
                 target=unsuccessful_fn,

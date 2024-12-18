@@ -17,13 +17,7 @@ but not across levels
 """
 import pytest
 
-import pathlib
-import numpy as np
 import warnings
-
-from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
 
 from cell_type_mapper.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -55,6 +49,7 @@ def test_get_tree_above_leaves(
         for child in lookup:
             parent = lookup[child]
             assert child in actual[parent_level][parent]
+
 
 def test_get_label_to_name(
         cluster_membership_fixture,
@@ -90,6 +85,7 @@ def test_full_label_to_name(
     assert len(mapper) == len(term_label_to_name_fixture)
     assert mapper == term_label_to_name_fixture
 
+
 def test_get_cell_to_cluster_alias(
         cell_metadata_fixture,
         alias_fixture,
@@ -99,7 +95,10 @@ def test_get_cell_to_cluster_alias(
         csv_path=cell_metadata_fixture)
 
     for cell in cell_to_cluster_fixture:
-        assert actual[cell] == str(alias_fixture[cell_to_cluster_fixture[cell]])
+        assert (
+            actual[cell]
+            == str(alias_fixture[cell_to_cluster_fixture[cell]])
+        )
 
 
 def test_all_this(
@@ -151,7 +150,6 @@ def test_tree_from_incomplete_cell_metadata(
         assert test_tree == baseline_incomplete_tree_fixture
 
 
-
 def test_no_cell_metadata(
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
@@ -185,13 +183,13 @@ def test_de_aliasing(
             cluster_membership_path=cluster_membership_fixture,
             hierarchy=['class', 'subclass', 'supertype', 'cluster'])
 
-
     for cluster in set(cell_to_cluster_fixture.values()):
         alias = alias_fixture[cluster]
         assert test_tree.label_to_name(
             level='cluster',
             label=cluster,
             name_key='alias') == str(alias)
+
 
 def test_name_mapping(
         cell_metadata_fixture,
@@ -208,9 +206,11 @@ def test_name_mapping(
             cluster_membership_path=cluster_membership_fixture,
             hierarchy=['class', 'subclass', 'supertype', 'cluster'])
 
-
     for k in term_label_to_name_fixture:
-        assert test_tree.label_to_name(k[0], k[1]) == term_label_to_name_fixture[k]
+        assert (
+            test_tree.label_to_name(k[0], k[1])
+            == term_label_to_name_fixture[k]
+        )
     assert test_tree.label_to_name('junk', 'this_label') == 'this_label'
     assert test_tree.label_to_name('class', 'that_label') == 'that_label'
 
@@ -227,7 +227,7 @@ def test_name_mapping(
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        other_tree = TaxonomyTree(data=other_data)
+        _ = TaxonomyTree(data=other_data)
 
     assert test_tree.label_to_name('a', 'x') == 'x'
 
@@ -249,8 +249,12 @@ def test_hierarchy_mapping(
 
     print(test_tree._data['hierarchy_mapper'])
     for level in ['class', 'subclass', 'supertype', 'cluster']:
-        assert test_tree.level_to_name(level_label=level) == f'{level}_readable'
+        assert (
+            test_tree.level_to_name(level_label=level)
+            == f'{level}_readable'
+        )
     assert test_tree.level_to_name(level_label='gar') == 'gar'
+
 
 def test_abc_dropping(
         cell_metadata_fixture,
@@ -275,6 +279,7 @@ def test_abc_dropping(
     assert new_tree._data['metadata']['dropped_levels'] == ['supertype',
                                                             'subclass']
     assert new_tree.hierarchy == ['class', 'cluster']
+
 
 def test_de_aliasing_when_no_map():
     data = {

@@ -18,13 +18,14 @@ def gene_id_fixture():
         result.append(f"gene_{ii}")
     return result
 
+
 @pytest.fixture
 def cell_id_fixture():
-     n_cells = 23
-     result = []
-     for ii in range(n_cells):
-         result.append(f"cell_{ii}")
-     return result
+    n_cells = 23
+    result = []
+    for ii in range(n_cells):
+        result.append(f"cell_{ii}")
+    return result
 
 
 @pytest.fixture
@@ -33,7 +34,7 @@ def raw_fixture(gene_id_fixture, cell_id_fixture):
     n_cells = len(cell_id_fixture)
     n_genes = len(gene_id_fixture)
     data = rng.random((n_cells, n_genes))
-    data[14,: ] = 0.0
+    data[14, :] = 0.0
     return data
 
 
@@ -63,12 +64,12 @@ def test_cell_by_gene_init_errors():
     with pytest.raises(RuntimeError, match="You gave 8 gene_identifiers"):
         CellByGeneMatrix(
             data=data,
-            gene_identifiers = [f"{ii}" for ii in range(8)],
+            gene_identifiers=[f"{ii}" for ii in range(8)],
             normalization="raw")
 
     # not unique gene_identifiers
     bad_id = copy.deepcopy(good_id)
-    bad_id [1] = "gene_0"
+    bad_id[1] = "gene_0"
     with pytest.raises(RuntimeError, match="appear more than once"):
         CellByGeneMatrix(
             data=data,
@@ -114,6 +115,7 @@ def test_cell_by_gene_init(
     else:
         assert actual.cell_identifiers is None
         assert actual.cell_to_row is None
+
 
 @pytest.mark.parametrize(
     "use_cell_id", [True, False])
@@ -334,6 +336,7 @@ def test_downsample_by_cell_idx(
     with pytest.raises(KeyError):
         base.downsample_cells(cell_idx)
 
+
 def test_downsample_by_cell_id(
         raw_fixture,
         gene_id_fixture,
@@ -378,7 +381,6 @@ def test_downsample_by_cell_id(
         base.downsample_cells(selected_cells)
 
 
-
 def test_cpm_after_gene_ds(
         raw_fixture,
         gene_id_fixture):
@@ -394,7 +396,7 @@ def test_cpm_after_gene_ds(
         normalization="raw")
 
     ds1 = raw.downsample_genes(
-        selected_genes = [gene_id_fixture[1], gene_id_fixture[3]])
+        selected_genes=[gene_id_fixture[1], gene_id_fixture[3]])
     assert len(raw.gene_identifiers) == len(gene_id_fixture)
     assert len(ds1.gene_identifiers) < len(gene_id_fixture)
     with pytest.raises(RuntimeError, match="downsampled by genes"):
@@ -403,7 +405,7 @@ def test_cpm_after_gene_ds(
         ds1.to_log2CPM()
 
     raw.downsample_genes_in_place(
-        selected_genes = [gene_id_fixture[1], gene_id_fixture[3]])
+        selected_genes=[gene_id_fixture[1], gene_id_fixture[3]])
     assert len(raw.gene_identifiers) < len(gene_id_fixture)
     with pytest.raises(RuntimeError, match="downsampled by genes"):
         raw.to_log2CPM_in_place()

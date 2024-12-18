@@ -35,6 +35,7 @@ def tmp_dir_fixture(
 def cell_id_fixture():
     return [f'cell_{ii}' for ii in range(17)]
 
+
 @pytest.fixture(scope='module')
 def taxonomy_data_fixture():
     result = {
@@ -52,11 +53,10 @@ def taxonomy_data_fixture():
             'e': ['7']
         },
         'cluster': {
-             str(l): [] for l in range(1, 8, 1)
+             str(val): [] for val in range(1, 8, 1)
         }
     }
     return result
-
 
 
 @pytest.fixture(scope='module')
@@ -147,7 +147,7 @@ def h5ad_fixture(
     ]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
 
-    var_data= [
+    var_data = [
         {'gene_id': f'gene_{ii}', 'silly': int(rng.integers(2, 104))}
         for ii in range(n_genes)
     ]

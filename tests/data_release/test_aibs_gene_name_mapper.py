@@ -4,7 +4,6 @@ from cell_type_mapper.marker_lookup.marker_lookup import (
     map_aibs_gene_names)
 
 
-
 def test_aibs_gene_name_mapper_fn():
 
     gene_symbols = [
@@ -28,7 +27,6 @@ def test_aibs_gene_name_mapper_fn():
     assert mapping["Fam168b"] == "ENSMUSG00000037503"
     assert mapping["Arhgef4 ENSMUSG00000118272"] == "ENSMUSG00000118272"
     assert mapping["Arhgef4"] == "ENSMUSG00000037509"
-
 
     gene_symbols = [
         "Gm38336",

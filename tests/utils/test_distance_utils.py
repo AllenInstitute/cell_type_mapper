@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
 
-from cell_type_mapper.utils.torch_utils import(
+from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
 
 from cell_type_mapper.utils.distance_utils import (
@@ -36,9 +36,10 @@ def test_subtract_mean_and_normalize_cpu():
             mu = np.mean(data[i_cell, :])
             d = data[i_cell, :] - mu
             n = np.sqrt(np.sum(d**2))
-            expected = d /n
+            expected = d / n
         np.testing.assert_allclose(actual[i_cell, :], expected)
         np.testing.assert_allclose(transposed_actual[:, i_cell], expected)
+
 
 def test_correlation_distance():
     rng = np.random.default_rng(87123412)
@@ -81,7 +82,7 @@ def test_correlation_nn_cpu(return_correlation):
     n_genes = 50
     n_baseline = 116
     n_query = 73
-    baseline_array= rng.random((n_baseline, n_genes))
+    baseline_array = rng.random((n_baseline, n_genes))
     query_array = rng.random((n_query, n_genes))
 
     result = _correlation_nearest_neighbors_cpu(
@@ -106,10 +107,13 @@ def test_correlation_nn_cpu(return_correlation):
         for i_baseline in range(n_baseline):
             mu_b = np.mean(baseline_array[i_baseline, :])
             std_b = np.std(baseline_array[i_baseline, :], ddof=0)
-            corr = np.mean((query_array[i_query, :]-mu_q)*(baseline_array[i_baseline, :]-mu_b))
+            corr = np.mean(
+                (query_array[i_query, :] - mu_q)
+                * (baseline_array[i_baseline, :] - mu_b)
+            )
             corr /= (std_q*std_b)
             dist = 1.0-corr
-            if min_dex is None or dist<min_dist:
+            if min_dex is None or dist < min_dist:
                 min_dex = i_baseline
                 min_dist = dist
         expected_nn[i_query] = min_dex
@@ -137,7 +141,7 @@ def test_correlation_nn_gpu(
     n_genes = 50
     n_baseline = 116
     n_query = 73
-    baseline_array= rng.random((n_baseline, n_genes))
+    baseline_array = rng.random((n_baseline, n_genes))
     query_array = rng.random((n_query, n_genes))
 
     cpu = _correlation_nearest_neighbors_cpu(
@@ -151,7 +155,6 @@ def test_correlation_nn_gpu(
                 return_correlation=return_correlation,
                 gpu_index=None,
                 timers=None)
-
 
     if return_correlation:
         np.testing.assert_array_equal(
@@ -178,7 +181,7 @@ def test_correlation_nn_runner(
     n_genes = 50
     n_baseline = 116
     n_query = 73
-    baseline_array= rng.random((n_baseline, n_genes))
+    baseline_array = rng.random((n_baseline, n_genes))
     query_array = rng.random((n_query, n_genes))
 
     cpu = _correlation_nearest_neighbors_cpu(
@@ -192,7 +195,6 @@ def test_correlation_nn_runner(
                 return_correlation=return_correlation,
                 gpu_index=None,
                 timers=None)
-
 
     if return_correlation:
         np.testing.assert_array_equal(

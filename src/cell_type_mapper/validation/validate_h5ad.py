@@ -21,7 +21,8 @@ from cell_type_mapper.utils.anndata_utils import (
     copy_layer_to_x,
     read_uns_from_h5ad,
     write_uns_to_h5ad,
-    update_uns)
+    update_uns,
+    transpose_h5ad_file)
 
 from cell_type_mapper.validation.utils import (
     is_x_integers,
@@ -31,6 +32,10 @@ from cell_type_mapper.validation.utils import (
 
 from cell_type_mapper.validation.csv_utils import (
     convert_csv_to_h5ad
+)
+
+from cell_type_mapper.gene_id.utils import (
+    detect_species
 )
 
 
@@ -123,21 +128,6 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
-    (original_h5ad_path,
-     write_to_new_path) = convert_csv_to_h5ad(
-         src_path=h5ad_path,
-         log=log
-     )
-
-    has_warnings = write_to_new_path
-
-    tmp_h5ad_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix=original_h5ad_path.name,
-            suffix='.h5ad')
-        )
-
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
             "Cannot specify both valid_h5ad_path and output_dir; "
@@ -147,15 +137,13 @@ def _validate_h5ad(
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
 
-    h5ad_name = original_h5ad_path.name.replace(
-                    original_h5ad_path.suffix, '')
+    (original_h5ad_path,
+     write_to_new_path) = convert_csv_to_h5ad(
+         src_path=h5ad_path,
+         log=log
+     )
 
-    if valid_h5ad_path is None:
-        output_dir = pathlib.Path(output_dir)
-        timestamp = get_timestamp().replace('-', '')
-        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
-    else:
-        new_h5ad_path = pathlib.Path(valid_h5ad_path)
+    has_warnings = write_to_new_path
 
     # check that file can even be open
     try:
@@ -172,6 +160,34 @@ def _validate_h5ad(
             raise RuntimeError(error_msg)
         else:
             log.error(error_msg)
+
+    (original_h5ad_path,
+     was_transposed) = _transpose_file_if_necessary(
+         src_path=original_h5ad_path,
+         tmp_dir=tmp_dir,
+         log=log
+    )
+    original_h5ad_path = pathlib.Path(original_h5ad_path)
+
+    if was_transposed:
+        has_warnings = True
+
+    tmp_h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix=original_h5ad_path.name,
+            suffix='.h5ad')
+        )
+
+    h5ad_name = original_h5ad_path.name.replace(
+                    original_h5ad_path.suffix, '')
+
+    if valid_h5ad_path is None:
+        output_dir = pathlib.Path(output_dir)
+        timestamp = get_timestamp().replace('-', '')
+        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    else:
+        new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
     # check that cell names are not repeated
     obs_original = read_df_from_h5ad(
@@ -406,3 +422,67 @@ def _check_input_gene_names(
             log.error(error_msg)
         else:
             raise RuntimeError(error_msg)
+
+
+def _transpose_file_if_necessary(
+        src_path,
+        tmp_dir,
+        log):
+    """
+    Check the indices of obs and var in an h5ad file.
+    If it seems likely that obs actually points to genes, then
+    transpose the h5ad file to a new file in tmp_dir.
+
+    Parameters
+    ----------
+    src_path:
+        the path to the h5ad file being assessed
+    tmp_dir:
+        path to the directory where a new file can be written, if necessary
+    log:
+        optional CommandLog
+
+    Returns
+    -------
+    valid_path:
+        path to properly shaped (rows are cells, columns are genes)
+        h5ad file. Can be src_path if src_path is valid
+    has_warnings:
+        boolean indicating if any warnings were emitted during this
+        process
+    """
+
+    var = read_df_from_h5ad(src_path, df_name='var')
+    var_species = detect_species(var.index.values)
+    if var_species is not None:
+        return (src_path, False)
+
+    obs = read_df_from_h5ad(src_path, df_name='obs')
+    obs_species = detect_species(obs.index.values)
+    if obs_species is None:
+        return (src_path, False)
+
+    msg = (
+        "It appears that your h5ad file has genes as rows and cells "
+        f"as columns\nExample row indices {obs.index.values[:5]}\n"
+        f"Example column indices {var.index.values[:5]}\n"
+        "We will transpose this for you so that rows are cells and columns "
+        "are genes"
+    )
+    if log is not None:
+        log.warn(msg)
+    else:
+        warnings.warn(msg)
+
+    src_path = pathlib.Path(src_path)
+    new_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix=f'{src_path.name}_TRANSPOSED_',
+        suffix='.h5ad'
+    )
+    transpose_h5ad_file(
+        src_path=src_path,
+        dst_path=new_path
+    )
+
+    return (new_path, True)

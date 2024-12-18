@@ -9,7 +9,6 @@ from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
 
 
-
 def test_is_exposed(tmp_dir_fixture):
     assert not is_exposed(pathlib.Path('.'))
     assert not is_exposed(pathlib.Path('/'))

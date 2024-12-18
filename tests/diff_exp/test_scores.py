@@ -15,6 +15,7 @@ from cell_type_mapper.diff_exp.scores import (
 def n_genes():
     return 26
 
+
 @pytest.fixture
 def leaf_node_fixture():
     """
@@ -35,13 +36,14 @@ def data_fixture(leaf_node_fixture, n_genes):
     for node in leaf_node_fixture:
         n_cells = rng.integers(14, 37)
         data = 2.0*rng.random((n_cells, n_genes))
-        zeroed_out = (rng.random((n_cells, n_genes))>0.85)
+        zeroed_out = (rng.random((n_cells, n_genes)) > 0.85)
         data[zeroed_out] = 0.0
         data[
             rng.integers(0, n_cells),
             rng.integers(0, n_genes)] = 1.0
         result[node] = data
     return result
+
 
 @pytest.fixture
 def precomputed_stats_fixture(
@@ -64,15 +66,14 @@ def precomputed_stats_fixture(
         n_cells = data.shape[0]
         these_stats['sum'] = data.sum(axis=0)
         these_stats['sumsq'] = (data**2).sum(axis=0)
-        these_stats['gt0'] = (data>0).sum(axis=0)
-        these_stats['gt1'] = (data>1).sum(axis=0)
-        these_stats['ge1'] = (data>=1).sum(axis=0)
+        these_stats['gt0'] = (data > 0).sum(axis=0)
+        these_stats['gt1'] = (data > 1).sum(axis=0)
+        these_stats['ge1'] = (data >= 1).sum(axis=0)
         these_stats['n_cells'] = n_cells
         these_stats['data'] = data
         result[node] = these_stats
 
     return result
-
 
 
 def test_aggregate_stats(
@@ -99,9 +100,9 @@ def test_aggregate_stats(
     expected_var = np.var(data_arr, axis=0, ddof=1)
     np.testing.assert_allclose(actual['var'], expected_var)
 
-    expected_gt0 = (data_arr>0).sum(axis=0)
-    expected_gt1 = (data_arr>1).sum(axis=0)
-    expected_ge1 = (data_arr>=1).sum(axis=0)
+    expected_gt0 = (data_arr > 0).sum(axis=0)
+    expected_gt1 = (data_arr > 1).sum(axis=0)
+    expected_ge1 = (data_arr >= 1).sum(axis=0)
 
     np.testing.assert_array_equal(actual['gt0'], expected_gt0)
     np.testing.assert_array_equal(actual['gt1'], expected_gt1)
@@ -178,7 +179,8 @@ def test_diffexp_score():
      (np.array([11.0, 0.0, 22.0, 17.0, 8.0]),
       np.array([False, True, True, True, False]),
       np.array([2, 3, 1, 0, 4]))
-    ])
+     ]
+)
 def test_rank_genes(
         scores,
         validity,

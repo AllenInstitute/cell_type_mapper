@@ -5,19 +5,14 @@ import pytest
 
 import anndata
 import numpy as np
-import os
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
-import tempfile
 import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
-
-from cell_type_mapper.cell_by_gene.utils import (
-    convert_to_cpm)
 
 
 @pytest.fixture(scope='module')
@@ -92,6 +87,7 @@ def class_to_cluster_fixture(l2_to_class_fixture):
 
     return forward, backward
 
+
 @pytest.fixture(scope='module')
 def n_non_markers():
     """
@@ -99,6 +95,7 @@ def n_non_markers():
     (i.e. will never occur as marker genes)
     """
     return 10
+
 
 @pytest.fixture(scope='module')
 def n_genes(
@@ -124,7 +121,7 @@ def n_genes(
 def gene_names(n_genes):
     return [f"gene_{ii}" for ii in range(n_genes)]
 
-    
+
 @pytest.fixture(scope='module')
 def cluster_list(class_to_cluster_fixture):
     return list(class_to_cluster_fixture[1].keys())
@@ -177,6 +174,7 @@ def cluster_to_signal(
         result[cluster] = signal
     return result
 
+
 @pytest.fixture(scope='module')
 def records_fixture(
          class_to_cluster_fixture,
@@ -220,6 +218,7 @@ def records_fixture(
 def n_cells(records_fixture):
     return len(records_fixture)
 
+
 @pytest.fixture(scope='module')
 def cell_x_gene_fixture(
         n_genes,
@@ -243,7 +242,7 @@ def cell_x_gene_fixture(
         # zero out some of the noise so that
         # there are zero entries in the cell_x_gene
         # matrix
-        pure_noise = np.where(signal<1.0e-6)[0]
+        pure_noise = np.where(signal < 1.0e-6)[0]
         chosen = rng.choice(pure_noise,
                             len(pure_noise)//3,
                             replace=False)
@@ -310,6 +309,7 @@ def query_genes_fixture(
     query_genes.sort()
     rng.shuffle(query_genes)
     return query_genes
+
 
 @pytest.fixture(scope='module')
 def query_log2_cell_x_gene_fixture(
