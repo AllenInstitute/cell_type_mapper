@@ -1050,3 +1050,70 @@ def test_running_h5ad_election_negative_expression(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         normalization='log2CPM')
+
+
+@pytest.mark.parametrize(
+        'query_data_fixture',
+        [True, ],
+        indirect=['query_data_fixture'])
+def test_running_h5ad_election_duplicate_cell_ids(
+        precompute_stats_path_fixture,
+        taxonomy_tree_fixture,
+        query_data_fixture,
+        query_marker_cache_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    Test that an error is raised if obs.index.values contains
+    repeat entries
+    """
+    rng = np.random.default_rng(6712312)
+
+    taxonomy_tree = taxonomy_tree_fixture[0]
+
+    n_processors = 3
+    chunk_size = 21
+
+    bootstrap_factor = 0.8
+    bootstrap_iteration = 23
+
+    bootstrap_factor_lookup = {
+        level: bootstrap_factor
+        for level in taxonomy_tree.hierarchy}
+    bootstrap_factor_lookup['None'] = bootstrap_factor
+
+    query_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='repeated_obs_idx_',
+        suffix='.h5ad'
+    )
+
+    src = anndata.read_h5ad(query_h5ad_fixture, backed='r')
+    n_cells = len(src.obs)
+    new_obs_data = []
+    for i_cell in range(n_cells):
+        if i_cell == 3 or i_cell == 5:
+            cell_id = 'dummy'
+        else:
+            cell_id = f'c_{i_cell}'
+        new_obs_data.append({'cell_id': cell_id})
+    new_obs = pd.DataFrame(new_obs_data).set_index('cell_id')
+    dst = anndata.AnnData(
+        obs=new_obs,
+        X=src.X,
+        var=src.var
+    )
+    dst.write_h5ad(query_h5ad_path)
+
+    with pytest.raises(RuntimeError, match="obs.index.values are not unique"):
+        run_type_assignment_on_h5ad(
+            query_h5ad_path=query_h5ad_path,
+            precomputed_stats_path=precompute_stats_path_fixture,
+            marker_gene_cache_path=query_marker_cache_fixture,
+            taxonomy_tree=taxonomy_tree,
+            n_processors=n_processors,
+            chunk_size=chunk_size,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=rng,
+            normalization='log2CPM')
