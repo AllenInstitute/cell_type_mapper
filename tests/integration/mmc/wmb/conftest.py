@@ -266,7 +266,7 @@ def do_reference_mapping(
             suffix='.json')
 
         validation_config = {
-            'h5ad_path': str(query_h5ad_path),
+            'input_path': str(query_h5ad_path),
             'valid_h5ad_path': validated_path,
             'output_json': output_json_path}
 

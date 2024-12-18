@@ -158,7 +158,7 @@ def test_validation_cli_on_bad_genes(
     valid_path = None
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': output_dir,
         'valid_h5ad_path': valid_path,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
@@ -178,7 +178,7 @@ def test_validation_cli_on_bad_genes(
 @pytest.mark.parametrize(
     "density,as_layer,round_to_int,"
     "specify_path,species,keep_encoding,"
-    "csv_label_type,csv_label_header",
+    "csv_label_type,csv_label_header,h5ad_path_param",
     itertools.product(
         ("csr", "csc", "array", "csv", "gz"),
         (True, False),
@@ -187,6 +187,7 @@ def test_validation_cli_on_bad_genes(
         ('human', 'mouse'),
         (True, False),
         ('string', 'numerical', 'big_numerical', None),
+        (True, False),
         (True, False)
     )
 )
@@ -203,7 +204,22 @@ def test_validation_cli_of_h5ad(
         species,
         keep_encoding,
         csv_label_type,
-        csv_label_header):
+        csv_label_header,
+        h5ad_path_param):
+
+    if h5ad_path_param:
+        if density != "csr":
+            return
+        if as_layer:
+            return
+        if not round_to_int:
+            return
+        if not specify_path:
+            return
+        if species != 'mouse':
+            return
+        if not keep_encoding:
+            return
 
     # some of these combinations are unncessary
     if density not in ("csv", "gz"):
@@ -312,8 +328,13 @@ def test_validation_cli_of_h5ad(
     else:
         src_path = orig_path
 
+    if h5ad_path_param:
+        path_key = 'h5ad_path'
+    else:
+        path_key = 'input_path'
+
     config = {
-        'h5ad_path': src_path,
+        path_key: src_path,
         'output_dir': output_dir,
         'valid_h5ad_path': valid_path,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
@@ -465,7 +486,7 @@ def test_validation_cli_of_h5ad(
     for k in config:
         if k not in ('input_path', 'h5ad_path'):
             assert output_manifest['config'][k] == config[k]
-    if 'h5ad_path' in config:
+    if 'h5ad_path' in config and config['h5ad_path'] is not None:
         assert (
             output_manifest['config']['input_path']
             == config['h5ad_path']
@@ -524,7 +545,7 @@ def test_validation_cli_of_good_h5ad(
         valid_path = None
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': output_dir,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
@@ -607,7 +628,7 @@ def test_validation_cli_of_h5ad_preserve_norm(
         suffix=".json")
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
@@ -647,7 +668,7 @@ def test_validation_cli_of_h5ad_missing_output(
         suffix='.h5ad')
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
     }
@@ -710,7 +731,7 @@ def test_validation_cli_of_good_h5ad_in_layer(
         suffix=".json")
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
@@ -828,7 +849,7 @@ def test_validation_cli_on_ensembl_dot(
             runner = ValidateH5adRunner(
                 args=[],
                 input_data={
-                    'h5ad_path': input_path,
+                    'input_path': input_path,
                     'output_dir': str(tmp_dir_fixture),
                     'output_json': json_path
                 })
@@ -897,7 +918,7 @@ def test_roundtrip_of_validation_cli(
         suffix=".json")
 
     config = {
-        'h5ad_path': orig_path,
+        'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json_path,
