@@ -295,3 +295,111 @@ def test_online_workflow_WMB_csv_shape(
         baseline_dict['results'],
         compare_cell_id=compare_cell_id
     )
+
+
+def test_online_workflow_WMB_degenerate_cell_labels(
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture,
+        reference_mapping_fixture):
+    """
+    Test that, when cell labels are repeated, the mapping proceeds and
+    the order of cells is preserved
+    """
+
+    # Create an h5ad file with the same data as
+    # query_h5ad_fixture, except that the row pairs
+    # specified below in degenerate_pairs have identical
+    # cell labels
+    degenerate_pairs = [
+        (14, 23),
+        (7, 111),
+        (35, 210)
+    ]
+
+    test_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='with_degenerate_labels_',
+        suffix='.h5ad'
+    )
+    src = anndata.read_h5ad(
+        query_h5ad_fixture,
+        backed='r')
+
+    src_obs = src.obs
+    index_name = src.obs.index.name
+    src_obs = src_obs.reset_index().to_dict(orient='records')
+
+    degenerate_idx = set()
+    for i_pair, pair in enumerate(degenerate_pairs):
+        label = f'degeneracy_{i_pair}'
+        src_obs[pair[0]][index_name] = label
+        src_obs[pair[1]][index_name] = label
+        degenerate_idx.add(pair[0])
+        degenerate_idx.add(pair[1])
+
+    new_obs = pd.DataFrame(src_obs).set_index(index_name)
+
+    dst = anndata.AnnData(
+        obs=new_obs,
+        var=src.var,
+        X=src.X
+    )
+    dst.write_h5ad(test_h5ad_path)
+    src.file.close()
+    del src
+
+    (baseline_json,
+     baseline_csv,
+     _) = run_pipeline(
+         query_path=query_h5ad_fixture,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
+
+    (test_json,
+     test_csv,
+     _) = run_pipeline(
+         query_path=test_h5ad_path,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
+
+    baseline_df = pd.read_csv(
+        baseline_csv, comment='#').to_dict(orient='records')
+
+    test_df = pd.read_csv(
+        baseline_csv, comment='#').to_dict(orient='records')
+
+    baseline_mapping = json.load(open(baseline_json, 'rb'))['results']
+    test_mapping = json.load(open(test_json, 'rb'))['results']
+
+    assert len(baseline_df) == len(test_df)
+    assert len(baseline_mapping) == len(baseline_df)
+    assert len(test_mapping) == len(baseline_df)
+
+    for idx in range(len(baseline_df)):
+        b_df = baseline_df[idx]
+        t_df = test_df[idx]
+        b_m = baseline_mapping[idx]
+        t_m = test_mapping[idx]
+        if idx in degenerate_idx:
+            b_df.pop(index_name)
+            t_df.pop(index_name)
+            b_m.pop('cell_id')
+            t_m.pop('cell_id')
+        assert b_df == t_df
+        assert b_m == t_m
+
+    # make sure the degenerate cells did not accidentally
+    # have identical mappings
+    for pair in degenerate_pairs:
+        assert index_name not in baseline_df[pair[0]]
+        assert index_name not in baseline_df[pair[1]]
+        assert baseline_df[pair[0]] != baseline_df[pair[1]]
+        assert 'cell_id' not in baseline_mapping[pair[0]]
+        assert 'cell_id' not in baseline_mapping[pair[1]]
+        assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]
