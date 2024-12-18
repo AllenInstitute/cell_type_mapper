@@ -62,6 +62,105 @@ from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
 
+def run_pipeline(
+        query_path,
+        precomputed_path,
+        tmp_dir):
+    """
+    Run the full validation-through-mapping pipeline
+    for the online OTF MapMyCells implementation
+
+    Parameters
+    ----------
+    query_path:
+        Path to the input, unmapped file
+    precomputed_path:
+        Path to precomputed_stats file
+    tmp_dir:
+        Path to tmp_dir
+
+    Returns
+    --------
+    json_path:
+        path to JSON output file
+    csv_path:
+        path to CSV output file
+    metadata_path:
+        path to summary metadata file
+    """
+
+    validated_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='validated_',
+        suffix='.h5ad'
+    )
+
+    output_json = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='validation_output_',
+        suffix='.json'
+    )
+
+    validation_config = {
+        'input_path': query_path,
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config
+        )
+        runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='mapping_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='csv_mapping_',
+        suffix='.csv'
+    )
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='summary_metadata_',
+        suffix='.json')
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precomputed_path)},
+        'drop_level': None,
+        'query_path': validated_path,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
+        'extended_result_path': output_path,
+        'csv_result_path': csv_path,
+        'summary_metadata_path': metadata_path,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    return (output_path, csv_path, metadata_path)
+
+
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(
         tmp_path_factory):
@@ -773,7 +872,7 @@ def test_online_workflow_OTF(
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    precompute_path = human_gene_data_fixture['precompute']
+    precomputed_path = human_gene_data_fixture['precompute']
     query_path = human_gene_data_fixture[density]
 
     if file_type == '.h5ad':
@@ -800,74 +899,13 @@ def test_online_workflow_OTF(
         )
         query_path = new_path
 
-    validated_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validated_',
-        suffix='.h5ad'
+    (json_path,
+     csv_path,
+     _) = run_pipeline(
+         query_path=query_path,
+         precomputed_path=precomputed_path,
+         tmp_dir=tmp_dir
     )
-
-    output_json = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validation_output_',
-        suffix='.json'
-    )
-
-    validation_config = {
-        'input_path': query_path,
-        'valid_h5ad_path': validated_path,
-        'output_json': output_json
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data=validation_config
-        )
-        runner.run()
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='mapping_',
-        suffix='.json')
-
-    csv_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='csv_mapping_',
-        suffix='.csv'
-    )
-
-    metadata_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='summary_metadata_',
-        suffix='.json')
-
-    config = {
-        'n_processors': 3,
-        'tmp_dir': tmp_dir,
-        'precomputed_stats': {'path': str(precompute_path)},
-        'drop_level': None,
-        'query_path': validated_path,
-        'query_markers': {},
-        'reference_markers': {},
-        'type_assignment': {
-            'normalization': 'raw',
-            'rng_seed': 777,
-            'bootstrap_factor': 0.5,
-            'chunk_size': 50},
-        'extended_result_path': output_path,
-        'csv_result_path': csv_path,
-        'summary_metadata_path': metadata_path,
-        'cloud_safe': True,
-        'nodes_to_drop': None
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = OnTheFlyMapper(args=[], input_data=config)
-        runner.run()
 
     baseline_df = pd.read_csv(
         baseline_mapping_fixture['csv'],
@@ -882,7 +920,7 @@ def test_online_workflow_OTF(
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
-    test = json.load(open(output_path, 'rb'))
+    test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
 
 
@@ -912,7 +950,7 @@ def test_online_workflow_OTF_csv_shape(
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    precompute_path = human_gene_data_fixture['precompute']
+    precomputed_path = human_gene_data_fixture['precompute']
     query_path = human_gene_data_fixture['dense']
 
     new_path = mkstemp_clean(
@@ -928,74 +966,13 @@ def test_online_workflow_OTF_csv_shape(
     )
     query_path = new_path
 
-    validated_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validated_',
-        suffix='.h5ad'
+    (json_path,
+     csv_path,
+     _) = run_pipeline(
+         query_path=query_path,
+         precomputed_path=precomputed_path,
+         tmp_dir=tmp_dir
     )
-
-    output_json = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validation_output_',
-        suffix='.json'
-    )
-
-    validation_config = {
-        'input_path': query_path,
-        'valid_h5ad_path': validated_path,
-        'output_json': output_json
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data=validation_config
-        )
-        runner.run()
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='mapping_',
-        suffix='.json')
-
-    csv_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='csv_mapping_',
-        suffix='.csv'
-    )
-
-    metadata_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='summary_metadata_',
-        suffix='.json')
-
-    config = {
-        'n_processors': 3,
-        'tmp_dir': tmp_dir,
-        'precomputed_stats': {'path': str(precompute_path)},
-        'drop_level': None,
-        'query_path': validated_path,
-        'query_markers': {},
-        'reference_markers': {},
-        'type_assignment': {
-            'normalization': 'raw',
-            'rng_seed': 777,
-            'bootstrap_factor': 0.5,
-            'chunk_size': 50},
-        'extended_result_path': output_path,
-        'csv_result_path': csv_path,
-        'summary_metadata_path': metadata_path,
-        'cloud_safe': True,
-        'nodes_to_drop': None
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = OnTheFlyMapper(args=[], input_data=config)
-        runner.run()
 
     baseline_df = pd.read_csv(
         baseline_mapping_fixture['csv'],
@@ -1019,7 +996,7 @@ def test_online_workflow_OTF_csv_shape(
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
-    test = json.load(open(output_path, 'rb'))
+    test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(
         baseline['results'],
         test['results'],
