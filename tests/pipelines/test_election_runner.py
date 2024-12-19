@@ -1098,11 +1098,15 @@ def test_running_h5ad_election_duplicate_cell_ids(
             cell_id = f'c_{i_cell}'
         new_obs_data.append({'cell_id': cell_id})
     new_obs = pd.DataFrame(new_obs_data).set_index('cell_id')
-    dst = anndata.AnnData(
-        obs=new_obs,
-        X=src.X,
-        var=src.var
-    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+            obs=new_obs,
+            X=src.X,
+            var=src.var
+        )
     dst.write_h5ad(query_h5ad_path)
 
     with pytest.raises(RuntimeError, match="obs.index.values are not unique"):
