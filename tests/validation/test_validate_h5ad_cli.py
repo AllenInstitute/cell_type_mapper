@@ -178,7 +178,8 @@ def test_validation_cli_on_bad_genes(
 @pytest.mark.parametrize(
     "density,as_layer,round_to_int,"
     "specify_path,species,keep_encoding,"
-    "csv_label_type,csv_label_header,h5ad_path_param",
+    "csv_label_type,csv_label_header,"
+    "h5ad_path_param",
     itertools.product(
         ("csr", "csc", "array", "csv", "gz"),
         (True, False),
@@ -191,7 +192,7 @@ def test_validation_cli_on_bad_genes(
         (True, False)
     )
 )
-def test_validation_cli_of_h5ad(
+def test_validation_cli_of_h5ad_simple(
         mouse_var_fixture,
         human_var_fixture,
         obs_fixture,
@@ -206,7 +207,12 @@ def test_validation_cli_of_h5ad(
         csv_label_type,
         csv_label_header,
         h5ad_path_param):
+    """
+    if h5ad_path param is True, then specify the path to the input
+    file with 'h5ad_path', not 'input_path'
+    """
 
+    # some of these combinations are unncessary
     if h5ad_path_param:
         if density != "csr":
             return
@@ -221,7 +227,6 @@ def test_validation_cli_of_h5ad(
         if not keep_encoding:
             return
 
-    # some of these combinations are unncessary
     if density not in ("csv", "gz"):
         if not csv_label_header:
             return
@@ -235,6 +240,8 @@ def test_validation_cli_of_h5ad(
         if csv_label_header:
             if csv_label_type is None:
                 return
+
+    # write the un-validated data to an h5ad file
 
     if species == 'human':
         var_fixture = human_var_fixture
@@ -292,8 +299,24 @@ def test_validation_cli_of_h5ad(
     else:
         a_data.write_h5ad(orig_path)
 
+    if not keep_encoding:
+        src_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=orig_path,
+            dst_path=src_path
+        )
+    else:
+        src_path = orig_path
+
+    # store the hash of the un-validated file so we can
+    # verify that it is unchanged by the process
+
     md50 = hashlib.md5()
-    with open(orig_path, 'rb') as src:
+    with open(src_path, 'rb') as src:
         md50.update(src.read())
 
     output_json = mkstemp_clean(
@@ -314,19 +337,6 @@ def test_validation_cli_of_h5ad(
     else:
         output_dir = str(tmp_dir_fixture.resolve().absolute())
         valid_path = None
-
-    if not keep_encoding:
-        src_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix='no_encoding_',
-            suffix='.h5ad'
-        )
-        create_h5ad_without_encoding_type(
-            src_path=orig_path,
-            dst_path=src_path
-        )
-    else:
-        src_path = orig_path
 
     if h5ad_path_param:
         path_key = 'h5ad_path'
@@ -349,7 +359,7 @@ def test_validation_cli_of_h5ad(
         runner = ValidateH5adRunner(args=[], input_data=config)
         runner.run()
 
-    # check that log contains line about mapping to mouse genes
+    # check that log contains line about mapping to the species' genes
     found_it = False
     with open(log_path, 'r') as src:
         for line in src:
@@ -358,6 +368,8 @@ def test_validation_cli_of_h5ad(
     assert found_it
 
     output_manifest = json.load(open(output_json, 'rb'))
+
+    # verify form of the validated file path
     result_path = output_manifest['valid_h5ad_path']
 
     result_path = pathlib.Path(result_path)
@@ -381,6 +393,8 @@ def test_validation_cli_of_h5ad(
         expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
     assert result_path.name == expected_name
 
+    # if round_to_int == True, make sure that the data
+    # in the validated h5ad file is stored as an int
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
             if density not in ('array', 'csv', 'gz'):
@@ -392,6 +406,10 @@ def test_validation_cli_of_h5ad(
     actual = anndata.read_h5ad(result_path, backed='r')
     assert actual.uns['AIBS_CDM_n_mapped_genes'] == 3
 
+    # Verify the obs dataframe of the validated file
+    # (except in cases where we are processing a CSV
+    # and we do not expect the obs dataframe to exactly
+    # match obs_fixture)
     if density not in ('csv', 'gz'):
         pd.testing.assert_frame_equal(obs_fixture, actual.obs)
     elif csv_label_type == 'string':
@@ -427,6 +445,8 @@ def test_validation_cli_of_h5ad(
     else:
         brute_x = None
 
+    # verify that the X matrix of the validated dataset
+    # has the expected data in it.
     if round_to_int:
         assert not np.allclose(actual_x, x_fixture)
         np.testing.assert_array_equal(
@@ -450,6 +470,10 @@ def test_validation_cli_of_h5ad(
                 x_fixture,
                 atol=0.0,
                 rtol=1.0e-7)
+
+    # verify contents of var dataframe
+    # (again, with exceptions for CSV inputs which will not
+    # exactly match var_fixture)
 
     actual_var = actual.var
 
@@ -478,10 +502,13 @@ def test_validation_cli_of_h5ad(
 
     # make sure input file did not change
     md51 = hashlib.md5()
-    with open(orig_path, 'rb') as src:
+    with open(src_path, 'rb') as src:
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
+    # Make sure that the config recorded in the output_json
+    # matches in the input config
 
     for k in config:
         if k not in ('input_path', 'h5ad_path'):
