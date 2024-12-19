@@ -165,9 +165,11 @@ def _validate_h5ad(
     (original_h5ad_path,
      was_transposed) = _transpose_file_if_necessary(
          src_path=original_h5ad_path,
+         layer=layer,
          tmp_dir=tmp_dir,
          log=log
     )
+
     original_h5ad_path = pathlib.Path(original_h5ad_path)
 
     if was_transposed:
@@ -434,7 +436,8 @@ def _check_input_gene_names(
 def _transpose_file_if_necessary(
         src_path,
         tmp_dir,
-        log):
+        log,
+        layer='X'):
     """
     Check the indices of obs and var in an h5ad file.
     If it seems likely that obs actually points to genes, then
@@ -448,6 +451,10 @@ def _transpose_file_if_necessary(
         path to the directory where a new file can be written, if necessary
     log:
         optional CommandLog
+    layer:
+        the layer in the h5ad file containing the matrix to transpose
+        (currently, only supports 'X'; if layer is anything else, this
+        is function becomes a no-op)
 
     Returns
     -------
@@ -458,6 +465,8 @@ def _transpose_file_if_necessary(
         boolean indicating if any warnings were emitted during this
         process
     """
+    if layer != 'X':
+        return (src_path, False)
 
     var = read_df_from_h5ad(src_path, df_name='var')
     var_species = detect_species(var.index.values)
