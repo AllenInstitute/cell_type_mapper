@@ -179,6 +179,7 @@ def test_validation_cli_on_bad_genes(
     "density,as_layer,round_to_int,"
     "specify_path,species,keep_encoding,"
     "csv_label_type,csv_label_header,"
+    "degenerate_cell_labels,"
     "h5ad_path_param",
     itertools.product(
         ("csr", "csc", "array", "csv", "gz"),
@@ -188,6 +189,7 @@ def test_validation_cli_on_bad_genes(
         ('human', 'mouse'),
         (True, False),
         ('string', 'numerical', 'big_numerical', None),
+        (True, False),
         (True, False),
         (True, False)
     )
@@ -206,6 +208,7 @@ def test_validation_cli_of_h5ad_simple(
         keep_encoding,
         csv_label_type,
         csv_label_header,
+        degenerate_cell_labels,
         h5ad_path_param):
     """
     if h5ad_path param is True, then specify the path to the input
@@ -226,6 +229,8 @@ def test_validation_cli_of_h5ad_simple(
             return
         if not keep_encoding:
             return
+        if degenerate_cell_labels:
+            return
 
     if density not in ("csv", "gz"):
         if not csv_label_header:
@@ -240,6 +245,12 @@ def test_validation_cli_of_h5ad_simple(
         if csv_label_header:
             if csv_label_type is None:
                 return
+
+    if degenerate_cell_labels:
+        if csv_label_type is None:
+            return
+        if csv_label_type in ('numerical', 'big_numerical'):
+            return
 
     # write the un-validated data to an h5ad file
 
@@ -283,21 +294,41 @@ def test_validation_cli_of_h5ad_simple(
         layers = None
         layer = 'X'
 
-    a_data = anndata.AnnData(
-        X=x,
-        var=var_fixture,
-        obs=obs_fixture,
-        layers=layers)
+    if degenerate_cell_labels:
+        degenerate_rows = (1, 3, 4)
+        obs_data = []
+        unq_idx = obs_fixture.index.values
+        for ii in range(len(obs_fixture)):
+            if ii in degenerate_rows:
+                obs_data.append({'cell_id': 'duplicate'})
+            else:
+                obs_data.append(
+                    {'cell_id': unq_idx[ii]}
+                )
+        src_obs = pd.DataFrame(
+            obs_data
+        ).set_index('cell_id')
+    else:
+        src_obs = obs_fixture
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        src_a_data = anndata.AnnData(
+            X=x,
+            var=var_fixture,
+            obs=src_obs,
+            layers=layers)
 
     if density in ("csv", "gz"):
         write_anndata_x_to_csv(
-            anndata_obj=a_data,
+            anndata_obj=src_a_data,
             dst_path=orig_path,
             cell_label_header=csv_label_header,
             cell_label_type=csv_label_type
         )
     else:
-        a_data.write_h5ad(orig_path)
+        src_a_data.write_h5ad(orig_path)
 
     if not keep_encoding:
         src_path = mkstemp_clean(
@@ -305,10 +336,14 @@ def test_validation_cli_of_h5ad_simple(
             prefix='no_encoding_',
             suffix='.h5ad'
         )
-        create_h5ad_without_encoding_type(
-            src_path=orig_path,
-            dst_path=src_path
-        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            create_h5ad_without_encoding_type(
+                src_path=orig_path,
+                dst_path=src_path
+            )
     else:
         src_path = orig_path
 
@@ -410,13 +445,39 @@ def test_validation_cli_of_h5ad_simple(
     # (except in cases where we are processing a CSV
     # and we do not expect the obs dataframe to exactly
     # match obs_fixture)
-    if density not in ('csv', 'gz'):
-        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
-    elif csv_label_type == 'string':
-        np.testing.assert_array_equal(
-            obs_fixture.index.values,
-            actual.obs.index.values
-        )
+    if not degenerate_cell_labels:
+        if density not in ('csv', 'gz'):
+            pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+        elif csv_label_type == 'string':
+            np.testing.assert_array_equal(
+                obs_fixture.index.values,
+                actual.obs.index.values
+            )
+    else:
+        if density not in ('csv', 'gz'):
+            src_idx = src_a_data.obs.index.values
+        else:
+            _src = pd.read_csv(src_path)
+            src_idx = _src[_src.columns[0]].values
+
+        actual_idx = actual.obs.index.values
+        assert len(src_idx) == len(actual_idx)
+        if density not in ('csv', 'gz'):
+            index_name = 'cell_id'
+        else:
+            index_name = 'original_index'
+
+        for ii in range(len(src_idx)):
+            if ii not in degenerate_rows:
+                assert actual_idx[ii] == str(src_idx[ii])
+            else:
+                assert actual_idx[ii] == (
+                    '{'
+                    f'"{index_name}": '
+                    f'"{src_idx[ii]}", "row": {ii}'
+                    '}'
+                )
+
     actual_x = actual.X
 
     if density not in ("array", "csv", "gz"):
