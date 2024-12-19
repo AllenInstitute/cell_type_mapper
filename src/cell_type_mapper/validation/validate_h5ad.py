@@ -202,6 +202,15 @@ def _validate_h5ad(
     if obs_unique_index is not obs_original:
         write_to_new_path = True
         write_new_obs = True
+        msg = (
+            "The index values in the obs dataframe of your file "
+            "are not unique. We are modifying them to be unique. "
+        )
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        has_warnings = True
 
     # check that gene names are not repeated
     var_original = read_df_from_h5ad(
