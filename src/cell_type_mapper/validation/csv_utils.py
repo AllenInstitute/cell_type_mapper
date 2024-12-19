@@ -91,8 +91,9 @@ def convert_csv_to_h5ad(
         src_path=src_path
     )
 
-    adata = anndata.read_csv(
-        src_path,
+    adata = anndata.io.read_csv(
+        filename=src_path,
+        delimiter=',',
         first_column_names=first_column_names)
 
     adata.write_h5ad(dst_path)

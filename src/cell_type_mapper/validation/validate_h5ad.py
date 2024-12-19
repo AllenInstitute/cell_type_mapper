@@ -28,7 +28,8 @@ from cell_type_mapper.validation.utils import (
     is_x_integers,
     round_x_to_integers,
     get_minmax_x_from_h5ad,
-    map_gene_ids_in_var)
+    map_gene_ids_in_var,
+    create_uniquely_indexed_df)
 
 from cell_type_mapper.validation.csv_utils import (
     convert_csv_to_h5ad
@@ -194,23 +195,22 @@ def _validate_h5ad(
         h5ad_path=original_h5ad_path,
         df_name='obs')
 
-    cell_id_census = dict()
-    for cell_id in obs_original.index.values:
-        if cell_id not in cell_id_census:
-            cell_id_census[cell_id] = 1
-        else:
-            cell_id_census[cell_id] += 1
-    msg = ''
-    for cell_id in cell_id_census:
-        if cell_id_census[cell_id] > 1:
-            msg += f"'{cell_id}' occurred {cell_id_census[cell_id]} times\n"
-    if len(msg) > 0:
+    obs_unique_index = create_uniquely_indexed_df(
+        obs_original)
+
+    write_new_obs = False
+    if obs_unique_index is not obs_original:
+        write_to_new_path = True
+        write_new_obs = True
         msg = (
-            "Cell IDs need to be unique. The following cell IDs were "
-            "repeated in your obs dataframe:\n"
-            f"{msg}"
+            "The index values in the obs dataframe of your file "
+            "are not unique. We are modifying them to be unique. "
         )
-        raise RuntimeError(msg)
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        has_warnings = True
 
     # check that gene names are not repeated
     var_original = read_df_from_h5ad(
@@ -338,6 +338,13 @@ def _validate_h5ad(
         update_uns(
             tmp_h5ad_path,
             {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
+
+        if write_new_obs:
+            write_df_to_h5ad(
+                h5ad_path=tmp_h5ad_path,
+                df_name='obs',
+                df_value=obs_unique_index
+            )
 
         copy_h5_excluding_data(
             src_path=tmp_h5ad_path,

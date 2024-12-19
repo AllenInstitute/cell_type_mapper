@@ -28,6 +28,112 @@ from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner)
 
 
+def run_pipeline(
+        query_path,
+        marker_lookup_path,
+        precomputed_path,
+        tmp_dir):
+    """
+    Run the full validation-through-mapping pipeline
+    for the online WMB MapMyCells implementation
+
+    Parameters
+    ----------
+    query_path:
+        Path to the input, unmapped file
+    marker_lookup_path:
+        Path to marker lookup file
+    precomputed_path:
+        Path to precomputed_stats file
+    tmp_dir:
+        Path to tmp_dir
+
+    Returns
+    --------
+    json_path:
+        path to JSON output file
+    csv_path:
+        path to CSV output file
+    metadata_path:
+        path to summary metadata file
+    """
+    validated_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='validated_',
+        suffix='.h5ad')
+
+    output_json_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='output_',
+        suffix='.json')
+
+    validation_config = {
+        'input_path': query_path,
+        'valid_h5ad_path': validated_path,
+        'output_json': output_json_path}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ValidateH5adRunner(
+            args=[],
+            input_data=validation_config)
+        runner.run()
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='outptut_',
+        suffix='.json')
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='csv_output_',
+        suffix='.csv')
+
+    metadata_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='summary_',
+        suffix='.json')
+
+    config = {
+        'precomputed_stats': {
+            'path': str(precomputed_path)
+        },
+        'query_markers': {
+            'serialized_lookup': str(marker_lookup_path)
+        },
+        'query_path': validated_path,
+        'extended_result_path': str(output_path),
+        'csv_result_path': str(csv_path),
+        'summary_metadata_path': metadata_path,
+        'map_to_ensembl': False,
+        'type_assignment': {
+            'normalization': 'raw',
+            'bootstrap_iteration': 10,
+            'bootstrap_factor': 0.9,
+            'n_runners_up': 2,
+            'rng_seed': 5513,
+            'chunk_size': 50,
+            'n_processors': 3
+        }
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
+
+    return (
+        output_path,
+        csv_path,
+        metadata_path
+    )
+
+
 @pytest.mark.parametrize(
     'with_encoding_type, density_fixture, file_type',
     [(True, 'dense', '.h5ad'),
@@ -83,75 +189,14 @@ def test_online_workflow_WMB(
             dst_path=query_path
         )
 
-    validated_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validated_',
-        suffix='.h5ad')
-
-    output_json_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_',
-        suffix='.json')
-
-    validation_config = {
-        'input_path': query_path,
-        'valid_h5ad_path': validated_path,
-        'output_json': output_json_path}
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data=validation_config)
-        runner.run()
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='outptut_',
-        suffix='.json')
-
-    csv_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='csv_output_',
-        suffix='.csv')
-
-    metadata_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='summary_',
-        suffix='.json')
-
-    config = {
-        'precomputed_stats': {
-            'path': str(precomputed_stats_fixture)
-        },
-        'query_markers': {
-            'serialized_lookup': str(marker_lookup_fixture)
-        },
-        'query_path': validated_path,
-        'extended_result_path': str(output_path),
-        'csv_result_path': str(csv_path),
-        'summary_metadata_path': metadata_path,
-        'map_to_ensembl': False,
-        'type_assignment': {
-            'normalization': 'raw',
-            'bootstrap_iteration': 10,
-            'bootstrap_factor': 0.9,
-            'n_runners_up': 2,
-            'rng_seed': 5513,
-            'chunk_size': 50,
-            'n_processors': 3
-        }
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config)
-
-        runner.run()
+    (json_path,
+     csv_path,
+     _) = run_pipeline(
+         query_path=query_path,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
 
     test_df = pd.read_csv(
         csv_path,
@@ -163,7 +208,7 @@ def test_online_workflow_WMB(
 
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
-    test_dict = json.load(open(output_path, 'rb'))
+    test_dict = json.load(open(json_path, 'rb'))
     baseline_dict = json.load(
         open(reference_mapping_fixture['json_path'], 'rb')
     )
@@ -214,75 +259,14 @@ def test_online_workflow_WMB_csv_shape(
         cell_label_type=cell_label_type
     )
 
-    validated_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validated_',
-        suffix='.h5ad')
-
-    output_json_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='output_',
-        suffix='.json')
-
-    validation_config = {
-        'input_path': query_path,
-        'valid_h5ad_path': validated_path,
-        'output_json': output_json_path}
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = ValidateH5adRunner(
-            args=[],
-            input_data=validation_config)
-        runner.run()
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='outptut_',
-        suffix='.json')
-
-    csv_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='csv_output_',
-        suffix='.csv')
-
-    metadata_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='summary_',
-        suffix='.json')
-
-    config = {
-        'precomputed_stats': {
-            'path': str(precomputed_stats_fixture)
-        },
-        'query_markers': {
-            'serialized_lookup': str(marker_lookup_fixture)
-        },
-        'query_path': validated_path,
-        'extended_result_path': str(output_path),
-        'csv_result_path': str(csv_path),
-        'summary_metadata_path': metadata_path,
-        'map_to_ensembl': False,
-        'type_assignment': {
-            'normalization': 'raw',
-            'bootstrap_iteration': 10,
-            'bootstrap_factor': 0.9,
-            'n_runners_up': 2,
-            'rng_seed': 5513,
-            'chunk_size': 50,
-            'n_processors': 3
-        }
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config)
-
-        runner.run()
+    (json_path,
+     csv_path,
+     _) = run_pipeline(
+         query_path=query_path,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
 
     test_df = pd.read_csv(
         csv_path,
@@ -302,7 +286,7 @@ def test_online_workflow_WMB_csv_shape(
         baseline_df.drop(['cell_id'], axis='columns', inplace=True)
     pd.testing.assert_frame_equal(test_df, baseline_df)
 
-    test_dict = json.load(open(output_path, 'rb'))
+    test_dict = json.load(open(json_path, 'rb'))
     baseline_dict = json.load(
         open(reference_mapping_fixture['json_path'], 'rb')
     )
@@ -311,3 +295,130 @@ def test_online_workflow_WMB_csv_shape(
         baseline_dict['results'],
         compare_cell_id=compare_cell_id
     )
+
+
+def test_online_workflow_WMB_degenerate_cell_labels(
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    Test that, when cell labels are repeated, the mapping proceeds and
+    the order of cells is preserved
+    """
+
+    # Create an h5ad file with the same data as
+    # query_h5ad_fixture, except that the row pairs
+    # specified below in degenerate_pairs have identical
+    # cell labels
+    degenerate_pairs = [
+        (14, 23),
+        (7, 111),
+        (35, 210)
+    ]
+
+    test_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='with_degenerate_labels_',
+        suffix='.h5ad'
+    )
+    src = anndata.read_h5ad(
+        query_h5ad_fixture,
+        backed='r')
+
+    src_obs = src.obs
+    index_name = src.obs.index.name
+    src_obs = src_obs.reset_index().to_dict(orient='records')
+
+    degenerate_idx = set()
+    expected_label_lookup = dict()
+    for i_pair, pair in enumerate(degenerate_pairs):
+        label = f'degeneracy_{i_pair}'
+        src_obs[pair[0]][index_name] = label
+        src_obs[pair[1]][index_name] = label
+        degenerate_idx.add(pair[0])
+        degenerate_idx.add(pair[1])
+        for idx in pair:
+            expected_label_lookup[idx] = (
+                '{"cell_id": '
+                f'"{label}", "row": {idx}'
+                '}'
+            )
+
+    new_obs = pd.DataFrame(src_obs).set_index(index_name)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+            obs=new_obs,
+            var=src.var,
+            X=src.X
+        )
+    dst.write_h5ad(test_h5ad_path)
+    src.file.close()
+    del src
+
+    # do the mapping on the h5ad file with non-degenerate
+    # cell labels
+    (baseline_json,
+     baseline_csv,
+     _) = run_pipeline(
+         query_path=query_h5ad_fixture,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
+
+    # do the mapping on the h5ad with degenerate cell labels
+    (test_json,
+     test_csv,
+     _) = run_pipeline(
+         query_path=test_h5ad_path,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
+
+    # compare the contents of the two mappings
+    baseline_df = pd.read_csv(
+        baseline_csv, comment='#').to_dict(orient='records')
+
+    test_df = pd.read_csv(
+        test_csv, comment='#').to_dict(orient='records')
+
+    baseline_mapping = json.load(open(baseline_json, 'rb'))['results']
+    test_mapping = json.load(open(test_json, 'rb'))['results']
+
+    assert len(baseline_df) == len(test_df)
+    assert len(baseline_mapping) == len(baseline_df)
+    assert len(test_mapping) == len(baseline_df)
+
+    for idx in range(len(baseline_df)):
+        b_df = baseline_df[idx]
+        t_df = test_df[idx]
+        b_m = baseline_mapping[idx]
+        t_m = test_mapping[idx]
+        if idx in degenerate_idx:
+            _ = b_df.pop(index_name)
+            test_name = t_df.pop(index_name)
+            assert test_name == expected_label_lookup[idx]
+            test_name = json.loads(test_name)
+            assert test_name['row'] == idx
+            _ = b_m.pop('cell_id')
+            test_name = t_m.pop('cell_id')
+            assert test_name == expected_label_lookup[idx]
+            test_name = json.loads(test_name)
+            assert test_name['row'] == idx
+        assert b_df == t_df
+        assert b_m == t_m
+
+    # make sure the degenerate cells did not accidentally
+    # have identical mappings
+    for pair in degenerate_pairs:
+        assert index_name not in baseline_df[pair[0]]
+        assert index_name not in baseline_df[pair[1]]
+        assert baseline_df[pair[0]] != baseline_df[pair[1]]
+        assert 'cell_id' not in baseline_mapping[pair[0]]
+        assert 'cell_id' not in baseline_mapping[pair[1]]
+        assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]

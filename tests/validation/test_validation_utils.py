@@ -17,7 +17,8 @@ from cell_type_mapper.validation.utils import (
     get_minmax_x_from_h5ad,
     round_x_to_integers,
     is_x_integers,
-    is_data_ge_zero)
+    is_data_ge_zero,
+    create_uniquely_indexed_df)
 
 
 # add function to create various flavors of h5ad file
@@ -502,3 +503,36 @@ def test_is_data_ge_zero(tmp_dir_fixture, density, layer):
         layer='X')
     assert not result[0]
     np.testing.assert_allclose(result[1], x.min(), atol=0.0, rtol=1.0e-6)
+
+
+def test_create_uniquely_indexed_df():
+    """
+    Test utility that takes an obs dataframe and returns
+    a dataframe with a unique index (if the index is not already
+    unique).
+    """
+    good_obs = pd.DataFrame(
+        [{'a': 1, 'b': 'xyz', 'c': 7},
+         {'a': 5, 'b': 'uvw', 'c': 19},
+         {'a': 33, 'b': 'nnn', 'c': 771}]
+    ).set_index('a')
+
+    result = create_uniquely_indexed_df(good_obs)
+    assert result is good_obs
+
+    bad_obs = pd.DataFrame(
+        [{'a': 1, 'b': 'xyz', 'c': 7},
+         {'a': 5, 'b': 'uvw', 'c': 19},
+         {'a': 33, 'b': 'nnn', 'c': 771},
+         {'a': 5, 'b': 'mmm', 'c': 7812}]
+    ).set_index('a')
+
+    expected_obs = pd.DataFrame(
+        [{'a': '1', 'b': 'xyz', 'c': 7},
+         {'a': '{"a": 5, "row": 1}', 'b': 'uvw', 'c': 19},
+         {'a': '33', 'b': 'nnn', 'c': 771},
+         {'a': '{"a": 5, "row": 3}', 'b': 'mmm', 'c': 7812}]
+    ).set_index('a')
+
+    result = create_uniquely_indexed_df(bad_obs)
+    pd.testing.assert_frame_equal(result, expected_obs)
