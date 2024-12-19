@@ -58,7 +58,7 @@ class SearchSchemaMixinBase(
 
     cloud_safe = argschema.fields.Boolean(
         required=False,
-        default=True,
+        default=False,
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
 
