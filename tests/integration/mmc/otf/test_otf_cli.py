@@ -1001,3 +1001,130 @@ def test_online_workflow_OTF_csv_shape(
         baseline['results'],
         test['results'],
         compare_cell_id=compare_cell_id)
+
+
+def test_online_workflow_OTF_degenerate_cell_labels(
+        human_gene_data_fixture,
+        tmp_dir_fixture):
+    """
+    Test that, when cell labels are repeated, the mapping proceeds and
+    the order of cells is preserved
+    """
+
+    precomputed_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture['csr']
+
+    # Create an h5ad file with the same data as
+    # query_h5ad_fixture, except that the row pairs
+    # specified below in degenerate_pairs have identical
+    # cell labels
+    degenerate_pairs = [
+        (14, 23),
+        (7, 111),
+        (35, 210)
+    ]
+
+    test_h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='with_degenerate_labels_',
+        suffix='.h5ad'
+    )
+    src = anndata.read_h5ad(
+        query_path,
+        backed='r')
+
+    src_obs = src.obs
+    index_name = src.obs.index.name
+    src_obs = src_obs.reset_index().to_dict(orient='records')
+
+    degenerate_idx = set()
+    expected_label_lookup = dict()
+    for i_pair, pair in enumerate(degenerate_pairs):
+        label = f'degeneracy_{i_pair}'
+        src_obs[pair[0]][index_name] = label
+        src_obs[pair[1]][index_name] = label
+        degenerate_idx.add(pair[0])
+        degenerate_idx.add(pair[1])
+        for idx in pair:
+            expected_label_lookup[idx] = (
+                '{"cell_id": '
+                f'"{label}", "row": {idx}'
+                '}'
+            )
+
+    new_obs = pd.DataFrame(src_obs).set_index(index_name)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+            obs=new_obs,
+            var=src.var,
+            X=src.X
+        )
+
+    dst.write_h5ad(test_h5ad_path)
+    src.file.close()
+    del src
+
+    # do the mapping on the h5ad file with non-degenerate
+    # cell labels
+    (baseline_json,
+     baseline_csv,
+     _) = run_pipeline(
+         query_path=query_path,
+         precomputed_path=precomputed_path,
+         tmp_dir=str(tmp_dir_fixture)
+     )
+
+    # do the mapping on the h5ad with degenerate cell labels
+    (test_json,
+     test_csv,
+     _) = run_pipeline(
+         query_path=test_h5ad_path,
+         precomputed_path=precomputed_path,
+         tmp_dir=str(tmp_dir_fixture)
+     )
+
+    # compare the contents of the two mappings
+    baseline_df = pd.read_csv(
+        baseline_csv, comment='#').to_dict(orient='records')
+
+    test_df = pd.read_csv(
+        test_csv, comment='#').to_dict(orient='records')
+
+    baseline_mapping = json.load(open(baseline_json, 'rb'))['results']
+    test_mapping = json.load(open(test_json, 'rb'))['results']
+
+    assert len(baseline_df) == len(test_df)
+    assert len(baseline_mapping) == len(baseline_df)
+    assert len(test_mapping) == len(baseline_df)
+
+    for idx in range(len(baseline_df)):
+        b_df = baseline_df[idx]
+        t_df = test_df[idx]
+        b_m = baseline_mapping[idx]
+        t_m = test_mapping[idx]
+        if idx in degenerate_idx:
+            _ = b_df.pop(index_name)
+            test_name = t_df.pop(index_name)
+            assert test_name == expected_label_lookup[idx]
+            test_name = json.loads(test_name)
+            assert test_name['row'] == idx
+            _ = b_m.pop('cell_id')
+            test_name = t_m.pop('cell_id')
+            assert test_name == expected_label_lookup[idx]
+            test_name = json.loads(test_name)
+            assert test_name['row'] == idx
+        assert b_df == t_df
+        assert b_m == t_m
+
+    # make sure the degenerate cells did not accidentally
+    # have identical mappings
+    for pair in degenerate_pairs:
+        assert index_name not in baseline_df[pair[0]]
+        assert index_name not in baseline_df[pair[1]]
+        assert baseline_df[pair[0]] != baseline_df[pair[1]]
+        assert 'cell_id' not in baseline_mapping[pair[0]]
+        assert 'cell_id' not in baseline_mapping[pair[1]]
+        assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]

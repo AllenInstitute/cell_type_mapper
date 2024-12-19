@@ -301,8 +301,7 @@ def test_online_workflow_WMB_degenerate_cell_labels(
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
-        tmp_dir_fixture,
-        reference_mapping_fixture):
+        tmp_dir_fixture):
     """
     Test that, when cell labels are repeated, the mapping proceeds and
     the order of cells is preserved
@@ -348,11 +347,14 @@ def test_online_workflow_WMB_degenerate_cell_labels(
 
     new_obs = pd.DataFrame(src_obs).set_index(index_name)
 
-    dst = anndata.AnnData(
-        obs=new_obs,
-        var=src.var,
-        X=src.X
-    )
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        dst = anndata.AnnData(
+            obs=new_obs,
+            var=src.var,
+            X=src.X
+        )
     dst.write_h5ad(test_h5ad_path)
     src.file.close()
     del src
