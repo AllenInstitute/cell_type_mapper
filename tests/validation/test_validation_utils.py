@@ -528,9 +528,9 @@ def test_create_uniquely_indexed_df():
     ).set_index('a')
 
     expected_obs = pd.DataFrame(
-        [{'a': 1, 'b': 'xyz', 'c': 7},
+        [{'a': '1', 'b': 'xyz', 'c': 7},
          {'a': '{"a": 5, "row": 1}', 'b': 'uvw', 'c': 19},
-         {'a': 33, 'b': 'nnn', 'c': 771},
+         {'a': '33', 'b': 'nnn', 'c': 771},
          {'a': '{"a": 5, "row": 3}', 'b': 'mmm', 'c': 7812}]
     ).set_index('a')
 

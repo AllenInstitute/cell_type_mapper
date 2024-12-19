@@ -4,6 +4,7 @@ import anndata
 import hashlib
 import h5py
 import itertools
+import json
 import numpy as np
 import pandas as pd
 import pathlib
@@ -227,13 +228,14 @@ def test_validation_of_corrupted_h5ad(
 
 @pytest.mark.parametrize(
         "density,as_layer,round_to_int,specify_path,"
-        "csv_label_type,csv_label_header",
+        "csv_label_type,csv_label_header,degenerate_cell_labels",
         itertools.product(
          ("csr", "csc", "array", "csv", "gz"),
          (True, False),
          (True, False),
          (True, False),
          ('string', 'numerical', 'big_numerical', None),
+         (True, False),
          (True, False))
 )
 def test_validation_of_h5ad_simple(
@@ -247,7 +249,20 @@ def test_validation_of_h5ad_simple(
         round_to_int,
         specify_path,
         csv_label_type,
-        csv_label_header):
+        csv_label_header,
+        degenerate_cell_labels):
+
+    if degenerate_cell_labels:
+        if density not in ("csc", "csv"):
+            return
+        if as_layer:
+            return
+        if not round_to_int:
+            return
+        if not specify_path:
+            return
+        if not csv_label_header:
+            return
 
     # some of these combinations are unncessary
     if density not in ("csv", "gz"):
@@ -292,11 +307,30 @@ def test_validation_of_h5ad_simple(
         x = data
         layers = None
 
-    a_data = anndata.AnnData(
-        X=x,
-        var=var_fixture,
-        obs=obs_fixture,
-        layers=layers)
+    if degenerate_cell_labels:
+        index_name = obs_fixture.index.name
+        obs_data = obs_fixture.reset_index().to_dict(
+            orient='records'
+        )
+        degenerate_rows = [1, 3, 4]
+        for i_row in degenerate_rows:
+            row = obs_data[i_row]
+            row.pop(index_name)
+            row[index_name] = 'degenerate'
+        obs_df = pd.DataFrame(
+            obs_data
+        ).set_index(index_name)
+    else:
+        obs_df = obs_fixture
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            var=var_fixture,
+            obs=obs_df,
+            layers=layers)
 
     if density in ("csv", "gz"):
         write_anndata_x_to_csv(
@@ -353,17 +387,28 @@ def test_validation_of_h5ad_simple(
 
     actual = anndata.read_h5ad(result_path, backed='r')
 
-    if density in ("csv", "gz") \
-            and csv_label_type is not None \
-            and csv_label_type == "string":
+    if not degenerate_cell_labels:
+        if density in ("csv", "gz") \
+                and csv_label_type is not None \
+                and csv_label_type == "string":
 
-        np.testing.assert_array_equal(
-            obs_fixture.index.values,
-            actual.obs.index.values
-        )
+            np.testing.assert_array_equal(
+                obs_fixture.index.values,
+                actual.obs.index.values
+            )
 
+        elif density not in ("csv", "gz"):
+            pd.testing.assert_frame_equal(obs_fixture, actual.obs)
     elif density not in ("csv", "gz"):
-        pd.testing.assert_frame_equal(obs_fixture, actual.obs)
+        original_idx = [
+            str(ii) for ii in obs_fixture.index.values
+        ]
+        for ii, idx in enumerate(original_idx):
+            if ii not in degenerate_rows:
+                assert actual.obs.index.values[ii] == original_idx[ii]
+            else:
+                actual_idx = json.loads(actual.obs.index.values[ii])
+                assert actual_idx['row'] == ii
 
     actual_x = actual.X[()]
     if density not in ("array", "csv", "gz"):
@@ -800,39 +845,3 @@ def test_gene_name_errors(tmp_dir_fixture):
                 h5ad_path=h5ad_path,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
                 gene_id_mapper=GeneIdMapper.from_mouse())
-
-
-def test_cell_id_errors(tmp_dir_fixture):
-    """
-    Test that an error is raised when a cell_id is
-    repeated
-    """
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        obs = pd.DataFrame(
-            [
-             {'cell_id': 'c0'},
-             {'cell_id': 'c1'},
-             {'cell_id': 'c0'},
-             {'cell_id': 'c2'}
-            ]).set_index('cell_id')
-
-        var = pd.DataFrame(
-            [{'g': f'g{ii}'} for ii in range(8)]).set_index('g')
-
-        x = np.ones((len(obs), len(var)), dtype=float)
-        a_data = anndata.AnnData(
-            obs=obs, var=var, X=x)
-        h5ad_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5ad')
-        a_data.write_h5ad(h5ad_path)
-
-        msg = "Cell IDs need to be unique"
-        with pytest.raises(RuntimeError, match=msg):
-            validate_h5ad(
-                h5ad_path=h5ad_path,
-                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-                gene_id_mapper=None)

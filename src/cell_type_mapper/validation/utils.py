@@ -6,6 +6,7 @@ import pathlib
 import tempfile
 
 from cell_type_mapper.utils.utils import (
+    clean_for_json,
     mkstemp_clean,
     _clean_up)
 
@@ -509,23 +510,21 @@ def create_uniquely_indexed_df(input_df):
     ]
 
     if index_name is None:
-        msg = (
-            "Index does not have unique values, but index also "
-            "is not named. Unclear how to proceed.\n"
-            f"Repeated index values are\n{offenders}"
-        )
-        raise RuntimeError(msg)
+        index_name = "original_index"
 
     offenders = set(offenders)
     data = input_df.reset_index().to_dict(orient='records')
     for i_row in range(len(data)):
         row = data[i_row]
-        if row[index_name] in offenders:
+        this_idx = index_values[i_row]
+        if this_idx in offenders:
             new_name = {
-                index_name: row[index_name],
+                index_name: this_idx,
                 'row': i_row
             }
-            row[index_name] = json.dumps(new_name)
+            row[index_name] = json.dumps(clean_for_json(new_name))
+        else:
+            row[index_name] = str(this_idx)
 
     new_df = pd.DataFrame(data).set_index(index_name)
     return new_df
