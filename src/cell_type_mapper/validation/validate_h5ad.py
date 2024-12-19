@@ -146,10 +146,21 @@ def _validate_h5ad(
 
     has_warnings = write_to_new_path
 
-    # check that file can even be open
+    # check that file can even be open and that it contains
+    # layer, obs, and var datasets/groups
+    missing_elements = []
+    if layer == 'X':
+        full_layer = layer
+    elif '/' in layer:
+        full_layer = layer
+    else:
+        full_layer = f'layers/{layer}'
+
     try:
-        with h5py.File(original_h5ad_path, 'r') as _:
-            pass
+        with h5py.File(original_h5ad_path, 'r') as src:
+            for el in (full_layer, 'var', 'obs'):
+                if el not in src.keys():
+                    missing_elements.append(el)
     except Exception:
         error_msg = f"\n{traceback.format_exc()}\n"
         error_msg += (
@@ -161,6 +172,17 @@ def _validate_h5ad(
             raise RuntimeError(error_msg)
         else:
             log.error(error_msg)
+
+    if len(missing_elements) > 0:
+        msg = (
+            "Cannot process this h5ad file. It is missing "
+            "the following required elements\n"
+            f"{missing_elements}"
+        )
+        if log is None:
+            raise RuntimeError(msg)
+        else:
+            log.error(msg)
 
     (original_h5ad_path,
      was_transposed) = _transpose_file_if_necessary(

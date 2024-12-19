@@ -12,6 +12,9 @@ import scipy.sparse as scipy_sparse
 from unittest.mock import patch
 import warnings
 
+from cell_type_mapper.utils.h5_utils import (
+    copy_h5_excluding_data)
+
 from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
 )
@@ -845,3 +848,56 @@ def test_gene_name_errors(tmp_dir_fixture):
                 h5ad_path=h5ad_path,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
                 gene_id_mapper=GeneIdMapper.from_mouse())
+
+
+@pytest.mark.parametrize(
+        "excluded_element", ("var", "obs", "X"))
+def test_missing_element(
+        good_var_fixture,
+        obs_fixture,
+        good_x_fixture,
+        map_data_fixture,
+        tmp_dir_fixture,
+        excluded_element):
+    """
+    Test that an exception is raised when the h5ad file is
+    missing one of its essential elements ('X', 'var', 'obs')
+    """
+    orig_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='orig_',
+        suffix='.h5ad')
+
+    a_data = anndata.AnnData(
+        X=good_x_fixture,
+        var=good_var_fixture,
+        obs=obs_fixture)
+    a_data.write_h5ad(orig_path)
+
+    incomplete_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='incomplete_',
+        suffix='.h5ad'
+    )
+
+    copy_h5_excluding_data(
+        src_path=orig_path,
+        dst_path=incomplete_path,
+        excluded_datasets=[excluded_element],
+        excluded_groups=[excluded_element],
+        max_elements=10000)
+
+    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        msg = (
+            "Cannot process this h5ad file. It is missing "
+            "the following required elements"
+        )
+        with pytest.raises(RuntimeError, match=msg):
+            _, _ = validate_h5ad(
+                h5ad_path=incomplete_path,
+                output_dir=tmp_dir_fixture,
+                gene_id_mapper=gene_id_mapper,
+                tmp_dir=tmp_dir_fixture)
