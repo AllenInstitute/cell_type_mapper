@@ -83,7 +83,7 @@ class CellByGeneMatrix(object):
                     for ii in nan_rows
                 ]
             else:
-                nan_cells = nan_rows
+                nan_cells = [int(ii) for ii in nan_rows]
             msg = (
                 "There were NaN gene expression values in cells: "
                 f"{list(nan_cells)}; this will have unpredictable effects "
@@ -202,27 +202,48 @@ class CellByGeneMatrix(object):
         self._create_gene_to_col()
         self._genes_downsampled = True
 
-    def downsample_cells(self, selected_cells):
+    def downsample_cells_by_name(self, selected_cells):
         """
         Return another CellByGeneMatrix that only contains
-        the cells specified by the selected_cells.
-
-        Note: if self.cell_identifiers is None, selected_cells
-        must be a list of integer indices.
-
-        If self.cell_identifiers is not None, selected_cells
-        must be a list of cell_identifiers.
+        the cells specified by the cell identifiers in selected_cells.
         """
 
         if self.cell_identifiers is None:
-            selected_cell_idx = selected_cells
-            new_cell_id = None
-        else:
-            selected_cell_idx = [
-                self.cell_to_row[c] for c in selected_cells]
-            new_cell_id = selected_cells
+            raise KeyError(
+                "This CellByGeneMatrix has no cell_identifiers"
+            )
+
+        selected_cell_idx = [
+            self.cell_to_row[c] for c in selected_cells
+        ]
+        return self.downsample_cells_by_idx(
+            selected_cell_idx=selected_cell_idx
+        )
+
+    def downsample_cells_by_idx(self, selected_cell_idx):
+        """
+        Downsample cells according to a list of integers
+        representing the indexes of the cells being downsampled
+        to.
+
+        Return another CellByGeneMatrix.
+        """
+
+        selected_cell_idx = np.array(selected_cell_idx)
+        if not np.issubdtype(selected_cell_idx.dtype, np.integer):
+            raise KeyError(
+                f"selected_cell_idx are not integers: {selected_cell_idx}"
+            )
 
         subset = self.data[selected_cell_idx, :]
+        if self.cell_identifiers is None:
+            new_cell_id = None
+        else:
+            new_cell_id = [
+                self.cell_identifiers[ii]
+                for ii in selected_cell_idx
+            ]
+
         return CellByGeneMatrix(
             data=subset,
             gene_identifiers=self.gene_identifiers,

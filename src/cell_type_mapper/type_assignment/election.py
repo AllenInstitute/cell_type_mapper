@@ -221,6 +221,7 @@ def run_type_assignment_on_h5ad_cpu(
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
+            cell_identifiers=name_chunk,
             normalization=normalization,
             log=log)
 
@@ -440,8 +441,9 @@ def run_type_assignment(
                     chosen_idx = previously_assigned[
                         parent_level][parent_node[1]]
 
-                    chosen_query_data = full_query_gene_data.downsample_cells(
-                        selected_cells=chosen_idx)
+                    chosen_query_data = \
+                        full_query_gene_data.downsample_cells_by_idx(
+                            selected_cell_idx=chosen_idx)
 
                 else:
                     chosen_idx = []

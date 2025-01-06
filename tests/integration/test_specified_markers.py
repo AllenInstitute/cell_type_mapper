@@ -1336,3 +1336,104 @@ def test_integer_indexed_input(
         expected_cell.pop('cell_id')
         actual_cell.pop('cell_id')
         assert actual_cell == expected_cell
+
+
+def test_mapping_with_nan_expression(
+        tmp_dir_fixture,
+        ab_initio_assignment_fixture):
+    """
+    Test that the correct warning is logged if there are NaNs in the
+    gene expression data
+    """
+    n_cells = 500
+    obs = pd.DataFrame(
+        [{'cell_id': f'c{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        marker_lookup = json.load(src)
+
+    rng = np.random.default_rng(2131)
+    marker_set = set()
+    for k in marker_lookup:
+        if k in ('log', 'metadata'):
+            continue
+        this = set(rng.choice(marker_lookup[k],
+                              len(marker_lookup[k])//2,
+                              replace=False))
+        marker_set = marker_set.union(this)
+
+    marker_set = list(marker_set)
+
+    var = pd.DataFrame(
+        [{'gene_id': m} for m in marker_set]
+    ).set_index('gene_id')
+
+    data = rng.integers(3, 255, (len(obs), len(var))).astype(float)
+    data[5, 2] = np.nan
+    data[122, 7] = np.nan
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=data
+    )
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad'
+    )
+
+    src.write_h5ad(h5ad_path)
+
+    json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_with_nan_expression_',
+        suffix='.h5ad'
+    )
+
+    config = {
+        'query_path': h5ad_path,
+        'extended_result_path': json_path,
+        'type_assignment': {
+            'chunk_size': 100,
+            'n_processors': 3,
+            'normalization': 'raw'
+        },
+        'query_markers': {
+            'serialized_lookup': ab_initio_assignment_fixture['markers']
+        },
+        'precomputed_stats': {
+            'path':
+            ab_initio_assignment_fixture[
+                'ab_initio_config'][
+                    'precomputed_stats'][
+                        'path']
+        }
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config
+        )
+
+        runner.run()
+
+    expected_warnings = [
+        "WARNING: There were NaN gene expression values in cells: ['c5']",
+        "WARNING: There were NaN gene expression values in cells: ['c122']"
+    ]
+
+    found_warnings = set()
+
+    with open(json_path, 'rb') as src:
+        mapping = json.load(src)
+
+    for line in mapping['log']:
+        for msg in expected_warnings:
+            if msg in line:
+                found_warnings.add(msg)
+    assert len(found_warnings) == len(expected_warnings)
