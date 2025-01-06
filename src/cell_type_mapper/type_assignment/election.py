@@ -221,7 +221,8 @@ def run_type_assignment_on_h5ad_cpu(
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
-            normalization=normalization)
+            normalization=normalization,
+            log=log)
 
         if data.normalization != 'log2CPM':
             data.to_log2CPM_in_place()

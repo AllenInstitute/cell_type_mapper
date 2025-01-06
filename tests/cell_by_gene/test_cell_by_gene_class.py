@@ -411,3 +411,35 @@ def test_cpm_after_gene_ds(
         raw.to_log2CPM_in_place()
     with pytest.raises(RuntimeError, match="downsampled by genes"):
         raw.to_log2CPM()
+
+
+@pytest.mark.parametrize(
+    "cell_identifiers",
+    [True, False]
+)
+def test_nan_gene_expression_warning(cell_identifiers):
+    """
+    Test that the correct warning is raised if there are NaN
+    values in the cell by gene data.
+    """
+
+    n_cells = 6
+    n_genes = 7
+    rng = np.random.default_rng(22131)
+    data = rng.random((n_cells, n_genes))
+    data[1, 2] = np.nan
+    data[4, 0] = np.nan
+
+    cell_id_list = None
+    if cell_identifiers:
+        cell_id_list = [f'c{ii}' for ii in range(n_cells)]
+
+    msg = "NaN gene expression values in cells"
+
+    with pytest.warns(UserWarning, match=msg):
+        CellByGeneMatrix(
+            data=data,
+            gene_identifiers=[f'g{ii}' for ii in range(n_genes)],
+            normalization='log2CPM',
+            cell_identifiers=cell_id_list,
+            log=None)

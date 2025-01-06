@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+import warnings
 
 from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
@@ -29,13 +30,17 @@ class CellByGeneMatrix(object):
         Either "raw" or "log2CPM"; how is this data normalized
     cell_identifiers:
         Optional list of cell identifiers
+    log:
+        optional CommandLog object to record warnings
+        (specifically, warnings raised if there are NaNs in the data)
     """
     def __init__(
             self,
             data,
             gene_identifiers,
             normalization,
-            cell_identifiers=None):
+            cell_identifiers=None,
+            log=None):
 
         # has this file been downsampled by
         # genes (if it has, then conversion to
@@ -68,6 +73,26 @@ class CellByGeneMatrix(object):
             raise RuntimeError(
                 f"gene identifiers\n{duplicates}\nappear more than once "
                 "in your list of gene_identifiers")
+
+        nan_rows = np.where(np.logical_not(np.isfinite(data)))[0]
+        if len(nan_rows) > 0:
+            nan_rows = np.unique(nan_rows)
+            if cell_identifiers is not None:
+                nan_cells = [
+                    cell_identifiers[ii]
+                    for ii in nan_rows
+                ]
+            else:
+                nan_cells = nan_rows
+            msg = (
+                "There were NaN gene expression values in cells: "
+                f"{list(nan_cells)}; this will have unpredictable effects "
+                "on these cells' mappings"
+            )
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
 
         self._normalization = normalization
         self._data = data
