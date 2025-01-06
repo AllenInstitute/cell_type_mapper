@@ -12,6 +12,7 @@ dependencies = [
     "marshmallow==3.12.2",
     "numpy",
     "pytest",
+    "pytest-xdist",
     "scipy"
 ]
 requires-python = ">=3.8"
