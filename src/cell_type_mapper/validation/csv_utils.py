@@ -30,7 +30,7 @@ def convert_csv_to_h5ad(
     -------
     h5ad_path:
         Path to the h5ad file (this will be src_path
-        if src_path ends in '.h5ad')
+        if src_path does not end in '.csv' or '.csv.gz')
     was_converted:
         Boolean indicating if the file was converted to an
         h5ad file
