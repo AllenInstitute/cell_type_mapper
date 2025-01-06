@@ -416,17 +416,18 @@ def test_validation_cli_of_h5ad_simple(
 
     if specify_path:
         expected_name = pathlib.Path(valid_path).name
-    elif density in ('csv', 'gz'):
-        if density == 'csv':
-            suffix = '.csv'
-        else:
-            suffix = '.csv.gz'
-        expected_name = (
-            f'{base_name.replace(suffix, "")}_VALIDATED_{timestamp}.h5ad'
-        )
-    else:
+        assert result_path.name == expected_name
+    elif density not in ('csv', 'gz'):
         expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
-    assert result_path.name == expected_name
+        assert result_path.name == expected_name
+    else:
+        if density == 'gz':
+            base_suffix = '.csv.gz'
+        else:
+            base_suffix = '.csv'
+        assert result_path.name.endswith('.h5ad')
+        assert result_path.name.startswith(base_name.replace(base_suffix, ''))
+        assert 'VALIDATED' in result_path.name
 
     # if round_to_int == True, make sure that the data
     # in the validated h5ad file is stored as an int

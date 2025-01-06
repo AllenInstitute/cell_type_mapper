@@ -9,7 +9,8 @@ import pathlib
 import warnings
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean
+    mkstemp_clean,
+    get_timestamp
 )
 
 
@@ -69,7 +70,10 @@ def convert_csv_to_h5ad(
     elif src_name.endswith('.csv'):
         src_suffix = '.csv'
 
-    dst_path = src_path.parent / src_name.replace(src_suffix, '.h5ad')
+    dst_name = src_name.replace(src_suffix, '')
+    dst_name = f'{dst_name}-{get_timestamp()}.h5ad'
+    dst_path = src_path.parent/dst_name
+
     if dst_path.exists():
         dst_path = mkstemp_clean(
             dir=src_path.parent,
