@@ -131,24 +131,18 @@ def is_first_column_label(src_path):
 
     with open_fn(src_path, mode) as src:
         header = src.readline()
-        first_row = src.readline()
 
     if is_gzip:
         header = header.decode()
-        first_row = first_row.decode()
 
     header_params = header.split(',')
-    first_row_params = first_row.split(',')
-
     if header_params[0] == '':
         return True
-    else:
-        try:
-            float(first_row_params[0])
-        except ValueError:
-            return True
 
     x_array = pd.read_csv(src_path).to_numpy()
+
+    if not np.issubdtype(x_array[:, 0].dtype, np.number):
+        return True
 
     if is_first_column_large(
             x_array=x_array,

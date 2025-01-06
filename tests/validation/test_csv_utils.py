@@ -58,7 +58,8 @@ def csv_anndata_fixture(
         'big',
         'random',
         'sequential_float',
-        'big_float')
+        'big_float',
+        'hybrid')
 
     rng = np.random.default_rng(221111)
     n_cells = 4
@@ -83,6 +84,10 @@ def csv_anndata_fixture(
         cell_labels = list(
             1000000*(1.0+rng.random(n_cells))
         )
+    elif label_type == 'hybrid':
+        cell_labels = [
+            11, 'aa', 3, 2
+        ]
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -212,7 +217,8 @@ def test_is_first_column_large():
          'big',
          'random',
          'sequential_float',
-         'big_float'],
+         'big_float',
+         'hybrid'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -241,7 +247,7 @@ def test_detection_of_cell_label_column(
     if not label_heading:
         expected = True
 
-    if label_type in ('string', 'sequential', 'big', 'big_float'):
+    if label_type in ('string', 'sequential', 'big', 'big_float', 'hybrid'):
         expected = True
 
     if expected:
@@ -259,7 +265,8 @@ def test_detection_of_cell_label_column(
          'big',
          'random',
          'sequential_float',
-         'big_float'],
+         'big_float',
+         'hybrid'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -292,7 +299,9 @@ def test_convert_csv(
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
 
-    if not label_heading or label_type not in ('random', 'sequential_float'):
+    if not label_heading or label_type not in (
+                                     'random',
+                                     'sequential_float'):
         # identify first column as cell labels
         expected_cell_labels = np.array(cell_labels)
         expected_gene_labels = np.array(gene_labels)
