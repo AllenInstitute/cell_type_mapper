@@ -1437,8 +1437,8 @@ def test_mapping_config_roundtrip(
         drop_nodes,
         flatten):
     """
-    Test that the FromSpecifiedMarkersRunner correctly drops
-    nodes from the taxonomy
+    Test that the FromSpecifiedMarkersRunner correctly records
+    the config parameters in the output JSON file
     """
 
     hasher = hashlib.md5()
