@@ -333,3 +333,25 @@ def test_convert_csv(
         atol=0.0,
         rtol=1.0e-6
     )
+
+
+def test_csv_conversion_with_string_in_expression(
+        tmp_dir_fixture):
+    """
+    Test that CSV conversion fails as expected if there is a string
+    in one of the gene expression value slots
+    """
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_with_string_gene_expression_',
+        suffix='.csv'
+    )
+    with open(csv_path, 'w') as dst:
+        dst.write(',g0,g1,g2\n')
+        dst.write('c0,0.1,silly,0.2\n')
+        dst.write('c1,0.5,0.3,1.2\n')
+    msg = "could not convert string to float: 'silly'"
+    with pytest.raises(ValueError, match=msg):
+        convert_csv_to_h5ad(
+            src_path=csv_path,
+            log=None)
