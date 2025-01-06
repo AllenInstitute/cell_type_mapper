@@ -351,7 +351,10 @@ def test_csv_conversion_with_string_in_expression(
         dst.write('c0,0.1,silly,0.2\n')
         dst.write('c1,0.5,0.3,1.2\n')
     msg = "could not convert string to float: 'silly'"
-    with pytest.raises(ValueError, match=msg):
-        convert_csv_to_h5ad(
-            src_path=csv_path,
-            log=None)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with pytest.raises(ValueError, match=msg):
+            convert_csv_to_h5ad(
+                src_path=csv_path,
+                log=None)
