@@ -52,7 +52,13 @@ def csv_anndata_fixture(
 
     assert suffix in ('.csv', '.csv.gz')
     assert label_heading in (True, False)
-    assert label_type in ('string', 'sequential', 'big', 'random')
+    assert label_type in (
+        'string',
+        'sequential',
+        'big',
+        'random',
+        'sequential_float',
+        'big_float')
 
     rng = np.random.default_rng(221111)
     n_cells = 4
@@ -69,6 +75,14 @@ def csv_anndata_fixture(
         cell_labels = [
            11, 7, 3, 2
         ]
+    elif label_type == 'sequential_float':
+        cell_labels = [
+            ii+0.25 for ii in range(n_cells)
+        ]
+    elif label_type == 'big_float':
+        cell_labels = list(
+            1000000*(1.0+rng.random(n_cells))
+        )
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -193,7 +207,12 @@ def test_is_first_column_large():
     "label_heading_fixture,label_type_fixture,suffix_fixture",
     itertools.product(
         [True, False],
-        ['string', 'sequential', 'big', 'random'],
+        ['string',
+         'sequential',
+         'big',
+         'random',
+         'sequential_float',
+         'big_float'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -222,7 +241,7 @@ def test_detection_of_cell_label_column(
     if not label_heading:
         expected = True
 
-    if label_type in ('string', 'sequential', 'big'):
+    if label_type in ('string', 'sequential', 'big', 'big_float'):
         expected = True
 
     if expected:
@@ -235,7 +254,12 @@ def test_detection_of_cell_label_column(
     "label_heading_fixture,label_type_fixture,suffix_fixture",
     itertools.product(
         [True, False],
-        ['string', 'sequential', 'big', 'random'],
+        ['string',
+         'sequential',
+         'big',
+         'random',
+         'sequential_float',
+         'big_float'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -268,7 +292,7 @@ def test_convert_csv(
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
 
-    if not label_heading or label_type != 'random':
+    if not label_heading or label_type not in ('random', 'sequential_float'):
         # identify first column as cell labels
         expected_cell_labels = np.array(cell_labels)
         expected_gene_labels = np.array(gene_labels)

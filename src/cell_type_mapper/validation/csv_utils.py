@@ -140,28 +140,29 @@ def is_first_column_label(src_path):
     header_params = header.split(',')
     first_row_params = first_row.split(',')
 
-    first_column_names = False
     if header_params[0] == '':
-        first_column_names = True
+        return True
     else:
         try:
             float(first_row_params[0])
         except ValueError:
-            first_column_names = True
+            return True
 
-    if not first_column_names:
-        x_array = pd.read_csv(src_path).to_numpy()
-        first_column_names = is_first_column_sequential(
-            x_array=x_array
-        )
+    x_array = pd.read_csv(src_path).to_numpy()
 
-        if not first_column_names:
-            first_column_names = is_first_column_large(
-                x_array=x_array,
-                n_sig=3
-            )
+    if is_first_column_large(
+            x_array=x_array,
+            n_sig=3):
+        return True
 
-    return first_column_names
+    if is_first_column_floats(x_array):
+        return False
+
+    if is_first_column_sequential(
+            x_array=x_array):
+        return True
+
+    return False
 
 
 def is_first_column_sequential(x_array):
@@ -188,13 +189,10 @@ def is_first_column_floats(x_array):
     """
     if np.issubdtype(x_array.dtype, np.integer):
         return False
-    eps = 1.0e-6
     col = x_array[:, 0]
     col_int = np.round(col)
     delta = np.abs(col-col_int)
-    denom = np.where(np.abs(col) > 0.0, np.abs(col), 1.0)
-    delta = delta/denom
-    return delta.max() > eps
+    return delta.max() > 0.0
 
 
 def is_first_column_large(x_array, n_sig=3):
