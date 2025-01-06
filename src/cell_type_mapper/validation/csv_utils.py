@@ -114,19 +114,20 @@ def is_first_column_label(src_path):
     src_path = pathlib.Path(src_path)
     src_name = src_path.name
 
-    if src_name.endswith('.csv.gz'):
-        src_suffix = '.csv.gz'
-    elif src_name.endswith('.csv'):
-        src_suffix = '.csv'
-
-    if src_suffix == '.csv':
+    if src_name.endswith('.csv'):
         open_fn = open
         mode = 'r'
         is_gzip = False
-    else:
+    elif src_name.endswith('.csv.gz'):
         open_fn = gzip.open
         mode = 'rb'
         is_gzip = True
+    else:
+        msg = (
+            "is_first_column_label unable to parse file "
+            f"{src_name}"
+        )
+        raise RuntimeError(msg)
 
     with open_fn(src_path, mode) as src:
         header = src.readline()
