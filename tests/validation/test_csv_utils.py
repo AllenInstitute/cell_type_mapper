@@ -17,6 +17,7 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.validation.csv_utils import (
     is_first_column_sequential,
+    is_first_column_floats,
     is_first_column_large,
     is_first_column_label,
     convert_csv_to_h5ad
@@ -131,6 +132,34 @@ def test_is_first_column_sequential():
          [3, 55, 66]]
     )
     assert not is_first_column_sequential(xx)
+
+
+def test_is_first_column_floats():
+    """
+    Test utility to detect if the first column in a numpy
+    array is floats
+    """
+    xx = np.array(
+        [[1.0, 2.1, 3.2],
+         [4.0, 5.2, 4.6],
+         [17.0, 1.1, 2.2]]
+    )
+    assert not is_first_column_floats(xx)
+
+    xx = np.array(
+        [[1.0, 2.1, 3.2],
+         [4.05, 5.2, 4.6],
+         [17.0, 1.1, 2.2]]
+    )
+    assert is_first_column_floats(xx)
+
+    xx = np.array(
+        [[1, 2, 3],
+         [4, 5, 4],
+         [17, 1, 2]],
+        dtype=np.int32
+    )
+    assert not is_first_column_floats(xx)
 
 
 def test_is_first_column_large():

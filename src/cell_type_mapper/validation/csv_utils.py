@@ -180,6 +180,23 @@ def is_first_column_sequential(x_array):
     )
 
 
+def is_first_column_floats(x_array):
+    """
+    Return True if the first column of x_array (a numpy array)
+    is floats. False if they are integers.
+    Note: for purposes of this function, 1.0 is an integer.
+    """
+    if np.issubdtype(x_array.dtype, np.integer):
+        return False
+    eps = 1.0e-6
+    col = x_array[:, 0]
+    col_int = np.round(col)
+    delta = np.abs(col-col_int)
+    denom = np.where(np.abs(col) > 0.0, np.abs(col), 1.0)
+    delta = delta/denom
+    return delta.max() > eps
+
+
 def is_first_column_large(x_array, n_sig=3):
     """
     Test if the first column of a numpy array is,
