@@ -15,7 +15,7 @@ dependencies = [
     "pytest-xdist",
     "scipy<1.15.0"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [
     {name = "Scott Daniel", email = "scott.daniel@alleninstitue.org"},
 ]
