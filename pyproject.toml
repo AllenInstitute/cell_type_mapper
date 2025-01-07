@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name="cell_type_mapper"
 version="1.4.0rc"
 dependencies = [
-    "anndata",
+    "anndata>=0.11.0",
     "argschema",
     "matplotlib",
     "marshmallow==3.12.2",
