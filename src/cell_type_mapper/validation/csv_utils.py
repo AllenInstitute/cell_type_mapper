@@ -9,7 +9,8 @@ import pathlib
 import warnings
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean
+    mkstemp_clean,
+    get_timestamp
 )
 
 
@@ -30,7 +31,7 @@ def convert_csv_to_h5ad(
     -------
     h5ad_path:
         Path to the h5ad file (this will be src_path
-        if src_path ends in '.h5ad')
+        if src_path does not end in '.csv' or '.csv.gz')
     was_converted:
         Boolean indicating if the file was converted to an
         h5ad file
@@ -69,7 +70,10 @@ def convert_csv_to_h5ad(
     elif src_name.endswith('.csv'):
         src_suffix = '.csv'
 
-    dst_path = src_path.parent / src_name.replace(src_suffix, '.h5ad')
+    dst_name = src_name.replace(src_suffix, '')
+    dst_name = f'{dst_name}-{get_timestamp()}.h5ad'
+    dst_path = src_path.parent/dst_name
+
     if dst_path.exists():
         dst_path = mkstemp_clean(
             dir=src_path.parent,
@@ -110,53 +114,49 @@ def is_first_column_label(src_path):
     src_path = pathlib.Path(src_path)
     src_name = src_path.name
 
-    if src_name.endswith('.csv.gz'):
-        src_suffix = '.csv.gz'
-    elif src_name.endswith('.csv'):
-        src_suffix = '.csv'
-
-    if src_suffix == '.csv':
+    if src_name.endswith('.csv'):
         open_fn = open
         mode = 'r'
         is_gzip = False
-    else:
+    elif src_name.endswith('.csv.gz'):
         open_fn = gzip.open
         mode = 'rb'
         is_gzip = True
+    else:
+        msg = (
+            "is_first_column_label unable to parse file "
+            f"{src_name}"
+        )
+        raise RuntimeError(msg)
 
     with open_fn(src_path, mode) as src:
         header = src.readline()
-        first_row = src.readline()
 
     if is_gzip:
         header = header.decode()
-        first_row = first_row.decode()
 
     header_params = header.split(',')
-    first_row_params = first_row.split(',')
-
-    first_column_names = False
     if header_params[0] == '':
-        first_column_names = True
-    else:
-        try:
-            float(first_row_params[0])
-        except ValueError:
-            first_column_names = True
+        return True
 
-    if not first_column_names:
-        x_array = pd.read_csv(src_path).to_numpy()
-        first_column_names = is_first_column_sequential(
-            x_array=x_array
-        )
+    x_array = pd.read_csv(src_path).to_numpy()
 
-        if not first_column_names:
-            first_column_names = is_first_column_large(
-                x_array=x_array,
-                n_sig=3
-            )
+    if not np.issubdtype(x_array[:, 0].dtype, np.number):
+        return True
 
-    return first_column_names
+    if is_first_column_large(
+            x_array=x_array,
+            n_sig=3):
+        return True
+
+    if is_first_column_floats(x_array):
+        return False
+
+    if is_first_column_sequential(
+            x_array=x_array):
+        return True
+
+    return False
 
 
 def is_first_column_sequential(x_array):
@@ -173,6 +173,20 @@ def is_first_column_sequential(x_array):
         atol=0.0,
         rtol=1.0e-6
     )
+
+
+def is_first_column_floats(x_array):
+    """
+    Return True if the first column of x_array (a numpy array)
+    is floats. False if they are integers.
+    Note: for purposes of this function, 1.0 is an integer.
+    """
+    if np.issubdtype(x_array.dtype, np.integer):
+        return False
+    col = x_array[:, 0]
+    col_int = np.round(col)
+    delta = np.abs(col-col_int)
+    return delta.max() > 0.0
 
 
 def is_first_column_large(x_array, n_sig=3):

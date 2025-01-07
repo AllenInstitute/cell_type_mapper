@@ -312,7 +312,7 @@ def test_downsample_by_cell_idx(
 
     cell_idx = [1, 9, 7]
     expected_data = raw_fixture[[1, 9, 7], :]
-    other = base.downsample_cells(cell_idx)
+    other = base.downsample_cells_by_idx(cell_idx)
     np.testing.assert_allclose(
         other.data,
         expected_data,
@@ -326,15 +326,16 @@ def test_downsample_by_cell_idx(
     assert other.gene_to_col is not base.gene_to_col
     assert other.gene_to_col == base.gene_to_col
 
-    # if there are cell identifiers, KeyError should be raised
-    base = CellByGeneMatrix(
-        data=raw_fixture,
-        gene_identifiers=gene_id_fixture,
-        normalization="raw",
-        cell_identifiers=cell_id_fixture)
+    msg = "This CellByGeneMatrix has no cell_identifiers"
+    with pytest.raises(KeyError, match=msg):
+        base.downsample_cells_by_name(['cell_13', 'cell_5', 'cell_9'])
+
+    msg = "selected_cell_idx are not integers"
+    with pytest.raises(KeyError, match=msg):
+        base.downsample_cells_by_idx(['cell_13', 'cell_5', 'cell_9'])
 
     with pytest.raises(KeyError):
-        base.downsample_cells(cell_idx)
+        base.downsample_cells_by_name(['silly', 'garbage'])
 
 
 def test_downsample_by_cell_id(
@@ -348,10 +349,10 @@ def test_downsample_by_cell_id(
         normalization="raw",
         cell_identifiers=cell_id_fixture)
 
-    selected_cells = ["cell_13", "cell_5", "cell_9"]
+    selected_cell_identifiers = ["cell_13", "cell_5", "cell_9"]
     expected_data = raw_fixture[[13, 5, 9], :]
 
-    other = base.downsample_cells(selected_cells)
+    other = base.downsample_cells_by_name(selected_cell_identifiers)
     assert other.n_cells == 3
     assert other.n_genes == base.n_genes
     np.testing.assert_allclose(
@@ -359,8 +360,8 @@ def test_downsample_by_cell_id(
         expected_data,
         atol=0.0,
         rtol=1.0e-6)
-    assert other.cell_identifiers is not selected_cells
-    assert other.cell_identifiers == selected_cells
+    assert other.cell_identifiers is not selected_cell_identifiers
+    assert other.cell_identifiers == selected_cell_identifiers
     assert other.gene_identifiers is not base.gene_identifiers
     assert other.gene_identifiers == base.gene_identifiers
     assert other.gene_to_col is not base.gene_to_col
@@ -369,16 +370,6 @@ def test_downsample_by_cell_id(
         "cell_13": 0,
         "cell_5": 1,
         "cell_9": 2}
-
-    # if cell_identifier is None, must select cells by idx
-    base = CellByGeneMatrix(
-        data=raw_fixture,
-        gene_identifiers=gene_id_fixture,
-        normalization="raw",
-        cell_identifiers=None)
-
-    with pytest.raises(IndexError):
-        base.downsample_cells(selected_cells)
 
 
 def test_cpm_after_gene_ds(
@@ -411,3 +402,35 @@ def test_cpm_after_gene_ds(
         raw.to_log2CPM_in_place()
     with pytest.raises(RuntimeError, match="downsampled by genes"):
         raw.to_log2CPM()
+
+
+@pytest.mark.parametrize(
+    "cell_identifiers",
+    [True, False]
+)
+def test_nan_gene_expression_warning(cell_identifiers):
+    """
+    Test that the correct warning is raised if there are NaN
+    values in the cell by gene data.
+    """
+
+    n_cells = 6
+    n_genes = 7
+    rng = np.random.default_rng(22131)
+    data = rng.random((n_cells, n_genes))
+    data[1, 2] = np.nan
+    data[4, 0] = np.nan
+
+    cell_id_list = None
+    if cell_identifiers:
+        cell_id_list = [f'c{ii}' for ii in range(n_cells)]
+
+    msg = "NaN gene expression values in cells"
+
+    with pytest.warns(UserWarning, match=msg):
+        CellByGeneMatrix(
+            data=data,
+            gene_identifiers=[f'g{ii}' for ii in range(n_genes)],
+            normalization='log2CPM',
+            cell_identifiers=cell_id_list,
+            log=None)

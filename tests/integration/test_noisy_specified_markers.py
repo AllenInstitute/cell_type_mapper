@@ -1437,8 +1437,8 @@ def test_mapping_config_roundtrip(
         drop_nodes,
         flatten):
     """
-    Test that the FromSpecifiedMarkersRunner correctly drops
-    nodes from the taxonomy
+    Test that the FromSpecifiedMarkersRunner correctly records
+    the config parameters in the output JSON file
     """
 
     hasher = hashlib.md5()
@@ -1540,6 +1540,12 @@ def test_mapping_config_roundtrip(
         {'bootstrap_factor': 0.8},
         {'bootstrap_iteration': 34}
     ]
+
+    # the GPU implementation does not actually
+    # care about the value of n_processors
+    if use_gpu:
+        update_config_list.pop(1)
+
     for update_config in update_config_list:
         test_config = copy.deepcopy(config)
         for k in update_config:

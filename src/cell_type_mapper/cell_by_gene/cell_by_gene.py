@@ -1,5 +1,6 @@
 import copy
 import numpy as np
+import warnings
 
 from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
@@ -29,13 +30,17 @@ class CellByGeneMatrix(object):
         Either "raw" or "log2CPM"; how is this data normalized
     cell_identifiers:
         Optional list of cell identifiers
+    log:
+        optional CommandLog object to record warnings
+        (specifically, warnings raised if there are NaNs in the data)
     """
     def __init__(
             self,
             data,
             gene_identifiers,
             normalization,
-            cell_identifiers=None):
+            cell_identifiers=None,
+            log=None):
 
         # has this file been downsampled by
         # genes (if it has, then conversion to
@@ -68,6 +73,26 @@ class CellByGeneMatrix(object):
             raise RuntimeError(
                 f"gene identifiers\n{duplicates}\nappear more than once "
                 "in your list of gene_identifiers")
+
+        nan_rows = np.where(np.logical_not(np.isfinite(data)))[0]
+        if len(nan_rows) > 0:
+            nan_rows = np.unique(nan_rows)
+            if cell_identifiers is not None:
+                nan_cells = [
+                    cell_identifiers[ii]
+                    for ii in nan_rows
+                ]
+            else:
+                nan_cells = [int(ii) for ii in nan_rows]
+            msg = (
+                "There were NaN gene expression values in cells: "
+                f"{list(nan_cells)}; this will have unpredictable effects "
+                "on these cells' mappings"
+            )
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
 
         self._normalization = normalization
         self._data = data
@@ -177,27 +202,48 @@ class CellByGeneMatrix(object):
         self._create_gene_to_col()
         self._genes_downsampled = True
 
-    def downsample_cells(self, selected_cells):
+    def downsample_cells_by_name(self, selected_cells):
         """
         Return another CellByGeneMatrix that only contains
-        the cells specified by the selected_cells.
-
-        Note: if self.cell_identifiers is None, selected_cells
-        must be a list of integer indices.
-
-        If self.cell_identifiers is not None, selected_cells
-        must be a list of cell_identifiers.
+        the cells specified by the cell identifiers in selected_cells.
         """
 
         if self.cell_identifiers is None:
-            selected_cell_idx = selected_cells
-            new_cell_id = None
-        else:
-            selected_cell_idx = [
-                self.cell_to_row[c] for c in selected_cells]
-            new_cell_id = selected_cells
+            raise KeyError(
+                "This CellByGeneMatrix has no cell_identifiers"
+            )
+
+        selected_cell_idx = [
+            self.cell_to_row[c] for c in selected_cells
+        ]
+        return self.downsample_cells_by_idx(
+            selected_cell_idx=selected_cell_idx
+        )
+
+    def downsample_cells_by_idx(self, selected_cell_idx):
+        """
+        Downsample cells according to a list of integers
+        representing the indexes of the cells being downsampled
+        to.
+
+        Return another CellByGeneMatrix.
+        """
+
+        selected_cell_idx = np.array(selected_cell_idx)
+        if not np.issubdtype(selected_cell_idx.dtype, np.integer):
+            raise KeyError(
+                f"selected_cell_idx are not integers: {selected_cell_idx}"
+            )
 
         subset = self.data[selected_cell_idx, :]
+        if self.cell_identifiers is None:
+            new_cell_id = None
+        else:
+            new_cell_id = [
+                self.cell_identifiers[ii]
+                for ii in selected_cell_idx
+            ]
+
         return CellByGeneMatrix(
             data=subset,
             gene_identifiers=self.gene_identifiers,

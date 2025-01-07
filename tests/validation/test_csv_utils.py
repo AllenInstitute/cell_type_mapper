@@ -17,6 +17,7 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.validation.csv_utils import (
     is_first_column_sequential,
+    is_first_column_floats,
     is_first_column_large,
     is_first_column_label,
     convert_csv_to_h5ad
@@ -51,7 +52,14 @@ def csv_anndata_fixture(
 
     assert suffix in ('.csv', '.csv.gz')
     assert label_heading in (True, False)
-    assert label_type in ('string', 'sequential', 'big', 'random')
+    assert label_type in (
+        'string',
+        'sequential',
+        'big',
+        'random',
+        'sequential_float',
+        'big_float',
+        'hybrid')
 
     rng = np.random.default_rng(221111)
     n_cells = 4
@@ -67,6 +75,18 @@ def csv_anndata_fixture(
     elif label_type == 'random':
         cell_labels = [
            11, 7, 3, 2
+        ]
+    elif label_type == 'sequential_float':
+        cell_labels = [
+            ii+0.25 for ii in range(n_cells)
+        ]
+    elif label_type == 'big_float':
+        cell_labels = list(
+            1000000*(1.0+rng.random(n_cells))
+        )
+    elif label_type == 'hybrid':
+        cell_labels = [
+            11, 'aa', 3, 2
         ]
 
     csv_path = mkstemp_clean(
@@ -133,6 +153,34 @@ def test_is_first_column_sequential():
     assert not is_first_column_sequential(xx)
 
 
+def test_is_first_column_floats():
+    """
+    Test utility to detect if the first column in a numpy
+    array is floats
+    """
+    xx = np.array(
+        [[1.0, 2.1, 3.2],
+         [4.0, 5.2, 4.6],
+         [17.0, 1.1, 2.2]]
+    )
+    assert not is_first_column_floats(xx)
+
+    xx = np.array(
+        [[1.0, 2.1, 3.2],
+         [4.05, 5.2, 4.6],
+         [17.0, 1.1, 2.2]]
+    )
+    assert is_first_column_floats(xx)
+
+    xx = np.array(
+        [[1, 2, 3],
+         [4, 5, 4],
+         [17, 1, 2]],
+        dtype=np.int32
+    )
+    assert not is_first_column_floats(xx)
+
+
 def test_is_first_column_large():
     """
     Test utility to detect if first column in array
@@ -164,7 +212,13 @@ def test_is_first_column_large():
     "label_heading_fixture,label_type_fixture,suffix_fixture",
     itertools.product(
         [True, False],
-        ['string', 'sequential', 'big', 'random'],
+        ['string',
+         'sequential',
+         'big',
+         'random',
+         'sequential_float',
+         'big_float',
+         'hybrid'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -193,7 +247,7 @@ def test_detection_of_cell_label_column(
     if not label_heading:
         expected = True
 
-    if label_type in ('string', 'sequential', 'big'):
+    if label_type in ('string', 'sequential', 'big', 'big_float', 'hybrid'):
         expected = True
 
     if expected:
@@ -206,7 +260,13 @@ def test_detection_of_cell_label_column(
     "label_heading_fixture,label_type_fixture,suffix_fixture",
     itertools.product(
         [True, False],
-        ['string', 'sequential', 'big', 'random'],
+        ['string',
+         'sequential',
+         'big',
+         'random',
+         'sequential_float',
+         'big_float',
+         'hybrid'],
         ['.csv', '.csv.gz']
     ),
     indirect=['label_heading_fixture',
@@ -239,7 +299,9 @@ def test_convert_csv(
 
     adata = anndata.read_h5ad(h5ad_path, backed='r')
 
-    if not label_heading or label_type != 'random':
+    if not label_heading or label_type not in (
+                                     'random',
+                                     'sequential_float'):
         # identify first column as cell labels
         expected_cell_labels = np.array(cell_labels)
         expected_gene_labels = np.array(gene_labels)
@@ -271,3 +333,28 @@ def test_convert_csv(
         atol=0.0,
         rtol=1.0e-6
     )
+
+
+def test_csv_conversion_with_string_in_expression(
+        tmp_dir_fixture):
+    """
+    Test that CSV conversion fails as expected if there is a string
+    in one of the gene expression value slots
+    """
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_with_string_gene_expression_',
+        suffix='.csv'
+    )
+    with open(csv_path, 'w') as dst:
+        dst.write(',g0,g1,g2\n')
+        dst.write('c0,0.1,silly,0.2\n')
+        dst.write('c1,0.5,0.3,1.2\n')
+    msg = "could not convert string to float: 'silly'"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with pytest.raises(ValueError, match=msg):
+            convert_csv_to_h5ad(
+                src_path=csv_path,
+                log=None)
