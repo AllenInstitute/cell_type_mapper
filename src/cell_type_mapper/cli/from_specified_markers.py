@@ -4,6 +4,7 @@ import h5py
 import json
 import multiprocessing
 import numpy as np
+import os
 import pathlib
 import tempfile
 import time
@@ -72,7 +73,27 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = FromSpecifiedMarkersSchema
 
     def run(self):
-        self.run_mapping(write_to_disk=True)
+
+        parallelization_vars = [
+            'NUMEXPR_NUM_THREADS',
+            'MKL_NUM_THREADS',
+            'OMP_NUM_THREADS'
+        ]
+
+        default_vars = dict()
+        for var in parallelization_vars:
+            if var in os.environ:
+                default_vars[var] = os.environ[var]
+            else:
+                default_vars[var] = ''
+
+        try:
+            for var in parallelization_vars:
+                os.environ[var] = '1'
+            self.run_mapping(write_to_disk=True)
+        finally:
+            for var in parallelization_vars:
+                os.environ[var] = default_vars[var]
 
     def run_mapping(self, write_to_disk=True):
         mapping_exception = None
