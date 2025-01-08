@@ -4,7 +4,6 @@ import h5py
 import json
 import multiprocessing
 import numpy as np
-import os
 import pathlib
 import tempfile
 import time
@@ -24,7 +23,8 @@ from cell_type_mapper.utils.utils import (
     get_timestamp,
     mkstemp_clean,
     clean_for_json,
-    _clean_up)
+    _clean_up,
+    warn_on_parallelization)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_uns_from_h5ad,
@@ -73,30 +73,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = FromSpecifiedMarkersSchema
 
     def run(self):
-
-        parallelization_vars = [
-            'NUMEXPR_NUM_THREADS',
-            'MKL_NUM_THREADS',
-            'OMP_NUM_THREADS',
-            'OPENBLAS_NUM_THREADS'
-        ]
-
-        default_vars = dict()
-        for var in parallelization_vars:
-            if var in os.environ:
-                default_vars[var] = os.environ[var]
-            else:
-                default_vars[var] = ''
-
-        try:
-            for var in parallelization_vars:
-                os.environ[var] = '1'
-            self.run_mapping(write_to_disk=True)
-        finally:
-            for var in parallelization_vars:
-                os.environ[var] = default_vars[var]
+        self.run_mapping(write_to_disk=True)
 
     def run_mapping(self, write_to_disk=True):
+
         mapping_exception = None
         t0 = time.time()
         metadata_config = config_from_args(
@@ -116,6 +96,9 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         log = CommandLog(
             verbose_stdout=self.args['verbose_stdout']
         )
+
+        if self.args['type_assignment']['n_processors'] > 1:
+            warn_on_parallelization(log=log)
 
         # create this now in case _run_mapping errors
         # before creating the output dict (the finally

@@ -1,10 +1,12 @@
 from typing import Union, List, Tuple, Optional, Any
 import datetime
+import json
 import numpy as np
 import os
 import pathlib
 import tempfile
 import time
+import warnings
 
 
 def _clean_up(target_path):
@@ -307,3 +309,40 @@ def _clean_for_uns(
         cleaned_data = data
 
     return cleaned_data
+
+
+def warn_on_parallelization(log):
+    """
+    Issue warning if numpy's internal parallelization is not turned off.
+    """
+    parallelization_vars = [
+        'NUMEXPR_NUM_THREADS',
+        'MKL_NUM_THREADS',
+        'OMP_NUM_THREADS'
+    ]
+    must_warn = False
+    actual_values = dict()
+    for var in parallelization_vars:
+        if var in os.environ:
+            actual = os.environ[var]
+        else:
+            actual = ''
+        actual_values[var] = actual
+        if actual != '1':
+            must_warn = True
+
+    if not must_warn:
+        return
+
+    msg = (
+        "numpy's internal parallelization is enabled. "
+        "This could cause independent worker processes to "
+        "compete for resources, degrading performance. "
+        "We recommend setting the following environment "
+        "variables to '1' to improve performance\n"
+        f"{json.dumps(actual_values, indent=2)}"
+    )
+    if log is not None:
+        log.warn(msg)
+    else:
+        warnings.warn(msg)
