@@ -77,7 +77,8 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         parallelization_vars = [
             'NUMEXPR_NUM_THREADS',
             'MKL_NUM_THREADS',
-            'OMP_NUM_THREADS'
+            'OMP_NUM_THREADS',
+            'OPENBLAS_NUM_THREADS'
         ]
 
         default_vars = dict()
