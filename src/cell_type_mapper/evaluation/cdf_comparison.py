@@ -208,20 +208,20 @@ def _return_cdf(
     expected = np.zeros(len(bins), dtype=float)
     actual = np.zeros(len(bins), dtype=float)
     for ii, bb in enumerate(bins):
-        all_mask = (all_prob <= bb)
+        all_mask = (all_prob >= bb)
 
         if len(all_mask) > 0:
             expected[ii] = all_prob[all_mask].sum()/max(1, all_mask.sum())
 
-        true_mask = (true_prob <= bb)
+        true_mask = (true_prob >= bb)
         if len(true_mask) > 0:
             this_true = true_mask.sum()
         else:
             this_true = 0.0
 
-        false_mask = (false_prob <= bb)
+        false_mask = (false_prob >= bb)
         if len(false_mask) > 0:
-            this_false = (false_prob <= bb).sum()
+            this_false = false_mask.sum()
         else:
             this_false = 0.0
 
