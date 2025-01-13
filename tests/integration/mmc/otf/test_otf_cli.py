@@ -101,6 +101,12 @@ def run_pipeline(
         suffix='.json'
     )
 
+    log_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='log_',
+        suffix='.txt'
+    )
+
     validation_config = {
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
@@ -138,6 +144,7 @@ def run_pipeline(
         'precomputed_stats': {'path': str(precomputed_path)},
         'drop_level': None,
         'query_path': validated_path,
+        'log_path': log_path,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {

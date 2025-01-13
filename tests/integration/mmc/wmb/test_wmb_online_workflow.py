@@ -95,6 +95,12 @@ def run_pipeline(
         prefix='summary_',
         suffix='.json')
 
+    log_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='log_',
+        suffix='.txt'
+    )
+
     config = {
         'precomputed_stats': {
             'path': str(precomputed_path)
@@ -107,6 +113,7 @@ def run_pipeline(
         'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
         'map_to_ensembl': False,
+        'log_path': log_path,
         'type_assignment': {
             'normalization': 'raw',
             'bootstrap_iteration': 10,
