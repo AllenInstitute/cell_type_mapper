@@ -631,8 +631,10 @@ def infer_attrs(
 
     with h5py.File(src_path, 'r') as src:
         attrs = dict(src[dataset].attrs)
+
         if 'shape' in attrs:
             array_shape = attrs['shape']
+
         if 'encoding-version' in attrs:
             encoding_version = attrs['encoding-version']
 
@@ -670,6 +672,14 @@ def infer_attrs(
 
     if array_shape is None:
         array_shape = np.array([len(obs), len(var)])
+        if encoding_type != 'array':
+            _validate_sparse_array_shape(
+                src_path=src_path,
+                dataset=dataset,
+                encoding_type=encoding_type,
+                array_shape=array_shape,
+                chunk_size=10000000
+            )
 
     new_attrs = {
         'encoding-type': encoding_type,
@@ -678,6 +688,62 @@ def infer_attrs(
     }
     attrs.update(new_attrs)
     return attrs
+
+
+def _validate_sparse_array_shape(
+        src_path,
+        dataset,
+        encoding_type,
+        array_shape,
+        chunk_size=10000000):
+    """
+    Validate the shape of a sparse array whose attrs had to be inferred
+    directly from the data contained in the .h5ad file.
+
+    Parameters
+    ----------
+    src_path:
+        The path to the file being validated
+    dataset:
+        the string specifying the dataset whose encoding type
+        to return (this is the full specification, a la 'layers/my_layer')
+    encoding_type:
+        Either 'csr_matrix' or 'csc_matrix'
+    array_shape:
+        The shape inferred from the data
+    chunk_size:
+        the number of elements to read in from
+        'X/indices' at a time
+
+    Returns
+    -------
+    None
+        An error is raised if the array shape is inconsistent
+        with the contents of 'X/indices'
+    """
+    if encoding_type not in ('csc_matrix', 'csr_matrix'):
+        return
+
+    if encoding_type == 'csr_matrix':
+        max_indices_value = array_shape[1]
+        dimension = 'columns'
+    else:
+        max_indices_value = array_shape[0]
+        dimension = 'rows'
+
+    with h5py.File(src_path, 'r') as src:
+        n_indices = src[f'{dataset}/indices'].shape[0]
+        for i0 in range(0, n_indices, chunk_size):
+            i1 = min(n_indices, i0+chunk_size)
+            chunk = src[f'{dataset}/indices'][i0:i1]
+            chunk_max = chunk.max()
+            if chunk_max > max_indices_value:
+                raise RuntimeError(
+                    f"X is inferred to have encoding {encoding_type} "
+                    f"and shape {array_shape}. "
+                    "However, 'indices' array indicates there are at least "
+                    f"{chunk_max} {dimension}."
+                )
 
 
 def transpose_h5ad_file(
