@@ -1114,6 +1114,62 @@ def test_infer_attrs(
 
 
 @pytest.mark.parametrize(
+    'density',
+    ['csr', 'csc']
+)
+def test_pathologically_inconsistent_attrs(
+        tmp_dir_fixture,
+        density):
+    """
+    Test that the correct error is raised when we try to infer
+    attrs, but cannot because the sparse data in the h5ad file
+    is inconsistent
+    """
+    n_cells = 15
+    n_genes = 12
+    obs = pd.DataFrame(
+        [{'cell_id': 'c_{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+    var = pd.DataFrame(
+        [{'gene_id': 'g_{ii}'} for ii in range(n_genes)]
+    ).set_index('gene_id')
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pathological_attrs_',
+        suffix='.h5ad'
+    )
+
+    src = anndata.AnnData(obs=obs, var=var)
+    src.write_h5ad(h5ad_path)
+
+    rng = np.random.default_rng(761321312)
+    if density == 'csr':
+        indptr = np.arange(len(obs)+1, dtype=int)
+        dim = 'columns'
+    elif density == 'csc':
+        indptr = np.arange(len(var)+1, dtype=int)
+        dim = 'rows'
+
+    indices = rng.integers(0, len(var), 66)
+    indices[7] = 1000
+
+    with h5py.File(h5ad_path, 'a') as dst:
+        if 'X' in dst:
+            del dst['X']
+        x_grp = dst.create_group('X')
+        x_grp.create_dataset('indptr', data=indptr)
+        x_grp.create_dataset('indices', data=indices)
+
+    msg = f"array indicates there are at least 1000 {dim}"
+    with pytest.raises(RuntimeError, match=msg):
+        infer_attrs(
+            src_path=h5ad_path,
+            dataset='X'
+        )
+
+
+@pytest.mark.parametrize(
     "density,compression",
     itertools.product(
         ["array", "csc", "csr"],
