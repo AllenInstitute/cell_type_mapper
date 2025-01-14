@@ -4,6 +4,7 @@ Tests to test the workflow as implemented in the online MapMyCells app
 import pytest
 
 import anndata
+import io
 import itertools
 import json
 import pandas as pd
@@ -56,7 +57,16 @@ def run_pipeline(
         path to CSV output file
     metadata_path:
         path to summary metadata file
+    log_path:
+        path to the log file
     """
+
+    log_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix='log_',
+        suffix='.txt'
+    )
+
     validated_path = mkstemp_clean(
         dir=tmp_dir,
         prefix='validated_',
@@ -70,7 +80,8 @@ def run_pipeline(
     validation_config = {
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
-        'output_json': output_json_path}
+        'output_json': output_json_path,
+        'log_path': log_path}
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -94,12 +105,6 @@ def run_pipeline(
         dir=tmp_dir,
         prefix='summary_',
         suffix='.json')
-
-    log_path = mkstemp_clean(
-        dir=tmp_dir,
-        prefix='log_',
-        suffix='.txt'
-    )
 
     config = {
         'precomputed_stats': {
@@ -137,8 +142,87 @@ def run_pipeline(
     return (
         output_path,
         csv_path,
-        metadata_path
+        metadata_path,
+        log_path
     )
+
+
+@pytest.mark.parametrize(
+    'with_encoding_type, density_fixture, file_type',
+    [(True, 'dense', '.h5ad'),],
+    indirect=['density_fixture']
+)
+def test_online_WMB_log(
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        query_h5ad_fixture,
+        tmp_dir_fixture,
+        density_fixture,
+        with_encoding_type,
+        reference_mapping_fixture,
+        file_type
+        ):
+    """
+    Test that .txt log and .json log agree
+    """
+    if file_type == '.h5ad':
+        if with_encoding_type:
+            query_path = str(query_h5ad_fixture)
+        else:
+            query_path = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='query_without_encoding_type_',
+                suffix='.h5ad'
+            )
+            create_h5ad_without_encoding_type(
+                src_path=query_h5ad_fixture,
+                dst_path=query_path
+            )
+    else:
+        query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='query_as_csv_',
+            suffix=file_type
+        )
+
+        write_anndata_x_to_csv(
+            anndata_obj=anndata.read_h5ad(query_h5ad_fixture, backed='r'),
+            dst_path=query_path
+        )
+
+    (json_path,
+     _,
+     _,
+     log_path) = run_pipeline(
+         query_path=query_path,
+         marker_lookup_path=marker_lookup_fixture,
+         precomputed_path=precomputed_stats_fixture,
+         tmp_dir=tmp_dir_fixture
+     )
+
+    with open(log_path, 'r') as src:
+        txt_log = src.readlines()
+
+    # scan for 'DONE VALIDATING', indicating that
+    # log from validation step was preserved
+    found_validation = False
+    for line in txt_log:
+        if 'DONE VALIDATING' in line:
+            found_validation = True
+            break
+    assert found_validation
+
+    # write JSON log to/from iostream so that any \n
+    # in log lines are formatted the same way they are
+    # formatted in txt_log
+    with open(json_path, 'rb') as src:
+        mapping = json.load(src)
+    log_stream = io.StringIO()
+    for line in mapping['log']:
+        log_stream.write(line+'\n')
+    log_stream.seek(0)
+    json_log = log_stream.readlines()
+    assert len(set(json_log)-set(txt_log)) == 0
 
 
 @pytest.mark.parametrize(
@@ -198,6 +282,7 @@ def test_online_workflow_WMB(
 
     (json_path,
      csv_path,
+     _,
      _) = run_pipeline(
          query_path=query_path,
          marker_lookup_path=marker_lookup_fixture,
@@ -268,6 +353,7 @@ def test_online_workflow_WMB_csv_shape(
 
     (json_path,
      csv_path,
+     _,
      _) = run_pipeline(
          query_path=query_path,
          marker_lookup_path=marker_lookup_fixture,
@@ -370,6 +456,7 @@ def test_online_workflow_WMB_degenerate_cell_labels(
     # cell labels
     (baseline_json,
      baseline_csv,
+     _,
      _) = run_pipeline(
          query_path=query_h5ad_fixture,
          marker_lookup_path=marker_lookup_fixture,
@@ -380,6 +467,7 @@ def test_online_workflow_WMB_degenerate_cell_labels(
     # do the mapping on the h5ad with degenerate cell labels
     (test_json,
      test_csv,
+     _,
      _) = run_pipeline(
          query_path=test_h5ad_path,
          marker_lookup_path=marker_lookup_fixture,

@@ -8,6 +8,7 @@ import anndata
 import copy
 import h5py
 import hashlib
+import io
 import itertools
 import json
 import numpy as np
@@ -87,6 +88,8 @@ def run_pipeline(
         path to CSV output file
     metadata_path:
         path to summary metadata file
+    log_path:
+        path to the log file
     """
 
     validated_path = mkstemp_clean(
@@ -110,7 +113,8 @@ def run_pipeline(
     validation_config = {
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
-        'output_json': output_json
+        'output_json': output_json,
+        'log_path': log_path
     }
 
     with warnings.catch_warnings():
@@ -962,26 +966,28 @@ def test_OTF_log_path(
     )
 
     with open(log_path, 'r') as src:
-        actual_log = set(src.readlines())
+        txt_log = src.readlines()
 
-    # write mapping to txt file and then back to memory
-    # to accommodate \n in single lines of log
+    # scan for 'DONE VALIDATING', indicating that
+    # log from validation step was preserved
+    found_validation = False
+    for line in txt_log:
+        if 'DONE VALIDATING' in line:
+            found_validation = True
+            break
+    assert found_validation
+
+    # write JSON log to/from iostream so that any \n
+    # in log lines are formatted the same way they are
+    # formatted in txt_log
     with open(json_path, 'rb') as src:
         mapping = json.load(src)
-
-    dummy_txt_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.txt'
-    )
-    with open(dummy_txt_path, 'w') as dst:
-        for line in mapping['log']:
-            dst.write(f'{line}\n')
-    with open(dummy_txt_path, 'r') as src:
-        mapping_log = set(src.readlines())
-
-    # require that every line in the JSON file's log is
-    # also in the log text file
-    assert len(mapping_log-actual_log) == 0
+    log_stream = io.StringIO()
+    for line in mapping['log']:
+        log_stream.write(line+'\n')
+    log_stream.seek(0)
+    json_log = log_stream.readlines()
+    assert len(set(json_log)-set(txt_log)) == 0
 
 
 @pytest.mark.parametrize(
