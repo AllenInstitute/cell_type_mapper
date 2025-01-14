@@ -165,7 +165,7 @@ def run_pipeline(
         runner = OnTheFlyMapper(args=[], input_data=config)
         runner.run()
 
-    return (output_path, csv_path, metadata_path)
+    return (output_path, csv_path, metadata_path, log_path)
 
 
 @pytest.fixture(scope='module')
@@ -524,6 +524,7 @@ def test_otf_smoke(
         runner.run()
 
     result = json.load(open(output_path, 'rb'))
+
     assert 'RAN SUCCESSFULLY' in result['log'][-2]
     assert 'marker_genes' in result
     assert len(result['marker_genes']) > 3
@@ -908,6 +909,7 @@ def test_online_workflow_OTF(
 
     (json_path,
      csv_path,
+     _,
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
@@ -929,6 +931,57 @@ def test_online_workflow_OTF(
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
+
+
+@pytest.mark.parametrize(
+    'keep_encoding,density,file_type',
+    [(True, 'dense', '.h5ad'),]
+)
+def test_OTF_log_path(
+        tmp_dir_fixture,
+        keep_encoding,
+        density,
+        file_type,
+        human_gene_data_fixture):
+    """
+    Test that specified log_path contains same data as JSON log
+    """
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precomputed_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture[density]
+
+    (json_path,
+     _,
+     _,
+     log_path) = run_pipeline(
+         query_path=query_path,
+         precomputed_path=precomputed_path,
+         tmp_dir=tmp_dir
+    )
+
+    with open(log_path, 'r') as src:
+        actual_log = set(src.readlines())
+
+    # write mapping to txt file and then back to memory
+    # to accommodate \n in single lines of log
+    with open(json_path, 'rb') as src:
+        mapping = json.load(src)
+
+    dummy_txt_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.txt'
+    )
+    with open(dummy_txt_path, 'w') as dst:
+        for line in mapping['log']:
+            dst.write(f'{line}\n')
+    with open(dummy_txt_path, 'r') as src:
+        mapping_log = set(src.readlines())
+
+    # require that every line in the JSON file's log is
+    # also in the log text file
+    assert len(mapping_log-actual_log) == 0
 
 
 @pytest.mark.parametrize(
@@ -975,6 +1028,7 @@ def test_online_workflow_OTF_csv_shape(
 
     (json_path,
      csv_path,
+     _,
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
@@ -1078,6 +1132,7 @@ def test_online_workflow_OTF_degenerate_cell_labels(
     # cell labels
     (baseline_json,
      baseline_csv,
+     _,
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
@@ -1087,6 +1142,7 @@ def test_online_workflow_OTF_degenerate_cell_labels(
     # do the mapping on the h5ad with degenerate cell labels
     (test_json,
      test_csv,
+     _,
      _) = run_pipeline(
          query_path=test_h5ad_path,
          precomputed_path=precomputed_path,

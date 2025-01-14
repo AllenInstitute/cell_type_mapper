@@ -114,7 +114,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             write_mapping_to_disk(
                 output=mapping_result['output'],
                 log=log,
-                log_path=mapping_result['log_path'],
+                log_path=self.args['log_path'],
                 output_path=mapping_result['output_path'],
                 hdf5_output_path=mapping_result['hdf5_output_path'],
                 cloud_safe=self.args['cloud_safe']
@@ -200,7 +200,6 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         for k in ('query_path',
                   'extended_result_path',
                   'extended_result_dir',
-                  'log_path',
                   'hdf5_result_path',
                   'csv_result_path',
                   'drop_level',
@@ -216,6 +215,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         mapping_runner = FromSpecifiedMarkersRunner(
             args=[],
             input_data=mapping_config)
+
+        mapping_runner.set_log_obj(log)
 
         mapping_result = mapping_runner.run_mapping(write_to_disk=False)
         if mapping_result['mapping_exception'] is None:

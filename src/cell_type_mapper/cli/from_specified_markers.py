@@ -72,6 +72,11 @@ if use_torch() and is_cuda_available():
 class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
     default_schema = FromSpecifiedMarkersSchema
 
+    log_obj = None
+
+    def set_log_obj(self, log_obj):
+        self.log_obj = log_obj
+
     def run(self):
         self.run_mapping(write_to_disk=True)
 
@@ -93,9 +98,12 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             msg += '\n'
         print(msg)
 
-        log = CommandLog(
-            verbose_stdout=self.args['verbose_stdout']
-        )
+        if self.log_obj is None:
+            log = CommandLog(
+                verbose_stdout=self.args['verbose_stdout']
+            )
+        else:
+            log = self.log_obj
 
         if self.args['type_assignment']['n_processors'] > 1:
             warn_on_parallelization(log=log)
