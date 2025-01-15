@@ -159,7 +159,7 @@ def _validate_h5ad(
     try:
         with h5py.File(original_h5ad_path, 'r') as src:
             for el in (full_layer, 'var', 'obs'):
-                if el not in src.keys():
+                if el not in src:
                     missing_elements.append(el)
     except Exception:
         error_msg = f"\n{traceback.format_exc()}\n"

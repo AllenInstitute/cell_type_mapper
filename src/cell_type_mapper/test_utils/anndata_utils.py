@@ -103,7 +103,8 @@ def write_anndata_x_to_csv(
         anndata_obj,
         dst_path,
         cell_label_header=False,
-        cell_label_type='string'):
+        cell_label_type='string',
+        as_int=False):
     """
     Write the data in anndata_obj to a csv file at dst_path,
     using the X layer as the matrix.
@@ -171,7 +172,10 @@ def write_anndata_x_to_csv(
             for i_value, value in enumerate(row):
                 if i_value > 0 or cell_label_type is not None:
                     line += ','
-                line += f'{value:.6f}'
+                if as_int:
+                    line += f'{int(value):d}'
+                else:
+                    line += f'{value:.6f}'
             line += '\n'
             if is_gzip:
                 line = line.encode('utf-8')
