@@ -7,6 +7,7 @@ import traceback
 import pathlib
 import shutil
 from marshmallow import post_load
+import warnings
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
@@ -17,13 +18,30 @@ from cell_type_mapper.utils.anndata_utils import (
 from cell_type_mapper.validation.validate_h5ad import (
     validate_h5ad)
 
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
+from cell_type_mapper.utils.output_utils import (
+    get_execution_metadata
+)
+
 
 class ValidationInputSchema(argschema.ArgSchema):
 
-    h5ad_path = argschema.fields.InputFile(
-        required=True,
+    input_path = argschema.fields.InputFile(
+        required=False,
         default=None,
-        allow_none=False,
+        allow_none=True,
+        description=(
+            "Path to the file, either h5ad or CSV, being "
+            "validated."
+        ))
+
+    h5ad_path = argschema.fields.InputFile(
+        required=False,
+        default=None,
+        allow_none=True,
         description="Path to the h5ad file to be validated")
 
     valid_h5ad_path = argschema.fields.String(
@@ -95,6 +113,29 @@ class ValidationInputSchema(argschema.ArgSchema):
         description="If True, full file paths not recorded in log")
 
     @post_load
+    def reconcile_input(self, data, **kwargs):
+        """
+        Eventually, will do away with h5ad_path in favor of
+        input_path. For now, just transcribe h5ad_path to
+        input_path.
+        """
+        if data['input_path'] is not None and data['h5ad_path'] is not None:
+            raise RuntimeError(
+                "Cannot specify both input_path and h5ad_path"
+            )
+        if data['h5ad_path'] is not None:
+            msg = (
+                "The configuration parameter 'h5ad_path' is being "
+                "deprecated in favor of 'input_path'"
+            )
+            warnings.warn(
+                msg, DeprecationWarning
+            )
+            data['input_path'] = data['h5ad_path']
+            data['h5ad_path'] = None
+        return data
+
+    @post_load
     def check_for_output_json(self, data, **kwargs):
         is_valid = True
         if 'output_json' not in data:
@@ -141,6 +182,12 @@ class ValidationOutputSchema(argschema.ArgSchema):
         description="Serialization of the input configuration for "
         "this module")
 
+    execution_metadata = argschema.fields.Dict(
+        required=True,
+        default=None,
+        allow_none=False,
+        description="Description of what module was run and when")
+
     log_messages = argschema.fields.List(
         argschema.fields.String,
         required=True,
@@ -156,6 +203,17 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
     default_output_schema = ValidationOutputSchema
 
     def run(self):
+
+        config = config_from_args(
+            input_config=self.args,
+            cloud_safe=False
+        )
+
+        execution_metadata = get_execution_metadata(
+            module_file=__file__,
+            t0=None
+        )
+
         command_log = CommandLog()
         log_path = self.args['log_path']
         if log_path is not None:
@@ -168,7 +226,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 expected_max = None
 
             result_path, has_warnings = validate_h5ad(
-                h5ad_path=self.args['h5ad_path'],
+                h5ad_path=self.args['input_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
                 gene_id_mapper=None,
@@ -181,25 +239,44 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
             output_manifest = dict()
             if result_path is None:
                 if self.args['valid_h5ad_path'] is not None:
-                    new_path = self.args['valid_h5ad_path']
+                    result_path = self.args['valid_h5ad_path']
                     shutil.copy(
-                        src=self.args['h5ad_path'],
-                        dst=new_path)
+                        src=self.args['input_path'],
+                        dst=result_path)
+
                     # need to update uns to contain the number of mapped genes
-                    n_genes = len(read_df_from_h5ad(new_path, df_name='var'))
+                    n_genes = len(
+                        read_df_from_h5ad(result_path, df_name='var')
+                    )
+
                     update_uns(
-                        new_path,
+                        result_path,
                         new_uns={'AIBS_CDM_n_mapped_genes': n_genes},
                         clobber=False)
-                    output_manifest['valid_h5ad_path'] = new_path
+
+                    output_manifest['valid_h5ad_path'] = result_path
+
                 else:
-                    output_manifest['valid_h5ad_path'] = self.args['h5ad_path']
+                    output_manifest['valid_h5ad_path'] = (
+                        self.args['input_path']
+                    )
+
             else:
                 result_path = str(result_path.resolve().absolute())
                 output_manifest['valid_h5ad_path'] = result_path
 
+            if result_path is not None:
+                update_uns(
+                    result_path,
+                    new_uns={
+                        'validation_config': config,
+                        'validation_metadata': execution_metadata},
+                    clobber=False
+                )
+
             output_manifest['log_messages'] = command_log.log
-            output_manifest['config'] = self.args
+            output_manifest['config'] = config
+            output_manifest['execution_metadata'] = execution_metadata
             self.output(output_manifest, indent=2)
             self.has_warnings = has_warnings
         except Exception:

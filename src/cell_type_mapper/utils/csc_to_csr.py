@@ -39,7 +39,7 @@ def csc_to_csr_on_disk(
     else:
         data_handle = None
 
-    transpose_sparse_matrix_on_disk(
+    re_encode_sparse_matrix_on_disk(
         indices_handle=csc_group['indices'],
         indptr_handle=csc_group['indptr'],
         data_handle=data_handle,
@@ -48,17 +48,18 @@ def csc_to_csr_on_disk(
         output_path=csr_path)
 
 
-def transpose_by_way_of_disk(
+def re_encode_by_way_of_disk(
         indices,
         indptr,
         indices_max,
         max_gb=10,
         tmp_dir=None):
     """
-    Transpose a sparse matrix by writing it to disk
-    in an h5ad file and then using transpose_sparse_matrix_on_disk.
+    re-encode (convert CSR to CSC or vice versa) a sparse matrix by
+    writing it to disk in an h5ad file and then using
+    re_encode_sparse_matrix_on_disk.
 
-    Return indptr, indices for the transposed matrix.
+    Return indptr, indices for the re-encoded matrix.
 
     (presently ignore 'data' since that's how we are using this tool)
 
@@ -95,7 +96,7 @@ def transpose_by_way_of_disk(
                 data=indptr)
 
         with h5py.File(src_path, 'r') as src:
-            transpose_sparse_matrix_on_disk(
+            re_encode_sparse_matrix_on_disk(
                 indices_handle=src['indices'],
                 indptr_handle=src['indptr'],
                 data_handle=None,
@@ -113,7 +114,7 @@ def transpose_by_way_of_disk(
     return indptr, indices
 
 
-def transpose_sparse_matrix_on_disk(
+def re_encode_sparse_matrix_on_disk(
         indices_handle,
         indptr_handle,
         data_handle,
@@ -143,17 +144,18 @@ def transpose_sparse_matrix_on_disk(
 
     with h5py.File(output_path, 'w') as dst:
 
+        if n_non_zero > 0:
+            chunks = (min(n_non_zero, 1000000),)
+        else:
+            chunks = None
+
         if use_data_array:
             dst.create_dataset(
                 'data',
                 shape=n_non_zero,
                 dtype=data_dtype,
-                chunks=(min(n_non_zero, 1000000),))
+                chunks=chunks)
 
-        if n_non_zero > 0:
-            chunks = (min(n_non_zero, 1000000),)
-        else:
-            chunks = None
         dst.create_dataset(
             'indices',
             shape=n_non_zero,

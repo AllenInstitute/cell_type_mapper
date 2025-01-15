@@ -12,7 +12,7 @@ import itertools
 import json
 import numpy as np
 import pandas as pd
-import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -36,7 +36,6 @@ from cell_type_mapper.cli.map_to_on_the_fly_markers import (
 )
 
 
-
 @pytest.fixture(scope='module')
 def tmp_dir_fixture(tmp_path_factory):
     result = tmp_path_factory.mktemp('verbose_csv_dir_')
@@ -54,7 +53,6 @@ def taxonomy_tree_data_fixture():
         'class_name_label_alias': {
             'c0': ['s0', 's1'],
             'c1': ['s2']
-            
         },
         'subclass_name_label_alias': {
             's0': ['cl0'],
@@ -100,7 +98,9 @@ def reference_h5ad_fixture(
         taxonomy_tree_data_fixture,
         n_genes_fixture):
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -173,7 +173,10 @@ def precomputed_stats_fixture(
         tmp_dir=tmp_dir_fixture,
         n_processors=1)
 
-    tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+
     with h5py.File(h5ad_path, 'a') as src:
         del src['taxonomy_tree']
         src.create_dataset(
@@ -183,13 +186,17 @@ def precomputed_stats_fixture(
 
     return h5ad_path
 
+
 @pytest.fixture(scope='module')
 def marker_genes_fixture(
         tmp_dir_fixture,
         n_genes_fixture,
         taxonomy_tree_data_fixture):
 
-    tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=taxonomy_tree_data_fixture)
+
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='marker_genes_',
@@ -240,8 +247,10 @@ def query_h5ad_fixture(
     return h5ad_path
 
 
-@pytest.mark.parametrize('bootstrap_iteration,verbose_csv,mode',
-    itertools.product([1, 10], [True, False], ['otf', 'from_spec']))
+@pytest.mark.parametrize(
+    'bootstrap_iteration,verbose_csv,mode',
+    itertools.product([1, 10], [True, False], ['otf', 'from_spec'])
+)
 def test_csv_column_names(
         precomputed_stats_fixture,
         marker_genes_fixture,
@@ -280,21 +289,26 @@ def test_csv_column_names(
         'verbose_csv': verbose_csv
     }
 
-    if mode == 'from_spec':
-        config['query_markers'] = {
-            'serialized_lookup': marker_genes_fixture
-        }
-        runner = FromSpecifiedMarkersRunner(
-            args=[],
-            input_data=config
-        )
-    elif mode == 'otf':
-        config['query_markers'] = {}
-        config['reference_markers'] = {}
-        config['n_processors'] = config['type_assignment'].pop('n_processors')
-        runner = OnTheFlyMapper(args=[], input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        if mode == 'from_spec':
+            config['query_markers'] = {
+                'serialized_lookup': marker_genes_fixture
+            }
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config
+            )
+        elif mode == 'otf':
+            config['query_markers'] = {}
+            config['reference_markers'] = {}
+            config['n_processors'] = (
+                config['type_assignment'].pop('n_processors')
+            )
+            runner = OnTheFlyMapper(args=[], input_data=config)
+
+        runner.run()
 
     actual_df = pd.read_csv(csv_path, comment='#')
 

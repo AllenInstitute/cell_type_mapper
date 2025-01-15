@@ -111,7 +111,7 @@ def assemble_query_data(
     children = list(leaf_to_type.keys())
     children.sort()
 
-    reference_data = mean_profile_matrix.downsample_cells(
+    reference_data = mean_profile_matrix.downsample_cells_by_name(
         selected_cells=children)
 
     reference_data.downsample_genes_in_place(

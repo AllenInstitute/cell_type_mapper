@@ -58,9 +58,15 @@ class SearchSchemaMixinBase(
 
     cloud_safe = argschema.fields.Boolean(
         required=False,
-        default=True,
+        default=False,
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
+
+    log_path = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description="Path to the log file to be written")
 
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsInputSchema,

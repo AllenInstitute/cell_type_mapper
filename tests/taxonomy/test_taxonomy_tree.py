@@ -1,11 +1,9 @@
 import pytest
 import copy
-import numpy as np
 import json
 import itertools
-
-from cell_type_mapper.taxonomy.utils import (
-    get_taxonomy_tree)
+import re
+import warnings
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -40,7 +38,7 @@ def test_tree_get_all_pairs(
     for level, lookup in zip(('level1', 'level2', 'class'),
                              (l1_to_l2_fixture[0],
                               l2_to_class_fixture[0],
-                               class_to_cluster_fixture[0])):
+                              class_to_cluster_fixture[0])):
         elements = list(lookup.keys())
         elements.sort()
         for i0 in range(len(elements)):
@@ -67,7 +65,7 @@ def test_tree_get_all_leaf_pairs():
         'level1': {'l1a': set(['l2b', 'l2d']),
                    'l1b': set(['l2a', 'l2c', 'l2e']),
                    'l1c': set(['l2f',])
-                  },
+                   },
         'level2': {'l2a': set(['l3b',]),
                    'l2b': set(['l3a', 'l3c']),
                    'l2c': set(['l3e',]),
@@ -125,7 +123,7 @@ def test_tree_get_all_leaf_pairs():
     actual = taxonomy_tree.leaves_to_compare(parent_node)
     assert actual == []
 
-    parent_node=('leaf', '15')
+    parent_node = ('leaf', '15')
     actual = taxonomy_tree.leaves_to_compare(parent_node)
     assert actual == []
 
@@ -147,7 +145,7 @@ def test_tree_eq():
     tree2 = TaxonomyTree(data=copy.deepcopy(data1))
     assert tree1 == tree2
     assert not tree1 != tree2
-    assert not tree1 is tree2
+    assert tree1 is not tree2
 
     data2 = {
         'hierarchy': ['a', 'd'],
@@ -170,7 +168,7 @@ def test_flattening_tree():
         'level1': {'l1a': set(['l2b', 'l2d']),
                    'l1b': set(['l2a', 'l2c', 'l2e']),
                    'l1c': set(['l2f',])
-                  },
+                   },
         'level2': {'l2a': set(['l3b',]),
                    'l2b': set(['l3a', 'l3c']),
                    'l2c': set(['l3e',]),
@@ -206,8 +204,10 @@ def test_flattening_tree():
     assert flat_leaves == base_leaves
     assert first_tree.hierarchy == ['level1', 'level2', 'level3', 'leaf']
     for node in flat_leaves:
-        assert first_tree.children('leaf', node) == flat_tree.children('leaf', node)
-
+        assert (
+            first_tree.children('leaf', node)
+            == flat_tree.children('leaf', node)
+        )
 
 
 def test_drop_level():
@@ -232,7 +232,7 @@ def test_drop_level():
             f'c{ii}': [f'd{ii}', f'd{ii+9}']
             for ii in range(9)
         },
-        'l3':{
+        'l3': {
             f'd{ii}': list(range(ii*10, 5+ii*10))
             for ii in range(18)
         }
@@ -263,7 +263,7 @@ def test_drop_level():
             f'c{ii}': [f'd{ii}', f'd{ii+9}']
             for ii in range(9)
         },
-        'l3':{
+        'l3': {
             f'd{ii}': list(range(ii*10, 5+ii*10))
             for ii in range(18)
         }
@@ -285,7 +285,7 @@ def test_drop_level():
             f'c{ii}': [f'd{ii}', f'd{ii+9}']
             for ii in range(9)
         },
-        'l3':{
+        'l3': {
             f'd{ii}': list(range(ii*10, 5+ii*10))
             for ii in range(18)
         }
@@ -310,7 +310,7 @@ def test_drop_level():
             'b3': ['d6', 'd15'],
             'b4': ['d7', 'd16', 'd8', 'd17']
         },
-        'l3':{
+        'l3': {
             f'd{ii}': list(range(ii*10, 5+ii*10))
             for ii in range(18)
         }
@@ -336,8 +336,8 @@ def test_drop_level():
             'b4': ['c7', 'c8']
         },
         'l2': {
-            f'c{ii}': list(range(ii*10, 5+ii*10)) \
-                      + list(range(10*(ii+9), 5+(ii+9)*10))
+            f'c{ii}': (list(range(ii*10, 5+ii*10))
+                       + list(range(10*(ii+9), 5+(ii+9)*10)))
             for ii in range(9)
         }
     }
@@ -373,7 +373,10 @@ def test_parents_method():
         }
     }
 
-    taxonomy_tree = TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=data)
 
     actual = taxonomy_tree.parents('c', 'u')
     expected = {'b': '3', 'a': 'bb'}
@@ -390,7 +393,7 @@ def test_tree_to_str(drop_cells):
         'level1': {'l1a': list(['l2b', 'l2d']),
                    'l1b': list(['l2a', 'l2c', 'l2e']),
                    'l1c': list(['l2f',])
-                  },
+                   },
         'level2': {'l2a': ['l3b',],
                    'l2b': ['l3a', 'l3c'],
                    'l2c': ['l3e',],
@@ -409,14 +412,21 @@ def test_tree_to_str(drop_cells):
         'leaf': {str(k): list(range(26*k, 26*(k+1)))
                  for k in range(24)}}
 
-    taxonomy_tree = TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=tree_data)
+
     tree_str = taxonomy_tree.to_str(drop_cells=drop_cells)
 
     tree_str_rehydrated = json.loads(tree_str)
     assert set(tree_data.keys()) == set(tree_str_rehydrated.keys())
     for k in tree_data:
         if drop_cells and k == taxonomy_tree.leaf_level:
-            assert set(tree_data[k].keys()) == set(tree_str_rehydrated[k].keys())
+            assert (
+                set(tree_data[k].keys())
+                == set(tree_str_rehydrated[k].keys())
+            )
             for leaf in tree_str_rehydrated[k]:
                 assert tree_str_rehydrated[k][leaf] == []
         else:
@@ -428,7 +438,12 @@ def test_tree_to_str(drop_cells):
         assert taxonomy_tree.children(level='leaf', node=leaf) == expected
 
     # try re-instantiating tree without cells
-    new_tree = TaxonomyTree(data=json.loads(tree_str))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        new_tree = TaxonomyTree(data=json.loads(tree_str))
+
     assert set(new_tree.all_leaves) == set(taxonomy_tree.all_leaves)
 
 
@@ -453,7 +468,7 @@ def test_backfill():
                 'aaa', 'aab', 'aba', 'abb', 'baa', 'bab',
                 'bba', 'bbb', 'caa', 'cab', 'cba', 'cbb')
         },
-        "D":{
+        "D": {
             k: [f'{k}{j}' for j in ('a', 'b')]
             for k in (
                'aaaa', 'aaab', 'aaba', 'aabb',
@@ -473,40 +488,44 @@ def test_backfill():
          'C': {'assignment': 'bba', 'other': 'sure'},
          'D': {'assignment': 'bbaa', 'this': 'is'},
          'id': 'alice'
-        },
+         },
         {'A': {'assignment': 'c', 'junk': 'garbage'},
          'B': {'assignment': 'ca', 'junk': 'garbage'},
          'C': {'assignment': 'cab', 'silly': 'walk'},
          'D': {'assignment': 'caba'},
          'something': 'else'
-        },
+         },
         {'A': {'assignment': 'a'},
          'B': {'assignment': 'ab'},
          'C': {'assignment': 'aba', 'to': 'be'},
          'D': {'assignment': 'abab', 'to': 'be'},
          'why': 'not'
-        },
-        {'A': {'assignment': 'a'},   # backfill should not fix if child missing
+         },
+        {'A': {'assignment': 'a'},
+         # backfill should not fix if child missing
          'B': {'assignment': 'aa'},
          'because': 'so'
-        },
+         },
         {'A': {'assignment': 'b'},
          'B': {'assignment': 'bb'},
-         'C': {'assignment': 'bba'},  # backfill should not fix if child missing
+         'C': {'assignment': 'bba'},
+         # backfill should not fix if child missing
          'that': 'is true'
-        },
+         },
         {'A': {'assignment': 'b'},
          'B': {'assignment': 'ba'},
          'C': {'assignment': 'baa'},
          'D': {'assignment': 'baaa'},
          'that': 'is false'
-        },
+         },
         {'A': {'assignment': 'c', 'say': 'so'},  # pop many parents
          'B': {'assignment': 'cb', 'say': 'so'},
-         'C': {'assignment': 'cba', 'say': 'so', 'runner_up_garbage': 'uh huh'},
+         'C': {'assignment': 'cba',
+               'say': 'so',
+               'runner_up_garbage': 'uh huh'},
          'D': {'assignment': 'cbaa'},
          'that': 'is false'
-        }
+         }
     ]
 
     noisy = copy.deepcopy(expected_assignment)
@@ -547,7 +566,7 @@ def test_bad_level():
                 'aaa', 'aab', 'aba', 'abb', 'baa', 'bab',
                 'bba', 'bbb', 'caa', 'cab', 'cba', 'cbb')
         },
-        "D":{
+        "D": {
             k: [f'{k}{j}' for j in ('a', 'b')]
             for k in (
                'aaaa', 'aaab', 'aaba', 'aabb',
@@ -561,8 +580,384 @@ def test_bad_level():
 
     tree = TaxonomyTree(data=data)
 
-    with pytest.raises(RuntimeError, match ="F is not a valid level"):
+    with pytest.raises(RuntimeError, match="F is not a valid level"):
         tree.nodes_at_level('F')
 
     with pytest.raises(RuntimeError, match="F is not a valid level"):
         tree.children(level='F', node='ffff')
+
+
+@pytest.mark.parametrize(
+    "node_to_drop",
+    [('level1', 'l1b'),
+     ('level2', 'l2d'),
+     ('level3', 'l3f'),
+     ('level2', 'l2f')
+     ]
+)
+def test_drop_node(node_to_drop):
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    test_tree = TaxonomyTree(
+        data=full_tree_data)
+
+    if node_to_drop == ('level1', 'l1b'):
+        leaf_list = [
+            0, 1, 2,  7, 8, 9, 10, 11, 12,
+            15, 16, 17, 18, 21, 22, 23
+        ]
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1c': set(['l2f',])
+                       },
+            'level2': {'l2b': set(['l3a', 'l3c']),
+                       'l2d': set(['l3d', 'l3f', 'l3h']),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3f': set([str(ii) for ii in range(15, 19)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)]),
+                       'l3i': set(['23',])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level2', 'l2d'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8,
+            13, 14, 19, 20, 23
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                       'l1c': set(['l2f',])
+                       },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2e': set(['l3g',]),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3i': set(['23',])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level3', 'l3f'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+            13, 14, 19, 20, 21, 22, 23
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                       'l1c': set(['l2f',])
+                       },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2d': set(['l3d', 'l3h']),
+                       'l2e': set(['l3g',]),
+                       'l2f': set(['l3i',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)]),
+                       'l3i': set(['23',])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    elif node_to_drop == ('level2', 'l2f'):
+        leaf_list = [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+            13, 14, 15, 16, 17, 18, 19, 20, 21, 22
+        ]
+
+        expected_tree_data = {
+            'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+            'level1': {'l1a': set(['l2b', 'l2d']),
+                       'l1b': set(['l2a', 'l2c', 'l2e']),
+                       },
+            'level2': {'l2a': set(['l3b',]),
+                       'l2b': set(['l3a', 'l3c']),
+                       'l2c': set(['l3e',]),
+                       'l2d': set(['l3d', 'l3f', 'l3h']),
+                       'l2e': set(['l3g',])},
+            'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                       'l3b': set([str(ii) for ii in range(3, 7)]),
+                       'l3c': set([str(ii) for ii in range(7, 9)]),
+                       'l3d': set([str(ii) for ii in range(9, 13)]),
+                       'l3e': set([str(ii) for ii in range(13, 15)]),
+                       'l3f': set([str(ii) for ii in range(15, 19)]),
+                       'l3g': set([str(ii) for ii in range(19, 21)]),
+                       'l3h': set([str(ii) for ii in range(21, 23)])},
+            'leaf': {str(k): range(26*k, 26*(k+1))
+                     for k in leaf_list}}
+    else:
+        raise RuntimeError(
+            f"No test for dropped_node {node_to_drop}"
+        )
+
+    expected_tree = TaxonomyTree(data=expected_tree_data)
+
+    assert test_tree != expected_tree
+
+    test_tree = test_tree.drop_node(
+        level=node_to_drop[0],
+        node=node_to_drop[1])
+
+    assert test_tree == expected_tree
+
+
+def test_drop_leaf_node():
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    test_tree = TaxonomyTree(
+        data=full_tree_data)
+
+    leaves_to_drop = ['23', '13', '14', '18']
+    for leaf in leaves_to_drop:
+        test_tree = test_tree.drop_node(level=test_tree.leaf_level, node=leaf)
+
+    expected_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2e'])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3f': set([str(ii) for ii in [15, 16, 17]]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in [
+                     0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+                     12, 15, 16, 17, 19, 20, 21, 22
+                 ]}}
+    expected_tree = TaxonomyTree(data=expected_tree_data)
+
+    assert expected_tree == test_tree
+
+
+def test_drop_node_errors():
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    tree = TaxonomyTree(data=full_tree_data)
+    msg = "Level blah not present in tree"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.drop_node(level='blah', node='garbage')
+    msg = "Node garbage not present at level level2"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.drop_node(level='level2', node='garbage')
+
+
+def test_reverse_name_lookup():
+    """
+    Test TaxonomyTree method to lookup levels and nodes by
+    human readable names.
+    """
+    data = {
+        'hierarchy': ['A', 'B', 'C', 'D'],
+        'A': {
+            'a1': ['b1'],
+            'a2': ['b2']
+        },
+        'B': {
+            'b1': ['c1'],
+            'b2': ['c2']
+        },
+        'C': {
+            'c1': ['d1'],
+            'c2': ['d2']
+        },
+        'D': {
+            'd1': [],
+            'd2': []
+        },
+        'hierarchy_mapper': {
+            'A': 'levelA',
+            'B': 'levelB',
+            'C': 'levelC',
+            'D': 'levelC'
+        },
+        'name_mapper': {
+            'A': {
+                'a1': {
+                    'name': 'node_a1'
+                },
+                'a2': {
+                    'name': 'node_a2'
+                }
+            },
+            'B': {
+                'b1': {
+                    'name': 'node_b1'
+                },
+                'b2': {
+                    'name': 'node_b1'
+                }
+            },
+            'C': {
+                'c1': {
+                    'name': 'node_c1'
+                },
+                'c2': {
+                    'name': 'node_c2'
+                }
+            },
+            'D': {
+                'd1': {
+                    'name': 'node_d1'
+                },
+                'd2': {
+                    'name': 'node_d2'
+                }
+            }
+        }
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tree = TaxonomyTree(data=data)
+
+    for level in ('A', 'B', 'C', 'D'):
+        if level == 'D':
+            expected_level = 'levelC'
+        else:
+            expected_level = f'level{level}'
+        assert tree.level_to_name(level) == expected_level
+
+        if expected_level == 'levelC':
+            msg = 'levelC maps to many levels'
+            with pytest.raises(RuntimeError, match=msg):
+                tree.name_to_level(expected_level)
+        else:
+            assert tree.name_to_level(expected_level) == level
+
+        for ii in (1, 2):
+            node = f'{level.lower()}{ii}'
+            if node == 'b2':
+                expected_node = 'node_b1'
+            else:
+                expected_node = f'node_{node}'
+            assert tree.label_to_name(
+                level=level,
+                label=node,
+                name_key='name') == expected_node
+            if expected_node == 'node_b1':
+                msg = '(B, node_b1) maps to many nodes'
+                with pytest.raises(RuntimeError, match=re.escape(msg)):
+                    tree.name_to_node(level=level, node=expected_node)
+            else:
+                assert tree.name_to_node(
+                    level=level,
+                    node=expected_node) == (level, node)
+
+            # test mapping from (readable_level, readable_node)
+            if expected_level != 'levelC' and expected_node != 'node_b1':
+                assert tree.name_to_node(
+                    level=expected_level,
+                    node=expected_node) == (level, node)
+
+    msg = "E is not a valid level in this taxonomy"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_level('E')
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_node(level='E', node='a2')
+
+    msg = "(A, a3) not a valid node in this taxonomy"
+    with pytest.raises(RuntimeError, match=re.escape(msg)):
+        tree.name_to_node(level='A', node='a3')
+
+    assert tree.name_to_level('A') == 'A'
+    assert tree.name_to_node(
+        level='A',
+        node='a2') == ('A', 'a2')
+
+    assert tree.name_to_node(
+        level='levelA',
+        node='a2') == ('A', 'a2')

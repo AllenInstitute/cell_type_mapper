@@ -221,7 +221,9 @@ def run_type_assignment_on_h5ad_cpu(
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=all_query_identifiers,
-            normalization=normalization)
+            cell_identifiers=name_chunk,
+            normalization=normalization,
+            log=log)
 
         if data.normalization != 'log2CPM':
             data.to_log2CPM_in_place()
@@ -255,11 +257,13 @@ def run_type_assignment_on_h5ad_cpu(
             n1 = len(process_list)
             if n1 < n0:
                 row_ct += (n0-n1)*chunk_size
-                print_timing(
-                    t0=t0,
-                    i_chunk=row_ct,
-                    tot_chunks=tot_rows,
-                    unit='hr')
+                if row_ct >= n_processors*chunk_size:
+                    print_timing(
+                        t0=t0,
+                        i_chunk=row_ct,
+                        tot_chunks=tot_rows,
+                        unit=None,
+                        chunk_unit="cells")
 
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
@@ -437,8 +441,9 @@ def run_type_assignment(
                     chosen_idx = previously_assigned[
                         parent_level][parent_node[1]]
 
-                    chosen_query_data = full_query_gene_data.downsample_cells(
-                        selected_cells=chosen_idx)
+                    chosen_query_data = \
+                        full_query_gene_data.downsample_cells_by_idx(
+                            selected_cell_idx=chosen_idx)
 
                 else:
                     chosen_idx = []
@@ -537,6 +542,13 @@ def run_type_assignment(
     # using the parent's avg_correlation value.
     for cell in result:
         for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
+
+            # parent_level == None if the taxonomy had been trimmed
+            # such that there was only one option at the highest
+            # level of the taxonomy tree.
+            if parent_level is None:
+                continue
+
             if cell[child_level]['avg_correlation'] is None:
                 cell[child_level]['avg_correlation'] = \
                     cell[parent_level]['avg_correlation']

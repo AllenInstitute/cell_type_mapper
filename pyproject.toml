@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name="cell_type_mapper"
+version="1.4.0rc"
+dependencies = [
+    "anndata>=0.11.0",
+    "argschema",
+    "matplotlib",
+    "marshmallow==3.12.2",
+    "numpy",
+    "pytest",
+    "pytest-xdist",
+    "scipy<1.15.0"
+]
+requires-python = ">=3.10"
+authors = [
+    {name = "Scott Daniel", email = "scott.daniel@alleninstitue.org"},
+]

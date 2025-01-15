@@ -35,6 +35,10 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 from cell_type_mapper.diff_exp.precompute_utils import (
     merge_precompute_files)
 
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
+
 
 class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
@@ -47,7 +51,10 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
         dataset_to_output = self.create_dataset_to_output_map()
 
         parent_metadata = {
-            'config': copy.deepcopy(self.args),
+            'config': config_from_args(
+                            input_config=self.args,
+                            cloud_safe=False
+                      ),
             'dataset_to_output_map': dataset_to_output
         }
 
@@ -55,7 +62,8 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            cell_metadata_path=self.args['cell_metadata_path'],
            cluster_annotation_path=self.args['cluster_annotation_path'],
            cluster_membership_path=self.args['cluster_membership_path'],
-           hierarchy=self.args['hierarchy'])
+           hierarchy=self.args['hierarchy'],
+           do_pruning=self.args['do_pruning'])
 
         cell_metadata = pd.read_csv(self.args['cell_metadata_path'])
         dataset_to_cell_set = dict()
@@ -88,7 +96,8 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 output_path=output_path,
                 cell_set=cell_set,
                 n_processors=self.args['n_processors'],
-                tmp_dir=self.args['tmp_dir'])
+                tmp_dir=self.args['tmp_dir'],
+                layer=self.args['layer'])
 
             metadata = copy.deepcopy(parent_metadata)
             metadata['dataset'] = dataset

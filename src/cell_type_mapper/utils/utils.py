@@ -1,10 +1,12 @@
 from typing import Union, List, Tuple, Optional, Any
 import datetime
+import json
 import numpy as np
 import os
 import pathlib
 import tempfile
 import time
+import warnings
 
 
 def _clean_up(target_path):
@@ -52,9 +54,23 @@ def print_timing(
         t0: float,
         i_chunk: int,
         tot_chunks: int,
-        unit: str = 'min',
+        unit: Optional[str] = 'min',
         nametag: Optional[Any] = None,
-        msg: Optional[str] = None):
+        msg: Optional[str] = None,
+        chunk_unit: Optional[str] = None):
+
+    duration = time.time()-t0
+    per = duration/max(1, i_chunk)
+    pred = per*tot_chunks
+    remain = pred-duration
+
+    if unit is None:
+        if pred > 7200.0:
+            unit = 'hr'
+        elif pred > 120.0:
+            unit = 'min'
+        else:
+            unit = 'sec'
 
     if unit not in ('sec', 'min', 'hr'):
         raise RuntimeError(f"timing unit {unit} nonsensical")
@@ -63,11 +79,15 @@ def print_timing(
              'hr': 3600.0,
              'sec': 1.0}[unit]
 
-    duration = (time.time()-t0)/denom
-    per = duration/max(1, i_chunk)
-    pred = per*tot_chunks
-    remain = pred-duration
-    this_msg = f"{i_chunk} of {tot_chunks} in {duration:.2e} {unit}; "
+    duration = duration/denom
+    per = per/denom
+    pred = pred/denom
+    remain = remain/denom
+
+    this_msg = f"{i_chunk} of {tot_chunks} "
+    if chunk_unit is not None:
+        this_msg += f"{chunk_unit} "
+    this_msg += f"in {duration:.2e} {unit}; "
     this_msg += f"predict {remain:.2e} {unit} of {pred:.2e} {unit} left"
     if nametag is not None:
         this_msg = f"{nametag} -- {msg}"
@@ -289,3 +309,40 @@ def _clean_for_uns(
         cleaned_data = data
 
     return cleaned_data
+
+
+def warn_on_parallelization(log):
+    """
+    Issue warning if numpy's internal parallelization is not turned off.
+    """
+    parallelization_vars = [
+        'NUMEXPR_NUM_THREADS',
+        'MKL_NUM_THREADS',
+        'OMP_NUM_THREADS'
+    ]
+    must_warn = False
+    actual_values = dict()
+    for var in parallelization_vars:
+        if var in os.environ:
+            actual = os.environ[var]
+        else:
+            actual = ''
+        actual_values[var] = actual
+        if actual != '1':
+            must_warn = True
+
+    if not must_warn:
+        return
+
+    msg = (
+        "numpy's internal parallelization is enabled. "
+        "This could cause independent worker processes to "
+        "compete for resources, degrading performance. "
+        "We recommend setting the following environment "
+        "variables to '1' to improve performance\n"
+        f"{json.dumps(actual_values, indent=2)}"
+    )
+    if log is not None:
+        log.warn(msg)
+    else:
+        warnings.warn(msg)

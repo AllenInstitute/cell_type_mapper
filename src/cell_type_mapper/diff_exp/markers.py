@@ -29,10 +29,10 @@ from cell_type_mapper.diff_exp.scores import (
     score_differential_genes)
 
 from cell_type_mapper.utils.csc_to_csr import (
-    transpose_sparse_matrix_on_disk)
+    re_encode_sparse_matrix_on_disk)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 
 def find_markers_for_all_taxonomy_pairs(
@@ -370,7 +370,8 @@ def create_sparse_by_pair_marker_file(
                     t0=t0,
                     i_chunk=ct_complete,
                     tot_chunks=n_pairs,
-                    unit='hr')
+                    chunk_unit='taxon pairs',
+                    unit=None)
 
     del cluster_stats
     del tree_as_leaves
@@ -388,7 +389,8 @@ def create_sparse_by_pair_marker_file(
                 t0=t0,
                 i_chunk=ct_complete,
                 tot_chunks=n_pairs,
-                unit='hr')
+                chunk_unit='taxon pairs',
+                unit=None)
 
     _merge_sparse_by_pair_files(
         tmp_path_dict=tmp_path_dict,
@@ -435,7 +437,15 @@ def _merge_sparse_by_pair_files(
 
     up_pair_offset = 0
     down_pair_offset = 0
+
     with h5py.File(output_path, 'a') as dst:
+
+        up_chunks = (min(1000000, n_up_indices),)
+        if up_chunks == (0,):
+            up_chunks = None
+        down_chunks = (min(1000000, n_down_indices),)
+        if down_chunks == (0,):
+            down_chunks = None
 
         dst_grp = dst.create_group('sparse_by_pair')
 
@@ -447,7 +457,7 @@ def _merge_sparse_by_pair_files(
             'up_gene_idx',
             shape=(n_up_indices,),
             dtype=gene_idx_dtype,
-            chunks=(min(1000000, n_up_indices),))
+            chunks=up_chunks)
         dst_grp.create_dataset(
             'down_pair_idx',
             shape=(n_pairs+1,),
@@ -456,7 +466,7 @@ def _merge_sparse_by_pair_files(
             'down_gene_idx',
             shape=(n_down_indices,),
             dtype=gene_idx_dtype,
-            chunks=(min(1000000, n_down_indices),))
+            chunks=down_chunks)
 
         col0_values = list(tmp_path_dict.keys())
         col0_values.sort()
@@ -527,7 +537,7 @@ def add_sparse_by_gene_markers_to_file(
 
         if n_processors == 1:
             with h5py.File(h5_path, 'r') as src:
-                transpose_sparse_matrix_on_disk(
+                re_encode_sparse_matrix_on_disk(
                     indices_handle=src[f'sparse_by_pair/{direction}_gene_idx'],
                     indptr_handle=src[f'sparse_by_pair/{direction}_pair_idx'],
                     data_handle=None,
@@ -535,7 +545,7 @@ def add_sparse_by_gene_markers_to_file(
                     max_gb=max_gb,
                     output_path=transposed_path)
         else:
-            transpose_sparse_matrix_on_disk_v2(
+            re_encode_sparse_matrix_on_disk_v2(
                 h5_path=h5_path,
                 indices_tag=f'sparse_by_pair/{direction}_gene_idx',
                 indptr_tag=f'sparse_by_pair/{direction}_pair_idx',

@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -16,10 +17,10 @@ from cell_type_mapper.utils.sparse_utils import (
 
 from cell_type_mapper.utils.csc_to_csr import (
     csc_to_csr_on_disk,
-    transpose_sparse_matrix_on_disk)
+    re_encode_sparse_matrix_on_disk)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 
 @pytest.fixture(scope='module')
@@ -57,14 +58,17 @@ def csc_fixture(
             prefix='csr_',
             suffix='.h5ad'))
 
-    a = anndata.AnnData(
-            X=scipy_sparse.csc_matrix(x_array_fixture),
-            dtype=x_array_fixture.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        a = anndata.AnnData(
+                X=scipy_sparse.csc_matrix(x_array_fixture),
+                dtype=x_array_fixture.dtype)
     a.write_h5ad(h5ad_path)
     with h5py.File(h5ad_path, 'r') as src:
         attrs = dict(src['X'].attrs)
     assert attrs['encoding-type'] == 'csc_matrix'
     return h5ad_path
+
 
 @pytest.fixture
 def csc_array_without_data_fixture(
@@ -90,7 +94,11 @@ def csc_array_without_data_fixture(
 
     return h5_path
 
-@pytest.mark.parametrize('max_gb', [0.1, 0.01, 0.001, 0.0001])
+
+@pytest.mark.parametrize(
+    'max_gb',
+    [0.1, 0.01, 0.001, 0.0001]
+)
 def test_csc_to_csr_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
@@ -136,8 +144,12 @@ def test_csc_to_csr_on_disk(
 
 @pytest.mark.parametrize(
         'max_gb,use_data,version',
-        itertools.product([0.1, 0.01, 0.001, 0.0001],[True,False],[1,2]))
-def test_transpose_sparse_matrix_on_disk(
+        itertools.product(
+            [0.1, 0.01, 0.001, 0.0001],
+            [True, False],
+            [1, 2])
+)
+def test_re_encode_sparse_matrix_on_disk(
         tmp_dir_fixture,
         x_array_fixture,
         csc_fixture,
@@ -154,7 +166,7 @@ def test_transpose_sparse_matrix_on_disk(
                 data_handle = None
 
             if version == 1:
-                transpose_sparse_matrix_on_disk(
+                re_encode_sparse_matrix_on_disk(
                     indices_handle=original['X/indices'],
                     indptr_handle=original['X/indptr'],
                     data_handle=data_handle,
@@ -167,7 +179,7 @@ def test_transpose_sparse_matrix_on_disk(
         else:
             data_tag = None
 
-        transpose_sparse_matrix_on_disk_v2(
+        re_encode_sparse_matrix_on_disk_v2(
             h5_path=csc_fixture,
             indices_tag='X/indices',
             indptr_tag='X/indptr',
@@ -246,7 +258,7 @@ def test_csc_to_csr_on_disk_without_data_array(
         (0, 97)
     ]
 )
-def test_transpose_subset_of_matrix(
+def test_re_encode_subset_of_matrix(
         indices_slice,
         tmp_dir_fixture):
     """
@@ -287,7 +299,7 @@ def test_transpose_subset_of_matrix(
         suffix='.h5')
 
     with h5py.File(csc_path, 'r') as src:
-        transpose_sparse_matrix_on_disk(
+        re_encode_sparse_matrix_on_disk(
             indices_handle=src['indices'],
             indptr_handle=src['indptr'],
             data_handle=src['data'],

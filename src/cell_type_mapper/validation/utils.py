@@ -1,14 +1,18 @@
-import anndata
-import gc
 import h5py
+import json
 import numpy as np
 import pandas as pd
 import pathlib
 import tempfile
 
 from cell_type_mapper.utils.utils import (
+    clean_for_json,
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.utils.anndata_utils import (
+    infer_attrs
+)
 
 from cell_type_mapper.gene_id.utils import detect_species
 
@@ -26,10 +30,10 @@ def is_x_integers(
     """
     layer_key = _layer_to_layer_key(layer)
 
-    with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src[layer_key].attrs)
-
-    encoding_type = attrs['encoding-type']
+    encoding_type = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )['encoding-type']
 
     if encoding_type == 'array':
         return _is_dense_x_integers(
@@ -74,9 +78,13 @@ def round_x_to_integers(
             prefix='data_as_int_',
             suffix='.h5'))
 
-    with h5py.File(h5ad_path, 'r') as src:
-        attrs = dict(src['X'].attrs)
+    attrs = infer_attrs(
+        src_path=h5ad_path,
+        dataset='X'
+    )
+
     encoding_type = attrs['encoding-type']
+
     if encoding_type == 'array':
         _round_dense_x_to_integers(
             h5ad_path=h5ad_path,
@@ -108,21 +116,27 @@ def is_data_ge_zero(
     of the data is.
     """
     layer_key = _layer_to_layer_key(layer)
+    attrs = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file[layer_key].attrs)
-        if 'encoding-type' not in attrs:
-            dtype = None
-        elif attrs['encoding-type'] == 'array':
+
+        if attrs['encoding-type'] == 'array':
             dtype = in_file[layer_key].dtype
         elif 'csr' in attrs['encoding-type'] \
                 or 'csc' in attrs['encoding-type']:
             dtype = in_file[f'{layer_key}/data'].dtype
+        else:
+            raise RuntimeError(
+                "Unclear what to make of encoding-typ in attrs:\n"
+                f"{attrs}"
+            )
 
-        if dtype is not None:
-            if np.issubdtype(dtype, np.integer):
-                iinfo = np.iinfo(dtype)
-                if iinfo.min >= 0:
-                    return True, 0
+        if np.issubdtype(dtype, np.integer):
+            iinfo = np.iinfo(dtype)
+            if iinfo.min >= 0:
+                return True, 0
 
     minmax = get_minmax_x_from_h5ad(
         h5ad_path=h5ad_path,
@@ -142,20 +156,17 @@ def get_minmax_x_from_h5ad(
     """
 
     layer_key = _layer_to_layer_key(layer)
+    encoding_type = infer_attrs(
+        src_path=h5ad_path,
+        dataset=layer_key
+    )['encoding-type']
 
     with h5py.File(h5ad_path, 'r') as in_file:
-        attrs = dict(in_file[layer_key].attrs)
-        if 'encoding-type' not in attrs:
-            pass
-        elif attrs['encoding-type'] == 'array':
+        if encoding_type == 'array':
             return _get_minmax_from_dense(in_file[layer_key])
-        elif 'csr' in attrs['encoding-type'] \
-                or 'csc' in attrs['encoding-type']:
+        elif 'csr' in encoding_type \
+                or 'csc' in encoding_type:
             return _get_minmax_from_sparse(in_file[layer_key])
-        else:
-            pass
-
-    return _get_minmax_x_using_anndata(h5ad_path, layer=layer)
 
 
 def map_gene_ids_in_var(
@@ -226,41 +237,6 @@ def map_gene_ids_in_var(
     new_var = pd.DataFrame(var_df).set_index(idx_key)
 
     return new_var, mapping_output['n_unmapped']
-
-
-def _get_minmax_x_using_anndata(
-        h5ad_path,
-        rows_at_a_time=100000,
-        layer='X'):
-    """
-    If you cannot intuit how X is encoded in the h5ad file, just use
-    anndata's API
-
-    Returns
-    -------
-    (min_val, max_val)
-    """
-    if layer != 'X':
-        raise NotImplementedError(
-            "No efficient way to get minmax from layers; only X")
-
-    max_val = None
-    min_val = None
-    a_data = anndata.read_h5ad(h5ad_path, backed='r')
-    chunk_iterator = a_data.chunked_X(rows_at_a_time)
-    for chunk_package in chunk_iterator:
-        chunk = chunk_package[0]
-        this_max = chunk.max()
-        if max_val is None or this_max > max_val:
-            max_val = this_max
-        this_min = chunk.min()
-        if min_val is None or this_min < min_val:
-            min_val = this_min
-
-    del a_data
-    gc.collect()
-
-    return (min_val, max_val)
 
 
 def _get_minmax_from_dense(x_dataset):
@@ -511,3 +487,44 @@ def _layer_to_layer_key(layer):
     else:
         layer_key = f'layers/{layer}'
     return layer_key
+
+
+def create_uniquely_indexed_df(input_df):
+    """
+    Take a dataframe. If that dataframe's index has unique values,
+    return that same data frame. If it does not, create a dataframe
+    with the same data, replacing the index with a string that records
+    the original index as well as the row number of the entry.
+    """
+    index_name = input_df.index.name
+    index_values = input_df.index.values
+    unq, ct = np.unique(index_values, return_counts=True)
+
+    if len(index_values) == len(unq):
+        return input_df
+
+    offenders = [
+        unq[ii]
+        for ii in range(len(unq))
+        if ct[ii] > 1
+    ]
+
+    if index_name is None:
+        index_name = "original_index"
+
+    offenders = set(offenders)
+    data = input_df.reset_index().to_dict(orient='records')
+    for i_row in range(len(data)):
+        row = data[i_row]
+        this_idx = index_values[i_row]
+        if this_idx in offenders:
+            new_name = {
+                index_name: this_idx,
+                'row': i_row
+            }
+            row[index_name] = json.dumps(clean_for_json(new_name))
+        else:
+            row[index_name] = str(this_idx)
+
+    new_df = pd.DataFrame(data).set_index(index_name)
+    return new_df

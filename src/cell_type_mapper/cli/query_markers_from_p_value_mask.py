@@ -1,6 +1,5 @@
 import argschema
 
-import copy
 import h5py
 import json
 import pathlib
@@ -13,6 +12,10 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.utils.config_utils import (
     patch_child_to_parent
+)
+
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
 )
 
 from cell_type_mapper.utils.output_utils import (
@@ -35,6 +38,13 @@ class QueryMarkersFromPValueMaskRunner(
 
     def run(self):
         t0 = time.time()
+
+        metadata = {
+            'config': config_from_args(
+                        input_config=self.args,
+                        cloud_safe=False)
+        }
+
         tmp_dir = tempfile.mkdtemp(
             dir=self.args['tmp_dir'],
             prefix='markers_from_p_values_')
@@ -47,8 +57,7 @@ class QueryMarkersFromPValueMaskRunner(
         # which CLI tool was actually run
         output_path = pathlib.Path(self.args['output_path'])
         if output_path.exists():
-            metadata = {'config': copy.deepcopy(self.args),
-                        'duration_by_stages': timing_by_stages}
+            metadata['duration_by_stages'] = timing_by_stages
             metadata.update(
                 get_execution_metadata(
                     module_file=__file__,

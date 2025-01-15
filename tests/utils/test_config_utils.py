@@ -21,7 +21,6 @@ def child_to_parent_fixture(tmp_dir_fixture):
 
     tmp_a = tempfile.mkdtemp(dir=tmp_dir)
     tmp_b = tempfile.mkdtemp(dir=tmp_dir)
-    tmp_c = tempfile.mkdtemp(dir=tmp_dir)
 
     child_to_parent = dict()
 

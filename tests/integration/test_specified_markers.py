@@ -5,20 +5,23 @@ import copy
 import h5py
 import itertools
 import json
-import numbers
 import numpy as np
 import os
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
 
 from cell_type_mapper.test_utils.cloud_safe import (
     check_not_file)
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
+
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
@@ -34,24 +37,12 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
-
-from cell_type_mapper.diff_exp.markers import (
-    find_markers_for_all_taxonomy_pairs)
-
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     serialize_markers)
 
-from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
-
 from cell_type_mapper.test_utils.hierarchical_mapping import (
     run_mapping as ab_initio_mapping)
-
-from cell_type_mapper.cli.from_specified_markers import (
-    run_mapping as from_marker_run_mapping)
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner)
@@ -129,7 +120,7 @@ def ab_initio_assignment_fixture(
         dir=this_tmp_dir,
         suffix='.h5')
 
-    taxonomy_tree=TaxonomyTree(data=taxonomy_tree_dict)
+    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
 
     create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_path,
@@ -171,7 +162,9 @@ def precomputed_stats_fixture(
     the precomputed stats file and see if we can still
     run cell type assignment.
     """
-    src_path = ab_initio_assignment_fixture['ab_initio_config']['precomputed_stats']['path']
+    src_path = ab_initio_assignment_fixture[
+        'ab_initio_config']['precomputed_stats']['path']
+
     dst_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='precomputed_stats_cleaned_',
@@ -185,15 +178,17 @@ def precomputed_stats_fixture(
                 dst.create_dataset(k, data=src[k][()])
     return dst_path
 
+
 @pytest.mark.parametrize(
-        'flatten,use_gpu,just_once,drop_subclass',
+        'flatten,use_gpu,just_once,drop_subclass,keep_encoding',
         itertools.product(
+            (True, False),
             (True, False),
             (True, False),
             (True, False),
             (True, False)
         ))
-def test_mapping_from_markers(
+def test_mapping_from_markers_basic(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
         raw_query_h5ad_fixture,
@@ -203,7 +198,8 @@ def test_mapping_from_markers(
         flatten,
         use_gpu,
         just_once,
-        drop_subclass):
+        drop_subclass,
+        keep_encoding):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -236,19 +232,35 @@ def test_mapping_from_markers(
         suffix='.json')
 
     baseline_config = ab_initio_assignment_fixture['ab_initio_config']
+
+    if keep_encoding:
+        test_query_path = baseline_config['query_path']
+    else:
+        test_query_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='no_encoding_',
+            suffix='.h5ad'
+        )
+        create_h5ad_without_encoding_type(
+            src_path=baseline_config['query_path'],
+            dst_path=test_query_path
+        )
+
     config = dict()
     if use_tmp_dir:
         config['tmp_dir'] = this_tmp
     else:
         config['tmp_dir'] = None
-    config['query_path'] = baseline_config['query_path']
-
+    config['query_path'] = test_query_path
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -266,18 +278,22 @@ def test_mapping_from_markers(
         suffix='.txt')
     config['log_path'] = log_path
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
+
+        # make sure taxonomy tree was recorded in metadata
+        expected_tree = TaxonomyTree(
+            data=taxonomy_tree_dict).to_str(drop_cells=True)
 
     actual = json.load(open(result_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in actual['log'][-2]
 
-    # make sure taxonomy tree was recorded in metadata
-    expected_tree = TaxonomyTree(
-        data=taxonomy_tree_dict).to_str(drop_cells=True)
     expected_tree = json.loads(expected_tree)
     assert actual['taxonomy_tree'] == expected_tree
 
@@ -314,7 +330,9 @@ def test_mapping_from_markers(
     if not flatten:
         assert actual['marker_genes'] == expected['marker_genes']
         actual_lookup = {
-            cell['cell_id']:cell for cell in actual['results']}
+            cell['cell_id']: cell
+            for cell in actual['results']
+        }
         for cell in expected['results']:
             actual_cell = actual_lookup[cell['cell_id']]
             assert set(cell.keys()) == set(actual_cell.keys())
@@ -326,8 +344,12 @@ def test_mapping_from_markers(
                     continue
 
                 if config['type_assignment']['bootstrap_iteration'] > 1:
-                    assert cell[k]['assignment'] == actual_cell[k]['assignment']
-                    for sub_k in ('bootstrapping_probability', 'avg_correlation'):
+                    assert cell[k][
+                        'assignment'] == actual_cell[k]['assignment']
+
+                    for sub_k in ('bootstrapping_probability',
+                                  'avg_correlation'):
+
                         np.testing.assert_allclose(
                             [cell[k][sub_k]],
                             [actual_cell[k][sub_k]],
@@ -337,7 +359,9 @@ def test_mapping_from_markers(
         all_markers = set()
         for k in expected['marker_genes']:
             if k not in ('metadata', 'log'):
-                all_markers = all_markers.union(set(expected['marker_genes'][k]))
+                all_markers = all_markers.union(
+                    set(expected['marker_genes'][k])
+                )
 
         assert set(actual['marker_genes']['None']) == all_markers
         assert len(actual['marker_genes']['None']) == len(all_markers)
@@ -373,9 +397,13 @@ def test_mapping_from_markers(
         result_lookup = {
             cell['cell_id']: cell for cell in actual['results']}
         with open(csv_path, 'r') as in_file:
-            assert in_file.readline() == f"# metadata = {pathlib.Path(result_path).name}\n"
+            assert in_file.readline() == (
+                f"# metadata = {pathlib.Path(result_path).name}\n"
+            )
             hierarchy = ['class', 'subclass', 'cluster']
-            assert in_file.readline() == f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+            assert in_file.readline() == (
+                f"# taxonomy hierarchy = {json.dumps(hierarchy)}\n"
+            )
             version_line = in_file.readline()
             if flatten:
                 assert "algorithm: 'correlation'" in version_line
@@ -387,16 +415,23 @@ def test_mapping_from_markers(
             header_line = 'cell_id'
             for level in hierarchy:
                 if level == 'cluster':
-                    header_line += (',cluster_label,cluster_name,cluster_alias,'
-                                    f'cluster_{stat_label}')
+                    header_line += (
+                        ',cluster_label,cluster_name,cluster_alias,'
+                        f'cluster_{stat_label}'
+                    )
                 else:
-                    header_line += f',{level}_label,{level}_name,{level}_{stat_label}'
+                    header_line += (
+                        f',{level}_label,{level}_name,{level}_{stat_label}'
+                    )
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []
             for line in in_file:
                 params = line.strip().split(',')
-                assert len(params) == 3*len(hierarchy)+2  # +2 is for cluster alias and cell_id
+
+                # +2 is for cluster alias and cell_id
+                assert len(params) == 3*len(hierarchy)+2
+
                 this_cell = result_lookup[params[0]]
                 found_cells.append(params[0])
                 for i_level, level in enumerate(hierarchy):
@@ -405,7 +440,9 @@ def test_mapping_from_markers(
                     if level == 'cluster':
                         conf_idx += 1
                     assert params[assn_idx] == this_cell[level]['assignment']
-                    delta = np.abs(this_cell[level][stat_key]-float(params[conf_idx]))
+                    delta = np.abs(
+                        this_cell[level][stat_key]-float(params[conf_idx])
+                    )
                     assert delta < 0.0001
 
             assert len(found_cells) == len(result_lookup)
@@ -413,7 +450,9 @@ def test_mapping_from_markers(
 
     query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
     input_uns = query_adata.uns
-    assert actual['gene_identifier_mapping'] == input_uns['AIBS_CDM_gene_mapping']
+
+    assert actual['gene_identifier_mapping'] == input_uns[
+        'AIBS_CDM_gene_mapping']
 
     os.environ[env_var] = ''
 
@@ -457,7 +496,8 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     new_query_lookup = mkstemp_clean(
@@ -481,20 +521,24 @@ def test_mapping_from_markers_when_some_markers_missing_from_lookup(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
-    with pytest.warns(UserWarning, match=msg):
-        runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        msg = "'subclass/subclass_5' has no valid markers in marker_lookup"
+        with pytest.warns(UserWarning, match=msg):
+            runner.run()
 
     os.environ[env_var] = ''
 
 
-
-@pytest.mark.parametrize('use_gpu, delete_to_none',
-    itertools.product([False, True], [False, True]))
+@pytest.mark.parametrize(
+    'use_gpu, delete_to_none',
+    itertools.product([False, True], [False, True])
+)
 def test_mapping_from_markers_when_some_markers_missing_from_query(
         ab_initio_assignment_fixture,
         raw_query_cell_x_gene_fixture,
@@ -538,14 +582,19 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
         markers = json.load(src)
 
     assert len(markers['subclass/subclass_5']) > 0
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
+
     parents = taxonomy_tree.parents(
         level='subclass', node='subclass_5')
 
@@ -596,11 +645,14 @@ def test_mapping_from_markers_when_some_markers_missing_from_query(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     # subclass/subclass_5 marker genes should now be identical to
     # its parent's, since we removed its default markers from the
@@ -660,7 +712,8 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = False
 
     with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
@@ -695,14 +748,17 @@ def test_mapping_from_markers_when_root_markers_missing_from_query(
     config['max_gb'] = 1.0
     config['drop_level'] = None
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    msg = "'None' has no valid markers in query gene set"
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    with pytest.raises(RuntimeError, match=msg):
-        runner.run()
+        msg = "'None' has no valid markers in query gene set"
+
+        with pytest.raises(RuntimeError, match=msg):
+            runner.run()
 
     os.environ[env_var] = ''
 
@@ -762,7 +818,8 @@ def test_mapping_when_there_are_no_markers(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = flatten
 
     # overwrite markers with garbage
@@ -784,14 +841,19 @@ def test_mapping_when_there_are_no_markers(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
-    msg = ("After comparing query data to reference data, "
-           "no valid marker genes could be found")
-    with pytest.raises(RuntimeError, match=msg):
-        runner = FromSpecifiedMarkersRunner(
-            args= [],
-            input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-        runner.run()
+        msg = ("After comparing query data to reference data, "
+               "no valid marker genes could be found")
+
+        with pytest.raises(RuntimeError, match=msg):
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()
 
     os.environ[env_var] = ''
 
@@ -888,7 +950,8 @@ def test_mapping_uint16_data(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -898,11 +961,14 @@ def test_mapping_uint16_data(
     config['csv_result_path'] = csv_path
     config['max_gb'] = 1.0
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     actual = json.load(open(result_path, 'rb'))
     assert 'RAN SUCCESSFULLY' in actual['log'][-2]
@@ -919,10 +985,14 @@ def test_mapping_uint16_data(
         dir=tmp_dir_fixture,
         suffix='.json')
     config['extended_result_path'] = baseline_output
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=config)
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+        runner.run()
 
     expected = json.load(open(baseline_output, 'rb'))
     actual_results = {
@@ -937,7 +1007,6 @@ def test_mapping_uint16_data(
         assert src['X'].dtype == np.int64
 
     os.environ[env_var] = ''
-
 
 
 @pytest.mark.parametrize(
@@ -1000,9 +1069,12 @@ def test_cloud_safe_mapping(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1016,11 +1088,14 @@ def test_cloud_safe_mapping(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     with open(result_path, 'rb') as src:
         data = json.load(src)
@@ -1071,9 +1146,12 @@ def test_output_compression(
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1086,26 +1164,29 @@ def test_output_compression(
     if drop_subclass:
         config['drop_level'] = 'subclass'
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
 
-    with open(result_path, 'rb') as src:
-        output_blob = json.load(src)
+        runner.run()
 
-    hdf5_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='blob_to_hdf5_',
-        suffix='.h5')
+        with open(result_path, 'rb') as src:
+            output_blob = json.load(src)
 
-    blob_to_hdf5(
-        output_blob=output_blob,
-        dst_path=hdf5_path)
+        hdf5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='blob_to_hdf5_',
+            suffix='.h5')
 
-    roundtrip = hdf5_to_blob(
-        src_path=hdf5_path)
+        blob_to_hdf5(
+            output_blob=output_blob,
+            dst_path=hdf5_path)
+
+        roundtrip = hdf5_to_blob(
+            src_path=hdf5_path)
 
     assert roundtrip == output_blob
 
@@ -1161,37 +1242,43 @@ def test_integer_indexed_input(
         old_label_to_new_label[old_idx[ii]] = new_label
         new_obs.append({'cell_label': new_label})
 
-    new_obs = pd.DataFrame(new_obs).set_index('cell_label')
-    new_obs.index.astype(np.int64, copy=False)
-    new_data = anndata.AnnData(
-        obs=new_obs,
-        var=query_data.var,
-        X=query_data.X)
-    new_data.write_h5ad(new_query_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    # doctor h5ad file to force the index to have integer values
-    # (I'm not sure that anndata thinks this should be possible,
-    # https://github.com/scverse/anndata/issues/35
-    # but it has been encountered "in the wild")
-    with h5py.File(new_query_path, 'a') as src:
-        old_index = src['obs']['cell_label'][()]
-        del src['obs']['cell_label']
-        src['obs'].create_dataset(
-            'cell_label',
-            data=old_index.astype(np.int64)
-        )
+        new_obs = pd.DataFrame(new_obs).set_index('cell_label')
+        new_obs.index.astype(np.int64, copy=False)
+        new_data = anndata.AnnData(
+            obs=new_obs,
+            var=query_data.var,
+            X=query_data.X)
+        new_data.write_h5ad(new_query_path)
 
-    checking = read_df_from_h5ad(new_query_path, df_name='obs')
-    assert checking.index.dtype == np.int64
+        # doctor h5ad file to force the index to have integer values
+        # (I'm not sure that anndata thinks this should be possible,
+        # https://github.com/scverse/anndata/issues/35
+        # but it has been encountered "in the wild")
+        with h5py.File(new_query_path, 'a') as src:
+            old_index = src['obs']['cell_label'][()]
+            del src['obs']['cell_label']
+            src['obs'].create_dataset(
+                'cell_label',
+                data=old_index.astype(np.int64)
+            )
+
+        checking = read_df_from_h5ad(new_query_path, df_name='obs')
+        assert checking.index.dtype == np.int64
 
     config['query_path'] = str(new_query_path)
 
     # just reuse the precomputed stats file that has already been generated
     config['precomputed_stats'] = {'path': precomputed_stats_fixture}
 
-    config['type_assignment'] = copy.deepcopy(baseline_config['type_assignment'])
+    config['type_assignment'] = copy.deepcopy(
+        baseline_config['type_assignment'])
+
     if just_once:
         config['type_assignment']['bootstrap_iteration'] = 1
+
     config['flatten'] = flatten
 
     config['query_markers'] = {
@@ -1206,10 +1293,13 @@ def test_integer_indexed_input(
 
     control_config = copy.deepcopy(config)
 
-    runner = FromSpecifiedMarkersRunner(
-        args= [],
-        input_data=config)
-    runner.run()
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config)
+        runner.run()
 
     # re-run with the original anndata file (that doesn't use
     # integers to index obs) and make sure that results are identical
@@ -1220,11 +1310,15 @@ def test_integer_indexed_input(
     )
     control_config['query_path'] = baseline_config['query_path']
     control_config['extended_result_path'] = control_output
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=control_config
-    )
-    runner.run()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=control_config
+        )
+        runner.run()
 
     with open(config['extended_result_path'], 'rb') as src:
         actual = json.load(src)
@@ -1242,3 +1336,104 @@ def test_integer_indexed_input(
         expected_cell.pop('cell_id')
         actual_cell.pop('cell_id')
         assert actual_cell == expected_cell
+
+
+def test_mapping_with_nan_expression(
+        tmp_dir_fixture,
+        ab_initio_assignment_fixture):
+    """
+    Test that the correct warning is logged if there are NaNs in the
+    gene expression data
+    """
+    n_cells = 500
+    obs = pd.DataFrame(
+        [{'cell_id': f'c{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+
+    with open(ab_initio_assignment_fixture['markers'], 'rb') as src:
+        marker_lookup = json.load(src)
+
+    rng = np.random.default_rng(2131)
+    marker_set = set()
+    for k in marker_lookup:
+        if k in ('log', 'metadata'):
+            continue
+        this = set(rng.choice(marker_lookup[k],
+                              len(marker_lookup[k])//2,
+                              replace=False))
+        marker_set = marker_set.union(this)
+
+    marker_set = list(marker_set)
+
+    var = pd.DataFrame(
+        [{'gene_id': m} for m in marker_set]
+    ).set_index('gene_id')
+
+    data = rng.integers(3, 255, (len(obs), len(var))).astype(float)
+    data[5, 2] = np.nan
+    data[122, 7] = np.nan
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=data
+    )
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad'
+    )
+
+    src.write_h5ad(h5ad_path)
+
+    json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='output_with_nan_expression_',
+        suffix='.h5ad'
+    )
+
+    config = {
+        'query_path': h5ad_path,
+        'extended_result_path': json_path,
+        'type_assignment': {
+            'chunk_size': 100,
+            'n_processors': 3,
+            'normalization': 'raw'
+        },
+        'query_markers': {
+            'serialized_lookup': ab_initio_assignment_fixture['markers']
+        },
+        'precomputed_stats': {
+            'path':
+            ab_initio_assignment_fixture[
+                'ab_initio_config'][
+                    'precomputed_stats'][
+                        'path']
+        }
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=config
+        )
+
+        runner.run()
+
+    expected_warnings = [
+        "WARNING: There were NaN gene expression values in cells: ['c5']",
+        "WARNING: There were NaN gene expression values in cells: ['c122']"
+    ]
+
+    found_warnings = set()
+
+    with open(json_path, 'rb') as src:
+        mapping = json.load(src)
+
+    for line in mapping['log']:
+        for msg in expected_warnings:
+            if msg in line:
+                found_warnings.add(msg)
+    assert len(found_warnings) == len(expected_warnings)

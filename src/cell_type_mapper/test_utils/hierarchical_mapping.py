@@ -6,6 +6,7 @@ unit tests use.
 import argparse
 import h5py
 import json
+import numbers
 import numpy as np
 import os
 import pathlib
@@ -335,6 +336,60 @@ def main():
         config=config,
         output_path=result_path,
         log_path=args.log_path)
+
+
+def assert_mappings_equal(
+        mapping0,
+        mapping1,
+        compare_cell_id=True,
+        eps=1.0e-6):
+    """
+    Assert that two cell type mappings are equivalent
+    """
+    for cell0, cell1 in zip(mapping0, mapping1):
+        assert set(cell0.keys()) == set(cell1.keys())
+        for k in cell0:
+            if not compare_cell_id:
+                if k == 'cell_id':
+                    continue
+            if not compare_field(cell0[k], cell1[k], eps=eps):
+                msg = (
+                    f"{json.dumps(cell0, indent=2)}\n"
+                    f"{json.dumps(cell1, indent=2)}\n"
+                    f"Mismatch on {k}"
+                )
+                raise RuntimeError(msg)
+
+
+def compare_field(value0, value1, eps=1.0e-4):
+    if isinstance(value0, list):
+        value0 = np.array(value0)
+        value1 = np.array(value1)
+    if isinstance(value0, np.ndarray):
+        if np.issubdtype(value0.dtype, np.number):
+            return np.allclose(
+                value0,
+                value1,
+                atol=eps,
+                rtol=eps
+            )
+        else:
+            return np.array_equal(
+                value0,
+                value1
+            )
+    elif isinstance(value0, dict):
+        if set(value0.keys()) != set(value1.keys()):
+            return False
+        for k in value0:
+            sub_k = compare_field(value0[k], value1[k])
+            if not sub_k:
+                return False
+        return True
+    elif isinstance(value0, numbers.Number):
+        return np.allclose(value0, value1, atol=eps, rtol=eps)
+    else:
+        return value0 == value1
 
 
 if __name__ == "__main__":

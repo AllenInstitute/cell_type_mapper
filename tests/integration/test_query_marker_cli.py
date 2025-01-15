@@ -4,6 +4,7 @@ Test the CLI tool for finding query markers
 import pytest
 
 import anndata
+import copy
 import h5py
 import itertools
 import json
@@ -24,7 +25,7 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.utils.csc_to_csr_parallel import (
-    transpose_sparse_matrix_on_disk_v2)
+    re_encode_sparse_matrix_on_disk_v2)
 
 from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
@@ -32,7 +33,7 @@ from cell_type_mapper.cli.query_markers import (
 from cell_type_mapper.cli.compute_p_value_mask import (
     PValueRunner)
 
-from cell_type_mapper.cli.query_markers_from_p_value_mask import(
+from cell_type_mapper.cli.query_markers_from_p_value_mask import (
     QueryMarkersFromPValueMaskRunner)
 
 
@@ -96,8 +97,30 @@ def test_query_marker_cli_tool(
     with open(output_path, 'rb') as src:
         actual = json.load(src)
 
+    # test roundtrip of config
+    alt_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='alt_query_markers_',
+        suffix='.json'
+    )
+
+    new_config = copy.deepcopy(actual['metadata']['config'])
+    new_config.pop('output_path')
+    new_config['output_path'] = alt_output_path
+    new_runner = QueryMarkerRunner(
+        args=[],
+        input_data=new_config)
+    new_runner.run()
+    with open(alt_output_path, 'rb') as src:
+        roundtrip = json.load(src)
+    assert set(roundtrip.keys()) == set(actual.keys())
+    for k in actual:
+        if k in ('log', 'metadata'):
+            continue
+        assert roundtrip[k] == actual[k]
+
+    # verify value of contents in actual
     assert 'log' in actual
-    n_skipped = 0
     n_dur = 0
     log = actual['log']
     for level in taxonomy_tree_dict['hierarchy'][:-1]:
@@ -107,13 +130,7 @@ def test_query_marker_cli_tool(
                 assert log_key not in log
             else:
                 assert log_key in log
-                is_skipped = False
-                if 'msg' in log[log_key]:
-                    if 'Skipping; no leaf' in log[log_key]['msg']:
-                        is_skipped = True
-                if is_skipped:
-                    n_skip += 1
-                else:
+                if 'msg' not in log[log_key]:
                     assert 'duration' in log[log_key]
                     n_dur += 1
 
@@ -225,7 +242,6 @@ def test_missing_precompute_query_marker(
         args=[],
         input_data=config)
 
-
     if search_for_stats_file:
         runner.run()
     else:
@@ -271,7 +287,7 @@ def test_transposing_markers(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
-    transpose_sparse_matrix_on_disk_v2(
+    re_encode_sparse_matrix_on_disk_v2(
         h5_path=src_path,
         indices_tag='indices',
         indptr_tag='indptr',
@@ -300,7 +316,7 @@ def test_transposing_markers(
 
     actual_csc = scipy.sparse.csc_matrix(
         (actual_data, actual_indices, actual_indptr),
-        shape=(n_rows,n_cols))
+        shape=(n_rows, n_cols))
 
     np.testing.assert_array_equal(
         csr.toarray(), actual_csc.toarray())
@@ -318,7 +334,6 @@ def test_genes_at_a_time(
     genes_at_a_time changes the result
     """
 
-    valid_gene_names = query_gene_names
     query_path = None
 
     baseline_path = mkstemp_clean(
@@ -453,6 +468,28 @@ def test_query_markers_from_p_values(
         n_markers += len(result[k])
     assert n_markers > 0
 
+    # test roundtrip of config
+    new_config = copy.deepcopy(result['metadata']['config'])
+    new_config.pop('output_path')
+    test_output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='roundtrip_query_markers_from_mask_',
+        suffix='.json'
+    )
+    new_config['output_path'] = test_output_path
+    new_runner = QueryMarkersFromPValueMaskRunner(
+        args=[],
+        input_data=new_config)
+
+    new_runner.run()
+    with open(test_output_path, 'rb') as src:
+        roundtrip = json.load(src)
+    assert set(roundtrip.keys()) == set(result.keys())
+    for k in roundtrip.keys():
+        if k in ('log', 'metadata'):
+            continue
+        assert roundtrip[k] == result[k]
+
 
 @pytest.mark.parametrize("search_for_stats", [True, False])
 def test_query_markers_from_p_values_when_precompute_moved(
@@ -468,7 +505,6 @@ def test_query_markers_from_p_values_when_precompute_moved(
     genes_at_a_time = 3
     n_valid = None
     n_processors = 3
-
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 

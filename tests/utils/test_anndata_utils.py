@@ -6,12 +6,17 @@ import itertools
 import numpy as np
 import pandas as pd
 import pathlib
-import scipy.sparse as scipy_sparse
+import scipy.sparse
 import shutil
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.test_utils.anndata_utils import (
+    create_h5ad_without_encoding_type
+)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -22,11 +27,17 @@ from cell_type_mapper.utils.anndata_utils import (
     append_to_obsm,
     does_obsm_have_key,
     update_uns,
-    amalgamate_csr_to_x,
-    amalgamate_dense_to_x,
     shuffle_csr_h5ad_rows,
-    pivot_csr_h5ad,
-    subset_csc_h5ad_columns)
+    pivot_sparse_h5ad,
+    subset_csc_h5ad_columns,
+    infer_attrs,
+    transpose_h5ad_file
+)
+
+from cell_type_mapper.utils.anndata_manipulation import (
+    amalgamate_csr_to_x,
+    amalgamate_dense_to_x
+)
 
 
 @pytest.fixture(scope='module')
@@ -54,11 +65,14 @@ def test_read_df(
     var = pd.DataFrame(var_data)
     var = var.set_index('var_id')
 
-    ad = anndata.AnnData(
-        X=np.random.random((3,4)),
-        obs=obs,
-        var=var,
-        dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ad = anndata.AnnData(
+            X=np.random.random((3, 4)),
+            obs=obs,
+            var=var,
+            dtype=float)
 
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('anndata_reader'))
@@ -93,13 +107,16 @@ def test_write_df(
     var = pd.DataFrame(var_data)
     var = var.set_index('var_id')
 
-    x = np.random.random((3,4))
+    x = np.random.random((3, 4))
 
-    ad = anndata.AnnData(
-        X=np.random.random((3,4)),
-        obs=obs,
-        var=var,
-        dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ad = anndata.AnnData(
+           X=np.random.random((3, 4)),
+           obs=obs,
+           var=var,
+           dtype=float)
 
     tmp_dir = pathlib.Path(
         tmp_path_factory.mktemp('anndata_reader'))
@@ -144,7 +161,8 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     obs = pd.DataFrame(
         [{'a': str(ii), 'b': ii**2} for ii in range(n_rows)]).set_index('a')
     var = pd.DataFrame(
-        [{'c': str(ii**3), 'd': ii*0.8} for ii in range(n_cols)]).set_index('c')
+        [{'c': str(ii**3), 'd': ii*0.8}
+         for ii in range(n_cols)]).set_index('c')
     layer = np.zeros(n_rows*n_cols, dtype=float)
     chosen = rng.choice(np.arange(n_rows*n_cols),
                         n_rows*n_cols//3,
@@ -154,14 +172,17 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     layer = layer.reshape((n_rows, n_cols))
     expected = np.copy(layer)
     if is_sparse:
-        layer = scipy_sparse.csr_matrix(layer)
+        layer = scipy.sparse.csr_matrix(layer)
 
-    a_data = anndata.AnnData(
-        X=x,
-        obs=obs,
-        var=var,
-        layers={'garbage': layer},
-        dtype=x.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            obs=obs,
+            var=var,
+            layers={'garbage': layer},
+            dtype=x.dtype)
 
     baseline_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -196,14 +217,17 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
         with h5py.File(other_path, 'r') as test:
             baseline_attrs = dict(baseline['layers/garbage'].attrs)
             test_attrs = dict(test['X'].attrs)
-            assert set(baseline_attrs.keys()) == set(test_attrs.keys())
+
+            for k in baseline_attrs:
+                assert k in test_attrs
+
             for k in baseline_attrs:
                 b = baseline_attrs[k]
                 t = test_attrs[k]
                 if not isinstance(b, np.ndarray):
                     assert b == t
                 else:
-                    assert (b==t).all()
+                    np.testing.assert_array_equal(b, t)
 
 
 def test_read_write_uns_from_h5ad(tmp_dir_fixture):
@@ -214,10 +238,14 @@ def test_read_write_uns_from_h5ad(tmp_dir_fixture):
     And utility to write unstructured metadata to h5ad file
     """
     uns = {'a': 1, 'b': 2}
-    a_data = anndata.AnnData(
-        X=np.random.random_sample((12, 27)),
-        uns=uns,
-        dtype=float)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=np.random.random_sample((12, 27)),
+            uns=uns,
+            dtype=float)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -280,7 +308,7 @@ def test_update_uns(tmp_dir_fixture, which_test):
 
     elif which_test == 'error':
         with pytest.raises(RuntimeError, match="keys already exist"):
-            update_uns(h5ad_path, new_uns={'a':2, 'f': 6}, clobber=False)
+            update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=False)
 
     elif which_test == 'clobber':
         update_uns(h5ad_path, new_uns={'a': 2, 'f': 6}, clobber=True)
@@ -293,17 +321,23 @@ def test_update_uns(tmp_dir_fixture, which_test):
     else:
         raise RuntimeError(f"cannot parse which_test = {which_test}")
 
+
 def test_read_empty_uns(tmp_dir_fixture):
     """
     Make sure that reading uns from an h5ad file that
     does not have one results in an empty dict (instead
     of, say, None)
     """
-    a_data = anndata.AnnData(
-        X=np.zeros((5,4)),
-        obs=pd.DataFrame([{'a':ii} for ii in range(5)]),
-        var=pd.DataFrame([{'b':ii} for ii in range(4)]),
-        dtype=float)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=np.zeros((5, 4)),
+            obs=pd.DataFrame([{'a': ii} for ii in range(5)]),
+            var=pd.DataFrame([{'b': ii} for ii in range(4)]),
+            dtype=float)
+
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
@@ -334,13 +368,16 @@ def test_append_to_obsm(tmp_dir_fixture):
 
     a_data.write_h5ad(h5ad_path)
 
-    # make sure cannot overwrite with clobber=False
-    with pytest.raises(RuntimeError, match='already in obsm'):
-        append_to_obsm(
-            h5ad_path=h5ad_path,
-            obsm_key='a',
-            obsm_value=np.zeros((n_obs, 4), dtype=int),
-            clobber=False)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        # make sure cannot overwrite with clobber=False
+        with pytest.raises(RuntimeError, match='already in obsm'):
+            append_to_obsm(
+                h5ad_path=h5ad_path,
+                obsm_key='a',
+                obsm_value=np.zeros((n_obs, 4), dtype=int),
+                clobber=False)
 
     expected_c = rng.integers(14, 38, (n_obs, 6))
     append_to_obsm(
@@ -450,7 +487,6 @@ def test_appending_obsm_to_obs(tmp_dir_fixture):
             obsm_key='test',
             obsm_value=bad_obsm)
 
-
     reordered_obsm_data = [
         {'d': 'baz', 'z': 3},
         {'d': 'foo', 'z': 4},
@@ -532,7 +568,7 @@ def test_amalgamate_csr_to_x(
             dir=tmp_dir_fixture,
             suffix='.h5')
         if density == "csr":
-            this = scipy_sparse.csr_matrix(
+            this = scipy.sparse.csr_matrix(
                 data[i0:i1, :])
             with h5py.File(h5_path, 'w') as dst:
                 dst.create_dataset(
@@ -551,12 +587,10 @@ def test_amalgamate_csr_to_x(
     var = pd.DataFrame(
         [{'g': f'g_{ii}'} for ii in range(n_cols)]).set_index('g')
     obs = pd.DataFrame(
-        [{'c': f'c_{ii}'} for ii  in range(n_rows)]).set_index('c')
+        [{'c': f'c_{ii}'} for ii in range(n_rows)]).set_index('c')
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
-
-    full_csr = scipy_sparse.csr_matrix(data)
 
     a_data = anndata.AnnData(obs=obs, var=var)
 
@@ -596,7 +630,7 @@ def test_amalgamate_csr_to_x(
     if layer == 'X':
         actual = round_trip.X[()]
     else:
-        actual = round_trip.layers[layer.replace('layers/','')][()]
+        actual = round_trip.layers[layer.replace('layers/', '')][()]
 
     if density == "csr":
         actual = actual.toarray()
@@ -656,7 +690,7 @@ def test_shuffle_csr_h5ad_rows(
 
     obs = pd.DataFrame(obs_data).set_index('c')
     csr = anndata.AnnData(
-        X=scipy_sparse.csr_matrix(data),
+        X=scipy.sparse.csr_matrix(data),
         obs=obs,
         var=var)
     csr_path = mkstemp_clean(
@@ -679,7 +713,7 @@ def test_shuffle_csr_h5ad_rows(
     shuffled = anndata.AnnData(
         obs=shuffled_obs,
         var=var,
-        X=scipy_sparse.csr_matrix(shuffled_data))
+        X=scipy.sparse.csr_matrix(shuffled_data))
     shuffled.write_h5ad(shuffled_path)
 
     test_path = mkstemp_clean(
@@ -712,13 +746,41 @@ def test_shuffle_csr_h5ad_rows(
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
 
 
-def test_pivot_csr_h5ad(
-        tmp_dir_fixture):
+@pytest.mark.parametrize(
+    'pivot_from, layer, data_dtype',
+    itertools.product(
+        ['csr', 'csc'],
+        ['X', 'raw/X', 'dummy'],
+        ['uint', 'float']
+    )
+)
+def test_pivot_sparse_h5ad(
+        tmp_dir_fixture,
+        pivot_from,
+        layer,
+        data_dtype):
 
     rng = np.random.default_rng(211131)
     n_rows = 100
     n_cols = 500
-    data = rng.integers(0, 255, (n_rows, n_cols), dtype=np.uint8)
+    if data_dtype == 'uint':
+        data = np.zeros(n_rows*n_cols, dtype=np.uint8)
+        idx = rng.choice(
+            np.arange(n_rows*n_cols),
+            n_rows*n_cols//5,
+            replace=False
+        )
+        data[idx] = rng.integers(1, 255, len(idx), dtype=np.uint8)
+        data = data.reshape((n_rows, n_cols))
+    else:
+        data = np.zeros(n_rows*n_cols, dtype=float)
+        idx = rng.choice(
+            np.arange(n_rows*n_cols),
+            n_rows*n_cols//5,
+            replace=False
+        )
+        data[idx] = rng.random(len(idx))
+        data = data.reshape((n_rows, n_cols))
 
     data[:, -1] = 0
 
@@ -732,8 +794,39 @@ def test_pivot_csr_h5ad(
     ]
 
     obs = pd.DataFrame(obs_data).set_index('c')
+
+    dummy = np.zeros(data.shape, dtype=np.uint8)
+
+    if layer == 'X':
+        csr_x = scipy.sparse.csr_matrix(data)
+        csr_raw = None
+        csr_layers = None
+        csc_x = scipy.sparse.csc_matrix(data)
+        csc_raw = None
+        csc_layers = None
+    elif layer == 'raw/X':
+        csr_x = scipy.sparse.csr_matrix(dummy)
+        csr_raw = {'X': scipy.sparse.csr_matrix(data)}
+        csr_layers = None
+        csc_x = scipy.sparse.csc_matrix(dummy)
+        csc_raw = {'X': scipy.sparse.csc_matrix(data)}
+        csc_layers = None
+    elif layer == 'dummy':
+        csr_x = scipy.sparse.csr_matrix(dummy)
+        csr_raw = None
+        csr_layers = {'dummy': scipy.sparse.csr_matrix(data)}
+        csc_x = scipy.sparse.csc_matrix(dummy)
+        csc_raw = None
+        csc_layers = {'dummy': scipy.sparse.csc_matrix(data)}
+    else:
+        raise RuntimeError(
+            f"Test cannot parse layer '{layer}'"
+        )
+
     csr = anndata.AnnData(
-        X=scipy_sparse.csr_matrix(data),
+        X=csr_x,
+        layers=csr_layers,
+        raw=csr_raw,
         obs=obs,
         var=var)
     csr_path = mkstemp_clean(
@@ -743,7 +836,9 @@ def test_pivot_csr_h5ad(
     csr.write_h5ad(csr_path)
 
     csc = anndata.AnnData(
-        X=scipy_sparse.csc_matrix(data),
+        X=csc_x,
+        layers=csc_layers,
+        raw=csc_raw,
         obs=obs,
         var=var)
     csc_path = mkstemp_clean(
@@ -757,16 +852,33 @@ def test_pivot_csr_h5ad(
         prefix='pivoted_',
         suffix='.h5ad')
 
-    pivot_csr_h5ad(
-        src_path=csr_path,
+    if pivot_from == 'csr':
+        src_path = csr_path
+        expected_path = csc_path
+    elif pivot_from == 'csc':
+        src_path = csc_path
+        expected_path = csr_path
+    else:
+        raise RuntimeError(
+            f"Cannot parse pivot_from '{pivot_from}'"
+        )
+
+    pivot_sparse_h5ad(
+        src_path=src_path,
         dst_path=test_path,
         tmp_dir=tmp_dir_fixture,
-        max_gb=1)
+        max_gb=1,
+        layer=layer)
 
-    with h5py.File(csc_path, 'r') as expected:
+    if layer == 'dummy':
+        output_layer = 'layers/dummy'
+    else:
+        output_layer = layer
+
+    with h5py.File(expected_path, 'r') as expected:
         with h5py.File(test_path, 'r') as actual:
-            expected_attrs = dict(expected['X'].attrs)
-            actual_attrs = dict(actual['X'].attrs)
+            expected_attrs = dict(expected[output_layer].attrs)
+            actual_attrs = dict(actual[output_layer].attrs)
             for k in expected_attrs:
                 if k == 'shape':
                     np.testing.assert_array_equal(
@@ -775,13 +887,24 @@ def test_pivot_csr_h5ad(
                     assert actual_attrs[k] == expected_attrs[k]
             for k in ('indices', 'data', 'indptr'):
                 np.testing.assert_array_equal(
-                    expected[f'X/{k}'][()],
-                    actual[f'X/{k}'][()])
+                    expected[f'{output_layer}/{k}'][()],
+                    actual[f'{output_layer}/{k}'][()],
+                    err_msg=f'failure on {k}')
 
     expected = anndata.read_h5ad(csc_path, backed='r')
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+    src = anndata.read_h5ad(test_path)
+    if layer == 'X':
+        actual = src.X.toarray()
+    elif layer == 'raw/X':
+        actual = src.raw.X.toarray()
+    elif layer == 'dummy':
+        actual = src.layers['dummy'].toarray()
+
+    np.testing.assert_allclose(data, actual, atol=0.0, rtol=1.0e-7)
 
 
 def test_subset_csc_h5ad_columns(
@@ -812,7 +935,7 @@ def test_subset_csc_h5ad_columns(
     src = anndata.AnnData(
         obs=obs,
         var=var,
-        X=scipy_sparse.csc_matrix(data))
+        X=scipy.sparse.csc_matrix(data))
     src.write_h5ad(src_path)
 
     sorted_cols = np.sort(chosen_cols)
@@ -828,7 +951,7 @@ def test_subset_csc_h5ad_columns(
     expected = anndata.AnnData(
         obs=obs,
         var=expected_var,
-        X=scipy_sparse.csc_matrix(expected_data))
+        X=scipy.sparse.csc_matrix(expected_data))
     expected.write_h5ad(expected_path)
 
     test_path = mkstemp_clean(
@@ -860,3 +983,290 @@ def test_subset_csc_h5ad_columns(
     actual = anndata.read_h5ad(test_path, backed='r')
     pd.testing.assert_frame_equal(expected.var, actual.var)
     pd.testing.assert_frame_equal(expected.obs, actual.obs)
+
+
+@pytest.mark.parametrize(
+        'density,layer',
+        itertools.product(
+            ['csc_matrix', 'csr_matrix', 'array'],
+            ['X', 'layers/dummy', 'raw/X'])
+        )
+def test_infer_attrs(
+        tmp_dir_fixture,
+        density,
+        layer):
+    """
+    Test utility to detect density of an array in an h5ad,
+    even when the encoding-type metadata is missing
+    """
+
+    n_cells = 47
+    n_genes = 83
+    n_tot = n_cells*n_genes
+    rng = np.random.default_rng(481122)
+    obs = pd.DataFrame(
+        [{'cell_id': f'c_{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+    var = pd.DataFrame(
+        [{'gene_id': f'g_{ii}'} for ii in range(n_genes)]
+    ).set_index('gene_id')
+
+    data = np.zeros(n_tot, dtype=int)
+    chosen_idx = rng.choice(
+        np.arange(n_tot),
+        n_tot//3,
+        replace=False
+    )
+    data[chosen_idx] = rng.integers(1, 255, len(chosen_idx))
+    data = data.reshape((n_cells, n_genes))
+    if density == 'csr_matrix':
+        data = scipy.sparse.csr_matrix(data)
+    elif density == 'csc_matrix':
+        data = scipy.sparse.csc_matrix(data)
+    elif density != 'array':
+        raise RuntimeError(
+            f'cannot parse density = {density}'
+        )
+
+    if layer == 'X':
+        dataset = 'X'
+        x = data
+        layers = None
+        raw = None
+    elif layer == 'layers/dummy':
+        dataset = 'layers/dummy'
+        x = rng.random((n_cells, n_genes))
+        layers = {'dummy': data}
+        raw = None
+    elif layer == 'raw/X':
+        dataset = 'raw/X'
+        x = rng.random((n_cells, n_genes))
+        layers = None
+        raw = {'X': data}
+    else:
+        raise RuntimeError(
+            f'cannot parse layer = {layer}'
+        )
+
+    good_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='well_formatted_file_',
+        suffix='.h5ad'
+    )
+    bad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='poorly_formatted_file_',
+        suffix='.h5ad'
+    )
+
+    a_data = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=x,
+        layers=layers,
+        raw=raw
+    )
+    a_data.write_h5ad(good_path)
+
+    create_h5ad_without_encoding_type(
+        src_path=good_path,
+        dst_path=bad_path
+    )
+
+    # add a nonsense attrs field to make sure that
+    # is preserved by the infer_attrs function
+    with h5py.File(bad_path, 'a') as dst:
+        dst[layer].attrs.create(name='silly', data='foo')
+
+    if density == 'array':
+        version = '0.2.0'
+    else:
+        version = '0.1.0'
+
+    good_expected = {
+        'encoding-type': density,
+        'shape': np.array([n_cells, n_genes]),
+        'encoding-version': version
+    }
+
+    bad_expected = {
+        'encoding-type': density,
+        'shape': np.array([n_cells, n_genes]),
+        'encoding-version': version,
+        'silly': 'foo'
+    }
+
+    for pth, expected in [(good_path, good_expected),
+                          (bad_path, bad_expected)]:
+        actual = infer_attrs(
+            src_path=pth,
+            dataset=dataset
+        )
+        np.testing.assert_array_equal(
+            expected['shape'],
+            actual['shape']
+        )
+        assert len(expected) == len(actual)
+        for k in expected:
+            if k == 'shape':
+                continue
+            assert expected[k] == actual[k]
+
+
+@pytest.mark.parametrize(
+    'density',
+    ['csr', 'csc']
+)
+def test_pathologically_inconsistent_attrs(
+        tmp_dir_fixture,
+        density):
+    """
+    Test that the correct error is raised when we try to infer
+    attrs, but cannot because the sparse data in the h5ad file
+    is inconsistent
+    """
+    n_cells = 15
+    n_genes = 12
+    obs = pd.DataFrame(
+        [{'cell_id': 'c_{ii}'} for ii in range(n_cells)]
+    ).set_index('cell_id')
+    var = pd.DataFrame(
+        [{'gene_id': 'g_{ii}'} for ii in range(n_genes)]
+    ).set_index('gene_id')
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='pathological_attrs_',
+        suffix='.h5ad'
+    )
+
+    src = anndata.AnnData(obs=obs, var=var)
+    src.write_h5ad(h5ad_path)
+
+    rng = np.random.default_rng(761321312)
+    if density == 'csr':
+        indptr = np.arange(len(obs)+1, dtype=int)
+        dim = 'columns'
+    elif density == 'csc':
+        indptr = np.arange(len(var)+1, dtype=int)
+        dim = 'rows'
+
+    indices = rng.integers(0, len(var), 66)
+    indices[7] = 1000
+
+    with h5py.File(h5ad_path, 'a') as dst:
+        if 'X' in dst:
+            del dst['X']
+        x_grp = dst.create_group('X')
+        x_grp.create_dataset('indptr', data=indptr)
+        x_grp.create_dataset('indices', data=indices)
+
+    msg = f"array indicates there are at least 1000 {dim}"
+    with pytest.raises(RuntimeError, match=msg):
+        infer_attrs(
+            src_path=h5ad_path,
+            dataset='X'
+        )
+
+
+@pytest.mark.parametrize(
+    "density,compression",
+    itertools.product(
+        ["array", "csc", "csr"],
+        [("gzip", None), ("gzip", 4), ("lzf", None)]
+    )
+)
+def test_transpose_h5ad_file(
+        tmp_dir_fixture,
+        density,
+        compression):
+    """
+    Test function to transpose an h5ad file
+    """
+
+    src_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='src_',
+        suffix='.h5ad'
+    )
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='dst_',
+        suffix='.h5ad'
+    )
+
+    n_cells = 512
+    n_genes = 447
+    n_tot = n_cells*n_genes
+
+    rng = np.random.default_rng(211778213)
+    data = np.zeros(n_tot, dtype=int)
+    chosen_idx = rng.choice(
+        np.arange(n_tot, dtype=int),
+        n_tot//3,
+        replace=False
+    )
+    data[chosen_idx] = rng.integers(2, 1000, len(chosen_idx))
+    data = data.reshape((n_cells, n_genes))
+    if density == 'csc':
+        xx = scipy.sparse.csc_matrix(data)
+    elif density == 'csr':
+        xx = scipy.sparse.csr_matrix(data)
+    else:
+        xx = data
+
+    obs = pd.DataFrame(
+        [
+         {'cell_id': f'c_{ii}', 'sq': ii**2}
+         for ii in range(n_cells)
+        ]
+    ).set_index('cell_id')
+
+    var = pd.DataFrame(
+        [
+         {'gene_id': f'g_{ii}', 'cube': ii**3}
+         for ii in range(n_genes)
+        ]
+    ).set_index('gene_id')
+
+    src = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=xx
+    )
+
+    src.write_h5ad(
+        src_path,
+        compression=compression[0],
+        compression_opts=compression[1])
+
+    transpose_h5ad_file(
+        src_path=src_path,
+        dst_path=dst_path
+    )
+
+    actual = anndata.read_h5ad(
+        dst_path
+    )
+
+    pd.testing.assert_frame_equal(
+        src.var,
+        actual.obs
+    )
+
+    pd.testing.assert_frame_equal(
+        src.obs,
+        actual.var
+    )
+
+    expected = data.transpose()
+
+    actual_x = actual.X
+    if density != 'array':
+        actual_x = actual_x.toarray()
+
+    np.testing.assert_array_equal(
+        expected,
+        actual_x
+    )

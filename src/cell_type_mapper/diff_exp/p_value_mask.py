@@ -305,6 +305,90 @@ def _p_values_worker(
         diffexp.scores.score_differential_genes.
     """
 
+    (dense_mask,
+     idx_values,
+     boring_t,
+     idx_dtype) = _prepare_mask(
+        cluster_stats=cluster_stats,
+        idx_to_pair=idx_to_pair,
+        p_th=p_th)
+
+    for pair_ct, idx in enumerate(idx_values):
+        sibling_pair = idx_to_pair[idx]
+        level = sibling_pair[0]
+        node_1 = f'{level}/{sibling_pair[1]}'
+        node_2 = f'{level}/{sibling_pair[2]}'
+
+        p_values = diffexp_p_values_from_stats(
+            node_1=node_1,
+            node_2=node_2,
+            precomputed_stats=cluster_stats,
+            p_th=p_th,
+            boring_t=boring_t,
+            big_nu=None)
+
+        (distances,
+         invalid) = _penetrance_distances(
+                         cluster_stats=cluster_stats,
+                         node_1=node_1,
+                         node_2=node_2,
+                         q1_th=q1_th,
+                         q1_min_th=q1_min_th,
+                         qdiff_th=qdiff_th,
+                         qdiff_min_th=qdiff_min_th,
+                         log2_fold_th=log2_fold_th,
+                         log2_fold_min_th=log2_fold_min_th)
+
+        dense_mask = _populate_dense_mask(
+            dense_mask=dense_mask,
+            pair_ct=pair_ct,
+            distances=distances,
+            invalid=invalid,
+            p_values=p_values,
+            p_th=p_th)
+
+    _save_sub_mask(
+        dense_mask=dense_mask,
+        idx_dtype=idx_dtype,
+        idx_values=idx_values,
+        dst_path=tmp_path)
+
+
+def _prepare_mask(
+        cluster_stats,
+        idx_to_pair,
+        p_th):
+    """
+    Find a bunch of boilerplate parameters needed for P-value mask
+    creation.
+
+    Parameters
+    ----------
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
+
+    idx_to_pair:
+        Dict mapping col in final output file to
+        (level, node1, node2) sibling pair
+        [Just the columns that this worker is responsible for]
+
+    p_th:
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under score_differential_genes
+
+    Returns
+    -------
+    dense_mask:
+        np.array of zeros for storing the p-value mask
+    idx_values:
+        list of idx values (i.e. the indices of the cell type pairs
+        stored in the mask)
+    boring_t:
+        to be passed to the welch_t_test function
+    idx_dtype:
+        dtype necessary to store the indices of the sparse matrix
+    """
+
     n_genes = len(cluster_stats[list(cluster_stats.keys())[0]]['mean'])
     idx_dtype = choose_int_dtype((0, n_genes))
 
@@ -327,65 +411,38 @@ def _p_values_worker(
 
     n_pairs = len(idx_values)
     dense_mask = np.zeros((n_pairs, n_genes))
+    return dense_mask, idx_values, boring_t, idx_dtype
 
-    for pair_ct, idx in enumerate(idx_values):
-        sibling_pair = idx_to_pair[idx]
-        level = sibling_pair[0]
-        node_1 = f'{level}/{sibling_pair[1]}'
-        node_2 = f'{level}/{sibling_pair[2]}'
 
-        p_values = diffexp_p_values_from_stats(
-            node_1=node_1,
-            node_2=node_2,
-            precomputed_stats=cluster_stats,
-            p_th=p_th,
-            boring_t=boring_t,
-            big_nu=None)
+def _save_sub_mask(
+        dense_mask,
+        idx_values,
+        idx_dtype,
+        dst_path):
+    """
+    Save P-value mask as a sparse matrix in an HDF5 file.
+    (Meant for saving a subset of the final mask in a temporary
+    file).
 
-        (pij_1,
-         pij_2,
-         log2_fold) = pij_from_stats(
-             cluster_stats=cluster_stats,
-             node_1=node_1,
-             node_2=node_2)
+    Parameters
+    ----------
+    dense_mask:
+        The mask as a dense matrix
+    idx_values:
+        An array of ints. The indexes in the final mask of the cell type
+        pairs stored in this HDF5 file.
+    idx_dtype:
+        The dtype for storing the sparse matrix indices.
+    dst_path:
+        Path to the HDF5 file being created.
 
-        (q1_score,
-         qdiff_score) = q_score_from_pij(
-             pij_1=pij_1,
-             pij_2=pij_2)
-
-        distances = penetrance_parameter_distance(
-            q1_score=q1_score,
-            qdiff_score=qdiff_score,
-            log2_fold=log2_fold,
-            q1_th=q1_th,
-            q1_min_th=q1_min_th,
-            qdiff_th=qdiff_th,
-            qdiff_min_th=qdiff_min_th,
-            log2_fold_th=log2_fold_th,
-            log2_fold_min_th=log2_fold_min_th)
-
-        wgt = distances['wgt']
-        wgt = np.clip(
-            a=wgt,
-            a_min=0.0,
-            a_max=np.finfo(np.float16).max-1)
-
-        # so that genes with weighted distance == 0 get kept
-        # in the sparse matrix
-        wgt[wgt == 0.0] = -1.0
-        eps = np.finfo(np.float16).resolution
-        wgt[np.abs(wgt) < eps] = eps
-
-        valid = (p_values < p_th)
-
-        # so that invalid genes (according to penetrance min
-        # thresholds do not get carried over into the sparse
-        # matrix
-        valid[distances['invalid']] = False
-
-        dense_mask[pair_ct, valid] = wgt[valid]
-
+    Returns
+    -------
+    None
+        The file at dst_path is created and written to.
+    """
+    n_genes = dense_mask.shape[1]
+    n_pairs = dense_mask.shape[0]
     sparse_mask = scipy_sparse.csr_matrix(dense_mask)
 
     indices = np.copy(sparse_mask.indices)
@@ -397,7 +454,7 @@ def _p_values_worker(
     # store mask as just the indices, indptr arrays from the
     # sparse mask (since this is a boolean array that can only
     # have values 0, 1
-    with h5py.File(tmp_path, 'a') as out_file:
+    with h5py.File(dst_path, 'w') as out_file:
         out_file.create_dataset(
             'n_genes', data=n_genes)
         out_file.create_dataset(
@@ -410,6 +467,63 @@ def _p_values_worker(
             'data', data=data, dtype=np.float16)
         out_file.create_dataset(
             'min_row', data=idx_values.min())
+
+
+def _populate_dense_mask(
+        dense_mask,
+        pair_ct,
+        distances,
+        invalid,
+        p_values,
+        p_th):
+    """
+    Update dense mask with data from one cell-type pair
+
+    Parameters
+    ----------
+    dense_mask:
+        the array being updated
+    pair_ct:
+        The row of dense_mask being updated
+    distances:
+        The (n_genes,) array of parameter space distances from
+        the absolute marker gene threshold
+    invalid:
+        An (n_genes,) array of booleans indicating which genes
+        are invalid, regardless of their parameter space distance
+        (True means a gene is not a valid marker)
+    p_values:
+        The (n_genes,) array of P-values indicating how good
+        a marker gene each gene is
+    p_th:
+        The threshold P-value for accepting marker genes
+
+    Returns
+    -------
+    dense_mask:
+        Having been updated accordingly
+    """
+
+    distances = np.clip(
+        a=distances,
+        a_min=0.0,
+        a_max=np.finfo(np.float16).max-1)
+
+    # so that genes with weighted distance == 0 get kept
+    # in the sparse matrix
+    distances[distances == 0.0] = -1.0
+    eps = np.finfo(np.float16).resolution
+    distances[np.abs(distances) < eps] = eps
+
+    valid = (p_values < p_th)
+
+    # so that invalid genes (according to penetrance min
+    # thresholds do not get carried over into the sparse
+    # matrix
+    valid[invalid] = False
+
+    dense_mask[pair_ct, valid] = distances[valid]
+    return dense_mask
 
 
 def _merge_masks(
@@ -489,3 +603,74 @@ def _merge_masks(
                 idx_0 += n_this
                 indptr_0 += len(indptr)-1
         dst_indptr[-1] = n_indices
+
+
+def _penetrance_distances(
+        cluster_stats,
+        node_1,
+        node_2,
+        q1_th,
+        q1_min_th,
+        qdiff_th,
+        qdiff_min_th,
+        log2_fold_th,
+        log2_fold_min_th):
+    """
+    Find the parameter space distances of genes from the
+    marker threshold, using penetrance as the relevant
+    metric.
+
+    Parameters
+    ----------
+    cluster_stats:
+        Result of read_precomputed_stats (just 'cluster_stats')
+
+    node_1/node_2:
+        The keys in cluster_stats corresponding to the cell types
+        being compared here.
+
+    q1_th/qdiff_th/log2_fold_th
+        Thresholds for determining if a gene is a valid marker.
+        See Notes under diffexp.scores.score_differential_genes
+
+    qdiff_min_th/log2_fold_min_th
+        Minimum thresholds below which genes will not be
+        considered marker genes. See Notes under
+        diffexp.scores.score_differential_genes.
+
+    Returns
+    -------
+    distances:
+        a (n_genes,) array of parameter space distances from the marker
+        gene threshold
+    invalid:
+        a (n_genes,) array of booleans indicating which genes are invalid
+        markers, regardless of their parameter space distance
+        (True means a gene is not a valid marker)
+    """
+    (pij_1,
+     pij_2,
+     log2_fold) = pij_from_stats(
+         cluster_stats=cluster_stats,
+         node_1=node_1,
+         node_2=node_2)
+
+    (q1_score,
+     qdiff_score) = q_score_from_pij(
+         pij_1=pij_1,
+         pij_2=pij_2)
+
+    distance_lookup = penetrance_parameter_distance(
+        q1_score=q1_score,
+        qdiff_score=qdiff_score,
+        log2_fold=log2_fold,
+        q1_th=q1_th,
+        q1_min_th=q1_min_th,
+        qdiff_th=qdiff_th,
+        qdiff_min_th=qdiff_min_th,
+        log2_fold_th=log2_fold_th,
+        log2_fold_min_th=log2_fold_min_th)
+
+    distances = distance_lookup['wgt']
+    invalid = distance_lookup['invalid']
+    return distances, invalid

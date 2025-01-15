@@ -15,6 +15,11 @@ from cell_type_mapper.validation.utils import (
 from cell_type_mapper.utils.output_utils import (
     re_order_blob)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
+
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
         run_type_assignment_on_h5ad_gpu)
@@ -46,6 +51,20 @@ def run_type_assignment_on_h5ad(
             log.error(error_msg)
         else:
             raise RuntimeError(error_msg)
+
+    obs = read_df_from_h5ad(
+        query_h5ad_path,
+        df_name='obs')
+    obs_idx = obs.index.values
+    if len(obs_idx) != len(set(obs_idx)):
+        msg = (
+            "obs.index.values are not unique in "
+            f"h5ad file {query_h5ad_path}"
+        )
+        if log is not None:
+            log.error(msg)
+        else:
+            raise RuntimeError(msg)
 
     if normalization == 'raw':
         # check that data is >= 0
@@ -101,7 +120,7 @@ def run_type_assignment_on_h5ad(
             max_gb=max_gb,
             results_output_path=results_output_path)
 
-    # mark each of these cell types a directly assigned
+    # mark each of these cell types as directly assigned
     # (rather than backfilled)
     for cell in result:
         for level in taxonomy_tree.hierarchy:

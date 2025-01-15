@@ -762,13 +762,23 @@ def validate_marker_lookup(
 
     if len(error_msg) > 0:
         if bad_parent_ct + skipped_parent_ct == len(all_parents):
+
+            all_markers = []
+            for k in marker_lookup:
+                all_markers += marker_lookup[k]
+            all_markers = set(all_markers)
+            all_markers = list(all_markers)
+            all_markers.sort()
+
             query_gene_names = list(query_gene_names)
             query_gene_names.sort()
             error_msg = (
                 "After comparing query data to reference data, "
                 "no valid marker genes could be found at any level "
                 "in the taxonomy.\nExample of genes in query set:\n"
-                f"{query_gene_names[:5]}"
+                f"{query_gene_names[:5]}\n"
+                f"Example of marker genes:\n"
+                f"{all_markers[:5]}"
             )
         else:
             error_msg = f"validating marker lookup\n{error_msg}"

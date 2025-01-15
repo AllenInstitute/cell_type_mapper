@@ -21,13 +21,23 @@ from cell_type_mapper.utils.anndata_utils import (
     copy_layer_to_x,
     read_uns_from_h5ad,
     write_uns_to_h5ad,
-    update_uns)
+    update_uns,
+    transpose_h5ad_file)
 
 from cell_type_mapper.validation.utils import (
     is_x_integers,
     round_x_to_integers,
     get_minmax_x_from_h5ad,
-    map_gene_ids_in_var)
+    map_gene_ids_in_var,
+    create_uniquely_indexed_df)
+
+from cell_type_mapper.validation.csv_utils import (
+    convert_csv_to_h5ad
+)
+
+from cell_type_mapper.gene_id.utils import (
+    detect_species
+)
 
 
 def validate_h5ad(
@@ -119,15 +129,6 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
-    original_h5ad_path = pathlib.Path(h5ad_path)
-
-    tmp_h5ad_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix=original_h5ad_path.name,
-            suffix='.h5ad')
-        )
-
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
             "Cannot specify both valid_h5ad_path and output_dir; "
@@ -136,6 +137,72 @@ def _validate_h5ad(
     if valid_h5ad_path is None and output_dir is None:
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
+
+    (original_h5ad_path,
+     write_to_new_path) = convert_csv_to_h5ad(
+         src_path=h5ad_path,
+         log=log
+     )
+
+    has_warnings = write_to_new_path
+
+    # check that file can even be open and that it contains
+    # layer, obs, and var datasets/groups
+    missing_elements = []
+    if layer == 'X':
+        full_layer = layer
+    elif '/' in layer:
+        full_layer = layer
+    else:
+        full_layer = f'layers/{layer}'
+
+    try:
+        with h5py.File(original_h5ad_path, 'r') as src:
+            for el in (full_layer, 'var', 'obs'):
+                if el not in src:
+                    missing_elements.append(el)
+    except Exception:
+        error_msg = f"\n{traceback.format_exc()}\n"
+        error_msg += (
+            "This h5ad file is corrupted such that it could not "
+            "even be opened with h5py. See above for the specific "
+            f"error message raised by h5py {original_h5ad_path}."
+        )
+        if log is None:
+            raise RuntimeError(error_msg)
+        else:
+            log.error(error_msg)
+
+    if len(missing_elements) > 0:
+        msg = (
+            "Cannot process this h5ad file. It is missing "
+            "the following required elements\n"
+            f"{missing_elements}"
+        )
+        if log is None:
+            raise RuntimeError(msg)
+        else:
+            log.error(msg)
+
+    (original_h5ad_path,
+     was_transposed) = _transpose_file_if_necessary(
+         src_path=original_h5ad_path,
+         layer=layer,
+         tmp_dir=tmp_dir,
+         log=log
+    )
+
+    original_h5ad_path = pathlib.Path(original_h5ad_path)
+
+    if was_transposed:
+        has_warnings = True
+
+    tmp_h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix=original_h5ad_path.name,
+            suffix='.h5ad')
+        )
 
     h5ad_name = original_h5ad_path.name.replace(
                     original_h5ad_path.suffix, '')
@@ -147,47 +214,27 @@ def _validate_h5ad(
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
-    write_to_new_path = False
-    has_warnings = False
-
-    # check that file can even be open
-    try:
-        with h5py.File(original_h5ad_path, 'r') as src:
-            pass
-    except Exception:
-        error_msg = f"\n{traceback.format_exc()}\n"
-        error_msg += (
-            "This h5ad file is corrupted such that it could not "
-            "even be opened with h5py. See above for the specific "
-            "error message raised by h5py."
-        )
-        if log is None:
-            raise RuntimeError(error_msg)
-        else:
-            log.error(error_msg)
-
     # check that cell names are not repeated
     obs_original = read_df_from_h5ad(
         h5ad_path=original_h5ad_path,
         df_name='obs')
 
-    cell_id_census = dict()
-    for cell_id in obs_original.index.values:
-        if cell_id not in cell_id_census:
-            cell_id_census[cell_id] = 1
-        else:
-            cell_id_census[cell_id] += 1
-    msg = ''
-    for cell_id in cell_id_census:
-        if cell_id_census[cell_id] > 1:
-            msg += f"'{cell_id}' occurred {cell_id_census[cell_id]} times\n"
-    if len(msg) > 0:
+    obs_unique_index = create_uniquely_indexed_df(
+        obs_original)
+
+    write_new_obs = False
+    if obs_unique_index is not obs_original:
+        write_to_new_path = True
+        write_new_obs = True
         msg = (
-            "Cell IDs need to be unique. The following cell IDs were "
-            "repeated in your obs dataframe:\n"
-            f"{msg}"
+            "The index values in the obs dataframe of your file "
+            "are not unique. We are modifying them to be unique. "
         )
-        raise RuntimeError(msg)
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        has_warnings = True
 
     # check that gene names are not repeated
     var_original = read_df_from_h5ad(
@@ -197,28 +244,6 @@ def _validate_h5ad(
     _check_input_gene_names(
         var_df=var_original,
         log=log)
-
-    # check that anndata metadata fields are present
-    if layer == 'X':
-        to_check = 'X'
-    else:
-        to_check = f'layers/{layer}'
-    with h5py.File(original_h5ad_path, 'r') as src:
-        attrs = dict(src[to_check].attrs)
-
-    if 'encoding-type' not in attrs:
-        msg = (
-            f"The '{to_check}' field in this h5ad file lacks the "
-            "'encoding-type' metadata field. "
-            "That field is necessary for this software to determine if this "
-            "data is stored as a sparse or dense matrix. Please see the "
-            "anndata specification here\n"
-            "https://anndata.readthedocs.io/en/latest/fileformat-prose.html"
-        )
-        if log is None:
-            raise RuntimeError(msg)
-        else:
-            log.error(msg)
 
     cast_to_int = False
     if round_to_int:
@@ -338,6 +363,13 @@ def _validate_h5ad(
             tmp_h5ad_path,
             {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
 
+        if write_new_obs:
+            write_df_to_h5ad(
+                h5ad_path=tmp_h5ad_path,
+                df_name='obs',
+                df_value=obs_unique_index
+            )
+
         copy_h5_excluding_data(
             src_path=tmp_h5ad_path,
             dst_path=new_h5ad_path,
@@ -421,3 +453,74 @@ def _check_input_gene_names(
             log.error(error_msg)
         else:
             raise RuntimeError(error_msg)
+
+
+def _transpose_file_if_necessary(
+        src_path,
+        tmp_dir,
+        log,
+        layer='X'):
+    """
+    Check the indices of obs and var in an h5ad file.
+    If it seems likely that obs actually points to genes, then
+    transpose the h5ad file to a new file in tmp_dir.
+
+    Parameters
+    ----------
+    src_path:
+        the path to the h5ad file being assessed
+    tmp_dir:
+        path to the directory where a new file can be written, if necessary
+    log:
+        optional CommandLog
+    layer:
+        the layer in the h5ad file containing the matrix to transpose
+        (currently, only supports 'X'; if layer is anything else, this
+        is function becomes a no-op)
+
+    Returns
+    -------
+    valid_path:
+        path to properly shaped (rows are cells, columns are genes)
+        h5ad file. Can be src_path if src_path is valid
+    has_warnings:
+        boolean indicating if any warnings were emitted during this
+        process
+    """
+    if layer != 'X':
+        return (src_path, False)
+
+    var = read_df_from_h5ad(src_path, df_name='var')
+    var_species = detect_species(var.index.values)
+    if var_species is not None:
+        return (src_path, False)
+
+    obs = read_df_from_h5ad(src_path, df_name='obs')
+    obs_species = detect_species(obs.index.values)
+    if obs_species is None:
+        return (src_path, False)
+
+    msg = (
+        "It appears that your h5ad file has genes as rows and cells "
+        f"as columns\nExample row indices {obs.index.values[:5]}\n"
+        f"Example column indices {var.index.values[:5]}\n"
+        "We will transpose this for you so that rows are cells and columns "
+        "are genes"
+    )
+    if log is not None:
+        log.warn(msg)
+    else:
+        warnings.warn(msg)
+
+    src_path = pathlib.Path(src_path)
+    new_path = mkstemp_clean(
+        dir=tmp_dir,
+        prefix=f'{src_path.name}_TRANSPOSED_',
+        suffix='.h5ad'
+    )
+    transpose_h5ad_file(
+        src_path=src_path,
+        dst_path=new_path
+    )
+
+    return (new_path, True)

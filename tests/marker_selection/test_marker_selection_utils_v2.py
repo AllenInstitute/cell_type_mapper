@@ -6,7 +6,6 @@ import json
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
-import shutil
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -39,19 +38,21 @@ def n_rows():
 def n_cols():
     return 245
 
+
 @pytest.fixture
 def mask_array_fixture(
         n_rows,
         n_cols):
-    rng =np.random.default_rng(554422)
+    rng = np.random.default_rng(554422)
     data = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
     return data
+
 
 @pytest.fixture
 def up_regulated_fixture(
         n_rows,
         n_cols):
-    rng =np.random.default_rng(118823)
+    rng = np.random.default_rng(118823)
     data = rng.integers(0, 2, (n_rows, n_cols), dtype=bool)
     return data
 
@@ -86,7 +87,7 @@ def marker_with_sparse_fixture(
                 [f"g_{ii}" for ii in range(n_rows)]).encode('utf-8'))
         out_file.create_dataset(
             'pair_to_idx',
-            data=json.dumps({'a': 1, 'b':2}).encode('utf-8'))
+            data=json.dumps({'a': 1, 'b': 2}).encode('utf-8'))
 
         grp = out_file.create_group('sparse_by_pair')
         grp.create_dataset(

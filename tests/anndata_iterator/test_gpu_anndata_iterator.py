@@ -1,5 +1,3 @@
-import pytest
-
 import numpy as np
 import os
 
@@ -52,7 +50,7 @@ def test_anndata_iterator_with_torch():
         data=raw_data,
         gene_identifiers=gene_id,
         normalization='raw')
-    
+
     marker_genes = ['g_4', 'g_33', 'g_55', 'g_78', 'g_91']
     raw_cell_by_gene.to_log2CPM_in_place()
     raw_cell_by_gene.downsample_genes_in_place(marker_genes)

@@ -18,6 +18,10 @@ from cell_type_mapper.utils.sparse_utils import (
     load_csr,
     _load_disjoint_csr)
 
+from cell_type_mapper.utils.anndata_utils import (
+    infer_attrs
+)
+
 
 class h5_handler_manager():
     def __init__(self, h5_path, mode='r', keepopen=True):
@@ -62,8 +66,17 @@ class AnnDataRowIterator(object):
     row_chunk_size:
         Number of rows to deliver per chunk
     layer:
-        The layer of the h5ad file we are iterating over
-        If not 'X', then look for data in 'layers/{layer}'
+        The layer of the h5ad file we are iterating over.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
+
     tmp_dir:
         Optional scratch directory. This is where a hypothetical
         CSC file will be written as a CSR file. If None, the
@@ -88,25 +101,28 @@ class AnnDataRowIterator(object):
 
         if layer == 'X':
             self._layer = layer
+        elif '/' in layer:
+            self._layer = layer
         else:
             self._layer = f'layers/{layer}'
 
         self.log = log
+
+        # will only be set later, if needed
         self.tmp_dir = None
+
         self.max_gb = max_gb
         h5ad_path = pathlib.Path(h5ad_path)
         if not h5ad_path.is_file():
             raise RuntimeError(
                 f"{h5ad_path} is not a file")
 
-        with h5py.File(h5ad_path, 'r', swmr=True) as in_file:
-            attrs = dict(in_file[self.layer].attrs)
-            array_shape = None
-            encoding_type = ''
-            if 'shape' in attrs:
-                array_shape = attrs['shape']
-            if 'encoding-type' in attrs:
-                encoding_type = attrs['encoding-type']
+        attrs = infer_attrs(
+            src_path=h5ad_path,
+            dataset=self.layer
+        )
+        encoding_type = attrs['encoding-type']
+        array_shape = attrs['shape']
 
         if encoding_type.startswith('csr') and array_shape is not None:
             self._iterator_type = 'CSRRow'
@@ -209,7 +225,6 @@ class AnnDataRowIterator(object):
             boolean indicating whether or not to leave the h5 handle
             open (should be false when using cuda)
         """
-        write_as_csr = True
         self.tmp_dir = tempfile.mkdtemp(
             dir=tmp_dir,
             prefix='anndata_iterator_')
@@ -222,20 +237,16 @@ class AnnDataRowIterator(object):
         file_size_bytes = file_stats.st_size
         fudge_factor = 1.1  # just in case
 
+        array_shape = infer_attrs(
+            src_path=h5ad_path,
+            dataset=self.layer
+        )['shape']
+
         if free_bytes < fudge_factor*file_size_bytes:
-            write_as_csr = False
-        else:
-            with h5py.File(h5ad_path, 'r', swmr=True) as src:
-                attrs = dict(src[self.layer].attrs)
-
-            if 'shape' not in attrs:
-                write_as_csr = False
-
-        if not write_as_csr:
             raise RuntimeError(
                 "Cannot write data as CSR\n"
                 f"free_bytes {free_bytes}; file size {file_size_bytes}\n"
-                f"attrs:\n{attrs}")
+            )
         else:
             self.tmp_path = pathlib.Path(
                 mkstemp_clean(
@@ -252,7 +263,6 @@ class AnnDataRowIterator(object):
             else:
                 print(msg)
 
-            array_shape = attrs['shape']
             self.n_rows = array_shape[0]
             with h5py.File(h5ad_path, 'r', swmr=True) as src:
                 csc_to_csr_on_disk(

@@ -6,6 +6,7 @@ import json
 import numpy as np
 import os
 import pandas as pd
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -34,6 +35,7 @@ def tmp_dir_fixture(
 def cell_id_fixture():
     return [f'cell_{ii}' for ii in range(17)]
 
+
 @pytest.fixture(scope='module')
 def taxonomy_data_fixture():
     result = {
@@ -51,11 +53,10 @@ def taxonomy_data_fixture():
             'e': ['7']
         },
         'cluster': {
-             str(l): [] for l in range(1, 8, 1)
+             str(val): [] for val in range(1, 8, 1)
         }
     }
     return result
-
 
 
 @pytest.fixture(scope='module')
@@ -105,18 +106,22 @@ def expected_mapping_df_fixture(
         output_json_data_fixture,
         taxonomy_data_fixture):
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_data_fixture)
-    df = blob_to_df(
-        results_blob=output_json_data_fixture,
-        taxonomy_tree=taxonomy_tree)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    col_name_list = list(df.columns)
-    for col in col_name_list:
-        if col == 'cell_id':
-            continue
-        new_col = f'CDM_{col}'
-        df[new_col] = df[col]
-        df.drop(col, axis=1, inplace=True)
+        taxonomy_tree = TaxonomyTree(data=taxonomy_data_fixture)
+
+        df = blob_to_df(
+            results_blob=output_json_data_fixture,
+            taxonomy_tree=taxonomy_tree)
+
+        col_name_list = list(df.columns)
+        for col in col_name_list:
+            if col == 'cell_id':
+                continue
+            new_col = f'CDM_{col}'
+            df[new_col] = df[col]
+            df.drop(col, axis=1, inplace=True)
 
     return df
 
@@ -142,7 +147,7 @@ def h5ad_fixture(
     ]
     obs = pd.DataFrame(obs_data).set_index('cell_id')
 
-    var_data= [
+    var_data = [
         {'gene_id': f'gene_{ii}', 'silly': int(rng.integers(2, 104))}
         for ii in range(n_genes)
     ]
@@ -184,11 +189,14 @@ def test_transcription_to_obs(
         'h5ad_path': h5ad_fixture,
         'new_h5ad_path': output_path}
 
-    runner = TranscribeToObsRunner(
-        args=[],
-        input_data=config)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    runner.run()
+        runner = TranscribeToObsRunner(
+            args=[],
+            input_data=config)
+
+        runner.run()
 
     baseline = anndata.read_h5ad(h5ad_fixture, backed='r')
     test = anndata.read_h5ad(output_path, backed='r')

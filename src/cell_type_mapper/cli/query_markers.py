@@ -1,11 +1,14 @@
 import argschema
-import copy
 import h5py
 import json
 import time
 
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
+
+from cell_type_mapper.utils.cli_utils import (
+    config_from_args
+)
 
 from cell_type_mapper.utils.anndata_utils import (
      read_df_from_h5ad)
@@ -21,6 +24,11 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
     default_schema = QueryMarkerFinderSchema
 
     def run(self):
+
+        metadata = {'config': config_from_args(
+                                input_config=self.args,
+                                cloud_safe=False)
+                    }
 
         t0 = time.time()
 
@@ -65,7 +73,6 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
             genes_at_a_time=self.args['genes_at_a_time'],
             search_for_stats_file=self.args['search_for_stats_file'])
 
-        metadata = {'config': copy.deepcopy(self.args)}
         metadata.update(
             get_execution_metadata(
                 module_file=__file__,

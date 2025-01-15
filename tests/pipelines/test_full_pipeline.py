@@ -3,11 +3,9 @@ import pytest
 import anndata
 import h5py
 import numpy as np
-import pathlib
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
-    _clean_up,
     clean_for_json)
 
 from cell_type_mapper.utils.anndata_utils import (

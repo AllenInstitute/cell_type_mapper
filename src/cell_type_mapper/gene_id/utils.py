@@ -35,6 +35,15 @@ def detect_species(gene_id_list):
     - If there are no known gene symbols present, return None
     """
 
+    if not hasattr(detect_species, '_cache'):
+        detect_species._cache = dict()
+        for species, lookup in [('mouse', mouse_gene_id_lookup),
+                                ('human', human_gene_id_lookup)]:
+            detect_species._cache[species] = {
+                'ens': set(lookup.values()),
+                'symb': set(lookup.keys())
+            }
+
     # break on dots in Ensembl IDs
     clean_gene_id_list = [
         g if not g.startswith('ENS') else g.split('.')[0]
@@ -43,11 +52,9 @@ def detect_species(gene_id_list):
 
     gene_set = set(clean_gene_id_list)
     census = dict()
-    for species, lookup in [('mouse', mouse_gene_id_lookup),
-                            ('human', human_gene_id_lookup)]:
-
-        ens = set(lookup.values())
-        symb = set(lookup.keys())
+    for species in detect_species._cache:
+        ens = detect_species._cache[species]['ens']
+        symb = detect_species._cache[species]['symb']
         n_ens = len(ens.intersection(gene_set))
         n_symb = len(symb.intersection(gene_set))
         census[species] = {'ens': n_ens, 'symb': n_symb}

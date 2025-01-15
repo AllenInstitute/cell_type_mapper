@@ -13,7 +13,8 @@ from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree_from_h5ad,
     convert_tree_to_leaves,
     get_all_pairs,
-    get_child_to_parent)
+    get_child_to_parent,
+    prune_tree)
 
 from cell_type_mapper.taxonomy.data_release_utils import (
     get_tree_above_leaves,
@@ -35,6 +36,29 @@ class TaxonomyTree(object):
         self._data = copy.deepcopy(data)
         validate_taxonomy_tree(self._data)
         self._child_to_parent = get_child_to_parent(self._data)
+
+        self._name_to_level = dict()
+        for level in self.hierarchy:
+            level_name = self.level_to_name(level)
+            if level_name == level:
+                continue
+            if level_name not in self._name_to_level:
+                self._name_to_level[level_name] = []
+            self._name_to_level[level_name].append(level)
+
+        self._name_to_node = dict()
+        for level in self.hierarchy:
+            self._name_to_node[level] = dict()
+            for node in self.nodes_at_level(level):
+                node_name = self.label_to_name(
+                    level=level,
+                    label=node,
+                    name_key='name')
+                if node_name == node:
+                    continue
+                if node_name not in self._name_to_node[level]:
+                    self._name_to_node[level][node_name] = []
+                self._name_to_node[level][node_name].append(node)
 
     def __eq__(self, other):
         """
@@ -144,7 +168,8 @@ class TaxonomyTree(object):
             cell_metadata_path,
             cluster_annotation_path,
             cluster_membership_path,
-            hierarchy):
+            hierarchy,
+            do_pruning=False):
         """
         Construct a TaxonomyTree from the canonical CSV files
         encoding a taxonomy for a data release
@@ -166,6 +191,13 @@ class TaxonomyTree(object):
         hierarchy:
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
+        do_pruning:
+            A boolean. If True, remove all nodes from the tree that are
+            not directly connected to the leaf level of the tree. This
+            is useful, for instance, when creating a taxonomy tree based
+            only on cells from a subset of a wider data release which may
+            not include all of the cell types identified in the full
+            taxonomy.
         """
         cluster_annotation_path = pathlib.Path(cluster_annotation_path)
         cluster_membership_path = pathlib.Path(cluster_membership_path)
@@ -187,7 +219,8 @@ class TaxonomyTree(object):
                     str(cluster_annotation_path.resolve().absolute()),
                 'cluster_membership_path':
                     str(cluster_membership_path.resolve().absolute()),
-                'hierarchy': hierarchy}}
+                'hierarchy': hierarchy,
+                'do_pruning': do_pruning}}
 
         leaf_level = hierarchy[-1]
 
@@ -277,6 +310,9 @@ class TaxonomyTree(object):
                     leaves[child] = []
 
         data[hierarchy[-1]] = leaves
+
+        if do_pruning:
+            data = prune_tree(data)
 
         return cls(data=data)
 
@@ -379,6 +415,43 @@ class TaxonomyTree(object):
         """
         return self._drop_level(self.leaf_level, allow_leaf=True)
 
+    def drop_node(self, level, node):
+        """
+        Return a new TaxonomyTree having dropped the specified node
+        and pruned the tree appropriately.
+
+        Parameters
+        ----------
+        level:
+            A string. The level of the node to drop
+        node:
+            A string. The node to be dropped
+
+        Parameters
+        ----------
+        A new TaxonomyTree
+        """
+        if level not in self.hierarchy:
+            raise RuntimeError(
+                f"Level {level} not present in tree"
+            )
+        if node not in self.nodes_at_level(level):
+            raise RuntimeError(
+                f"Node {node} not present at level {level}"
+            )
+        new_data = copy.deepcopy(self._data)
+        if 'metadata' in new_data:
+            if 'dropped_nodes' not in new_data['metadata']:
+                new_data['metadata']['dropped_nodes'] = []
+            new_data['metadata']['dropped_nodes'].append(
+                {'level': level, 'node': node}
+            )
+
+        for leaf in self.as_leaves[level][node]:
+            new_data[self.leaf_level].pop(leaf)
+        new_data = prune_tree(new_data)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
@@ -391,7 +464,9 @@ class TaxonomyTree(object):
             raise RuntimeError(
                 f"{this_level} is not a valid level in this taxonomy;\n"
                 f"valid levels are:\n {self.hierarchy}")
-        return list(self._data[this_level].keys())
+        result = list(self._data[this_level].keys())
+        result.sort()
+        return result
 
     def parents(self, level, node):
         """
@@ -425,7 +500,9 @@ class TaxonomyTree(object):
                 f"{level} is not a valid level\ntry {self.hierarchy}")
         if node not in self._data[level]:
             raise RuntimeError(f"{node} not a valid node at level {level}")
-        return list(self._data[level][node])
+        result = list(self._data[level][node])
+        result.sort()
+        return result
 
     @property
     def leaf_level(self):
@@ -439,7 +516,9 @@ class TaxonomyTree(object):
         """
         List of valid leaf names
         """
-        return list(self._data[self.leaf_level].keys())
+        result = list(self._data[self.leaf_level].keys())
+        result.sort()
+        return result
 
     @property
     def n_leaves(self):
@@ -478,7 +557,7 @@ class TaxonomyTree(object):
         """
         parent_list = [None]
         for level in self._data['hierarchy'][:-1]:
-            for node in self._data[level]:
+            for node in self.nodes_at_level(level):
                 parent = (level, node)
                 parent_list.append(parent)
         return parent_list
@@ -524,6 +603,56 @@ class TaxonomyTree(object):
             return label
         return name_mapper[level][label][name_key]
 
+    def name_to_node(self, level, node):
+        """
+        Map a level, node pair from human-readable to unique, machine-readable
+        values.
+
+        Parameters
+        ----------
+        level:
+            the level of the node being mapped. Either human-readable or
+            machine-readable
+        node:
+            the node being mapped. Either human-readable or machine-readable
+
+        Returns
+        -------
+        A tuple of strings denoting the machine-readable (level, node) label
+        pair
+
+        Notes
+        -----
+        Raise an exception if:
+            level does not exist in this taxonomy
+            node does not exist in this taxonomy
+            level maps to many labels
+            node maps to many labels (under level)
+        """
+        input_level = level
+        if level not in self.hierarchy:
+            level = self.name_to_level(level)
+
+        if level not in self.hierarchy:
+            msg = f'{input_level} is not a valid level in this taxonomy'
+            raise RuntimeError(msg)
+
+        if node in self._data[level]:
+            return (level, node)
+
+        if node not in self._name_to_node[level]:
+            msg = f'({input_level}, {node}) not a valid node in this taxonomy'
+            raise RuntimeError(msg)
+
+        candidates = self._name_to_node[level][node]
+        if len(candidates) > 1:
+            msg = f"""
+            ({input_level}, {node}) maps to many nodes: {candidates}
+            """
+            raise RuntimeError(msg)
+
+        return (level, candidates[0])
+
     def level_to_name(self, level_label):
         """
         Map the label for a hierarchy level to its name.
@@ -535,6 +664,33 @@ class TaxonomyTree(object):
         if level_label not in self._data['hierarchy_mapper']:
             return level_label
         return self._data['hierarchy_mapper'][level_label]
+
+    def name_to_level(self, level_name):
+        """
+        Map human readable level_name to unique label for the level
+        (if possible).
+
+        If level_name is not a valid key in self._name_to_level,
+        raise an exception.
+
+        If there are more than one possible mappings for level_name,
+        raise an exception.
+        """
+        if level_name in self.hierarchy:
+            return level_name
+
+        if level_name not in self._name_to_level:
+            msg = f"{level_name} is not a valid level in this taxonomy"
+            raise RuntimeError(msg)
+        candidates = self._name_to_level[level_name]
+
+        if len(candidates) > 1:
+            msg = f"""
+            {level_name} maps to many levels: {candidates}
+            """
+            raise RuntimeError(msg)
+
+        return candidates[0]
 
     def leaves_to_compare(
             self,

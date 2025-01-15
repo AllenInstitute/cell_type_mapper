@@ -31,11 +31,13 @@ class Collator():
                  all_query_identifiers,
                  normalization,
                  all_query_markers,
-                 device):
+                 device,
+                 log=None):
         self.all_query_identifiers = all_query_identifiers
         self.normalization = normalization
         self.all_query_markers = all_query_markers
         self.device = device
+        self.log = log
 
     def __call__(self, batch):
 
@@ -56,7 +58,8 @@ class Collator():
         data = CellByGeneMatrix(
             data=data,
             gene_identifiers=self.all_query_identifiers,
-            normalization=self.normalization)
+            normalization=self.normalization,
+            log=self.log)
 
         if data.normalization != 'log2CPM':
             data.to_log2CPM_in_place()
@@ -76,7 +79,8 @@ def get_torch_dataloader(query_h5ad_path,
                          device,
                          num_workers=0,
                          max_gb=10,
-                         tmp_dir=None):
+                         tmp_dir=None,
+                         log=None):
     dataset = AnnDataRowDataset(query_h5ad_path,
                                 chunk_size=1,
                                 max_gb=max_gb,
@@ -84,7 +88,8 @@ def get_torch_dataloader(query_h5ad_path,
     collator = Collator(all_query_identifiers,
                         normalization,
                         all_query_markers,
-                        device)
+                        device,
+                        log=log)
 
     sampler = BatchSampler(
             SequentialSampler(dataset),

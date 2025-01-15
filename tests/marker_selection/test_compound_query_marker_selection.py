@@ -11,14 +11,14 @@ import itertools
 import json
 import numpy as np
 import pathlib
-import shutil
 import tempfile
+import warnings
 
 from cell_type_mapper.test_utils.reference_markers import (
     move_precomputed_stats_from_reference_markers
 )
 
-from cell_type_mapper.utils.utils import(
+from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
@@ -57,10 +57,12 @@ def taxonomy_tree_fixture():
             'subclassD': ['c6', 'c7']
         },
         'cluster': {
-            f'c{ii}':[] for ii in range(8)
+            f'c{ii}': [] for ii in range(8)
         }
     }
-    return TaxonomyTree(data=data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=data)
 
 
 @pytest.fixture(scope='module')
@@ -125,6 +127,7 @@ def precompute_path_to_n_cluster(
         }
     }
     return result
+
 
 @pytest.fixture(scope='module')
 def gene_fixture():
@@ -197,17 +200,10 @@ def reference_marker_fixture(
         gene_fixture,
         tmp_dir_fixture):
 
-    n_genes = len(gene_fixture)
-
     output_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
     path_list = []
     for precompute_path in precomputed_stats_files:
-        output_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix=pathlib.Path(precompute_path).stem,
-            suffix='.reference.h5')
-
         precompute_name = pathlib.Path(precompute_path).name
         old_str = precompute_name.split('.')[0]
         new_str = precompute_name.replace(old_str, 'reference_markers', 1)
@@ -236,9 +232,13 @@ def reference_marker_fixture(
             'n_valid': 8
         }
 
-        runner = ReferenceMarkerRunner(
-            args=[], input_data=config)
-        runner.run()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = ReferenceMarkerRunner(
+                args=[], input_data=config)
+            runner.run()
+
         path_list.append(expected_path)
 
         with h5py.File(expected_path, 'r') as src:
@@ -258,17 +258,20 @@ def expected_query_marker_fixture(
         taxonomy_tree_fixture,
         tmp_dir_fixture):
 
-    result = dict()
-    for ref_path in reference_marker_fixture:
-        lookup = create_raw_marker_gene_lookup(
-            input_cache_path=ref_path,
-            query_gene_names=gene_fixture,
-            taxonomy_tree=taxonomy_tree_fixture,
-            n_per_utility=3,
-            tmp_dir=tmp_dir_fixture,
-            n_processors=3)
-        lookup.pop('log')
-        result[ref_path] = lookup
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        result = dict()
+        for ref_path in reference_marker_fixture:
+            lookup = create_raw_marker_gene_lookup(
+                input_cache_path=ref_path,
+                query_gene_names=gene_fixture,
+                taxonomy_tree=taxonomy_tree_fixture,
+                n_per_utility=3,
+                tmp_dir=tmp_dir_fixture,
+                n_processors=3)
+            lookup.pop('log')
+            result[ref_path] = lookup
 
     # make sure different reference files give different
     # sets of query markers
@@ -288,6 +291,7 @@ def expected_query_marker_fixture(
 
     return result
 
+
 def test_query_infrastructure(
         reference_marker_fixture,
         expected_query_marker_fixture,
@@ -297,14 +301,17 @@ def test_query_infrastructure(
     Make sure that query markers are chosen from the correct
     dataset based on how many cells are in each leaf node.
     """
-    actual = create_marker_gene_lookup_from_ref_list(
-        reference_marker_path_list=reference_marker_fixture,
-        query_gene_names=gene_fixture,
-        n_per_utility=3,
-        n_per_utility_override=None,
-        n_processors=3,
-        behemoth_cutoff=1000,
-        tmp_dir=tmp_dir_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        actual = create_marker_gene_lookup_from_ref_list(
+            reference_marker_path_list=reference_marker_fixture,
+            query_gene_names=gene_fixture,
+            n_per_utility=3,
+            n_per_utility_override=None,
+            n_processors=3,
+            behemoth_cutoff=1000,
+            tmp_dir=tmp_dir_fixture)
 
     pth0 = reference_marker_fixture[0]
     pth1 = reference_marker_fixture[1]
@@ -338,19 +345,33 @@ def test_misplaced_stats_infrastructure(
     precomputed stats file is not in the expected place (as long as
     search_for_stats is set to True)
     """
-    tmp_dir = pathlib.Path(
-        tempfile.mkdtemp(
-            dir=tmp_dir_fixture
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        tmp_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir_fixture
+            )
         )
-    )
 
-    new_ref_marker_list = move_precomputed_stats_from_reference_markers(
-        reference_marker_path_list=reference_marker_fixture,
-        tmp_dir=tmp_dir)
+        new_ref_marker_list = move_precomputed_stats_from_reference_markers(
+            reference_marker_path_list=reference_marker_fixture,
+            tmp_dir=tmp_dir)
 
-    if not search_for_stats_file:
-        match = "search_for_stats_file=True"
-        with pytest.raises(FileNotFoundError, match=match):
+        if not search_for_stats_file:
+            match = "search_for_stats_file=True"
+            with pytest.raises(FileNotFoundError, match=match):
+                actual = create_marker_gene_lookup_from_ref_list(
+                    reference_marker_path_list=new_ref_marker_list,
+                    query_gene_names=gene_fixture,
+                    n_per_utility=3,
+                    n_per_utility_override=None,
+                    n_processors=3,
+                    behemoth_cutoff=1000,
+                    tmp_dir=tmp_dir_fixture,
+                    search_for_stats_file=search_for_stats_file)
+
+        else:
             actual = create_marker_gene_lookup_from_ref_list(
                 reference_marker_path_list=new_ref_marker_list,
                 query_gene_names=gene_fixture,
@@ -361,33 +382,28 @@ def test_misplaced_stats_infrastructure(
                 tmp_dir=tmp_dir_fixture,
                 search_for_stats_file=search_for_stats_file)
 
-    else:
-        actual = create_marker_gene_lookup_from_ref_list(
-            reference_marker_path_list=new_ref_marker_list,
-            query_gene_names=gene_fixture,
-            n_per_utility=3,
-            n_per_utility_override=None,
-            n_processors=3,
-            behemoth_cutoff=1000,
-            tmp_dir=tmp_dir_fixture,
-            search_for_stats_file=search_for_stats_file)
+            pth0 = reference_marker_fixture[0]
+            pth1 = reference_marker_fixture[1]
+            pth2 = reference_marker_fixture[2]
+            expected = expected_query_marker_fixture
 
-        pth0 = reference_marker_fixture[0]
-        pth1 = reference_marker_fixture[1]
-        pth2 = reference_marker_fixture[2]
-        expected = expected_query_marker_fixture
-
-        # these expected values are based on the number cells in
-        # the n_cells array of the precomputed stats files
-        assert set(actual['class/classA']) == set(expected[pth1]['class/classA'])
-        assert set(actual['class/classB']) == set(expected[pth0]['class/classB'])
-        assert set(actual['subclass/subclassA']) == set(
-            expected[pth0]['subclass/subclassA'])
-        assert set(actual['subclass/subclassB']) == set(
-            expected[pth1]['subclass/subclassB'])
-        assert set(actual['subclass/subclassC']) == set(
-            expected[pth1]['subclass/subclassC'])
-        assert set(actual['subclass/subclassD']) == set(
-            expected[pth2]['subclass/subclassD'])
+            # these expected values are based on the number cells in
+            # the n_cells array of the precomputed stats files
+            assert (
+                set(actual['class/classA'])
+                == set(expected[pth1]['class/classA'])
+            )
+            assert (
+                set(actual['class/classB'])
+                == set(expected[pth0]['class/classB'])
+            )
+            assert set(actual['subclass/subclassA']) == set(
+                expected[pth0]['subclass/subclassA'])
+            assert set(actual['subclass/subclassB']) == set(
+                expected[pth1]['subclass/subclassB'])
+            assert set(actual['subclass/subclassC']) == set(
+                expected[pth1]['subclass/subclassC'])
+            assert set(actual['subclass/subclassD']) == set(
+                expected[pth2]['subclass/subclassD'])
 
     _clean_up(tmp_dir)

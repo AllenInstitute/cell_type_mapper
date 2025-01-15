@@ -1,25 +1,21 @@
 import pytest
-from itertools import product
 import numpy as np
 import scipy.sparse as scipy_sparse
 import anndata
-import os
 import h5py
-import tempfile
-import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
 
-from cell_type_mapper.utils.sparse_utils import(
+from cell_type_mapper.utils.sparse_utils import (
     load_csr,
     load_csc,
     load_csr_chunk,
     merge_csr,
     _load_disjoint_csr,
     precompute_indptr,
-    remap_csr_matrix,
     downsample_indptr,
     mask_indptr_by_indices)
 
@@ -40,7 +36,11 @@ def test_load_csr(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -88,7 +88,12 @@ def test_load_csc(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csc = scipy_sparse.csc_matrix(data)
-    ann = anndata.AnnData(csc, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csc, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -136,7 +141,12 @@ def test_load_csr_chunk(tmp_dir_fixture):
     data = data.reshape((200, 300))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -186,7 +196,12 @@ def test_load_csr_chunk_very_sparse(tmp_dir_fixture):
     data[7, 11] = 1
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     with h5py.File(tmp_path, 'r') as src:
@@ -207,7 +222,6 @@ def test_load_csr_chunk_very_sparse(tmp_dir_fixture):
             assert actual.sum() == expected_sum
 
             np.testing.assert_array_equal(expected, actual)
-
 
 
 def test_merge_csr():
@@ -236,11 +250,9 @@ def test_merge_csr():
          indices_list=[sub0.indices, sub1.indices, sub2.indices],
          indptr_list=[sub0.indptr, sub1.indptr, sub2.indptr])
 
-
     np.testing.assert_allclose(merged_data, final_csr.data)
     np.testing.assert_array_equal(merged_indices, final_csr.indices)
     np.testing.assert_array_equal(merged_indptr, final_csr.indptr)
-
 
     merged_csr = scipy_sparse.csr_matrix(
         (merged_data, merged_indices, merged_indptr),
@@ -284,11 +296,9 @@ def test_merge_csr_block_zeros(zero_block):
          indices_list=[sub0.indices, sub1.indices, sub2.indices],
          indptr_list=[sub0.indptr, sub1.indptr, sub2.indptr])
 
-
     np.testing.assert_allclose(merged_data, final_csr.data)
     np.testing.assert_array_equal(merged_indices, final_csr.indices)
     np.testing.assert_array_equal(merged_indptr, final_csr.indptr)
-
 
     merged_csr = scipy_sparse.csr_matrix(
         (merged_data, merged_indices, merged_indptr),
@@ -296,7 +306,6 @@ def test_merge_csr_block_zeros(zero_block):
 
     result = merged_csr.todense()
     np.testing.assert_allclose(result, data)
-
 
 
 def test_load_disjoint_csr(tmp_dir_fixture):
@@ -317,7 +326,12 @@ def test_load_disjoint_csr(tmp_dir_fixture):
     data = data.reshape((nrows, ncols))
 
     csr = scipy_sparse.csr_matrix(data)
-    ann = anndata.AnnData(csr, dtype=int)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        ann = anndata.AnnData(csr, dtype=int)
+
     ann.write_h5ad(tmp_path)
 
     index_list = np.unique(rng.integers(0, nrows, 45))

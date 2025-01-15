@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -17,7 +18,7 @@ from cell_type_mapper.validation.utils import (
     round_x_to_integers,
     is_x_integers,
     is_data_ge_zero,
-    map_gene_ids_in_var)
+    create_uniquely_indexed_df)
 
 
 # add function to create various flavors of h5ad file
@@ -101,8 +102,11 @@ def create_h5ad_file(
         raise RuntimeError(
             f"do not know what density={density} means")
 
-    a_data = anndata.AnnData(
-        X=data, obs=obs, var=var, dtype=data.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=data, obs=obs, var=var, dtype=data.dtype)
 
     a_data.write_h5ad(output_path)
 
@@ -228,11 +232,6 @@ def test_round_x_to_integers(
         is_chunked=is_chunked,
         output_path=output_path)
 
-    if density != 'array':
-        with h5py.File(output_path, 'r') as src:
-            print(dict(src['X'].attrs))
-            print(src['X/data'].shape,src['X/indices'].shape,src['X/indptr'].shape)
-
     round_x_to_integers(
         h5ad_path=output_path,
         tmp_dir=tmp_dir_fixture)
@@ -281,11 +280,6 @@ def test_round_x_to_integers_no_op(
         output_path=output_path,
         int_values=True)
 
-    if density != 'array':
-        with h5py.File(output_path, 'r') as src:
-            print(dict(src['X'].attrs))
-            print(src['X/data'].shape,src['X/indices'].shape,src['X/indptr'].shape)
-
     round_x_to_integers(
         h5ad_path=output_path,
         tmp_dir=tmp_dir_fixture)
@@ -301,7 +295,6 @@ def test_round_x_to_integers_no_op(
         int_x,
         atol=0.0,
         rtol=1.0e-6)
-
 
 
 @pytest.mark.parametrize(
@@ -330,7 +323,7 @@ def test_is_x_integers(
     max_val = 101.3
     min_val = -10.2
 
-    raw_x = create_h5ad_file(
+    _ = create_h5ad_file(
         n_rows=55,
         n_cols=267,
         max_val=max_val,
@@ -364,7 +357,11 @@ def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
     n_cols = 73
     x = rng.random((n_rows, n_cols))
     layer = np.zeros(n_rows*n_cols, dtype=float)
-    chosen = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//3, replace=False)
+    chosen = rng.choice(
+        np.arange(n_rows*n_cols),
+        n_rows*n_cols//3,
+        replace=False
+    )
     if is_int:
         layer[chosen] = rng.integers(111, 8888, len(chosen)).astype(float)
     else:
@@ -373,7 +370,13 @@ def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
     if is_sparse:
         layer = scipy_sparse.csr_matrix(layer)
 
-    a_data = anndata.AnnData(X=x, layers={'garbage': layer}, dtype=x.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            layers={'garbage': layer},
+            dtype=x.dtype)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -382,7 +385,7 @@ def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
     a_data.write_h5ad(h5ad_path)
 
     if is_int:
-        assert is_x_integers(h5ad_path , layer='garbage')
+        assert is_x_integers(h5ad_path, layer='garbage')
     else:
         assert not is_x_integers(h5ad_path, layer='garbage')
 
@@ -404,7 +407,11 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
     n_cols = 73
     x = np.zeros((n_rows, n_cols))
     layer = np.zeros(n_rows*n_cols, dtype=float)
-    chosen = rng.choice(np.arange(n_rows*n_cols), n_rows*n_cols//3, replace=False)
+    chosen = rng.choice(
+        np.arange(n_rows*n_cols),
+        n_rows*n_cols//3,
+        replace=False
+    )
 
     layer[chosen] = min_val+1.0+(max_val-1.0-min_val)*rng.random(len(chosen))
 
@@ -415,7 +422,14 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
     if is_sparse:
         layer = scipy_sparse.csr_matrix(layer)
 
-    a_data = anndata.AnnData(X=x, layers={'garbage': layer}, dtype=x.dtype)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        a_data = anndata.AnnData(
+            X=x,
+            layers={'garbage': layer},
+            dtype=x.dtype
+        )
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -431,8 +445,10 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
         rtol=1.0e-6)
 
 
-@pytest.mark.parametrize('density,layer',
-        itertools.product(['dense', 'csr', 'csc'], ['X', 'garbage']))
+@pytest.mark.parametrize(
+    'density,layer',
+    itertools.product(['dense', 'csr', 'csc'], ['X', 'garbage'])
+)
 def test_is_data_ge_zero(tmp_dir_fixture, density, layer):
 
     rng = np.random.default_rng(2231)
@@ -487,3 +503,36 @@ def test_is_data_ge_zero(tmp_dir_fixture, density, layer):
         layer='X')
     assert not result[0]
     np.testing.assert_allclose(result[1], x.min(), atol=0.0, rtol=1.0e-6)
+
+
+def test_create_uniquely_indexed_df():
+    """
+    Test utility that takes an obs dataframe and returns
+    a dataframe with a unique index (if the index is not already
+    unique).
+    """
+    good_obs = pd.DataFrame(
+        [{'a': 1, 'b': 'xyz', 'c': 7},
+         {'a': 5, 'b': 'uvw', 'c': 19},
+         {'a': 33, 'b': 'nnn', 'c': 771}]
+    ).set_index('a')
+
+    result = create_uniquely_indexed_df(good_obs)
+    assert result is good_obs
+
+    bad_obs = pd.DataFrame(
+        [{'a': 1, 'b': 'xyz', 'c': 7},
+         {'a': 5, 'b': 'uvw', 'c': 19},
+         {'a': 33, 'b': 'nnn', 'c': 771},
+         {'a': 5, 'b': 'mmm', 'c': 7812}]
+    ).set_index('a')
+
+    expected_obs = pd.DataFrame(
+        [{'a': '1', 'b': 'xyz', 'c': 7},
+         {'a': '{"a": 5, "row": 1}', 'b': 'uvw', 'c': 19},
+         {'a': '33', 'b': 'nnn', 'c': 771},
+         {'a': '{"a": 5, "row": 3}', 'b': 'mmm', 'c': 7812}]
+    ).set_index('a')
+
+    result = create_uniquely_indexed_df(bad_obs)
+    pd.testing.assert_frame_equal(result, expected_obs)

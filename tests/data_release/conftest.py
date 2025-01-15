@@ -5,15 +5,11 @@ import numpy as np
 import pathlib
 import shutil
 import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
-
-from cell_type_mapper.taxonomy.data_release_utils import (
-    get_tree_above_leaves,
-    get_label_to_name,
-    get_cell_to_cluster_alias)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -23,7 +19,7 @@ from cell_type_mapper.data.cellranger_6_lookup import (
 
 
 def _create_word(rng):
-    alphabet=[
+    alphabet = [
         n for n in 'abcdefghijklmnopqrstuvwxyz']
     return ''.join(rng.choice(alphabet, 5))
 
@@ -45,6 +41,7 @@ def cluster_names_fixture():
         result.append(f'cluster_{ii}')
     return result
 
+
 @pytest.fixture(scope='module')
 def cluster_to_supertype_fixture(cluster_names_fixture):
     result = dict()
@@ -57,6 +54,7 @@ def cluster_to_supertype_fixture(cluster_names_fixture):
         chosen_super = rng.choice(super_type_list)
         result[cl] = chosen_super
     return result
+
 
 @pytest.fixture(scope='module')
 def supertype_to_subclass_fixture(cluster_to_supertype_fixture):
@@ -104,6 +102,7 @@ def cell_to_cluster_fixture(cluster_names_fixture):
         result[cell_name] = chosen_cluster
     return result
 
+
 @pytest.fixture(scope='module')
 def alias_fixture(
         cluster_to_supertype_fixture,
@@ -128,27 +127,77 @@ def alias_fixture(
             alias += 1
     return result
 
+
 @pytest.fixture(scope='module')
 def cell_metadata_fixture(
         tmp_dir_fixture,
         cell_to_cluster_fixture,
         alias_fixture):
-    tmp_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.csv')
     """
     Simulates CSV that associates cell_name with cluster alias
     """
+
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_',
+        suffix='.csv')
+
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
-        out_file.write('nonsense,cell_label,more_nonsense,cluster_alias,woah\n')
+        out_file.write('nonsense,cell_label,more_nonsense,'
+                       'cluster_alias,woah\n')
         for cell_name in cell_to_cluster_fixture:
             cluster_name = cell_to_cluster_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
+
+
+@pytest.fixture(scope='module')
+def missing_subclass_fixture():
+    """
+    subclass to trim from incomplete cell_metadata
+    """
+    return 'subclass_1'
+
+
+@pytest.fixture(scope='module')
+def incomplete_cell_metadata_fixture(
+        supertype_to_subclass_fixture,
+        cluster_to_supertype_fixture,
+        cell_to_cluster_fixture,
+        alias_fixture,
+        missing_subclass_fixture,
+        tmp_dir_fixture):
+    """
+    A cell_metadata.csv file that leaves out all of the
+    cells in the subclass indicated by missing_subclass_fixture
+    """
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='incomplete_cell_metadata_',
+        suffix='.csv')
+
+    rng = np.random.default_rng(5443388)
+    with open(tmp_path, 'w') as out_file:
+        out_file.write('nonsense,cell_label,more_nonsense,'
+                       'cluster_alias,woah\n')
+        for cell_name in cell_to_cluster_fixture:
+            cluster_name = cell_to_cluster_fixture[cell_name]
+            supertype = cluster_to_supertype_fixture[cluster_name]
+            subclass = supertype_to_subclass_fixture[supertype]
+            if subclass == missing_subclass_fixture:
+                continue
+            alias = alias_fixture[cluster_name]
+            out_file.write(
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
+                f"{alias},{rng.random()}\n")
+    return pathlib.Path(tmp_path)
+
 
 @pytest.fixture(scope='module')
 def term_label_to_name_fixture(
@@ -159,7 +208,7 @@ def term_label_to_name_fixture(
     return a dict mapping (level, label) to a human readable name
     """
     result = dict()
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     for lookup, class_name in [(cluster_to_supertype_fixture, 'cluster'),
@@ -174,7 +223,7 @@ def term_label_to_name_fixture(
             # of node names into csv files the way they come out
             # of CK's R code
             result[this_key] = f'{class_name} {child}/readable'
-    return result 
+    return result
 
 
 @pytest.fixture(scope='module')
@@ -203,7 +252,7 @@ def cluster_membership_fixture(
         'cluster_annotation_term_label',
         'garbage4']
 
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     lines = []
@@ -225,7 +274,9 @@ def cluster_membership_fixture(
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
-                    this += f'{term_label_to_name_fixture[(class_name, child)]},'
+                    this += (
+                        f'{term_label_to_name_fixture[(class_name, child)]},'
+                    )
                 else:
                     raise RuntimeError(f'cannot parse column {col}')
             this = this[:-1]+'\n'
@@ -255,10 +306,11 @@ def cluster_annotation_term_fixture(
         dir=tmp_dir_fixture,
         suffix='.csv')
 
-    #label is the label of this node
-    #cluster_annotation_term_set_label is somethign like 'subclass' or 'supertype'
-    #parent_term_label is the parent of this
-    #parent_term_set_label is what kind of thing parent is
+    # label is the label of this node
+    # cluster_annotation_term_set_label is
+    # something like 'subclass' or 'supertype'
+    # parent_term_label is the parent of this
+    # parent_term_set_label is what kind of thing parent is
 
     columns = [
         'cluster_annotation_term_set_name',
@@ -302,7 +354,8 @@ def cluster_annotation_term_fixture(
                 this = this[:-1]+"\n"
                 line_list.append(this)
         for ii in range(20):
-            junk_line = ",".join([_create_word(rng) for ii in range(len(columns))])
+            junk_line = ",".join(
+                [_create_word(rng) for ii in range(len(columns))])
             junk_line += "\n"
             line_list.append(junk_line)
         rng.shuffle(line_list)
@@ -324,9 +377,9 @@ def baseline_tree_data_fixture(
                          'cluster']
 
     for lookup, parent_level in [(subclass_to_class_fixture, 'class'),
-                                (supertype_to_subclass_fixture, 'subclass'),
-                                (cluster_to_supertype_fixture, 'supertype'),
-                                (cell_to_cluster_fixture, 'cluster')]:
+                                 (supertype_to_subclass_fixture, 'subclass'),
+                                 (cluster_to_supertype_fixture, 'supertype'),
+                                 (cell_to_cluster_fixture, 'cluster')]:
         this = dict()
         for child_label in lookup:
             parent = lookup[child_label]
@@ -341,10 +394,14 @@ def baseline_tree_data_fixture(
 
     return data
 
+
 @pytest.fixture(scope='module')
 def baseline_tree_fixture(
         baseline_tree_data_fixture):
-    return TaxonomyTree(data=baseline_tree_data_fixture)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=baseline_tree_data_fixture)
 
 
 @pytest.fixture(scope='module')
@@ -353,7 +410,36 @@ def baseline_tree_without_cells_fixture(
     data = copy.deepcopy(baseline_tree_data_fixture)
     for k in data['cluster']:
         data['cluster'][k] = []
-    return TaxonomyTree(data=data)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=data)
+
+
+@pytest.fixture(scope='module')
+def baseline_incomplete_tree_fixture(
+        baseline_tree_data_fixture,
+        missing_subclass_fixture):
+    """
+    Construct a TaxonomyTree in which the subclass indicated by
+    missing_subclass_fixture does not exist
+    """
+    tree_data = copy.deepcopy(baseline_tree_data_fixture)
+    for class_name in list(tree_data['class'].keys()):
+        if missing_subclass_fixture in tree_data['class'][class_name]:
+            tree_data['class'][class_name].remove(missing_subclass_fixture)
+
+    supertype_list = tree_data['subclass'].pop(missing_subclass_fixture)
+    cluster_list = []
+    for supertype in supertype_list:
+        cluster_list += list(tree_data['supertype'].pop(supertype))
+
+    for cluster in cluster_list:
+        tree_data['cluster'].pop(cluster)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        return TaxonomyTree(data=tree_data)
 
 
 @pytest.fixture(scope='module')
@@ -448,7 +534,6 @@ def marker_gene_csv_dir(
             for gene in gene_list:
                 out_file.write(f'"{gene}"\n')
     return marker_dir
-
 
 
 @pytest.fixture(scope='module')

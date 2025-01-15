@@ -27,8 +27,8 @@ def test_taxonomy_reconciliation(tmp_path_factory):
             'b2': ['c4', 'c5'],
             'b3': ['c6', 'c7']
         },
-        'c':{f'c{ii}': range(10*ii, 10*ii+5)
-             for ii in (1, 2, 3, 4, 5, 6, 7)}
+        'c': {f'c{ii}': range(10*ii, 10*ii+5)
+              for ii in (1, 2, 3, 4, 5, 6, 7)}
     }
 
     taxonomy_tree = TaxonomyTree(data=tree_data)

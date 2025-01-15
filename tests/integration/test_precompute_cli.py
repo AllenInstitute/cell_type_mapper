@@ -6,6 +6,7 @@ the June 2023 ABC Atlas data release
 import pytest
 
 import anndata
+import copy
 import h5py
 import itertools
 import json
@@ -14,6 +15,11 @@ import pandas as pd
 import pathlib
 import scipy.sparse as scipy_sparse
 import tempfile
+import warnings
+
+from cell_type_mapper.test_utils.h5_utils import (
+    h5_match
+)
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -39,7 +45,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 
 def _create_word(rng):
-    alphabet=[
+    alphabet = [
         n for n in 'abcdefghijklmnopqrstuvwxyz']
     return ''.join(rng.choice(alphabet, 5))
 
@@ -61,6 +67,7 @@ def cluster_names_fixture():
         result.append(f'cluster_{ii}')
     return result
 
+
 @pytest.fixture(scope='module')
 def cluster_to_supertype_fixture(cluster_names_fixture):
     result = dict()
@@ -73,6 +80,7 @@ def cluster_to_supertype_fixture(cluster_names_fixture):
         chosen_super = rng.choice(super_type_list)
         result[cl] = chosen_super
     return result
+
 
 @pytest.fixture(scope='module')
 def supertype_to_subclass_fixture(cluster_to_supertype_fixture):
@@ -120,6 +128,15 @@ def cell_to_cluster_fixture(cluster_names_fixture):
         result[cell_name] = chosen_cluster
     return result
 
+
+@pytest.fixture(scope='module')
+def missing_subclass_fixture():
+    """
+    Name of the subclass to omit from incomplete_cell_metadata
+    """
+    return "subclass_1"
+
+
 @pytest.fixture(scope='module')
 def alias_fixture(
         cluster_to_supertype_fixture,
@@ -144,9 +161,11 @@ def alias_fixture(
             alias += 1
     return result
 
+
 @pytest.fixture(scope='module')
 def dataset_list_fixture():
     return ['dataset1', 'dataset2', 'dataset3']
+
 
 @pytest.fixture(scope='module')
 def cell_to_dataset_fixture(
@@ -159,29 +178,77 @@ def cell_to_dataset_fixture(
         lookup[cell_id] = chosen
     return lookup
 
+
 @pytest.fixture(scope='module')
 def cell_metadata_fixture(
         tmp_dir_fixture,
         cell_to_cluster_fixture,
         cell_to_dataset_fixture,
         alias_fixture):
-    tmp_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.csv')
     """
     Simulates CSV that associates cell_name with cluster alias
     """
+
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_',
+        suffix='.csv')
+
     rng = np.random.default_rng(5443388)
     with open(tmp_path, 'w') as out_file:
         out_file.write(
-            'nonsense,cell_label,more_nonsense,cluster_alias,woah,dataset_label\n')
+            'nonsense,cell_label,more_nonsense,'
+            'cluster_alias,woah,dataset_label\n')
         for cell_name in cell_to_cluster_fixture:
             cluster_name = cell_to_cluster_fixture[cell_name]
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},{rng.integers(88,10000)},"
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
+    return tmp_path
+
+
+@pytest.fixture(scope='module')
+def incomplete_cell_metadata_fixture(
+        tmp_dir_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        alias_fixture,
+        missing_subclass_fixture,
+        cluster_to_supertype_fixture,
+        supertype_to_subclass_fixture):
+    """
+    Simulates CSV that associates cell_name with cluster alias.
+    Omits all cells assigned to missing_subclass_fixture
+    """
+    tmp_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='incomplete_cell_metadata_',
+        suffix='.csv')
+
+    rng = np.random.default_rng(5443388)
+    with open(tmp_path, 'w') as out_file:
+        out_file.write(
+            'nonsense,cell_label,more_nonsense,'
+            'cluster_alias,woah,dataset_label\n')
+        for cell_name in cell_to_cluster_fixture:
+
+            cluster_name = cell_to_cluster_fixture[cell_name]
+            supertype = cluster_to_supertype_fixture[cluster_name]
+            subclass = supertype_to_subclass_fixture[supertype]
+
+            if subclass == missing_subclass_fixture:
+                continue
+
+            dataset_label = cell_to_dataset_fixture[cell_name]
+            alias = alias_fixture[cluster_name]
+            out_file.write(
+                f"{rng.integers(99,1111)},{cell_name},"
+                f"{rng.integers(88,10000)},"
+                f"{alias},{rng.random()},{dataset_label}\n")
+
     return tmp_path
 
 
@@ -194,7 +261,7 @@ def term_label_to_name_fixture(
     return a dict mapping (level, label) to a human readable name
     """
     result = dict()
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     for lookup, class_name in [(cluster_to_supertype_fixture, 'cluster'),
@@ -234,7 +301,7 @@ def cluster_membership_fixture(
         'cluster_annotation_term_label',
         'garbage4']
 
-    class_lookup = {n:None
+    class_lookup = {n: None
                     for n in set(subclass_to_class_fixture.values())}
 
     lines = []
@@ -256,7 +323,9 @@ def cluster_membership_fixture(
                 elif col == 'cluster_annotation_term_label':
                     this += f'{child},'
                 elif col == 'cluster_annotation_term_name':
-                    this += f'{term_label_to_name_fixture[(class_name, child)]},'
+                    this += (
+                        f'{term_label_to_name_fixture[(class_name, child)]},'
+                    )
                 else:
                     raise RuntimeError(f'cannot parse column {col}')
             this = this[:-1]+'\n'
@@ -287,10 +356,11 @@ def cluster_annotation_term_fixture(
         dir=tmp_dir_fixture,
         suffix='.csv')
 
-    #label is the label of this node
-    #cluster_annotation_term_set_label is somethign like 'subclass' or 'supertype'
-    #parent_term_label is the parent of this
-    #parent_term_set_label is what kind of thing parent is
+    # label is the label of this node
+    # cluster_annotation_term_set_label is something
+    # like 'subclass' or 'supertype'
+    # parent_term_label is the parent of this
+    # parent_term_set_label is what kind of thing parent is
 
     columns = [
         'garbage0',
@@ -331,7 +401,9 @@ def cluster_annotation_term_fixture(
                 this = this[:-1]+"\n"
                 line_list.append(this)
         for ii in range(20):
-            junk_line = ",".join([_create_word(rng) for ii in range(len(columns))])
+            junk_line = ",".join(
+                [_create_word(rng) for ii in range(len(columns))]
+            )
             junk_line += "\n"
             line_list.append(junk_line)
         rng.shuffle(line_list)
@@ -344,7 +416,7 @@ def cluster_annotation_term_fixture(
 def x_fixture(
         cell_to_cluster_fixture):
     rng = np.random.default_rng(5678)
-    n_genes= 239
+    n_genes = 239
     n_cells = len(cell_to_cluster_fixture)
     data = np.zeros(n_cells*n_genes, dtype=float)
     chosen = rng.choice(np.arange(n_cells*n_genes),
@@ -379,16 +451,21 @@ def h5ad_path_list_fixture(
         cell_names = cell_name_list[i0:i1]
         obs_data = [
             {"cell_id": c,
-            "huh": _create_word(rng)}
-            for c in cell_names]
+             "huh": _create_word(rng)}
+            for c in cell_names
+        ]
 
         obs = pd.DataFrame(obs_data).set_index('cell_id')
         this_x = scipy_sparse.csr_matrix(x_fixture[i0:i1, :])
-        this_a = anndata.AnnData(
-            X=this_x,
-            obs=obs,
-            var=var,
-            dtype=x_fixture.dtype)
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            this_a = anndata.AnnData(
+                X=this_x,
+                obs=obs,
+                var=var,
+                dtype=x_fixture.dtype)
 
         this_path = mkstemp_clean(
             dir=tmp_dir_fixture,
@@ -488,28 +565,37 @@ def test_precompute_cli(
             obs = a_data.obs
 
             cell_by_gene = CellByGeneMatrix(
-                data = a_data.X.toarray(),
+                data=a_data.X.toarray(),
                 gene_identifiers=a_data.var.index.values,
                 normalization='raw')
 
             cell_by_gene.to_log2CPM_in_place()
 
             for i_row, cell_id in enumerate(obs.index.values):
-                if dataset == 'None' or cell_to_dataset_fixture[cell_id] == dataset:
+                if dataset == 'None' or \
+                        cell_to_dataset_fixture[cell_id] == dataset:
+
                     cluster_name = cell_to_cluster_fixture[cell_id]
                     cluster_to_n_cells[cluster_name] += 1
                     cluster_to_sum[cluster_name] += cell_by_gene.data[i_row, :]
-                    cluster_to_sumsq[cluster_name] += cell_by_gene.data[i_row,:]**2
+
+                    cluster_to_sumsq[cluster_name] += \
+                        cell_by_gene.data[i_row, :]**2
+
                     ge1 = (cell_by_gene.data[i_row, :] >= 1)
                     cluster_to_ge1[cluster_name][ge1] += 1
 
         with h5py.File(actual_output, 'r') as src:
             src_keys = src.keys()
-            for k in ('taxonomy_tree', 'metadata', 'col_names', 'cluster_to_row',
-                      'n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'):
+            for k in ('taxonomy_tree', 'metadata',
+                      'col_names', 'cluster_to_row',
+                      'n_cells', 'sum', 'sumsq',
+                      'gt0', 'gt1', 'ge1'):
                 assert k in src_keys
 
-            actual_gene_names = json.loads(src['col_names'][()].decode('utf-8'))
+            actual_gene_names = json.loads(
+                src['col_names'][()].decode('utf-8')
+            )
             assert actual_gene_names == expected_gene_names
 
             # only test cluster stats at this point
@@ -606,7 +692,7 @@ def precomputed_stats_path_fixture(
 
 
 @pytest.mark.parametrize(
-    "files_exist",[True, False])
+    "files_exist", [True, False])
 def test_reference_cli_config(
         precomputed_stats_path_fixture,
         dataset_list_fixture,
@@ -673,7 +759,9 @@ def test_reference_cli_config(
             input_data=config)
         runner.run()
 
-        output_list = [str(n) for n in pathlib.Path(valid_output_dir).iterdir()]
+        output_list = [
+            str(n) for n in pathlib.Path(valid_output_dir).iterdir()
+        ]
         assert set(output_list) == set(default_output_paths)
 
         found_precompute_paths = []
@@ -719,3 +807,471 @@ def test_reference_cli_config(
         # marker file
         assert set(found_precompute_paths) == set(
                         precomputed_stats_path_fixture)
+
+
+@pytest.mark.parametrize(
+    "exact_penetrance,drop_level",
+    itertools.product(
+        [True, False],
+        [None, 'subclass']
+    )
+)
+def test_roundtrip_reference_cli_config(
+        precomputed_stats_path_fixture,
+        dataset_list_fixture,
+        tmp_dir_fixture,
+        exact_penetrance,
+        drop_level):
+    """
+    Test that the reference marker CLI tool correctly records
+    the config dict needed to recreate its results.
+
+    This test is here because we are using the pre-established
+    multi dataset infrastructure to create the precomputed data
+    paths.
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_baseline_')
+
+    config = {
+        'precomputed_path_list': precomputed_stats_path_fixture,
+        'output_dir': baseline_output_dir,
+        'clobber': False,
+        'drop_level': drop_level,
+        'tmp_dir': str(tmp_dir_fixture),
+        'n_processors': 4,
+        'exact_penetrance': exact_penetrance,
+        'p_th': 0.5,
+        'q1_th': 0.5,
+        'q1_min_th': 0.01,
+        'qdiff_th': 0.5,
+        'qdiff_min_th': 0.01,
+        'log2_fold_th': 1.0,
+        'log2_fold_min_th': 0.01,
+        'n_valid': 5
+    }
+
+    runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    result_files = [
+        n for n in pathlib.Path(baseline_output_dir).iterdir()
+    ]
+
+    new_config = None
+    for pth in result_files:
+        with h5py.File(pth, 'r') as src:
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        if new_config is None:
+            new_config = metadata['config']
+        else:
+            assert new_config == metadata['config']
+
+    new_config.pop('output_dir')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_roundtrip_test_'
+    )
+    new_config['output_dir'] = test_output_dir
+    new_runner = ReferenceMarkerRunner(
+        args=[],
+        input_data=new_config)
+    new_runner.run()
+
+    test_files = [
+        n for n in pathlib.Path(test_output_dir).iterdir()
+    ]
+
+    assert len(test_files) == len(result_files)
+    for pth in result_files:
+        found_it = False
+        test_pth = None
+        for test_pth_candidate in test_files:
+            if test_pth_candidate.name == pth.name:
+                found_it = True
+                test_pth = test_pth_candidate
+                break
+        assert found_it
+        with h5py.File(pth, 'r') as baseline:
+            with h5py.File(test_pth, 'r') as test:
+                h5_match(baseline, test)
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,do_pruning",
+    itertools.product([True, False], [True, False], [True, False]))
+def test_precompute_cli_incomplete_cell_metadata(
+        incomplete_cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_fixture,
+        x_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset,
+        do_pruning):
+    """
+    A smoketest to make sure that the correct error is raised (or not)
+    when cell_metadata.csv does not assign cells to all of the cell types
+    in the taxonomy. (Error should not be raised if do_pruning is True)
+    """
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5')
+
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+
+    config = {
+        'output_path': output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': incomplete_cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'do_pruning': do_pruning}
+
+    runner = PrecomputationABCRunner(
+        args=[],
+        input_data=config)
+
+    if not do_pruning:
+        msg = "is not present in the keys at level cluster"
+        with pytest.raises(RuntimeError, match=msg):
+            runner.run()
+    else:
+        runner.run()
+
+
+@pytest.fixture
+def h5ad_path_list_alt_layer_fixture(
+        request,
+        h5ad_path_list_fixture,
+        tmp_dir_fixture):
+    """
+    Write out alternate set of h5ad files where data is
+    recorded in different layers.
+    """
+    layer = request.param
+    result_path_list = []
+    for src_path in h5ad_path_list_fixture:
+        src = anndata.read_h5ad(src_path, backed='r')
+        dst_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='h5ad_alt_layer_',
+            suffix='.h5ad'
+        )
+        xx = np.zeros(src.X.shape, dtype=int)
+        if layer == 'dummy':
+            layers = {'dummy': src.X[()]}
+            raw = None
+        elif layer == 'raw':
+            layers = None
+            raw = {'X': src.X[()]}
+        else:
+            raise RuntimeError(
+                f"Test cannot parse layer '{layer}'"
+            )
+        dst = anndata.AnnData(
+            X=xx,
+            obs=src.obs,
+            var=src.var,
+            layers=layers,
+            raw=raw
+        )
+        dst.write_h5ad(dst_path)
+        result_path_list.append(dst_path)
+    return {'path': result_path_list, 'layer': layer}
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,h5ad_path_list_alt_layer_fixture",
+    itertools.product(
+        [True, False],
+        [True, False],
+        ['dummy', 'raw']),
+    indirect=['h5ad_path_list_alt_layer_fixture'])
+def test_precompute_cli_from_layers(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_fixture,
+        h5ad_path_list_alt_layer_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset):
+    """
+    Run the precomputation CLI twice, once on data stored in X;
+    once on identical data stored in another layer. Verify that
+    the two results are equal.
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='baseline_')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='test_')
+
+    baseline_output_path = mkstemp_clean(
+        dir=baseline_output_dir,
+        suffix='.h5')
+
+    test_output_path = mkstemp_clean(
+        dir=test_output_dir,
+        suffix='.h5')
+
+    full_alt_list = h5ad_path_list_alt_layer_fixture['path']
+    layer = h5ad_path_list_alt_layer_fixture['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
+
+    if downsample_h5ad_list:
+        h5ad_list = [h5ad_path_list_fixture[0],
+                     h5ad_path_list_fixture[1]]
+        alt_h5ad_list = [full_alt_list[0],
+                         full_alt_list[1]]
+    else:
+        h5ad_list = h5ad_path_list_fixture
+        alt_h5ad_list = full_alt_list
+
+    baseline_config = {
+        'output_path': baseline_output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'layer': 'X'}
+
+    baseline_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=baseline_config
+    )
+
+    baseline_runner.run()
+
+    test_config = copy.deepcopy(baseline_config)
+    test_config.pop('output_path')
+    test_config.pop('h5ad_path_list')
+    test_config.pop('layer')
+
+    test_config['output_path'] = test_output_path
+    test_config['h5ad_path_list'] = alt_h5ad_list
+    test_config['layer'] = layer
+
+    test_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=test_config
+    )
+
+    test_runner.run()
+
+    if not split_by_dataset:
+        with h5py.File(baseline_output_path, 'r') as base:
+            with h5py.File(test_output_path, 'r') as test:
+                for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                    np.testing.assert_allclose(
+                        base[k][()],
+                        test[k][()],
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )
+                for k in ('cluster_to_row', 'col_names'):
+                    assert base[k][()] == test[k][()]
+    else:
+        # test on dataset 1, 2, 3 (suffix before .h5)
+        # have to blow away specified file, first.
+
+        # remove specified output paths, which would never
+        # have been correctly populated in the
+        # split_by_dataset case.
+        pathlib.Path(baseline_output_path).unlink()
+        pathlib.Path(test_output_path).unlink()
+
+        # create lookups linking dataset suffix to file path
+        # for output files
+        baseline_file_lookup = {
+            n.name.split('.')[-2]: n
+            for n in pathlib.Path(baseline_output_dir).iterdir()
+        }
+        test_file_lookup = {
+            n.name.split('.')[-2]: n
+            for n in pathlib.Path(test_output_dir).iterdir()
+        }
+
+        assert set(baseline_file_lookup.keys()) == set(test_file_lookup.keys())
+
+        for suffix in baseline_file_lookup:
+            baseline_path = baseline_file_lookup[suffix]
+            test_path = test_file_lookup[suffix]
+            with h5py.File(baseline_path, 'r') as base:
+                with h5py.File(test_path, 'r') as test:
+                    for k in ('n_cells', 'sum', 'sumsq', 'ge1', 'gt0', 'gt1'):
+                        np.testing.assert_allclose(
+                            base[k][()],
+                            test[k][()],
+                            atol=0.0,
+                            rtol=1.0e-7
+                        )
+                    for k in ('cluster_to_row', 'col_names'):
+                        assert base[k][()] == test[k][()]
+
+
+@pytest.mark.parametrize(
+    "downsample_h5ad_list,split_by_dataset,h5ad_path_list_alt_layer_fixture",
+    itertools.product(
+        [True, False],
+        [True, False],
+        ['dummy', 'raw']),
+    indirect=['h5ad_path_list_alt_layer_fixture'])
+def test_roundtrip_precomputed_abc_config(
+        cell_metadata_fixture,
+        cluster_membership_fixture,
+        cluster_annotation_term_fixture,
+        h5ad_path_list_alt_layer_fixture,
+        cell_to_cluster_fixture,
+        cell_to_dataset_fixture,
+        dataset_list_fixture,
+        cluster_to_supertype_fixture,
+        tmp_dir_fixture,
+        downsample_h5ad_list,
+        split_by_dataset):
+    """
+    Test that the config dict recorded in the metadata of the output
+    precomputed_stats files 'just works' when passed back into the runner
+    """
+
+    baseline_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='baseline_')
+    test_output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='test_')
+
+    baseline_output_path = mkstemp_clean(
+        dir=baseline_output_dir,
+        suffix='.h5')
+
+    test_output_path = mkstemp_clean(
+        dir=test_output_dir,
+        suffix='.h5')
+
+    full_alt_list = h5ad_path_list_alt_layer_fixture['path']
+    layer = h5ad_path_list_alt_layer_fixture['layer']
+    if layer == 'raw':
+        layer = 'raw/X'
+
+    if downsample_h5ad_list:
+        h5ad_list = [full_alt_list[0],
+                     full_alt_list[1]]
+    else:
+        h5ad_list = full_alt_list
+
+    baseline_config = {
+        'output_path': baseline_output_path,
+        'clobber': True,
+        'h5ad_path_list': h5ad_list,
+        'normalization': 'raw',
+        'cell_metadata_path': cell_metadata_fixture,
+        'cluster_annotation_path': cluster_annotation_term_fixture,
+        'cluster_membership_path': cluster_membership_fixture,
+        'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
+        'split_by_dataset': split_by_dataset,
+        'layer': layer}
+
+    baseline_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=baseline_config
+    )
+
+    baseline_runner.run()
+
+    if split_by_dataset:
+        # remove dummy file
+        pathlib.Path(baseline_output_path).unlink()
+        output_files = [n for n in pathlib.Path(baseline_output_dir).iterdir()]
+    else:
+        output_files = [baseline_output_path]
+
+    # make sure the same config was written to each output file
+    output_config = None
+    for pth in output_files:
+        with h5py.File(pth, 'r') as src:
+            assert src['sumsq'][()].sum() > 0.0
+            metadata = json.loads(src['metadata'][()].decode('utf-8'))
+            baseline_output_map = metadata['dataset_to_output_map']
+        config = metadata['config']
+        if output_config is None:
+            output_config = config
+        else:
+            assert output_config == config
+
+    config.pop('output_path')
+    config['output_path'] = test_output_path
+
+    test_runner = PrecomputationABCRunner(
+        args=[],
+        input_data=config)
+    test_runner.run()
+
+    if split_by_dataset:
+        pathlib.Path(test_output_path).unlink()
+        test_output_files = [
+            n for n in pathlib.Path(test_output_dir).iterdir()]
+    else:
+        test_output_files = [test_output_path]
+
+    with h5py.File(test_output_files[0], 'r') as src:
+        metadata = json.loads(src['metadata'][()].decode('utf-8'))
+        test_output_map = metadata['dataset_to_output_map']
+
+    assert set(baseline_output_map.values()) != set(test_output_map.values())
+    assert set(baseline_output_map.keys()) == set(test_output_map.keys())
+
+    for dataset in baseline_output_map:
+        b_path = baseline_output_map[dataset]
+        t_path = test_output_map[dataset]
+        with h5py.File(b_path, 'r') as baseline_src:
+            with h5py.File(t_path, 'r') as test_src:
+                assert test_src['cluster_to_row'][()] \
+                    == baseline_src['cluster_to_row'][()]
+
+                test_tree = json.loads(
+                    test_src['taxonomy_tree'][()].decode('utf-8')
+                )
+
+                base_tree = json.loads(
+                    baseline_src['taxonomy_tree'][()].decode('utf-8')
+                )
+                test_tree.pop('metadata')
+                base_tree.pop('metadata')
+                assert test_tree == base_tree
+                for k in ('sum', 'sumsq', 'ge1', 'gt0', 'gt1', 'n_cells'):
+                    np.testing.assert_allclose(
+                        test_src[k][()],
+                        baseline_src[k][()],
+                        atol=0.0,
+                        rtol=1.0e-7
+                    )

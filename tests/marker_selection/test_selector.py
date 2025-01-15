@@ -7,7 +7,7 @@ import json
 import numpy as np
 import pathlib
 import scipy.sparse as scipy_sparse
-import shutil
+import warnings
 
 from cell_type_mapper.utils.utils import (
     _clean_up,
@@ -35,8 +35,7 @@ from cell_type_mapper.marker_selection.selection_pipeline import (
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers,
     create_marker_cache_from_specified_markers,
-    serialize_markers,
-    write_query_markers_to_h5)
+    serialize_markers)
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
@@ -60,7 +59,7 @@ def taxonomy_tree_fixture():
 
     tree = dict()
     tree['hierarchy'] = ['class', 'subclass', 'cluster']
-    tree['class']  = {
+    tree['class'] = {
         'aa': ['a', 'b', 'c', 'd'],
         'bb': ['e'],
         'cc': ['f', 'g', 'h']}
@@ -89,6 +88,7 @@ def taxonomy_tree_fixture():
         c0 += rows
 
     return tree
+
 
 @pytest.fixture
 def pair_to_idx_fixture(
@@ -151,7 +151,6 @@ def marker_cache_fixture(
             prefix='markers_',
             suffix='.h5'))
 
-    n_rows = len(gene_names_fixture)
     n_cols = pair_to_idx_fixture['n_pairs']
 
     up_regulated = np.logical_and(
@@ -223,7 +222,6 @@ def blank_marker_cache_fixture(
     csc_up = scipy_sparse.csc_array(up_regulated)
     csc_down = scipy_sparse.csc_array(down_regulated)
 
-
     with h5py.File(out_path, 'a') as dst:
         pair_to_idx = copy.deepcopy(pair_to_idx_fixture)
         pair_to_idx.pop('n_pairs')
@@ -268,12 +266,15 @@ def test_selecting_from_blank_markers(
     marker_array = MarkerGeneArray.from_cache_path(
         cache_path=blank_marker_cache_fixture)
 
-    marker_genes = select_marker_genes_v2(
-        marker_gene_array=marker_array,
-        query_gene_names=gene_names_fixture,
-        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
-        parent_node=None,
-        n_per_utility=5)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        marker_genes = select_marker_genes_v2(
+            marker_gene_array=marker_array,
+            query_gene_names=gene_names_fixture,
+            taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
+            parent_node=None,
+            n_per_utility=5)
 
     assert marker_genes == []
 
@@ -314,20 +315,23 @@ def test_selection_worker_smoke(
 
     summary_log = dict()
 
-    for parent in parent_list:
-        marker_gene_array = MarkerGeneArray.from_cache_path(
-            cache_path=marker_cache_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-        _marker_selection_worker(
-            marker_gene_array=marker_gene_array,
-            query_gene_names=query_gene_names,
-            taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
-            parent_node=parent,
-            n_per_utility=5,
-            output_dict=output_dict,
-            stdout_lock=DummyLock(),
-            summary_log=summary_log,
-            genes_at_a_time=1)
+        for parent in parent_list:
+            marker_gene_array = MarkerGeneArray.from_cache_path(
+                cache_path=marker_cache_fixture)
+
+            _marker_selection_worker(
+                marker_gene_array=marker_gene_array,
+                query_gene_names=query_gene_names,
+                taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
+                parent_node=parent,
+                n_per_utility=5,
+                output_dict=output_dict,
+                stdout_lock=DummyLock(),
+                summary_log=summary_log,
+                genes_at_a_time=1)
 
     for k in ['None', 'subclass/e', 'class/aa', 'class/bb']:
         assert k in summary_log
@@ -378,14 +382,17 @@ def test_full_marker_selection_smoke(
 
     query_gene_names = gene_names_fixture
 
-    (result,
-     summary_log) = select_all_markers(
-        marker_cache_path=marker_cache_fixture,
-        query_gene_names=query_gene_names,
-        taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
-        n_per_utility=7,
-        n_processors=3,
-        behemoth_cutoff=behemoth_cutoff)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        (result,
+         summary_log) = select_all_markers(
+            marker_cache_path=marker_cache_fixture,
+            query_gene_names=query_gene_names,
+            taxonomy_tree=TaxonomyTree(data=taxonomy_tree_fixture),
+            n_per_utility=7,
+            n_processors=3,
+            behemoth_cutoff=behemoth_cutoff)
 
     # class bb and subclass a should have no markers
     null_parents = [('class', 'bb'),
@@ -419,7 +426,10 @@ def test_full_marker_cache_creation_smoke(
     Run a smoketest of create_marker_cache_from_reference_markers
     """
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
 
     # select a behemoth cut-off that puts several
     # parents on either side of the divide
@@ -518,7 +528,11 @@ def test_marker_serialization(
     dict.
     """
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
     behemoth_cutoff = 1000000
 
     output_path = mkstemp_clean(
@@ -628,7 +642,11 @@ def test_marker_serialization_roundtrip(
     is issued.
     """
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
+
     behemoth_cutoff = 1000000
 
     baseline_path = mkstemp_clean(
@@ -722,8 +740,8 @@ def test_marker_serialization_roundtrip(
                 min_markers=1)
         if use_log:
             found_warning = False
-            for l in log._log:
-                if "not present in the query dataset" in l:
+            for log_line in log._log:
+                if "not present in the query dataset" in log_line:
                     found_warning = True
             assert found_warning
     else:
@@ -744,13 +762,13 @@ def test_marker_serialization_roundtrip(
     assert set(baseline_dataset_list) == set(round_trip_dataset_list)
 
     with h5py.File(baseline_path, 'r') as baseline:
-       with h5py.File(round_trip_path, 'r') as round_trip:
-           for dataset in baseline_dataset_list:
-               if provoke_warning and dataset == 'reference_gene_names':
-                   continue
-               expected = baseline[dataset][()]
-               actual = round_trip[dataset][()]
-               np.testing.assert_array_equal(expected, actual)
+        with h5py.File(round_trip_path, 'r') as round_trip:
+            for dataset in baseline_dataset_list:
+                if provoke_warning and dataset == 'reference_gene_names':
+                    continue
+                expected = baseline[dataset][()]
+                actual = round_trip[dataset][()]
+                np.testing.assert_array_equal(expected, actual)
 
 
 def test_specified_marker_failure(tmp_dir_fixture):
@@ -761,7 +779,7 @@ def test_specified_marker_failure(tmp_dir_fixture):
 
     marker_lookup = dict()
     marker_lookup['None'] = ['a', 'b', 'c']
-    marker_lookup['class/ClassA'] = ['d', 'e' ,'f']
+    marker_lookup['class/ClassA'] = ['d', 'e', 'f']
 
     query_gene_names = [n for n in 'abcdefghij']
     reference_gene_names = [n for n in 'abcdfg']
@@ -782,64 +800,68 @@ def test_specified_marker_parent_failure(tmp_dir_fixture):
     create_marker_cache_from_specified_markers will issue a
     warning.
     """
-    tree = TaxonomyTree(
-        data={
-            'hierarchy': ['class', 'subclass', 'cluster'],
-            'class': {
-                'A': ['b', 'd', 'c'],
-                'B': ['a'],
-                'C': ['e', 'f', 'g']
-            },
-            'subclass': {
-                'a': ['1', '2'],
-                'b': ['3'],
-                'c': ['4', '5'],
-                'd': ['6', '7'],
-                'e': ['8'],
-                'f': ['9', '10'],
-                'g': ['11', '12']
-            },
-            'cluster': { str(ii): [] for ii in range(1, 13, 1)}
-        })
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
 
-    reference_gene_names = [f'g_{ii}' for ii in range(22)]
-    query_gene_names = [f'g_{ii}' for ii in range(5)]
+        tree = TaxonomyTree(
+            data={
+                'hierarchy': ['class', 'subclass', 'cluster'],
+                'class': {
+                    'A': ['b', 'd', 'c'],
+                    'B': ['a'],
+                    'C': ['e', 'f', 'g']
+                },
+                'subclass': {
+                    'a': ['1', '2'],
+                    'b': ['3'],
+                    'c': ['4', '5'],
+                    'd': ['6', '7'],
+                    'e': ['8'],
+                    'f': ['9', '10'],
+                    'g': ['11', '12']
+                },
+                'cluster': {str(ii): [] for ii in range(1, 13, 1)}
+            })
 
-    marker_lookup = {
-        'None': ['g_1', 'g_2'],
-        'class/A': ['g_3', 'g_4'],
-        'class/C': [],
-        'subclass/a': ['g_1', 'g_0', 'g_19'],
-        'subclass/c': ['g_3', 'g_0'],
-        'subclass/d': ['g_2', 'g_1', 'g_11'],
-        'subclass/f': ['g_17', 'g_20']
-    }
-    msg = 'has no valid markers in marker_lookup'
-    with pytest.warns(UserWarning, match=msg):
+        reference_gene_names = [f'g_{ii}' for ii in range(22)]
+        query_gene_names = [f'g_{ii}' for ii in range(5)]
+
+        marker_lookup = {
+            'None': ['g_1', 'g_2'],
+            'class/A': ['g_3', 'g_4'],
+            'class/C': [],
+            'subclass/a': ['g_1', 'g_0', 'g_19'],
+            'subclass/c': ['g_3', 'g_0'],
+            'subclass/d': ['g_2', 'g_1', 'g_11'],
+            'subclass/f': ['g_17', 'g_20']
+        }
+        msg = 'has no valid markers in marker_lookup'
+
+        with pytest.warns(UserWarning, match=msg):
+            create_marker_cache_from_specified_markers(
+                 marker_lookup=marker_lookup,
+                 query_gene_names=query_gene_names,
+                 reference_gene_names=reference_gene_names,
+                 taxonomy_tree=tree,
+                 output_cache_path=mkstemp_clean(
+                     dir=tmp_dir_fixture,
+                     prefix='garbage'))
+
+        # now make sure it works if we fix the marker lookup
+        output_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5')
+
+        marker_lookup['class/C'] = ['g_0', 'g_2', 'g_13']
+        marker_lookup['subclass/f'].append('g_1')
+        marker_lookup['subclass/g'] = ['g_4']
+
         create_marker_cache_from_specified_markers(
              marker_lookup=marker_lookup,
              query_gene_names=query_gene_names,
              reference_gene_names=reference_gene_names,
              taxonomy_tree=tree,
-             output_cache_path=mkstemp_clean(
-                 dir=tmp_dir_fixture,
-                 prefix='garbage'))
-
-    # now make sure it works if we fix the marker lookup
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5')
-
-    marker_lookup['class/C'] = ['g_0', 'g_2', 'g_13']
-    marker_lookup['subclass/f'].append('g_1')
-    marker_lookup['subclass/g'] = ['g_4']
-
-    create_marker_cache_from_specified_markers(
-         marker_lookup=marker_lookup,
-         query_gene_names=query_gene_names,
-         reference_gene_names=reference_gene_names,
-         taxonomy_tree=tree,
-         output_cache_path=output_path)
+             output_cache_path=output_path)
 
 
 @pytest.mark.parametrize('use_log', [True, False])
@@ -899,11 +921,6 @@ def test_parent_limitation(
     assert n_list[len(n_list)//4] < behemoth_cutoff
     assert n_list[3*len(n_list)//4] > behemoth_cutoff
 
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='marker_cache_',
-        suffix='.h5')
-
     rng = np.random.default_rng(62234)
     query_gene_names = copy.deepcopy(gene_names_fixture)
     rng.shuffle(query_gene_names)
@@ -937,7 +954,6 @@ def test_parent_limitation(
         assert set(actual[k]) == set(expected[k])
 
 
-
 def test_n_per_override(
          marker_cache_fixture,
          gene_names_fixture,
@@ -948,11 +964,6 @@ def test_n_per_override(
     """
 
     taxonomy_tree = TaxonomyTree(data=taxonomy_tree_fixture)
-
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='marker_cache_',
-        suffix='.h5')
 
     rng = np.random.default_rng(62234)
     query_gene_names = copy.deepcopy(gene_names_fixture)

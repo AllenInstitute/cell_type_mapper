@@ -1,19 +1,9 @@
-import pytest
-
-import pandas as pd
 import numpy as np
 import h5py
-import anndata
 import pathlib
-import json
-import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.utils.utils import (
     _clean_up)
-
-from cell_type_mapper.taxonomy.utils import (
-    get_taxonomy_tree,
-    _get_rows_from_tree)
 
 from cell_type_mapper.corr.correlate_cells import (
     correlate_cells)
@@ -41,7 +31,6 @@ def test_correlation_pipeline_smoketest(
         taxonomy_tree=None,
         output_path=precompute_path,
         rows_at_a_time=1000)
-
 
     assert precompute_path.is_file()
     assert not corr_path.is_file()

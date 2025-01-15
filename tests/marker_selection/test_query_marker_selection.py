@@ -4,6 +4,7 @@ import h5py
 import json
 import numpy as np
 import scipy.sparse as scipy_sparse
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -45,7 +46,7 @@ def taxonomy_dict_fixture():
             'subcE': ['h', 'j']
         },
         'cluster': {
-            n:[] for n in 'abcdefghij'
+            n: [] for n in 'abcdefghij'
         }
     }
     return taxonomy_dict
@@ -60,7 +61,10 @@ def precomputed_fixture(
         prefix='precomputed__',
         suffix='.h5')
 
-    taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        taxonomy_tree = TaxonomyTree(data=taxonomy_dict_fixture)
 
     with h5py.File(h5_path, 'w') as dst:
         dst.create_dataset(
@@ -68,6 +72,7 @@ def precomputed_fixture(
             data=taxonomy_tree.to_str().encode('utf-8'))
 
     return h5_path
+
 
 @pytest.fixture(scope='module')
 def pair_to_idx_fixture(
@@ -86,6 +91,7 @@ def pair_to_idx_fixture(
             ct += 1
     return pair_to_idx
 
+
 @pytest.fixture(scope='module')
 def n_pairs(pair_to_idx_fixture):
     ct = 0
@@ -93,6 +99,7 @@ def n_pairs(pair_to_idx_fixture):
         for n1 in pair_to_idx_fixture['cluster'][n0]:
             ct += 1
     return ct
+
 
 @pytest.fixture(scope='module')
 def up_raw_fixture(
@@ -110,6 +117,7 @@ def up_raw_fixture(
     data[chosen] = True
     data = data.reshape((n_pairs, n_genes))
     return data
+
 
 @pytest.fixture(scope='module')
 def marker_raw_fixture(
@@ -156,6 +164,7 @@ def up_fixture(
 
     assert data.sum() > 0
     return data
+
 
 @pytest.fixture(scope='module')
 def down_fixture(
@@ -219,21 +228,24 @@ def reference_marker_fixture(
 
     return h5_path
 
+
 def test_query_marker_function(
         precomputed_fixture,
         reference_marker_fixture,
         pair_to_idx_fixture,
         marker_raw_fixture):
 
-    with h5py.File(precomputed_fixture, 'r') as src:
-        taxonomy_tree = TaxonomyTree(
-            data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with h5py.File(precomputed_fixture, 'r') as src:
+            taxonomy_tree = TaxonomyTree(
+                data=json.loads(src['taxonomy_tree'][()].decode('utf-8')))
 
     with h5py.File(reference_marker_fixture, 'r') as src:
         query_gene_names = json.loads(src['gene_names'][()].decode('utf-8'))
 
     gene_to_idx = {
-        n:ii for ii, n in enumerate(query_gene_names)}
+        n: ii for ii, n in enumerate(query_gene_names)}
 
     marker_lookup = create_raw_marker_gene_lookup(
         input_cache_path=reference_marker_fixture,
@@ -272,8 +284,8 @@ def test_query_marker_function(
     for parent in taxonomy_tree.all_parents:
         these_leaves = taxonomy_tree.leaves_to_compare(parent)
         idx_arr = np.array(
-            [pair_to_idx_fixture[l[0]][l[1]][l[2]]
-             for l in these_leaves])
+            [pair_to_idx_fixture[leaf[0]][leaf[1]][leaf[2]]
+             for leaf in these_leaves])
         if parent is None:
             parent_key = 'None'
         else:
@@ -286,7 +298,6 @@ def test_query_marker_function(
         else:
             if len(idx_arr) > 0:
                 assert marker_raw_fixture[idx_arr, :].sum() == 0
-
 
     # test that, when we pass in a list of parents, it creates
     # a lookup only for those parents.

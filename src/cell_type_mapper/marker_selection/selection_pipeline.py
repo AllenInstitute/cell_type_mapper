@@ -1,4 +1,5 @@
 import multiprocessing
+import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_dict)
@@ -108,6 +109,12 @@ def select_all_markers(
     started_parents = set()
     completed_parents = set()
     process_dict = dict()
+
+    n_parents = len(parent_list)
+    n_print = max(1, n_parents//10)
+    last_printed = 0
+    t0 = time.time()
+
     while len(started_parents) < len(parent_list):
 
         are_behemoths_running = False
@@ -185,6 +192,17 @@ def select_all_markers(
             if len(k1) < len(k0):
                 completed_parents = completed_parents.union(k0-k1)
                 have_chosen_parent = True
+                if len(completed_parents)-last_printed >= n_print:
+                    last_printed = len(completed_parents)
+                    dur = (time.time()-t0)/60.0
+                    per = dur/len(completed_parents)
+                    pred = per*n_parents
+                    remain = pred-dur
+                    print(
+                        f"found markers for {len(completed_parents)} "
+                        f"parents in {dur:.2e} minutes; "
+                        f"predict {remain:.2e} of {pred:.2e} remaining"
+                    )
 
     while len(process_dict) > 0:
         process_dict = winnow_process_dict(process_dict)
@@ -234,7 +252,5 @@ def _marker_selection_worker(
         lock=stdout_lock,
         summary_log=summary_log,
         tmp_dir=tmp_dir)
-
-    print(f'found {len(marker_genes)} markers at parent node: {parent_node}')
 
     output_dict[parent_node] = marker_genes

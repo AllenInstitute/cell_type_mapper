@@ -17,7 +17,9 @@ from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
+    read_df_from_h5ad,
+    pivot_sparse_h5ad,
+    infer_attrs)
 
 from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
@@ -43,7 +45,8 @@ def precompute_summary_stats_from_h5ad(
         rows_at_a_time: int = 10000,
         normalization="log2CPM",
         tmp_dir=None,
-        n_processors=3):
+        n_processors=3,
+        layer='X'):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -58,8 +61,8 @@ def precompute_summary_stats_from_h5ad(
 
     taxonomy_tree:
         instance of
-        cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        cell_type_mapper.taxonomy.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
 
     output_path:
         Path to the HDF5 file that will contain the lookup
@@ -78,6 +81,18 @@ def precompute_summary_stats_from_h5ad(
 
     n_processors:
         Number of parallel worker processes to spin up
+
+    layer:
+        The layer of the h5ad from which we are reading data.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
 
     Note
     ----
@@ -103,7 +118,8 @@ def precompute_summary_stats_from_h5ad(
         rows_at_a_time=rows_at_a_time,
         normalization=normalization,
         tmp_dir=tmp_dir,
-        n_processors=n_processors)
+        n_processors=n_processors,
+        layer=layer)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
@@ -114,7 +130,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         normalization='log2CPM',
         tmp_dir=None,
         n_processors=3,
-        copy_data_over=False):
+        copy_data_over=False,
+        layer='X'):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -152,6 +169,18 @@ def precompute_summary_stats_from_h5ad_and_tree(
         (this is in case your tmp_dir is on a much faster file system
         than the data is originally stored in).
 
+    layer:
+        The layer of the h5ad from which we are reading data.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -186,7 +215,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         normalization=normalization,
         tmp_dir=tmp_dir,
         n_processors=n_processors,
-        copy_data_over=copy_data_over)
+        copy_data_over=copy_data_over,
+        layer=layer)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -203,7 +233,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         cell_set=None,
         tmp_dir=None,
         n_processors=3,
-        copy_data_over=False):
+        copy_data_over=False,
+        layer='X'):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -247,6 +278,18 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         (this is in case your tmp_dir is on a much faster file system
         than the data is originally stored in).
 
+    layer:
+        The layer of the h5ad from which we are reading data.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
@@ -276,7 +319,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         normalization=normalization,
         tmp_dir=tmp_dir,
         n_processors=n_processors,
-        copy_data_over=copy_data_over)
+        copy_data_over=copy_data_over,
+        layer=layer)
 
     with h5py.File(output_path, 'a') as out_file:
         out_file.create_dataset(
@@ -293,7 +337,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         normalization='log2CPM',
         tmp_dir=None,
         n_processors=3,
-        copy_data_over=False):
+        copy_data_over=False,
+        layer='X'):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -335,6 +380,18 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         over into tmp_dir before any computations are attempted
         (this is in case your tmp_dir is on a much faster file system
         than the data is originally stored in).
+
+    layer:
+        The layer of the h5ad from which we are reading data.
+
+        If 'X', just look in the X matrix of the h5ad file.
+
+        If a string containing '/', treat this as the full
+        specification of the layer's locaion (e.g. 'layer/my_layer'
+        or 'raw/X').
+
+        If a strong that does not contain '/', look for the layer
+        in 'layers/{layer}'
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
 
@@ -354,7 +411,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             normalization=normalization,
             tmp_dir=tmp_dir,
             n_processors=n_processors,
-            buffer_dir=buffer_dir)
+            buffer_dir=buffer_dir,
+            layer=layer)
     finally:
         _clean_up(tmp_dir)
 
@@ -368,15 +426,51 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         normalization='log2CPM',
         tmp_dir=None,
         n_processors=3,
-        buffer_dir=None):
+        buffer_dir=None,
+        layer='X'):
     """
     If buffer_dir is not None, data is copied there before computatations
     are run (in case buffer_dir is on a faster file system than the data
     is originally stored).
     """
 
-    gene_names = None
+    if layer != 'X' and '/' not in layer:
+        layer = f'layers/{layer}'
+
+    # make sure all h5ad files are CSR orientation
+    csr_path_list = []
     for pth in data_path_list:
+        pth = pathlib.Path(pth)
+
+        attrs = infer_attrs(
+            src_path=pth,
+            dataset=layer
+        )
+
+        if attrs['encoding-type'] != 'csc_matrix':
+            csr_path_list.append(pth)
+            continue
+        prefix = pth.name.replace(pth.suffix, '')
+        new_pth = pathlib.Path(
+            mkstemp_clean(
+                dir=tmp_dir,
+                prefix=f'{prefix}_csr_',
+                suffix='.h5ad'
+            )
+        )
+        print(f'pivoting {pth} -> {new_pth.name}')
+        pivot_sparse_h5ad(
+            src_path=pth,
+            dst_path=new_pth,
+            tmp_dir=tmp_dir,
+            max_gb=10,
+            layer=layer,
+            n_processors=min(n_processors, 3)
+        )
+        csr_path_list.append(new_pth)
+
+    gene_names = None
+    for pth in csr_path_list:
         these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
         if gene_names is None:
             gene_names = these_genes
@@ -402,7 +496,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     path_to_cells = dict()
     n_total_cells = 0
     new_data_path_list = []
-    for data_path in data_path_list:
+    for data_path in csr_path_list:
         cell_name_list = list(
             read_df_from_h5ad(data_path, 'obs').index.values)
 
@@ -430,7 +524,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
             n_total_cells += n_cells
 
     if buffer_dir is not None:
-        data_path_list = new_data_path_list
+        csr_path_list = new_data_path_list
 
     n_per = np.ceil(n_total_cells/n_processors).astype(int)
 
@@ -440,7 +534,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
     i_worker = 0
     this_n_cells = 0
-    for data_path in data_path_list:
+    for data_path in csr_path_list:
         if data_path not in path_to_cells:
             continue
         n_cells = path_to_cells[data_path]
@@ -486,7 +580,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 bad_row_idx=bad_row_idx,
                 normalization=normalization,
                 n_clusters=n_clusters,
-                buffer_path=buffer_path)
+                buffer_path=buffer_path,
+                layer=layer)
 
         else:
             p = multiprocessing.Process(
@@ -499,7 +594,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                         'bad_row_idx': bad_row_idx,
                         'normalization': normalization,
                         'n_clusters': n_clusters,
-                        'buffer_path': buffer_path
+                        'buffer_path': buffer_path,
+                        'layer': layer
                     }
                 )
 
@@ -551,7 +647,8 @@ def _process_chunk_spec(
         bad_row_idx,
         normalization,
         n_clusters,
-        buffer_path):
+        buffer_path,
+        layer):
     """
     Assemble the summary stats from a chunk of data and write it to
     an HDF5 file at buffer_path
@@ -585,7 +682,8 @@ def _process_chunk_spec(
 
             iterator = AnnDataRowIterator(
                 h5ad_path=chunk_spec[0],
-                row_chunk_size=rows_at_a_time)
+                row_chunk_size=rows_at_a_time,
+                layer=layer)
 
             iterator_path = chunk_spec[0]
 

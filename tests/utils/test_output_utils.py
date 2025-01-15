@@ -46,7 +46,7 @@ def precomputed_stats_fixture(tmp_dir_fixture):
     with h5py.File(h5_path, 'w') as dst:
         dst.create_dataset(
             'metadata',
-            data=json.dumps({'x': 1, 'y':3}).encode('utf-8'))
+            data=json.dumps({'x': 1, 'y': 3}).encode('utf-8'))
         dst.create_dataset(
             'cluster_to_row',
             data=json.dumps({'a': 'bcd', 'b': 5}).encode('utf-8'))
@@ -84,7 +84,7 @@ def results_fixture():
          'level7': {'assignment': 'cheryl',
                     'confidence': 0.245,
                     'corr': 0.33332}
-        },
+         },
         {'cell_id': 'b',
          'level1': {'assignment': 'roger',
                     'confidence': 0.11119,
@@ -96,7 +96,7 @@ def results_fixture():
          'level7': {'assignment': 'brooklyn',
                     'confidence': 0.5,
                     'corr': 0.11723}
-        }
+         }
     ]
     return results
 
@@ -105,11 +105,14 @@ def test_blob_to_df(results_fixture):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
+
         @property
         def leaf_level(self):
             return 'level7'
+
         def label_to_name(self, level, label, name_key='gar'):
             return label
+
         def level_to_name(self, level_label):
             return level_label
 
@@ -145,13 +148,19 @@ def test_blob_to_df(results_fixture):
     assert set(actual_df.columns) == expected_columns
 
     for record in results_fixture:
-        sub_df = actual_df[actual_df['cell_id']==record['cell_id']]
+        sub_df = actual_df[actual_df['cell_id'] == record['cell_id']]
         assert len(sub_df) == 1
         for level in ('level1', 'level3', 'level7'):
             for k in ('name', 'label'):
-                assert sub_df[f'{level}_{k}'].values == record[level]['assignment']
+                assert (
+                    sub_df[f'{level}_{k}'].values
+                    == record[level]['assignment']
+                )
             if level == 'level7':
-                assert sub_df[f'{level}_alias'].values == record[level]['assignment']
+                assert (
+                    sub_df[f'{level}_alias'].values
+                    == record[level]['assignment']
+                )
             for k in ('confidence', 'corr'):
                 np.testing.assert_allclose(
                     sub_df[f'{level}_{k}'],
@@ -164,7 +173,10 @@ def test_blob_to_df(results_fixture):
             else:
                 expected_runners_up = []
             for idx in range(len(expected_runners_up)):
-                assert sub_df[f'{level}_runners_up_{idx}'].values == expected_runners_up[idx]
+                assert (
+                    sub_df[f'{level}_runners_up_{idx}'].values
+                    == expected_runners_up[idx]
+                )
 
             if level == 'level1' and len(expected_runners_up) < 3:
                 for idx in range(len(expected_runners_up), 3):
@@ -179,11 +191,14 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
+
         @property
         def leaf_level(self):
             return 'level7'
+
         def label_to_name(self, level, label, name_key='gar'):
             return label
+
         def level_to_name(self, level_label):
             return level_label
 
@@ -222,10 +237,16 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
                    'level7_name,level7_alias,level7_confidence\n')
     assert actual_lines[2+n_offset] == header_line
 
-    cell0 = 'a,alice,alice,0.0123,bob,bob,0.2000,cheryl,cheryl,cheryl,0.2450\n'
+    cell0 = (
+        'a,alice,alice,0.0123,bob,bob,0.2000,'
+        'cheryl,cheryl,cheryl,0.2450\n'
+    )
     assert actual_lines[3+n_offset] == cell0
 
-    cell1 = 'b,roger,roger,0.1112,dodger,dodger,0.3000,brooklyn,brooklyn,brooklyn,0.5000\n'
+    cell1 = (
+        'b,roger,roger,0.1112,dodger,dodger,0.3000,'
+        'brooklyn,brooklyn,brooklyn,0.5000\n'
+    )
     assert actual_lines[4+n_offset] == cell1
 
     # test again using a different confidence stat
@@ -257,13 +278,18 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
     cell0 = 'a,alice,alice,0.1123,bob,bob,0.4000,cheryl,cheryl,cheryl,0.3333\n'
     assert actual_lines[3+n_offset] == cell0
 
-    cell1 = 'b,roger,roger,0.1000,dodger,dodger,0.9000,brooklyn,brooklyn,brooklyn,0.1172\n'
+    cell1 = (
+        'b,roger,roger,0.1000,dodger,dodger,0.9000,'
+        'brooklyn,brooklyn,brooklyn,0.1172\n'
+    )
     assert actual_lines[4+n_offset] == cell1
 
 
-
 @pytest.mark.parametrize('with_metadata', [True, False])
-def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixture):
+def test_blob_to_csv_with_mapping(
+        tmp_dir_fixture,
+        with_metadata,
+        results_fixture):
     """
     Test with a name mapping
     """
@@ -299,11 +325,14 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
+
         @property
         def leaf_level(self):
             return 'level7'
+
         def label_to_name(self, level, label, name_key='gar'):
             return name_mapper[level][label][name_key]
+
         def level_to_name(self, level_label):
             return level_label
 
@@ -345,7 +374,10 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
     cell0 = 'a,alice,beverly,0.0123,bob,X,0.2000,cheryl,tom,77,0.2450\n'
     assert actual_lines[3+n_offset] == cell0
 
-    cell1 = 'b,roger,jane,0.1112,dodger,Y,0.3000,brooklyn,cleveland,88,0.5000\n'
+    cell1 = (
+        'b,roger,jane,0.1112,dodger,Y,'
+        '0.3000,brooklyn,cleveland,88,0.5000\n'
+    )
     assert actual_lines[4+n_offset] == cell1
 
     # test again using a different confidence stat
@@ -377,20 +409,29 @@ def test_blob_to_csv_with_mapping(tmp_dir_fixture, with_metadata, results_fixtur
     cell0 = 'a,alice,beverly,0.1123,bob,X,0.4000,cheryl,tom,77,0.3333\n'
     assert actual_lines[3+n_offset] == cell0
 
-    cell1 = 'b,roger,jane,0.1000,dodger,Y,0.9000,brooklyn,cleveland,88,0.1172\n'
+    cell1 = (
+        'b,roger,jane,0.1000,dodger,Y,'
+        '0.9000,brooklyn,cleveland,88,0.1172\n'
+    )
     assert actual_lines[4+n_offset] == cell1
 
 
 @pytest.mark.parametrize('with_metadata', [True, False])
-def test_blob_to_csv_level_map(tmp_dir_fixture, with_metadata, results_fixture):
+def test_blob_to_csv_level_map(
+        tmp_dir_fixture,
+        with_metadata,
+        results_fixture):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
+
         @property
         def leaf_level(self):
             return 'level7'
+
         def label_to_name(self, level, label, name_key='gar'):
             return label
+
         def level_to_name(self, level_label):
             n = level_label.replace('level', '')
             n = int(n)**2
@@ -461,10 +502,19 @@ def test_re_order_blob(tmp_dir_fixture):
         results_blob=results_blob,
         query_path=h5ad_path)
 
-    assert not list([c['cell_id'] for c in results_blob]) == list(obs.index.values)
-    assert list([c['cell_id'] for c in new_blob]) == list(obs.index.values)
+    assert not (
+        list([c['cell_id'] for c in results_blob])
+        == list(obs.index.values)
+    )
+
+    assert (
+        list([c['cell_id'] for c in new_blob])
+        == list(obs.index.values)
+    )
+
     for c in new_blob:
         assert c == results_lookup[c['cell_id']]
+
     assert len(new_blob) == len(results_lookup)
 
 

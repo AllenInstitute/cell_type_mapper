@@ -1,18 +1,14 @@
 import pytest
 
-import pandas as pd
 import numpy as np
 import h5py
 import itertools
-import anndata
 import pathlib
-import os
 import tempfile
 import json
 import scipy.sparse as scipy_sparse
 
 from cell_type_mapper.utils.utils import (
-    _clean_up,
     mkstemp_clean)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
@@ -20,9 +16,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
-    _get_rows_from_tree,
-    get_all_pairs,
-    convert_tree_to_leaves)
+    get_all_pairs)
 
 from cell_type_mapper.diff_exp.score_utils import (
     read_precomputed_stats)
@@ -40,9 +34,6 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 from cell_type_mapper.marker_selection.marker_array import (
     MarkerGeneArray)
 
-from cell_type_mapper.marker_selection.selection import (
-    select_marker_genes_v2)
-
 from cell_type_mapper.cli.reference_markers import (
    ReferenceMarkerRunner)
 
@@ -56,6 +47,7 @@ def tree_fixture(
     return get_taxonomy_tree(
                 obs_records=records_fixture,
                 column_hierarchy=column_hierarchy)
+
 
 def test_reference_marker_finding_cli(
         h5ad_path_fixture,
@@ -100,6 +92,7 @@ def test_reference_marker_finding_cli(
         assert 'log' in metadata
         assert len(metadata['log']) > 0
 
+
 @pytest.mark.parametrize(
         "limit_genes,use_log",
         itertools.product([True, False], [True, False]))
@@ -127,10 +120,6 @@ def test_marker_finding_pipeline(
         rng = np.random.default_rng(22131)
         chosen_genes = list(rng.choice(
                 gene_names, n_genes//2, replace=False))
-
-        invalid_gene_idx = np.array([
-            ii for ii in range(len(gene_names))
-            if gene_names[ii] not in chosen_genes])
 
         valid_gene_idx = np.array([
             ii for ii in range(len(gene_names))
@@ -188,15 +177,12 @@ def test_marker_finding_pipeline(
             assert f"sparse_by_gene/{sub_k}" in in_file
 
         pair_to_idx = json.loads(in_file['pair_to_idx'][()].decode('utf-8'))
-        n_cols = in_file['n_pairs'][()]
 
     # check that we get the expected result
     precomputed_stats = read_precomputed_stats(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
         for_marker_selection=True)
-
-    tree_as_leaves = convert_tree_to_leaves(tree_fixture)
 
     marker_parent = MarkerGeneArray.from_cache_path(
         marker_path)
@@ -408,7 +394,6 @@ def test_find_markers_worker(
     marker_sum = 0
     tot_up = 0
     up_sum = 0
-    are_markers = set()
     for level in pair_to_idx:
         for node1 in pair_to_idx[level]:
             for node2 in pair_to_idx[level][node1]:
@@ -498,7 +483,6 @@ def test_score_differential_genes_limited(
 
     taxonomy_tree = TaxonomyTree(data=tree_fixture)
     siblings = get_all_pairs(tree_fixture)
-    tree_as_leaves = taxonomy_tree.as_leaves
 
     precomputed_stats = read_precomputed_stats(
         precomputed_stats_path=precompute_path,
@@ -508,7 +492,6 @@ def test_score_differential_genes_limited(
     idx_to_pair = dict()
     pair_to_idx = dict()
     siblings = taxonomy_tree.siblings
-    n_pairs = len(siblings)
     for idx, sibling_pair in enumerate(siblings):
         level = sibling_pair[0]
         node1 = sibling_pair[1]
@@ -554,9 +537,9 @@ def test_score_differential_genes_limited(
 
     assert len(unlimited_marker_idx) > 4
     rng = np.random.default_rng(2232)
-    l = list(unlimited_marker_idx)
-    l.sort()
-    chosen_markers = rng.choice(l, len(l)//2, replace=False)
+    idx_list = list(unlimited_marker_idx)
+    idx_list.sort()
+    chosen_markers = rng.choice(idx_list, len(idx_list)//2, replace=False)
     chosen_marker_set = set(chosen_markers)
 
     # make sure that specifying a limited set of markers excludes

@@ -4,13 +4,15 @@ from marshmallow import post_load
 from cell_type_mapper.schemas.mixins import (
     OutFileWithClobberMixin,
     TmpDirMixin,
-    NProcessorsMixin)
+    NProcessorsMixin,
+    LayerMixin)
 
 
 class PrecomputedStatsSchemaMixin(
         OutFileWithClobberMixin,
         TmpDirMixin,
-        NProcessorsMixin):
+        NProcessorsMixin,
+        LayerMixin):
 
     clobber = argschema.fields.Boolean(
         required=False,
@@ -114,3 +116,17 @@ class PrecomputedStatsABCSchema(
             "Files will be named like output_path but with a secondary suffix "
             "added before .h5 specifying which dataset they contain."
         ))
+
+    do_pruning = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description=(
+            "If True, remove all nodes from the tree that are "
+            "not directly connected to the leaf level of the tree. This "
+            "is useful, for instance, when creating a taxonomy tree based "
+            "only on cells from a subset of a wider data release which may "
+            "not include all of the cell types identified in the full "
+            "taxonomy."
+        )
+    )
