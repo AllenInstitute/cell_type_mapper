@@ -34,7 +34,7 @@ def mapping_cdf(
     Returns
     -------
     A dict
-       {level1: {'bins': array of aggregate_probability bins,
+       {level1: {'bins': array of aggregate_probability cutoff bins,
                  'actual': actual CDF of "is the assignment correct",
                  'expected': expected CDF based on aggregate_probability
                 }
@@ -143,7 +143,7 @@ def area_between_cdf(
     -------
     A dict
        {level1: {'area': area,
-                 'signed_area': positive is over confident; negative is under
+                 'signed_area': positive is under confident; negative is over
                                 confident
                 }
         level2: {...}
