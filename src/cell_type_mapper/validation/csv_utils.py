@@ -6,6 +6,7 @@ import gzip
 import numpy as np
 import pandas as pd
 import pathlib
+import traceback
 import warnings
 
 from cell_type_mapper.utils.utils import (
@@ -31,7 +32,7 @@ def convert_csv_to_h5ad(
     -------
     h5ad_path:
         Path to the h5ad file (this will be src_path
-        if src_path does not end in '.csv' or '.csv.gz')
+        if src_path does not end in '.csv' or '.gz')
     was_converted:
         Boolean indicating if the file was converted to an
         h5ad file
@@ -62,11 +63,11 @@ def convert_csv_to_h5ad(
     src_path = pathlib.Path(src_path)
     src_name = src_path.name
 
-    if not src_name.endswith('.csv') and not src_name.endswith('.csv.gz'):
+    if not src_name.endswith('.csv') and not src_name.endswith('.gz'):
         return (src_path, False)
 
-    if src_name.endswith('.csv.gz'):
-        src_suffix = '.csv.gz'
+    if src_name.endswith('.gz'):
+        src_suffix = '.gz'
     elif src_name.endswith('.csv'):
         src_suffix = '.csv'
 
@@ -95,10 +96,19 @@ def convert_csv_to_h5ad(
         src_path=src_path
     )
 
-    adata = anndata.io.read_csv(
-        filename=src_path,
-        delimiter=',',
-        first_column_names=first_column_names)
+    try:
+        adata = anndata.io.read_csv(
+            filename=src_path,
+            delimiter=',',
+            first_column_names=first_column_names)
+    except Exception:
+        full_msg = (
+            "=======An error occurred when reading your CSV with anndata:\n"
+            f"{traceback.format_exc()}\n"
+            "Please confirm that your CSV is a table in which each "
+            "row is a cell and each column is a gene."
+        )
+        raise RuntimeError(full_msg)
 
     adata.write_h5ad(dst_path)
 
@@ -118,14 +128,14 @@ def is_first_column_label(src_path):
         open_fn = open
         mode = 'r'
         is_gzip = False
-    elif src_name.endswith('.csv.gz'):
+    elif src_name.endswith('.gz'):
         open_fn = gzip.open
         mode = 'rb'
         is_gzip = True
     else:
         msg = (
             "is_first_column_label unable to parse file "
-            f"{src_name}"
+            f"{src_name}; must end with .csv (or .gz if gzipped)"
         )
         raise RuntimeError(msg)
 

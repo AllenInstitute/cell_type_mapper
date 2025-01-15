@@ -354,7 +354,43 @@ def test_csv_conversion_with_string_in_expression(
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
-        with pytest.raises(ValueError, match=msg):
+        with pytest.raises(RuntimeError, match=msg):
+            convert_csv_to_h5ad(
+                src_path=csv_path,
+                log=None)
+
+
+@pytest.mark.parametrize('use_gzip', [True, False])
+def test_csv_conversion_with_bad_txt_file(
+        tmp_dir_fixture,
+        use_gzip):
+    """
+    Test that CSV conversion fails as expected if the CSV file
+    does not contain a table as expected
+    """
+    if use_gzip:
+        suffix = '.gz'
+        open_fn = gzip.open
+    else:
+        suffix = '.csv'
+        open_fn = open
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='csv_with_string_gene_expression_',
+        suffix=suffix
+    )
+    with open_fn(csv_path, 'w') as dst:
+        if use_gzip:
+            dst.write(b'just some text')
+        else:
+            dst.write('just some text')
+
+    msg = "An error occurred when reading your CSV with anndata"
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        with pytest.raises(RuntimeError, match=msg):
             convert_csv_to_h5ad(
                 src_path=csv_path,
                 log=None)
