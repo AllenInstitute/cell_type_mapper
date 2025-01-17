@@ -328,7 +328,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             in_file["col_names"][()].decode("utf-8"))
 
     # Save the tree as it was originally read in, without flattening
-    # dropping of levels. This is what will be saved in the output
+    # or dropping of levels. This is what will be saved in the output
     # metadata.
     tree_for_metadata = TaxonomyTree(
         data=json.loads(taxonomy_tree.to_str(drop_cells=True)))
