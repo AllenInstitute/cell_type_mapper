@@ -789,8 +789,6 @@ def tally_votes(
         A numpy array of cell-by-marker-gene data for the query set
     reference_gene_data
         A numpy array of cell-by-marker-gene data for the reference set
-    reference_types
-        array of cell types we are chosing from (n_cells in size)
     bootstrap_factor
         Factor by which to subsample reference genes at each bootstrap
     bootstrap_iteration
