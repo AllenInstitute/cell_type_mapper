@@ -36,7 +36,8 @@ from cell_type_mapper.type_assignment.matching import (
     assemble_query_data)
 
 from cell_type_mapper.type_assignment.election import (
-    choose_node,
+    tally_votes,
+    reshape_type_assignment,
     run_type_assignment)
 
 from cell_type_mapper.type_assignment.election import (
@@ -168,16 +169,24 @@ def test_running_single_election(
             marker_cache_path=marker_cache_path,
             parent_node=parent_node)
 
-        (result,
-         confidence,
-         avg_corr,
-         _) = choose_node(
+        (votes,
+         corr_sum,
+         reference_types) = tally_votes(
             query_gene_data=data_for_election['query_data'].data,
             reference_gene_data=data_for_election['reference_data'].data,
             reference_types=data_for_election['reference_types'],
             bootstrap_factor=0.8,
             bootstrap_iteration=23,
             rng=rng)
+
+        (result,
+         confidence,
+         avg_corr,
+         _) = reshape_type_assignment(
+            votes=votes,
+            corr_sum=corr_sum,
+            reference_types=reference_types,
+            n_assignments=10)
 
         assert result.shape == (n_query_cells,)
         assert confidence.shape == result.shape

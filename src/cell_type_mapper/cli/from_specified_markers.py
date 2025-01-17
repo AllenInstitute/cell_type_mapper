@@ -480,6 +480,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         tmp_dir=tmp_dir,
         log=log,
         max_gb=config['max_gb'],
+        output_taxonomy_tree=tree_for_metadata,
         results_output_path=tmp_result_dir)
 
     result = tree_for_metadata.backfill_assignments(result)
