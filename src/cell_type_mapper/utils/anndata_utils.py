@@ -278,7 +278,9 @@ def _copy_layer_to_x_sparse(
                     el,
                     shape=src_dataset.shape,
                     chunks=chunks,
-                    dtype=dtype)
+                    dtype=dtype,
+                    compression=src_dataset.compression,
+                    compression_opts=src_dataset.compression_opts)
                 if chunks is None:
                     dst_grp[el][:] = src_dataset[()]
                 else:
