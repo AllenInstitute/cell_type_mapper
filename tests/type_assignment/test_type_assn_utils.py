@@ -11,7 +11,7 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 
 from cell_type_mapper.type_assignment.utils import (
     reconcile_taxonomy_and_markers,
-    infer_assignment)
+    infer_election)
 
 
 def test_taxonomy_reconciliation(tmp_path_factory):
@@ -111,7 +111,7 @@ def test_taxonomy_reconciliation(tmp_path_factory):
     _clean_up(tmp_dir)
 
 
-def test_infer_assignment():
+def test_infer_election():
 
     tree_data = {
         'hierarchy': ['level1', 'level2', 'level3'],
@@ -151,7 +151,7 @@ def test_infer_assignment():
 
     (new_votes,
      new_corr,
-     new_reference_types) = infer_assignment(
+     new_reference_types) = infer_election(
          votes=votes,
          corr_sum=corr_sum,
          reference_types=reference_types,
@@ -182,7 +182,7 @@ def test_infer_assignment():
 
     (new_votes,
      new_corr,
-     new_reference_types) = infer_assignment(
+     new_reference_types) = infer_election(
          votes=votes,
          corr_sum=corr_sum,
          reference_types=reference_types,

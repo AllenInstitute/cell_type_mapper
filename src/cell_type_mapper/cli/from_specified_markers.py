@@ -483,8 +483,6 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         output_taxonomy_tree=tree_for_metadata,
         results_output_path=tmp_result_dir)
 
-    result = tree_for_metadata.backfill_assignments(result)
-
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 

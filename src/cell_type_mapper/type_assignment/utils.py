@@ -152,7 +152,7 @@ def validate_bootstrap_factor_lookup(
             raise RuntimeError(msg)
 
 
-def infer_assignment(
+def infer_election(
         votes,
         corr_sum,
         reference_types,
@@ -160,7 +160,7 @@ def infer_assignment(
         inference_level,
         taxonomy_tree):
     """
-    Infer the assignment entry for a level in a cell type taxonomy
+    Infer election results for a level in a cell type taxonomy
     based on election carried out at one of its child levels.
 
     Parameters
