@@ -28,7 +28,7 @@ import cell_type_mapper.utils.distance_utils as distance_utils
 
 from cell_type_mapper.type_assignment.utils import (
     reconcile_taxonomy_and_markers,
-    infer_assignment)
+    infer_election)
 
 from cell_type_mapper.type_assignment.matching import (
    get_leaf_means,
@@ -322,7 +322,7 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         n_assignments=n_assignments,
-        output_taxonomy_tree=None)
+        output_taxonomy_tree=output_taxonomy_tree)
 
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
@@ -706,7 +706,8 @@ def reshape_type_assignment(
         votes,
         corr_sum,
         reference_types,
-        n_assignments):
+        n_assignments,
+        forced_assignments=None):
     """
     Take votes, correlations, and cell types.
 
@@ -730,6 +731,14 @@ def reshape_type_assignment(
         Ultimate concequence of this is that n_assignments-1
         "runners up" get reported at each taxonomic level.
 
+    forced_assignments:
+        An optional array of cell types to which these
+        cells *must* be assigned (for instance, to preserve
+        inheritance when backfilling levels in the taxonomy
+        that were skipped). If not None, these cell types
+        will be chosen for the cells, regardless of where
+        they fall in the hierarchy of vote fractions.
+
     Returns
     -------
     Array of cell type assignments (majority rule)
@@ -744,7 +753,33 @@ def reshape_type_assignment(
          avg_correlation,
          bootstrappping_probability)
     """
+    if forced_assignments is not None:
+        label_to_idx = {
+            label: idx
+            for idx, label in enumerate(reference_types)
+        }
+        forced_idx = np.array([
+            label_to_idx[label]
+            for label in forced_assignments
+        ])
+
     bootstrap_iteration = votes[0, :].sum()
+
+    if forced_assignments is not None:
+        result = np.array(forced_assignments)
+        assignment_vote_fractions = np.array(
+            [votes[ii, forced_idx[ii]]
+             for ii in range(votes.shape[0])]
+        )
+
+        assignment_corr = np.array(
+            [corr_sum[ii, forced_idx[ii]]
+             for ii in range(votes.shape[0])]
+        ) / np.where(assignment_vote_fractions > 0,
+                     assignment_vote_fractions,
+                     1)
+
+        assignment_vote_fractions /= bootstrap_iteration
 
     n_assignments = min(n_assignments, votes.shape[1])
 
@@ -754,25 +789,39 @@ def reshape_type_assignment(
     idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
                              for ii in range(sorted_by_votes.shape[0])])
 
-    result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
     votes = votes[idx_array_2d, sorted_by_votes]
     vote_fractions = votes / bootstrap_iteration
+
     denom = np.where(votes > 0, votes, 1)
 
     avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / denom
+
+    if forced_assignments is None:
+        result = np.array(
+            [reference_types[ii] for ii in sorted_by_votes[:, 0]]
+        )
+        assignment_vote_fractions = vote_fractions[:, 0]
+        assignment_corr = avg_corr[:, 0]
 
     runners_up = [
         [(reference_types[sorted_by_votes[i_row, i_col]],
           votes[i_row, i_col] > 0,
           avg_corr[i_row, i_col],
           vote_fractions[i_row, i_col])
-         for i_col in range(1, n_assignments, 1)]
+         for i_col in range(0, n_assignments, 1)
+         if reference_types[sorted_by_votes[i_row, i_col]] != result[i_row]]
         for i_row in range(sorted_by_votes.shape[0])
     ]
 
-    return (np.array(result),
-            vote_fractions[:, 0],
-            avg_corr[:, 0],
+    # trim runners_up down to specified size (in case forced_assignment
+    # causes one of the rows to be too long
+    for row in runners_up:
+        if len(row) >= n_assignments:
+            row.pop(-1)
+
+    return (result,
+            assignment_vote_fractions,
+            assignment_corr,
             runners_up)
 
 
@@ -998,34 +1047,124 @@ def update_mapping_result(
 
     result = _update_mapping_result(
         result=result,
-        child_level=child_level,
+        current_level=child_level,
         cell_idx=cell_idx,
         votes=votes,
         corr_sum=corr_sum,
         reference_types=reference_types,
         n_assignments=n_assignments,
         taxonomy_tree=taxonomy_tree,
-        output_taxonomy_tree=output_taxonomy_tree,
         directly_assigned=True)
+
+    # backfill any levels above the child level using these votes
+    if output_taxonomy_tree is not None:
+        cell0 = cell_idx[0]
+        child_array = np.array([
+            result[ii][child_level]['assignment']
+            for ii in cell_idx
+        ])
+        for backfill_level in output_taxonomy_tree.hierarchy:
+
+            if backfill_level == child_level:
+                break
+
+            if backfill_level in result[cell0]:
+                continue
+
+            (backfill_votes,
+             backfill_corr,
+             backfill_types) = infer_election(
+                 votes=votes,
+                 corr_sum=corr_sum,
+                 reference_types=reference_types,
+                 reference_level=child_level,
+                 inference_level=backfill_level,
+                 taxonomy_tree=output_taxonomy_tree)
+
+            result = _update_mapping_result(
+                result=result,
+                current_level=backfill_level,
+                cell_idx=cell_idx,
+                votes=backfill_votes,
+                corr_sum=backfill_corr,
+                reference_types=backfill_types,
+                n_assignments=n_assignments,
+                taxonomy_tree=output_taxonomy_tree,
+                directly_assigned=False,
+                known_child_level=child_level,
+                known_child_array=child_array
+            )
 
     return result
 
 
 def _update_mapping_result(
         result,
-        child_level,
+        current_level,
         cell_idx,
         votes,
         corr_sum,
         reference_types,
         n_assignments,
         taxonomy_tree,
-        output_taxonomy_tree,
-        directly_assigned):
+        directly_assigned,
+        known_child_level=None,
+        known_child_array=None):
+    """
+    known_child_level:
+        level in the taxonomy tree at which the last election
+        did take place (a descendant of the assignments being inferred here)
+    known_child_array:
+        (n_cells,) array of assignments made at known_child_level
+        if known_child_level and known_child_array are specified,
+        the assignment
+    """
+
+    has_kcl = (known_child_level is not None)
+    has_kca = (known_child_array is not None)
+    if (has_kcl and not has_kca) or (has_kca and not has_kcl):
+        raise RuntimeError(
+            "Must specify both known_child_level and known_child_array "
+            "or neither. You have:\n"
+            f"level: {known_child_level}\n"
+            f"array: {known_child_array}"
+        )
 
     parent_level = None
-    if child_level is not None:
-        parent_level = taxonomy_tree.parent_level(child_level)
+    if current_level is not None:
+        parent_level = taxonomy_tree.parent_level(current_level)
+
+    # find last parent that was directly assigned; use that level's
+    # aggregate_probability as the base for aggregate probability
+    # at the current level
+    cell0 = cell_idx[0]
+    effective_child = current_level
+    while True:
+        candidate_parent = taxonomy_tree.parent_level(effective_child)
+        if candidate_parent is None:
+            dir_assn_parent_level = None
+            break
+        is_present = (candidate_parent in result[cell0])
+        is_direct = False
+        if is_present:
+            is_direct = result[cell0][candidate_parent]['directly_assigned']
+        if is_direct:
+            dir_assn_parent_level = candidate_parent
+            break
+        effective_child = candidate_parent
+
+    # if there is a known child node to which we must enforce
+    # consistent inheritance, propagate that through to
+    # a forced_assignment
+    if has_kcl:
+        forced_assignments = np.array([
+            taxonomy_tree.parents(
+                level=known_child_level,
+                node=known_child)[current_level]
+            for known_child in known_child_array
+        ])
+    else:
+        forced_assignments = None
 
     (assignment,
      bootstrapping_probability,
@@ -1034,9 +1173,10 @@ def _update_mapping_result(
                      votes=votes,
                      corr_sum=corr_sum,
                      reference_types=reference_types,
-                     n_assignments=n_assignments)
+                     n_assignments=n_assignments,
+                     forced_assignments=forced_assignments)
 
-    # assign cells to their chosen child_level nodes
+    # assign cells to their chosen current_level nodes
     for i_cell, assigned_type, prob, corr, r_up in zip(
                     cell_idx,
                     assignment,
@@ -1056,17 +1196,20 @@ def _update_mapping_result(
             runner_up_probability = [
                 this[3] for this in r_up if this[1]]
 
-        if parent_level is None:
-            aggregate_probability = prob
+        if dir_assn_parent_level is None:
+            parent_probability = 1.0
         else:
-            aggregate_probability = (
-                result[i_cell][parent_level]['aggregate_probability']*prob)
+            parent_probability = (
+                result[i_cell][dir_assn_parent_level]['aggregate_probability']
+            )
+
+        aggregate_probability = parent_probability * prob
 
         if corr is None:
             if parent_level is not None:
                 corr = result[i_cell][parent_level]['avg_correlation']
 
-        result[i_cell][child_level] = {
+        result[i_cell][current_level] = {
             'assignment': assigned_type,
             'bootstrapping_probability': prob,
             'aggregate_probability': aggregate_probability,
