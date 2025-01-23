@@ -8,7 +8,8 @@ from cell_type_mapper.schemas.search_mixins import (
 
 from cell_type_mapper.schemas.mixins import (
     NodesToDropMixin,
-    VerboseStdoutMixin
+    VerboseStdoutMixin,
+    MapToEnsemblMixin
 )
 
 
@@ -16,14 +17,8 @@ class FromSpecifiedMarkersSchema(
         argschema.ArgSchema,
         SearchSchemaMixin,
         NodesToDropMixin,
-        VerboseStdoutMixin):
-
-    map_to_ensembl = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description="If True, map the gene names in query_path to "
-        "ENSEMBL IDs before performing cell type mapping.")
+        VerboseStdoutMixin,
+        MapToEnsemblMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerInputSchema,
