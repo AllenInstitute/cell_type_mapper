@@ -151,8 +151,19 @@ def test_write_df(
         other_var)
 
 
-@pytest.mark.parametrize("is_sparse", [True, False])
-def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
+@pytest.mark.parametrize(
+        "is_sparse,use_new_var,use_new_obs",
+        itertools.product(
+            [True, False],
+            [True, False],
+            [True, False]
+        )
+)
+def test_copy_layer_to_x(
+        is_sparse,
+        use_new_var,
+        use_new_obs,
+        tmp_dir_fixture):
 
     rng = np.random.default_rng(2231)
     n_rows = 45
@@ -160,9 +171,29 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     x = np.zeros((n_rows, n_cols))
     obs = pd.DataFrame(
         [{'a': str(ii), 'b': ii**2} for ii in range(n_rows)]).set_index('a')
+
+    if use_new_obs:
+        new_obs = pd.DataFrame(
+            [{'a': f'c_{ii}', 'b': ii**3}
+             for ii in range(n_rows)]).set_index('a')
+        expected_obs = new_obs
+    else:
+        new_obs = None
+        expected_obs = obs
+
     var = pd.DataFrame(
         [{'c': str(ii**3), 'd': ii*0.8}
          for ii in range(n_cols)]).set_index('c')
+
+    if use_new_var:
+        new_var = pd.DataFrame(
+            [{'c': f'g_{ii}', 'd': ii*0.56}
+             for ii in range(n_cols)]).set_index('c')
+        expected_var = new_var
+    else:
+        new_var = None
+        expected_var = var
+
     layer = np.zeros(n_rows*n_cols, dtype=float)
     chosen = rng.choice(np.arange(n_rows*n_cols),
                         n_rows*n_cols//3,
@@ -197,11 +228,13 @@ def test_copy_layer_to_x(is_sparse, tmp_dir_fixture):
     copy_layer_to_x(
         original_h5ad_path=baseline_path,
         new_h5ad_path=other_path,
-        layer='garbage')
+        layer='garbage',
+        new_var=new_var,
+        new_obs=new_obs)
 
     actual = anndata.read_h5ad(other_path, backed='r')
-    pd.testing.assert_frame_equal(obs, actual.obs)
-    pd.testing.assert_frame_equal(var, actual.var)
+    pd.testing.assert_frame_equal(expected_obs, actual.obs)
+    pd.testing.assert_frame_equal(expected_var, actual.var)
     if is_sparse:
         actual_x = actual.X[()].toarray()
     else:
