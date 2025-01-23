@@ -166,7 +166,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
 
                 log.info(
                     "Copied query_path over, mapping genes to "
-                    "ENSEMBL IDs"
+                    "ENSEMBL IDs",
+                    to_stdout=True
                 )
 
         self.drop_nodes_from_taxonomy(tmp_dir=tmp_dir)
