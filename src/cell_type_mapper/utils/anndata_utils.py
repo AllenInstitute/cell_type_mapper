@@ -152,7 +152,9 @@ def append_to_obsm(
 def copy_layer_to_x(
         original_h5ad_path,
         new_h5ad_path,
-        layer):
+        layer,
+        new_obs=None,
+        new_var=None):
     """
     Copy the data in original_h5ad_path over to new_h5ad_path.
 
@@ -161,13 +163,25 @@ def copy_layer_to_x(
 
     Note: specified layer can be 'X'. This is apparently a faster
     way to copy over an h5ad file than using shutil.copy.
+
+    new_var and new_obs are optional dataframes to replace
+    obs and var in the new h5ad file
     """
     if layer == 'X':
         layer_key = 'X'
     else:
         layer_key = f'layers/{layer}'
-    obs = read_df_from_h5ad(original_h5ad_path, 'obs')
-    var = read_df_from_h5ad(original_h5ad_path, 'var')
+
+    if new_obs is not None:
+        obs = new_obs
+    else:
+        obs = read_df_from_h5ad(original_h5ad_path, 'obs')
+
+    if new_var is not None:
+        var = new_var
+    else:
+        var = read_df_from_h5ad(original_h5ad_path, 'var')
+
     output = anndata.AnnData(obs=obs, var=var)
     output.write_h5ad(new_h5ad_path)
 

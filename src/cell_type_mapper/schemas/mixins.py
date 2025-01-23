@@ -6,6 +6,16 @@ from cell_type_mapper.utils.anndata_utils import (
     does_obsm_have_key)
 
 
+class MapToEnsemblMixin(object):
+
+    map_to_ensembl = argschema.fields.Boolean(
+        required=False,
+        default=False,
+        allow_none=False,
+        description="If True, map the gene names in query_path to "
+        "ENSEMBL IDs before performing cell type mapping.")
+
+
 class VerboseStdoutMixin(object):
 
     verbose_stdout = argschema.fields.Boolean(

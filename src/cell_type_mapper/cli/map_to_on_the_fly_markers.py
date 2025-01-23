@@ -1,6 +1,8 @@
 import argschema
 import copy
+import pandas as pd
 import pathlib
+import shutil
 import tempfile
 import time
 
@@ -8,12 +10,17 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+from cell_type_mapper.utils.anndata_utils import (
+    write_df_to_h5ad
+)
+
 from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
 )
 
 from cell_type_mapper.utils.cli_utils import (
-    config_from_args
+    config_from_args,
+    _get_query_gene_names
 )
 
 from cell_type_mapper.utils.output_utils import (
@@ -22,7 +29,8 @@ from cell_type_mapper.utils.output_utils import (
 from cell_type_mapper.schemas.mixins import (
     NProcessorsMixin,
     NodesToDropMixin,
-    VerboseStdoutMixin)
+    VerboseStdoutMixin,
+    MapToEnsemblMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
@@ -78,7 +86,8 @@ class MapperSchema_OTF(
         SearchSchemaMixin_noNProcessors,
         NProcessorsMixin,
         NodesToDropMixin,
-        VerboseStdoutMixin):
+        VerboseStdoutMixin,
+        MapToEnsemblMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerSchema_OTF,
@@ -128,6 +137,45 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
 
     def _run(self, tmp_dir, log):
 
+        query_path = self.args['query_path']
+
+        if self.args['map_to_ensembl']:
+            (new_gene_ids,
+             _,
+             gene_names_changed) = _get_query_gene_names(
+                                     query_gene_path=query_path,
+                                     map_to_ensembl=True)
+
+            if gene_names_changed:
+
+                new_var = pd.DataFrame(
+                    {'gene_id': g} for g in new_gene_ids
+                ).set_index('gene_id')
+
+                new_query_path = mkstemp_clean(
+                    dir=tmp_dir,
+                    prefix=pathlib.Path(query_path).name + '.ENSEMBL.',
+                    suffix='.h5ad'
+                )
+                shutil.copy(
+                    src=query_path,
+                    dst=new_query_path
+                )
+
+                write_df_to_h5ad(
+                    h5ad_path=new_query_path,
+                    df_name='var',
+                    df_value=new_var
+                )
+
+                query_path = new_query_path
+
+                log.info(
+                    "Copied query_path over, mapping genes to "
+                    "ENSEMBL IDs",
+                    to_stdout=True
+                )
+
         self.drop_nodes_from_taxonomy(tmp_dir=tmp_dir)
 
         reference_marker_dir = tempfile.mkdtemp(dir=tmp_dir)
@@ -144,7 +192,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         reference_marker_update = {
             'precomputed_path_list': ref_stats_list,
             'output_dir': reference_marker_dir,
-            'query_path': self.args['query_path'],
+            'query_path': query_path,
             'n_processors': self.args['n_processors'],
             'drop_level': self.args['drop_level'],
             'cloud_safe': self.args['cloud_safe']
@@ -178,7 +226,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             'drop_level': self.args['drop_level'],
             'tmp_dir': self.args['tmp_dir'],
             'output_path': query_marker_path,
-            'query_path': self.args['query_path'],
+            'query_path': query_path,
             'reference_marker_path_list': reference_marker_files
         }
 
@@ -197,8 +245,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                 'serialized_lookup': query_marker_path,
             }}
 
-        for k in ('query_path',
-                  'extended_result_path',
+        for k in ('extended_result_path',
                   'extended_result_dir',
                   'hdf5_result_path',
                   'csv_result_path',
@@ -211,6 +258,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                   'verbose_csv',
                   'verbose_stdout'):
             mapping_config[k] = self.args[k]
+
+        mapping_config['query_path'] = query_path
 
         mapping_runner = FromSpecifiedMarkersRunner(
             args=[],
