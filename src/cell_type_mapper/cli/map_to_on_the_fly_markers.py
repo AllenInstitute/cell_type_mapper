@@ -2,6 +2,7 @@ import argschema
 import copy
 import pandas as pd
 import pathlib
+import shutil
 import tempfile
 import time
 
@@ -10,7 +11,7 @@ from cell_type_mapper.utils.utils import (
     _clean_up)
 
 from cell_type_mapper.utils.anndata_utils import (
-    copy_layer_to_x
+    write_df_to_h5ad
 )
 
 from cell_type_mapper.diff_exp.precompute_utils import (
@@ -156,12 +157,17 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                     prefix=pathlib.Path(query_path).name + '.ENSEMBL.',
                     suffix='.h5ad'
                 )
-                copy_layer_to_x(
-                    original_h5ad_path=query_path,
-                    new_h5ad_path=new_query_path,
-                    layer='X',
-                    new_var=new_var
+                shutil.copy(
+                    src=query_path,
+                    dst=new_query_path
                 )
+
+                write_df_to_h5ad(
+                    h5ad_path=new_query_path,
+                    df_name='var',
+                    df_value=new_var
+                )
+
                 query_path = new_query_path
 
                 log.info(
