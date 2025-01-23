@@ -1199,10 +1199,12 @@ def test_online_workflow_OTF_degenerate_cell_labels(
         assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]
 
 
+@pytest.mark.parametrize('density', ['csc', 'csr', 'dense'])
 def test_OTF_map_to_ensembl(
         tmp_dir_fixture,
         human_gene_data_fixture,
-        baseline_mapping_fixture):
+        baseline_mapping_fixture,
+        density):
     """
     Test that OTF mapper can handle mapping to ensembl by
     itself
@@ -1211,8 +1213,7 @@ def test_OTF_map_to_ensembl(
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
     precomputed_path = human_gene_data_fixture['precompute']
-    query_path = human_gene_data_fixture['csr']
-
+    query_path = human_gene_data_fixture[density]
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -1228,11 +1229,12 @@ def test_OTF_map_to_ensembl(
 
     config = {
         'n_processors': 3,
-        'tmp_dir': str(tmp_dir_fixture),
+        'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
         'drop_level': None,
         'query_path': str(query_path),
         'log_path': None,
+        'map_to_ensembl': True,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {
