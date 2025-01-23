@@ -1215,6 +1215,10 @@ def test_OTF_map_to_ensembl(
     precomputed_path = human_gene_data_fixture['precompute']
     query_path = human_gene_data_fixture[density]
 
+    baseline_md5 = hashlib.md5()
+    with open(query_path, 'rb') as src:
+        baseline_md5.update(src.read())
+
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='otf_map_to_ensembl_',
@@ -1270,3 +1274,9 @@ def test_OTF_map_to_ensembl(
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
+
+    final_md5 = hashlib.md5()
+    with open(query_path, 'rb') as src:
+        final_md5.update(src.read())
+
+    assert final_md5.hexdigest() == baseline_md5.hexdigest()
