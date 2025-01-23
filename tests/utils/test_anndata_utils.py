@@ -1173,8 +1173,11 @@ def test_pathologically_inconsistent_attrs(
         suffix='.h5ad'
     )
 
-    src = anndata.AnnData(obs=obs, var=var)
-    src.write_h5ad(h5ad_path)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        src = anndata.AnnData(obs=obs, var=var)
+        src.write_h5ad(h5ad_path)
 
     rng = np.random.default_rng(761321312)
     if density == 'csr':
