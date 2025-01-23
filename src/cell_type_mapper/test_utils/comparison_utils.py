@@ -1,4 +1,3 @@
-import numbers
 import numpy as np
 
 
@@ -6,6 +5,7 @@ def assert_blobs_equal(blob0, blob1):
     """
     Assert two output blobs are equal
     """
+    assert set(blob0.keys()) == set(blob1.keys())
 
     assert_mappings_equal(
         blob0['results'],
