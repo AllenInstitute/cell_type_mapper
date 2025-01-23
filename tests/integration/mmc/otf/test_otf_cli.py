@@ -1197,3 +1197,74 @@ def test_online_workflow_OTF_degenerate_cell_labels(
         assert 'cell_id' not in baseline_mapping[pair[0]]
         assert 'cell_id' not in baseline_mapping[pair[1]]
         assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]
+
+
+def test_OTF_map_to_ensembl(
+        tmp_dir_fixture,
+        human_gene_data_fixture,
+        baseline_mapping_fixture):
+    """
+    Test that OTF mapper can handle mapping to ensembl by
+    itself
+    """
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precomputed_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture['csr']
+
+
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='otf_map_to_ensembl_',
+        suffix='.csv'
+    )
+
+    json_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='otf_map_to_ensembl_',
+        suffix='.json'
+    )
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': str(tmp_dir_fixture),
+        'precomputed_stats': {'path': str(precomputed_path)},
+        'drop_level': None,
+        'query_path': str(query_path),
+        'log_path': None,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
+        'extended_result_path': json_path,
+        'csv_result_path': csv_path,
+        'summary_metadata_path': None,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    baseline_df = pd.read_csv(
+        baseline_mapping_fixture['csv'],
+        comment='#'
+    )
+
+    test_df = pd.read_csv(
+        csv_path,
+        comment='#'
+    )
+
+    pd.testing.assert_frame_equal(test_df, baseline_df)
+
+    baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
+    test = json.load(open(json_path, 'rb'))
+    assert_mappings_equal(baseline['results'], test['results'])

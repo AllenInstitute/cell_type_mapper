@@ -88,4 +88,67 @@ def test_get_query_gene_names(tmp_dir_fixture, as_ensembl, species):
                 assert len(actual[0]) == 4
                 assert actual[1] == 1
             else:
-                assert actual == (input_names, 0)
+                assert actual[0] == input_names
+                assert actual[1] == 0
+
+
+def test_flag_in_get_query_gene_names(
+        tmp_dir_fixture):
+    """
+    Test if the boolean flag at the end of get_query_gene_names' output
+    is correct
+    """
+
+    # case when some genes are mapped to ENSEMBL IDs
+    symbol_input_names = [
+        'Xkr4',
+        'Rrs1',
+        'bob',
+        'NCBIGene:73261']
+
+    ensembl_input_names = [
+        'ENSMUSG00000051951',
+        'ENSMUSG00000061024',
+        'bob',
+        'ENSMUSG00000005983']
+
+    hybrid_input_names = [
+        'Xkr4',
+        'ENSMUSG00000061024',
+        'bob',
+        'NCBIGene:73261']
+
+    for input_names, expected in [(symbol_input_names, True),
+                                  (ensembl_input_names, False),
+                                  (hybrid_input_names, True)]:
+
+        var = pd.DataFrame(
+            [{'gene_id': n} for n in input_names]).set_index('gene_id')
+
+        obs = pd.DataFrame([{'cell_id': f'cell_{ii}'}
+                            for ii in range(10)]).set_index('cell_id')
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            a_data = anndata.AnnData(
+                X=np.zeros((len(obs), len(var)), dtype=np.float32),
+                obs=obs,
+                var=var,
+                dtype=np.float32)
+
+            src_path = mkstemp_clean(
+                dir=tmp_dir_fixture,
+                prefix='var_names_',
+                suffix='.h5ad')
+
+            a_data.write_h5ad(src_path)
+
+            result = _get_query_gene_names(
+                query_gene_path=src_path,
+                map_to_ensembl=True)
+
+        if expected:
+            assert result[2]
+        else:
+            assert not result[2]

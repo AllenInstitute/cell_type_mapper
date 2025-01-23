@@ -1,4 +1,5 @@
 import copy
+import numpy as np
 import pathlib
 import time
 
@@ -42,10 +43,15 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
 
     Return the list of gene names and the number of genes that could
     not be mapped (this will be zero of map_to_ensemble is False)
+
+    Also return boolean indicating whether or not any genes
+    were meaningfully mapped (True if a gene was mapped to
+    an ENSEMBL ID; false otherwise)
     """
     var = read_df_from_h5ad(query_gene_path, 'var')
     result = list(var.index.values)
     n_unmapped = 0
+    was_changed = False
     if map_to_ensembl:
         species = detect_species(result)
         if species is None:
@@ -62,7 +68,17 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
             strict=False)
         result = raw_result['mapped_genes']
         n_unmapped = raw_result['n_unmapped']
-    return result, n_unmapped
+
+        if np.array_equal(np.array(result), var.index.values):
+            was_changed = False
+        else:
+            delta = np.where(np.array(result) != var.index.values)[0]
+            for ii in delta:
+                if 'unmapped' not in result[ii]:
+                    was_changed = True
+                    break
+
+    return result, n_unmapped, was_changed
 
 
 def create_precomputed_stats_file(
