@@ -19,6 +19,10 @@ from cell_type_mapper.test_utils.cloud_safe import (
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
+from cell_type_mapper.test_utils.comparison_utils import (
+    assert_blobs_equal
+)
+
 from cell_type_mapper.test_utils.anndata_utils import (
     create_h5ad_without_encoding_type
 )
@@ -1188,7 +1192,7 @@ def test_output_compression(
         roundtrip = hdf5_to_blob(
             src_path=hdf5_path)
 
-    assert roundtrip == output_blob
+    assert_blobs_equal(roundtrip, output_blob)
 
 
 def test_integer_indexed_input(
