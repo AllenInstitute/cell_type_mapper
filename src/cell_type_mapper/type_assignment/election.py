@@ -770,7 +770,7 @@ def reshape_type_assignment(
         assignment_vote_fractions = np.array(
             [votes[ii, forced_idx[ii]]
              for ii in range(votes.shape[0])]
-        )
+        ).astype(float)
 
         assignment_corr = np.array(
             [corr_sum[ii, forced_idx[ii]]
