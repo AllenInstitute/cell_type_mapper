@@ -710,3 +710,88 @@ def test_aggregate_votes():
         corr[:, 5],
         atol=0.0,
         rtol=1.0e-6)
+
+
+def test_forced_assignments():
+    """
+    Test that reshape_type_assignment handles forced_assignments
+    correctly
+    """
+
+    votes = np.array([
+        [2, 0, 1, 3],
+        [3, 1, 0, 2],
+        [0, 1, 4, 1]
+    ])
+
+    reference_types = np.array(['a', 'b', 'c', 'd'])
+
+    corr_sum = np.array([
+        [3.5, 0, 1.1, 2.2],
+        [4.1, 0.2, 0, 1.5],
+        [0, 0.4, 2.7, 1.8]
+    ])
+
+    # first without forced assignments
+    (result,
+     prob,
+     corr,
+     runners_up) = reshape_type_assignment(
+                         votes=votes,
+                         reference_types=reference_types,
+                         corr_sum=corr_sum,
+                         n_assignments=3,
+                         forced_assignments=None)
+
+    np.testing.assert_array_equal(
+        result,
+        np.array(['d', 'a', 'c'])
+    )
+    np.testing.assert_allclose(
+        prob,
+        np.array([0.5, 0.5, 2.0/3.0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+    np.testing.assert_allclose(
+        corr,
+        np.array([2.2/3, 4.1/3, 2.7/4]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    # now with forced assignments
+    (result,
+     prob,
+     corr,
+     runners_up) = reshape_type_assignment(
+                         votes=votes,
+                         reference_types=reference_types,
+                         corr_sum=corr_sum,
+                         n_assignments=3,
+                         forced_assignments=np.array(['c', 'd', 'a']))
+
+    np.testing.assert_array_equal(
+        result,
+        np.array(['c', 'd', 'a'])
+    )
+    np.testing.assert_allclose(
+        prob,
+        np.array([1/6, 2/6, 0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+    np.testing.assert_allclose(
+        corr,
+        np.array([1.1, 1.5/2, 0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    assert runners_up[0] == [('d', True, 2.2/3, 0.5), ('a', True, 3.5/2, 2/6)]
+    assert runners_up[1] == [('a', True, 4.1/3, 0.5), ('b', True, 0.2, 1/6)]
+    assert runners_up[2][0] == ('c', True, 2.7/4, 4/6)
+
+    # value of runners_up[2][1] depends on how the two entries with votes==1
+    # get sorted; could be platform dependent
+    assert runners_up[2][1] in [('b', True, 0.4, 1/6), ('d', True, 1.8, 1/6)]
