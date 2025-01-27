@@ -507,24 +507,23 @@ def hdf5_to_blob(
             if agg_prob is not None:
                 this['aggregate_probability'] = agg_prob[i_cell, i_level]
 
-            if directly_assigned[i_level]:
-                this.update({
-                    'runner_up_assignment': [],
-                    'runner_up_probability': [],
-                    'runner_up_correlation': []
-                })
+            this.update({
+                'runner_up_assignment': [],
+                'runner_up_probability': [],
+                'runner_up_correlation': []
+            })
 
-                if r_assignment is not None:
-                    for i_r in range(n_r):
-                        if r_assignment[i_cell, i_level, i_r] < 0:
-                            break
-                        node = int_to_node[level][
-                            r_assignment[i_cell, i_level, i_r]]
-                        this['runner_up_assignment'].append(node)
-                        this['runner_up_probability'].append(
-                            r_prob[i_cell, i_level, i_r])
-                        this['runner_up_correlation'].append(
-                            r_corr[i_cell, i_level, i_r])
+            if r_assignment is not None:
+                for i_r in range(n_r):
+                    if r_assignment[i_cell, i_level, i_r] < 0:
+                        break
+                    node = int_to_node[level][
+                        r_assignment[i_cell, i_level, i_r]]
+                    this['runner_up_assignment'].append(node)
+                    this['runner_up_probability'].append(
+                        r_prob[i_cell, i_level, i_r])
+                    this['runner_up_correlation'].append(
+                        r_corr[i_cell, i_level, i_r])
             cell[level] = this
         results.append(cell)
     blob['results'] = results

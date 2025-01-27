@@ -39,6 +39,10 @@ def assert_mappings_equal(result0, result1, eps=10e-6):
     for level in result0[0]:
         if level == 'cell_id':
             continue
+        if set(result0[0][level].keys()) != set(result1[0][level].keys()):
+            raise RuntimeError(
+                f"Keys do not match at level {level}"
+            )
         for key in result0[0][level]:
             _assert_element_equal(
                 result0=result0,
