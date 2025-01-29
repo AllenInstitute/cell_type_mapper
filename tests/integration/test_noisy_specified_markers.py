@@ -15,6 +15,7 @@ import pytest
 
 import anndata
 import copy
+import h5py
 import hashlib
 import itertools
 import json
@@ -33,6 +34,10 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
@@ -49,6 +54,10 @@ from cell_type_mapper.cli.from_specified_markers import (
 from cell_type_mapper.utils.output_utils import (
     blob_to_hdf5,
     hdf5_to_blob)
+
+from cell_type_mapper.test_utils.hierarchical_mapping import (
+    assert_mappings_equal
+)
 
 
 @pytest.fixture(scope='module')
@@ -1594,3 +1603,199 @@ def test_mapping_config_roundtrip(
         assert retest_mapping['metadata'] != test_mapping['metadata']
 
     os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize(
+    "specify_markers,collapse_markers",
+    [(True, True),
+     (False, True),
+     (False, False)]
+)
+def test_marker_collapse_params(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        specify_markers,
+        collapse_markers):
+    """
+    Test that the correct error is raised when you
+    don't specify a marker lookup table but leave
+    collapse_markers False
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    if specify_markers:
+        marker_path = str(noisy_marker_gene_lookup_fixture)
+    else:
+        marker_path = None
+
+    config['query_markers'] = {
+        'serialized_lookup': marker_path,
+        'collapse_markers': collapse_markers
+    }
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.5,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+
+    msg = (
+        "Cannot have collapse_markers = False if you are not specifying "
+        "a serialized_lookup for query_markers"
+    )
+
+    if (not specify_markers) and (not collapse_markers):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            with pytest.raises(RuntimeError, match=msg):
+                runner = FromSpecifiedMarkersRunner(
+                    args=[],
+                    input_data=config)
+
+                runner.run()
+    else:
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()
+
+        # Now run the mapping, specifying the collapsed markers
+        # in a JSON file and confirm that the mappings come out
+        # identical
+
+        expected_config = copy.deepcopy(config)
+
+        expected_json = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='expected_output_',
+            suffix='.json'
+        )
+        expected_csv = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='expected_output_',
+            suffix='.csv'
+        )
+        expected_config['extended_result_path'] = expected_json
+        expected_config['csv_result_path'] = expected_csv
+
+        taxonomy_tree = TaxonomyTree.from_precomputed_stats(
+            noisy_precomputed_stats_fixture
+        )
+
+        expected_markers = dict()
+        var = read_df_from_h5ad(config['query_path'], df_name='var')
+        query_genes = set(var.index.values)
+        if specify_markers:
+            _src_path = config['query_markers']['serialized_lookup']
+            with open(_src_path, 'rb') as src:
+                src_markers = json.load(src)
+            all_markers = set()
+            for key in src_markers:
+                if key in ('log', 'metadata'):
+                    continue
+                all_markers = all_markers.union(set(src_markers[key]))
+            all_markers = sorted(all_markers)
+        else:
+            with h5py.File(config['precomputed_stats']['path'], 'r') as src:
+                ref_genes = json.loads(
+                    src['col_names'][()].decode('utf-8')
+                )
+
+            all_markers = sorted(
+                query_genes.intersection(set(ref_genes))
+            )
+
+        for parent in taxonomy_tree.all_parents:
+            if parent is None:
+                key = 'None'
+            else:
+                key = f'{parent[0]}/{parent[1]}'
+            expected_markers[key] = all_markers
+
+        expected_marker_path = mkstemp_clean(
+           dir=tmp_dir_fixture,
+           prefix='expected_markers_',
+           suffix='.json'
+        )
+
+        with open(expected_marker_path, 'w') as dst:
+            dst.write(json.dumps(expected_markers, indent=2))
+
+        expected_config['query_markers']['serialized_lookup'] = (
+            expected_marker_path
+        )
+        expected_config['query_markers']['collapse_markers'] = False
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=expected_config)
+
+            runner.run()
+
+        actual = json.load(
+            open(config['extended_result_path'], 'rb')
+        )
+        expected = json.load(
+            open(expected_config['extended_result_path'], 'rb')
+        )
+        assert actual != expected
+        assert_mappings_equal(
+            mapping0=actual['results'],
+            mapping1=expected['results']
+        )
+
+        # check that the recorded marker genes in actual are
+        # as expected
+        actual_markers = actual['marker_genes']
+        assert set(actual_markers.keys()) == set(expected_markers.keys())
+        for k in actual_markers:
+            act = set(actual_markers[k])
+            expct = set(expected_markers[k])
+            assert len(act-expct) == 0
+
+            # make sure any difference is due to genes that are
+            # not in the query set
+            diff = (expct-act)
+            assert len(query_genes.intersection(diff)) == 0

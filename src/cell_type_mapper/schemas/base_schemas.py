@@ -1,4 +1,5 @@
 import argschema
+from marshmallow import post_load
 
 
 class PrecomputedStatsInputSchema(argschema.ArgSchema):
@@ -18,6 +19,30 @@ class QueryMarkerInputSchema(argschema.ArgSchema):
     serialized_lookup = argschema.fields.InputFile(
         required=True,
         default=None,
-        allow_none=False,
+        allow_none=True,
         description="Path to the JSON file that specifies the marker genes to "
         "use for this mapping job.")
+
+    collapse_markers = argschema.fields.Boolean(
+        required=True,
+        default=False,
+        description=(
+            "If True and serialized_lookup is not None, all marker genes "
+            "will be compiled into a single list that is used at all levels "
+            "in the taxonomy. If True and serialized_lookup is None, all "
+            "genes in the unlabeled dataset will be used as markers at all "
+            "levels of the taxonomy. Cannot be False if serialized_lookup "
+            "is None."
+        )
+    )
+
+    @post_load
+    def check_collapse_consistence(self, data, **kwargs):
+        if data['serialized_lookup'] is None:
+            if not data['collapse_markers']:
+                raise RuntimeError(
+                    "Cannot have collapse_markers = False if you "
+                    "are not specifying a serialized_lookup for "
+                    "query_markers."
+                )
+        return data
