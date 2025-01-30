@@ -1620,9 +1620,8 @@ def test_marker_collapse_params(
         specify_markers,
         collapse_markers):
     """
-    Test that the correct error is raised when you
-    don't specify a marker lookup table but leave
-    collapse_markers False
+    Test that correct mapping is done when collapse_markers
+    is specified
     """
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
@@ -1799,3 +1798,88 @@ def test_marker_collapse_params(
             # not in the query set
             diff = (expct-act)
             assert len(query_genes.intersection(diff)) == 0
+
+
+def test_marker_collapse_params_no_overlap(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture):
+    """
+    Test that the correct error is raised when you
+    specify collapse_markers but there is no overlap
+    between reference genes and your query set
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    query_path = mkstemp_clean(
+        dir=this_tmp,
+        prefix='query_',
+        suffix='.h5ad'
+    )
+
+    var = pd.DataFrame(
+        [{'gene_id': f'special_case_{ii}'}
+         for ii in range(10)]
+    ).set_index('gene_id')
+
+    query_data = anndata.AnnData(
+        var=var,
+        X=np.random.random_sample((15, 10))
+    )
+    query_data.write_h5ad(query_path)
+
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = query_path
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    config['query_markers'] = {
+        'serialized_lookup': None,
+        'collapse_markers': True
+    }
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.5,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+
+    msg = (
+        "There was no overlap between the genes in the query "
+        "dataset and the genes in the reference dataset"
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with pytest.raises(RuntimeError, match=msg):
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()
