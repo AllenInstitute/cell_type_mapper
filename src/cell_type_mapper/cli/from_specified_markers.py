@@ -352,6 +352,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     t0 = time.time()
 
+    marker_lookup = None
     if config['query_markers']['serialized_lookup'] is not None:
         marker_lookup_path = config['query_markers']['serialized_lookup']
         marker_lookup = json.load(open(marker_lookup_path, 'rb'))
@@ -360,45 +361,57 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             marker_lookup.pop('metadata')
         if 'log' in marker_lookup:
             marker_lookup.pop('log')
+    elif not config['query_markers']['collapse_markers']:
+        msg = (
+            "You did not specify a marker gene lookup table, "
+            "but collapse_markers is False; unclear how to "
+            "proceed."
+        )
+        log.error(msg)
 
-        if config['query_markers']['collapse_markers']:
+    if config['query_markers']['collapse_markers']:
+
+        if marker_lookup is not None:
             all_markers = set()
             for k in marker_lookup:
                 all_markers = all_markers.union(
                     set(marker_lookup[k])
                 )
             all_markers = sorted(all_markers)
-            for k in marker_lookup:
-                marker_lookup[k] = all_markers
-    else:
-        if not config['query_markers']['collapse_markers']:
-            msg = (
-                "You did not specify a marker gene lookup table, "
-                "but collapse_markers is False; unclear how to "
-                "proceed."
+        else:
+            marker_lookup = dict()
+            all_markers = sorted(
+                set(query_gene_names).intersection(set(reference_gene_names))
             )
-            log.error(msg)
+            if len(all_markers) == 0:
+                msg = (
+                    "There was no overlap between the genes in "
+                    "the query dataset and the genes in the "
+                    "reference dataset.\n"
+                    f"Example query genes: {query_gene_names[:5]}\n"
+                    f"Example reference genes: {reference_gene_names[:5]}\n"
+                )
+                log.error(msg)
 
-        marker_lookup = dict()
-        marker_gene_names = sorted(
-            set(query_gene_names).intersection(set(reference_gene_names))
-        )
-        if len(marker_gene_names) == 0:
+            for parent in taxonomy_tree.all_parents:
+                if parent is None:
+                    key = str(parent)
+                else:
+                    key = f'{parent[0]}/{parent[1]}'
+                marker_lookup[key] = []
+
+        if len(all_markers) >= 10000:
             msg = (
-                "There was no overlap between the genes in "
-                "the query dataset and the genes in the "
-                "reference dataset.\n"
-                f"Example query genes: {query_gene_names[:5]}\n"
-                f"Example reference genes: {reference_gene_names[:5]}\n"
+                "Your query_marker configuration has resulted in "
+                f"{len(all_markers)} marker genes being used at "
+                "every decision point in the taxonomy. This will be "
+                "very resource-intensive. You should consider specifying "
+                "a more limited set of marker genes."
             )
-            log.error(msg)
+            log.warn(msg)
 
-        for parent in taxonomy_tree.all_parents:
-            if parent is None:
-                key = str(parent)
-            else:
-                key = f'{parent[0]}/{parent[1]}'
-            marker_lookup[key] = marker_gene_names
+        for k in marker_lookup:
+            marker_lookup[k] = all_markers
 
     if config['flatten']:
 
