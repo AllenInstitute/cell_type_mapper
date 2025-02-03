@@ -492,10 +492,6 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    csv_result = dict()
-    csv_result["taxonomy_tree"] = tree_for_metadata
-    csv_result["assignments"] = result
-
     if config['csv_result_path'] is not None:
 
         if config['type_assignment']['bootstrap_iteration'] == 1 \
@@ -519,8 +515,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             valid_suffixes = None
 
         blob_to_csv(
-            results_blob=csv_result.get("assignments"),
-            taxonomy_tree=csv_result.get("taxonomy_tree"),
+            results_blob=result,
+            taxonomy_tree=tree_for_metadata,
             output_path=config['csv_result_path'],
             metadata_path=config['extended_result_path'],
             confidence_key=confidence_key,
