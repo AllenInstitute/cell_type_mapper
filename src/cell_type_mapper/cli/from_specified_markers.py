@@ -450,6 +450,11 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         else:
             valid_suffixes = None
 
+        check_consistency = False
+        if config['type_assignment']['bootstrap_iteration'] > 1:
+            if config['flatten']:
+                check_consistency = True
+
         blob_to_csv(
             results_blob=result,
             taxonomy_tree=tree_for_metadata,
@@ -458,7 +463,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             confidence_key=confidence_key,
             confidence_label=confidence_label,
             config=config,
-            valid_suffixes=valid_suffixes)
+            valid_suffixes=valid_suffixes,
+            check_consistency=check_consistency)
 
     if config['obsm_key']:
 
