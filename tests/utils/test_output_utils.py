@@ -101,7 +101,8 @@ def results_fixture():
     return results
 
 
-def test_blob_to_df(results_fixture):
+@pytest.mark.parametrize('check_consistency', [True, False])
+def test_blob_to_df(results_fixture, check_consistency):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
@@ -116,9 +117,28 @@ def test_blob_to_df(results_fixture):
         def level_to_name(self, level_label):
             return level_label
 
+        def parents(self, level, node):
+            # engineer this so the results appear
+            # inconsistent
+            if level != self.leaf_level:
+                raise RuntimeError(
+                    'Should not be executing'
+                )
+            if node == 'cheryl':
+                return {
+                    'level1': 'alice',
+                    'level3': 'bob'
+                }
+            elif node == 'brooklyn':
+                return {
+                    'level1': 'roger',
+                    'level3': 'yankee'
+                }
+
     actual_df = blob_to_df(
         results_blob=results_fixture,
-        taxonomy_tree=DummyTree())
+        taxonomy_tree=DummyTree(),
+        check_consistency=check_consistency)
 
     assert len(actual_df) == 2
 
@@ -145,11 +165,21 @@ def test_blob_to_df(results_fixture):
         "level7_confidence",
         "level7_corr"])
 
+    if check_consistency:
+        expected_columns.add('hierarchy_consistent')
+
     assert set(actual_df.columns) == expected_columns
 
     for record in results_fixture:
         sub_df = actual_df[actual_df['cell_id'] == record['cell_id']]
         assert len(sub_df) == 1
+
+        if check_consistency:
+            if record['cell_id'] == 'a':
+                assert sub_df.hierarchy_consistent.values[0]
+            else:
+                assert not sub_df.hierarchy_consistent.values[0]
+
         for level in ('level1', 'level3', 'level7'):
             for k in ('name', 'label'):
                 assert (
