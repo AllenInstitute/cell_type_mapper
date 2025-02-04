@@ -196,18 +196,21 @@ def blob_to_df(
     for cell in results_blob:
         this_record = {'cell_id': cell['cell_id']}
         if check_consistency:
+            parentage = taxonomy_tree.parents(
+                level=taxonomy_tree.leaf_level,
+                node=cell[taxonomy_tree.leaf_level]['assignment']
+            )
             this_record['hierarchy_consistent'] = True
+
         for level in taxonomy_tree.hierarchy:
+            label = cell[level]['assignment']
+
             if check_consistency:
-                prob = cell[level]['bootstrapping_probability']
-                if 'runner_up_probability' in cell[level]:
-                    rup = cell[level]['runner_up_probability']
-                    if len(rup) > 0:
-                        if max(rup) > prob:
-                            this_record['hierarchy_consistent'] = False
+                if level != taxonomy_tree.leaf_level:
+                    if label != parentage[level]:
+                        this_record['hierarchy_consistent'] = False
 
             readable_level = taxonomy_tree.level_to_name(level_label=level)
-            label = cell[level]['assignment']
             name = taxonomy_tree.label_to_name(
                         level=level,
                         label=label,
