@@ -2,6 +2,7 @@ import pytest
 
 import anndata
 import h5py
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -216,8 +217,18 @@ def test_blob_to_df(results_fixture, check_consistency):
                     sub_df[f'{level}_runners_up_{idx}'] is None
 
 
-@pytest.mark.parametrize('with_metadata', [True, False])
-def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
+@pytest.mark.parametrize(
+    'with_metadata,check_consistency',
+    itertools.product(
+        [True, False],
+        [True, False]
+    )
+)
+def test_blob_to_csv(
+        tmp_dir_fixture,
+        with_metadata,
+        results_fixture,
+        check_consistency):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
@@ -231,6 +242,24 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
 
         def level_to_name(self, level_label):
             return level_label
+
+        def parents(self, level, node):
+            # engineer this so the results appear
+            # inconsistent
+            if level != self.leaf_level:
+                raise RuntimeError(
+                    'Should not be executing'
+                )
+            if node == 'cheryl':
+                return {
+                    'level1': 'alice',
+                    'level3': 'bob'
+                }
+            elif node == 'brooklyn':
+                return {
+                    'level1': 'roger',
+                    'level3': 'yankee'
+                }
 
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -249,7 +278,8 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
         results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
-        metadata_path=metadata_path)
+        metadata_path=metadata_path,
+        check_consistency=check_consistency)
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()
@@ -262,21 +292,40 @@ def test_blob_to_csv(tmp_dir_fixture, with_metadata, results_fixture):
     taxonomy_line = '# taxonomy hierarchy = ["level1", "level3", "level7"]\n'
     assert actual_lines[0+n_offset] == taxonomy_line
 
-    header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
-                   'level3_label,level3_name,level3_confidence,level7_label,'
-                   'level7_name,level7_alias,level7_confidence\n')
+    if check_consistency:
+        header_line = ('cell_id,hierarchy_consistent,level1_label,level1_name,'
+                       'level1_confidence,level3_label,level3_name,'
+                       'level3_confidence,level7_label,level7_name,'
+                       'level7_alias,level7_confidence\n')
+    else:
+        header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
+                       'level3_label,level3_name,level3_confidence,'
+                       'level7_label,level7_name,level7_alias,'
+                       'level7_confidence\n')
     assert actual_lines[2+n_offset] == header_line
 
-    cell0 = (
-        'a,alice,alice,0.0123,bob,bob,0.2000,'
-        'cheryl,cheryl,cheryl,0.2450\n'
-    )
+    if check_consistency:
+        cell0 = (
+            'a,True,alice,alice,0.0123,bob,bob,0.2000,'
+            'cheryl,cheryl,cheryl,0.2450\n'
+        )
+    else:
+        cell0 = (
+            'a,alice,alice,0.0123,bob,bob,0.2000,'
+            'cheryl,cheryl,cheryl,0.2450\n'
+        )
     assert actual_lines[3+n_offset] == cell0
 
-    cell1 = (
-        'b,roger,roger,0.1112,dodger,dodger,0.3000,'
-        'brooklyn,brooklyn,brooklyn,0.5000\n'
-    )
+    if check_consistency:
+        cell1 = (
+            'b,False,roger,roger,0.1112,dodger,dodger,0.3000,'
+            'brooklyn,brooklyn,brooklyn,0.5000\n'
+        )
+    else:
+        cell1 = (
+            'b,roger,roger,0.1112,dodger,dodger,0.3000,'
+            'brooklyn,brooklyn,brooklyn,0.5000\n'
+        )
     assert actual_lines[4+n_offset] == cell1
 
     # test again using a different confidence stat
