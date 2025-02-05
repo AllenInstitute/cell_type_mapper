@@ -220,7 +220,6 @@ def test_mapping_from_markers_smoke(
     """
 
     use_tmp_dir = True
-    use_csv = True
 
     if use_gpu and not is_torch_available():
         return
@@ -233,12 +232,9 @@ def test_mapping_from_markers_smoke(
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    if use_csv:
-        csv_path = mkstemp_clean(
-            dir=this_tmp,
-            suffix='.csv')
-    else:
-        csv_path = None
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
 
     result_path = mkstemp_clean(
         dir=this_tmp,
@@ -516,6 +512,39 @@ def test_mapping_from_markers_smoke(
         expected_agg,
         atol=0.0,
         rtol=1.0e-6)
+
+    # check that hierarchy_consistent is set correctly
+    if flatten and not just_once:
+        expected_consistency = []
+        cell_id = []
+        for cell in actual['results']:
+            is_consistent = True
+            for level in cell:
+                if level == 'cell_id':
+                    continue
+                prob = cell[level]['bootstrapping_probability']
+                rup = cell[level]['runner_up_probability']
+                if len(rup) > 0:
+                    if prob < max(rup):
+                        is_consistent = False
+                        break
+            expected_consistency.append(is_consistent)
+            cell_id.append(cell['cell_id'])
+        expected_consistency = np.array(expected_consistency)
+        cell_id = np.array(cell_id)
+        n_consistent = expected_consistency.sum()
+        assert n_consistent > 0
+        assert n_consistent < len(actual['results'])
+
+        csv_results = pd.read_csv(csv_path, comment='#')
+        np.testing.assert_array_equal(
+            expected_consistency,
+            csv_results.hierarchy_consistent.values
+        )
+        np.testing.assert_array_equal(
+            cell_id,
+            csv_results.cell_id.values.astype(str)
+        )
 
 
 @pytest.mark.parametrize(
