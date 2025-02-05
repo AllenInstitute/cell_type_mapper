@@ -75,27 +75,28 @@ def results_fixture():
     results = [
         {'cell_id': 'a',
          'level1': {'assignment': 'alice',
-                    'confidence': 0.01234567,
+                    'bootstrapping_probability': 0.01234567,
                     'corr': 0.112253,
                     'runners_up': ['a', 'b', 'd']},
          'level3': {'assignment': 'bob',
-                    'confidence': 0.2,
+                    'bootstrapping_probability': 0.2,
                     'corr': 0.4,
                     'runners_up': ['c']},
          'level7': {'assignment': 'cheryl',
-                    'confidence': 0.245,
+                    'bootstrapping_probability': 0.245,
                     'corr': 0.33332}
          },
         {'cell_id': 'b',
          'level1': {'assignment': 'roger',
-                    'confidence': 0.11119,
+                    'bootstrapping_probability': 0.11119,
                     'corr': 0.1},
          'level3': {'assignment': 'dodger',
-                    'confidence': 0.3,
+                    'bootstrapping_probability': 0.3,
                     'corr': 0.9,
-                    'runners_up': ['a', 'f', 'b', 'b']},
+                    'runners_up': ['a', 'f', 'b', 'b'],
+                    'runner_up_probability': [0.5, 0.1, 0.05, 0.05]},
          'level7': {'assignment': 'brooklyn',
-                    'confidence': 0.5,
+                    'bootstrapping_probability': 0.5,
                     'corr': 0.11723}
          }
     ]
@@ -118,24 +119,6 @@ def test_blob_to_df(results_fixture, check_consistency):
         def level_to_name(self, level_label):
             return level_label
 
-        def parents(self, level, node):
-            # engineer this so the results appear
-            # inconsistent
-            if level != self.leaf_level:
-                raise RuntimeError(
-                    'Should not be executing'
-                )
-            if node == 'cheryl':
-                return {
-                    'level1': 'alice',
-                    'level3': 'bob'
-                }
-            elif node == 'brooklyn':
-                return {
-                    'level1': 'roger',
-                    'level3': 'yankee'
-                }
-
     actual_df = blob_to_df(
         results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
@@ -147,23 +130,27 @@ def test_blob_to_df(results_fixture, check_consistency):
         "cell_id",
         "level1_name",
         "level1_label",
-        "level1_confidence",
+        "level1_bootstrapping_probability",
         "level1_corr",
         "level1_runners_up_0",
         "level1_runners_up_1",
         "level1_runners_up_2",
         "level3_name",
         "level3_label",
-        "level3_confidence",
+        "level3_bootstrapping_probability",
         "level3_corr",
         "level3_runners_up_0",
         "level3_runners_up_1",
         "level3_runners_up_2",
         "level3_runners_up_3",
+        "level3_runner_up_probability_0",
+        "level3_runner_up_probability_1",
+        "level3_runner_up_probability_2",
+        "level3_runner_up_probability_3",
         "level7_name",
         "level7_label",
         "level7_alias",
-        "level7_confidence",
+        "level7_bootstrapping_probability",
         "level7_corr"])
 
     if check_consistency:
@@ -192,7 +179,7 @@ def test_blob_to_df(results_fixture, check_consistency):
                     sub_df[f'{level}_alias'].values
                     == record[level]['assignment']
                 )
-            for k in ('confidence', 'corr'):
+            for k in ('bootstrapping_probability', 'corr'):
                 np.testing.assert_allclose(
                     sub_df[f'{level}_{k}'],
                     record[level][k])
@@ -243,24 +230,6 @@ def test_blob_to_csv(
         def level_to_name(self, level_label):
             return level_label
 
-        def parents(self, level, node):
-            # engineer this so the results appear
-            # inconsistent
-            if level != self.leaf_level:
-                raise RuntimeError(
-                    'Should not be executing'
-                )
-            if node == 'cheryl':
-                return {
-                    'level1': 'alice',
-                    'level3': 'bob'
-                }
-            elif node == 'brooklyn':
-                return {
-                    'level1': 'roger',
-                    'level3': 'yankee'
-                }
-
     csv_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.csv')
@@ -279,7 +248,9 @@ def test_blob_to_csv(
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
         metadata_path=metadata_path,
-        check_consistency=check_consistency)
+        check_consistency=check_consistency,
+        confidence_key='bootstrapping_probability',
+        confidence_label='bootstrapping_probability')
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()
@@ -294,14 +265,18 @@ def test_blob_to_csv(
 
     if check_consistency:
         header_line = ('cell_id,hierarchy_consistent,level1_label,level1_name,'
-                       'level1_confidence,level3_label,level3_name,'
-                       'level3_confidence,level7_label,level7_name,'
-                       'level7_alias,level7_confidence\n')
+                       'level1_bootstrapping_probability,'
+                       'level3_label,level3_name,'
+                       'level3_bootstrapping_probability,'
+                       'level7_label,level7_name,'
+                       'level7_alias,level7_bootstrapping_probability\n')
     else:
-        header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
-                       'level3_label,level3_name,level3_confidence,'
+        header_line = ('cell_id,level1_label,level1_name,'
+                       'level1_bootstrapping_probability,'
+                       'level3_label,level3_name,'
+                       'level3_bootstrapping_probability,'
                        'level7_label,level7_name,level7_alias,'
-                       'level7_confidence\n')
+                       'level7_bootstrapping_probability\n')
     assert actual_lines[2+n_offset] == header_line
 
     if check_consistency:
@@ -432,7 +407,9 @@ def test_blob_to_csv_with_mapping(
         results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
-        metadata_path=metadata_path)
+        metadata_path=metadata_path,
+        confidence_key='bootstrapping_probability',
+        confidence_label='bootstrapping_probability')
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()
@@ -445,9 +422,12 @@ def test_blob_to_csv_with_mapping(
     taxonomy_line = '# taxonomy hierarchy = ["level1", "level3", "level7"]\n'
     assert actual_lines[0+n_offset] == taxonomy_line
 
-    header_line = ('cell_id,level1_label,level1_name,level1_confidence,'
-                   'level3_label,level3_name,level3_confidence,level7_label,'
-                   'level7_name,level7_alias,level7_confidence\n')
+    header_line = ('cell_id,level1_label,level1_name,'
+                   'level1_bootstrapping_probability,'
+                   'level3_label,level3_name,'
+                   'level3_bootstrapping_probability,level7_label,'
+                   'level7_name,level7_alias,'
+                   'level7_bootstrapping_probability\n')
     assert actual_lines[2+n_offset] == header_line
 
     cell0 = 'a,alice,beverly,0.0123,bob,X,0.2000,cheryl,tom,77,0.2450\n'
@@ -533,6 +513,8 @@ def test_blob_to_csv_level_map(
         results_blob=results_fixture,
         taxonomy_tree=DummyTree(),
         output_path=csv_path,
+        confidence_key='bootstrapping_probability',
+        confidence_label='bootstrapping_probability',
         metadata_path=metadata_path)
 
     with open(csv_path, 'r') as src:
@@ -553,10 +535,12 @@ def test_blob_to_csv_level_map(
     assert actual_lines[1+n_offset] == readable_taxonomy_line
 
     header_line = ('cell_id,'
-                   'salted_1_label,salted_1_name,salted_1_confidence,'
-                   'salted_9_label,salted_9_name,salted_9_confidence,'
+                   'salted_1_label,salted_1_name,'
+                   'salted_1_bootstrapping_probability,'
+                   'salted_9_label,salted_9_name,'
+                   'salted_9_bootstrapping_probability,'
                    'salted_49_label,salted_49_name,salted_49_alias,'
-                   'salted_49_confidence\n')
+                   'salted_49_bootstrapping_probability\n')
     # version line is at 2+n_offset
     assert actual_lines[3+n_offset] == header_line
 
