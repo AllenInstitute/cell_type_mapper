@@ -339,6 +339,12 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     # ========= query marker cache =========
 
+    (query_gene_names,
+     n_unmapped,
+     _) = _get_query_gene_names(
+        query_loc,
+        map_to_ensembl=config['map_to_ensembl'])
+
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir,
                       prefix='query_marker_',
@@ -346,13 +352,78 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     t0 = time.time()
 
-    marker_lookup_path = config['query_markers']['serialized_lookup']
-    marker_lookup = json.load(open(marker_lookup_path, 'rb'))
+    marker_lookup = None
+    if config['query_markers']['serialized_lookup'] is not None:
+        marker_lookup_path = config['query_markers']['serialized_lookup']
+        marker_lookup = json.load(open(marker_lookup_path, 'rb'))
 
-    if 'metadata' in marker_lookup:
-        marker_lookup.pop('metadata')
-    if 'log' in marker_lookup:
-        marker_lookup.pop('log')
+        if 'metadata' in marker_lookup:
+            marker_lookup.pop('metadata')
+        if 'log' in marker_lookup:
+            marker_lookup.pop('log')
+    elif not config['query_markers']['collapse_markers']:
+        msg = (
+            "You did not specify a marker gene lookup table, "
+            "but collapse_markers is False; unclear how to "
+            "proceed."
+        )
+        log.error(msg)
+
+    if config['query_markers']['collapse_markers']:
+
+        if marker_lookup is not None:
+            all_markers = set()
+            for k in marker_lookup:
+                all_markers = all_markers.union(
+                    set(marker_lookup[k])
+                )
+            all_markers = sorted(all_markers)
+        else:
+            marker_lookup = dict()
+            query_gene_set = set(query_gene_names)
+            reference_gene_set = set(reference_gene_names)
+            all_markers = query_gene_set.intersection(reference_gene_set)
+
+            if len(all_markers) == 0:
+                msg = (
+                    "There was no overlap between the genes in "
+                    "the query dataset and the genes in the "
+                    "reference dataset.\n"
+                    f"Example query genes: {query_gene_names[:5]}\n"
+                    f"Example reference genes: {reference_gene_names[:5]}\n"
+                )
+                log.error(msg)
+            diff = query_gene_set-all_markers
+            if len(diff) > 0:
+                msg = (
+                    f"{len(diff)} of {len(query_gene_set)} genes in the "
+                    "query dataset were not present in the reference dataset. "
+                    "These genes could not be used as markers and "
+                    "were ignored."
+                )
+                log.warn(msg)
+
+            all_markers = sorted(all_markers)
+
+            for parent in taxonomy_tree.all_parents:
+                if parent is None:
+                    key = str(parent)
+                else:
+                    key = f'{parent[0]}/{parent[1]}'
+                marker_lookup[key] = []
+
+        if len(all_markers) >= 10000:
+            msg = (
+                "Your query_marker configuration has resulted in "
+                f"{len(all_markers)} marker genes being used at "
+                "every decision point in the taxonomy. This will be "
+                "very resource-intensive. You should consider specifying "
+                "a more limited set of marker genes."
+            )
+            log.warn(msg)
+
+        for k in marker_lookup:
+            marker_lookup[k] = all_markers
 
     if config['flatten']:
 
@@ -362,15 +433,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         for k in marker_lookup:
             if k not in ('log', 'metadata'):
                 all_markers = all_markers.union(set(marker_lookup[k]))
-        all_markers = list(all_markers)
-        all_markers.sort()
+        all_markers = sorted(all_markers)
         marker_lookup = {'None': all_markers}
-
-    (query_gene_names,
-     n_unmapped,
-     _) = _get_query_gene_names(
-        query_loc,
-        map_to_ensembl=config['map_to_ensembl'])
 
     create_marker_cache_from_specified_markers(
         marker_lookup=marker_lookup,

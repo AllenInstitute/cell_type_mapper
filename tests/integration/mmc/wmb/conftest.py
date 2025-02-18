@@ -297,7 +297,8 @@ def do_reference_mapping(
                 'path': str(precomputed_stats_path)
             },
             'query_markers': {
-                'serialized_lookup': str(marker_lookup_path)
+                'serialized_lookup': str(marker_lookup_path),
+                'collapse_markers': False
             },
             'query_path': validated_path,
             'extended_result_path': str(output_path),
