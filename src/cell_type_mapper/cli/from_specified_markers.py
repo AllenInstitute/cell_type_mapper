@@ -380,9 +380,10 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             all_markers = sorted(all_markers)
         else:
             marker_lookup = dict()
-            all_markers = sorted(
-                set(query_gene_names).intersection(set(reference_gene_names))
-            )
+            query_gene_set = set(query_gene_names)
+            reference_gene_set = set(reference_gene_names)
+            all_markers = query_gene_set.intersection(reference_gene_set)
+
             if len(all_markers) == 0:
                 msg = (
                     "There was no overlap between the genes in "
@@ -392,6 +393,17 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
                     f"Example reference genes: {reference_gene_names[:5]}\n"
                 )
                 log.error(msg)
+            diff = query_gene_set-all_markers
+            if len(diff) > 0:
+                msg = (
+                    f"{len(diff)} of {len(query_gene_set)} genes in the "
+                    "query dataset were not present in the reference dataset. "
+                    "These genes could not be used as markers and "
+                    "were ignored."
+                )
+                log.warn(msg)
+
+            all_markers = sorted(all_markers)
 
             for parent in taxonomy_tree.all_parents:
                 if parent is None:
