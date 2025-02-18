@@ -1776,6 +1776,21 @@ def test_marker_collapse_params(
         actual = json.load(
             open(config['extended_result_path'], 'rb')
         )
+
+        if not specify_markers:
+            # check for warning about genes that were in query
+            # dataset but were not in reference dataset
+            found_it = False
+            match = (
+                "genes in the query dataset were not present in the "
+                "reference dataset."
+            )
+            for msg in actual['log']:
+                if match in msg:
+                    found_it = True
+                    break
+                assert not found_it
+
         expected = json.load(
             open(expected_config['extended_result_path'], 'rb')
         )
