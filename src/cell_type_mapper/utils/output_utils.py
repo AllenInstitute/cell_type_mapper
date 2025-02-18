@@ -72,7 +72,8 @@ def blob_to_csv(
         confidence_label='confidence',
         metadata_path=None,
         config=None,
-        valid_suffixes=None):
+        valid_suffixes=None,
+        check_consistency=False):
     """
     Write a set of results originally formatted for a JSON blob
     out to the CSV our users will expect.
@@ -107,6 +108,10 @@ def blob_to_csv(
     valid_suffixes:
         Optional list of strings. Columns that end with these suffixes
         will get carried through to the CSV file.
+    check_consistency:
+        A boolean. If True, add a column to each cell indicating
+        whether or not the assigned cell type at each level was,
+        in fact, the plurality vote getter.
     """
     str_hierarchy = json.dumps(taxonomy_tree.hierarchy)
 
@@ -141,7 +146,8 @@ def blob_to_csv(
 
         csv_df = blob_to_df(
             results_blob=results_blob,
-            taxonomy_tree=taxonomy_tree)
+            taxonomy_tree=taxonomy_tree,
+            check_consistency=check_consistency)
 
         column_rename = dict()
         for level in taxonomy_tree.hierarchy:
@@ -155,6 +161,9 @@ def blob_to_csv(
         for col in csv_df.columns:
             if col == 'cell_id':
                 continue
+            if check_consistency:
+                if col == 'hierarchy_consistent':
+                    continue
 
             keep_it = False
             for suffix in valid_suffixes:
@@ -178,16 +187,28 @@ def blob_to_csv(
 
 def blob_to_df(
         results_blob,
-        taxonomy_tree):
+        taxonomy_tree,
+        check_consistency=False):
     """
     Convert a JSON blob of results into a pandas dataframe
     """
     records = []
     for cell in results_blob:
         this_record = {'cell_id': cell['cell_id']}
+        if check_consistency:
+            this_record['hierarchy_consistent'] = True
+
         for level in taxonomy_tree.hierarchy:
-            readable_level = taxonomy_tree.level_to_name(level_label=level)
             label = cell[level]['assignment']
+            if check_consistency:
+                if 'runner_up_probability' in cell[level]:
+                    rup = cell[level]['runner_up_probability']
+                    if len(rup) > 0:
+                        prob = cell[level]['bootstrapping_probability']
+                        if prob < max(rup):
+                            this_record['hierarchy_consistent'] = False
+
+            readable_level = taxonomy_tree.level_to_name(level_label=level)
             name = taxonomy_tree.label_to_name(
                         level=level,
                         label=label,
@@ -507,24 +528,23 @@ def hdf5_to_blob(
             if agg_prob is not None:
                 this['aggregate_probability'] = agg_prob[i_cell, i_level]
 
-            if directly_assigned[i_level]:
-                this.update({
-                    'runner_up_assignment': [],
-                    'runner_up_probability': [],
-                    'runner_up_correlation': []
-                })
+            this.update({
+                'runner_up_assignment': [],
+                'runner_up_probability': [],
+                'runner_up_correlation': []
+            })
 
-                if r_assignment is not None:
-                    for i_r in range(n_r):
-                        if r_assignment[i_cell, i_level, i_r] < 0:
-                            break
-                        node = int_to_node[level][
-                            r_assignment[i_cell, i_level, i_r]]
-                        this['runner_up_assignment'].append(node)
-                        this['runner_up_probability'].append(
-                            r_prob[i_cell, i_level, i_r])
-                        this['runner_up_correlation'].append(
-                            r_corr[i_cell, i_level, i_r])
+            if r_assignment is not None:
+                for i_r in range(n_r):
+                    if r_assignment[i_cell, i_level, i_r] < 0:
+                        break
+                    node = int_to_node[level][
+                        r_assignment[i_cell, i_level, i_r]]
+                    this['runner_up_assignment'].append(node)
+                    this['runner_up_probability'].append(
+                        r_prob[i_cell, i_level, i_r])
+                    this['runner_up_correlation'].append(
+                        r_corr[i_cell, i_level, i_r])
             cell[level] = this
         results.append(cell)
     blob['results'] = results

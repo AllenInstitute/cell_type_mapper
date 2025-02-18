@@ -60,6 +60,14 @@ class TaxonomyTree(object):
                     self._name_to_node[level][node_name] = []
                 self._name_to_node[level][node_name].append(node)
 
+        self._child_to_parent_level = {
+            child_level: parent_level
+            for child_level, parent_level in zip(
+                self.hierarchy[1:],
+                self.hierarchy[:-1])
+        }
+        self._child_to_parent_level[self.hierarchy[0]] = None
+
     def __eq__(self, other):
         """
         Ignore keys 'metadata' and 'alias_mapping'
@@ -467,6 +475,13 @@ class TaxonomyTree(object):
         result = list(self._data[this_level].keys())
         result.sort()
         return result
+
+    def parent_level(self, level):
+        """
+        Return the level that is directly above the specified
+        level in the hierarchy
+        """
+        return self._child_to_parent_level[level]
 
     def parents(self, level, node):
         """

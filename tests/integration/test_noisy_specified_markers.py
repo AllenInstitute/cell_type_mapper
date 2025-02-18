@@ -28,6 +28,10 @@ import scipy.sparse as scipy_sparse
 import tempfile
 import warnings
 
+from cell_type_mapper.test_utils.comparison_utils import (
+    assert_blobs_equal
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
@@ -224,18 +228,7 @@ def test_mapping_from_markers_smoke(
     drop_subclass will drop 'subclass' from the taxonomy
     """
 
-    if flatten:
-        actual_levels = ['cluster']
-        mapped_levels = {'class': 'cluster', 'subclass': 'cluster'}
-    elif drop_subclass:
-        actual_levels = ['class', 'cluster']
-        mapped_levels = {'subclass': 'cluster'}
-    else:
-        actual_levels = ['class', 'subclass', 'cluster']
-        mapped_levels = dict()
-
     use_tmp_dir = True
-    use_csv = True
 
     if use_gpu and not is_torch_available():
         return
@@ -248,12 +241,9 @@ def test_mapping_from_markers_smoke(
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    if use_csv:
-        csv_path = mkstemp_clean(
-            dir=this_tmp,
-            suffix='.csv')
-    else:
-        csv_path = None
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
 
     result_path = mkstemp_clean(
         dir=this_tmp,
@@ -393,11 +383,13 @@ def test_mapping_from_markers_smoke(
             else:
                 assert cell[level]['directly_assigned']
 
-        # check inheritance
+        # check inheritance (i.e. that assigned cell types are
+        # descended from each other)
         this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
         these_parents = taxonomy_tree.parents(
             level=taxonomy_tree.leaf_level,
             node=this_leaf)
+
         for parent_l in these_parents:
             assert cell[parent_l]['assignment'] == these_parents[parent_l]
 
@@ -415,6 +407,7 @@ def test_mapping_from_markers_smoke(
 
             # check consistency of inheritance
             for parent_level in family_tree:
+
                 assert (
                     cell[parent_level]['assignment']
                     == family_tree[parent_level]
@@ -428,6 +421,7 @@ def test_mapping_from_markers_smoke(
                 this_level['assignment']
                 not in this_level['runner_up_assignment']
             )
+
             assert (
                 len(set(this_level['runner_up_assignment']))
                 == n_runners_up_actual
@@ -463,8 +457,12 @@ def test_mapping_from_markers_smoke(
                         assert r0 > 0.0
                         assert r0 <= r1
 
-                assert this_level['runner_up_probability'][0] <= \
-                    this_level['bootstrapping_probability']
+                # if level was not directly assigned, then the assigned
+                # node/probability will have been forced by inheritance,
+                # not chosen by majority vote
+                if this_level['directly_assigned']:
+                    assert this_level['runner_up_probability'][0] <= \
+                        this_level['bootstrapping_probability']
 
                 # check that probability sums to <= 1
                 assert this_level['bootstrapping_probability'] < 1.0
@@ -478,13 +476,17 @@ def test_mapping_from_markers_smoke(
                 if 'runner_up_assignment' in this_level:
                     for rup in this_level['runner_up_assignment']:
                         assert rup != this_level['assignment']
-                    if not flatten and not drop_subclass:
-                        # if levels were backfilled, runners up might have
-                        # odd inheritance relationship to actual assignments
-                        other_tree = taxonomy_tree.parents(
-                            level=level,
-                            node=rup)
-                        assert other_tree == family_tree
+
+                        if this_level['directly_assigned']:
+                            # if levels were backfilled, runners up might have
+                            # odd inheritance relationship to actual
+                            # assignments
+                            if not flatten and not drop_subclass:
+                                other_tree = taxonomy_tree.parents(
+                                    level=level,
+                                    node=rup)
+
+                                assert other_tree == family_tree
 
     if not just_once:
         assert with_runners_up > 0
@@ -504,14 +506,11 @@ def test_mapping_from_markers_smoke(
 
         # calculate aggregate probability for directly calculated
         # levels
-        for level in actual_levels:
-            prob *= cell[level]['bootstrapping_probability']
-            prob_lookup[level] = prob
-
-        # map probability from actually calculated levels to
-        # levels that were flattened away or dropped
-        for src_level in mapped_levels:
-            prob_lookup[src_level] = prob_lookup[mapped_levels[src_level]]
+        for level in ['class', 'subclass', 'cluster']:
+            this = prob*cell[level]['bootstrapping_probability']
+            prob_lookup[level] = this
+            if cell[level]['directly_assigned']:
+                prob = this
 
         for level in ['class', 'subclass', 'cluster']:
             actual_agg.append(cell[level]['aggregate_probability'])
@@ -522,6 +521,39 @@ def test_mapping_from_markers_smoke(
         expected_agg,
         atol=0.0,
         rtol=1.0e-6)
+
+    # check that hierarchy_consistent is set correctly
+    if flatten and not just_once:
+        expected_consistency = []
+        cell_id = []
+        for cell in actual['results']:
+            is_consistent = True
+            for level in cell:
+                if level == 'cell_id':
+                    continue
+                prob = cell[level]['bootstrapping_probability']
+                rup = cell[level]['runner_up_probability']
+                if len(rup) > 0:
+                    if prob < max(rup):
+                        is_consistent = False
+                        break
+            expected_consistency.append(is_consistent)
+            cell_id.append(cell['cell_id'])
+        expected_consistency = np.array(expected_consistency)
+        cell_id = np.array(cell_id)
+        n_consistent = expected_consistency.sum()
+        assert n_consistent > 0
+        assert n_consistent < len(actual['results'])
+
+        csv_results = pd.read_csv(csv_path, comment='#')
+        np.testing.assert_array_equal(
+            expected_consistency,
+            csv_results.hierarchy_consistent.values
+        )
+        np.testing.assert_array_equal(
+            cell_id,
+            csv_results.cell_id.values.astype(str)
+        )
 
 
 @pytest.mark.parametrize(
@@ -929,7 +961,9 @@ def test_compression_noisy_markers(
         roundtrip = hdf5_to_blob(
             src_path=hdf5_path)
 
-        assert roundtrip == output_blob
+        assert_blobs_equal(
+            blob0=roundtrip,
+            blob1=output_blob)
 
 
 @pytest.mark.parametrize(
@@ -1023,7 +1057,9 @@ def test_cli_compression_noisy_markers(
             src_path=hdf5_result_path)
 
     assert len(output_blob['results']) > 0
-    assert from_hdf5 == output_blob
+    assert_blobs_equal(
+        blob0=from_hdf5,
+        blob1=output_blob)
 
 
 @pytest.mark.parametrize(
@@ -1261,16 +1297,9 @@ def test_hdf5_output_from_cli(
     hdf5_output.pop('log')
     json_output.pop('log')
 
-    assert hdf5_output['results'] == json_output['results']
-    assert hdf5_output['taxonomy_tree'] == json_output['taxonomy_tree']
-    assert hdf5_output['results'] == json_output['results']
-    assert hdf5_output['marker_genes'] == json_output['marker_genes']
-    assert hdf5_output['n_unmapped_genes'] == json_output['n_unmapped_genes']
-    assert hdf5_output['marker_genes'] == json_output['marker_genes']
-    assert hdf5_output['gene_identifier_mapping'] == \
-        json_output['gene_identifier_mapping']
-
-    assert hdf5_output == json_output
+    assert_blobs_equal(
+        blob0=hdf5_output,
+        blob1=json_output)
 
 
 @pytest.mark.parametrize(

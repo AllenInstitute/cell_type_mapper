@@ -480,9 +480,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         tmp_dir=tmp_dir,
         log=log,
         max_gb=config['max_gb'],
+        output_taxonomy_tree=tree_for_metadata,
         results_output_path=tmp_result_dir)
-
-    result = tree_for_metadata.backfill_assignments(result)
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
@@ -492,10 +491,6 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     marker_gene_lookup = serialize_markers(
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
-
-    csv_result = dict()
-    csv_result["taxonomy_tree"] = tree_for_metadata
-    csv_result["assignments"] = result
 
     if config['csv_result_path'] is not None:
 
@@ -519,15 +514,21 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         else:
             valid_suffixes = None
 
+        check_consistency = False
+        if config['type_assignment']['bootstrap_iteration'] > 1:
+            if config['flatten']:
+                check_consistency = True
+
         blob_to_csv(
-            results_blob=csv_result.get("assignments"),
-            taxonomy_tree=csv_result.get("taxonomy_tree"),
+            results_blob=result,
+            taxonomy_tree=tree_for_metadata,
             output_path=config['csv_result_path'],
             metadata_path=config['extended_result_path'],
             confidence_key=confidence_key,
             confidence_label=confidence_label,
             config=config,
-            valid_suffixes=valid_suffixes)
+            valid_suffixes=valid_suffixes,
+            check_consistency=check_consistency)
 
     if config['obsm_key']:
 

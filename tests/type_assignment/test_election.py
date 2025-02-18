@@ -15,8 +15,9 @@ from cell_type_mapper.utils.torch_utils import (
     use_torch)
 
 from cell_type_mapper.type_assignment.election import (
+    tally_raw_votes,
     tally_votes,
-    choose_node,
+    reshape_type_assignment,
     run_type_assignment,
     aggregate_votes)
 
@@ -49,7 +50,7 @@ def tmp_dir_fixture(
      (0.4, 102, False),
      (0.9, 50, False),
      (1.0, 1, False)])
-def test_tally_votes(
+def test_tally_raw_votes(
         bootstrap_factor,
         bootstrap_iteration,
         with_torch):
@@ -75,7 +76,7 @@ def test_tally_votes(
     reference_data = rng.random((n_baseline, n_genes))
 
     (votes,
-     corr_sum) = tally_votes(
+     corr_sum) = tally_raw_votes(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         bootstrap_factor=bootstrap_factor,
@@ -93,7 +94,7 @@ def test_tally_votes(
         assert not use_torch()
 
 
-def test_tally_votes_mocked_result():
+def test_tally_raw_votes_mocked_result():
     """
     Use a mock to control which neighbors are
     chosen with which correlation values at each
@@ -130,7 +131,7 @@ def test_tally_votes_mocked_result():
     to_replace += 'correlation_nearest_neighbors'
     with patch(to_replace, new=dummy_nn):
         (actual_votes,
-         actual_corr_sum) = tally_votes(
+         actual_corr_sum) = tally_raw_votes(
                  query_gene_data=np.zeros((n_query, n_genes), dtype=float),
                  reference_gene_data=np.zeros(
                      (n_reference, n_genes),
@@ -162,11 +163,11 @@ def test_tally_votes_mocked_result():
      (0.4, 102),
      (0.9, 50),
      (1.0, 1)])
-def test_tally_votes_gpu(
+def test_tally_raw_votes_gpu(
         bootstrap_factor,
         bootstrap_iteration):
     """
-    Test that CPU and GPU implementations of tally_votes give the
+    Test that CPU and GPU implementations of tally_raw_votes give the
     same result
     """
     env_var = 'AIBS_BKP_USE_TORCH'
@@ -183,7 +184,7 @@ def test_tally_votes_gpu(
     assert not use_torch()
     rng_seed = 1122334455
     rng = np.random.default_rng(rng_seed)
-    cpu_result = tally_votes(
+    cpu_result = tally_raw_votes(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         bootstrap_factor=bootstrap_factor,
@@ -193,7 +194,7 @@ def test_tally_votes_gpu(
     os.environ[env_var] = 'true'
     assert use_torch()
     rng = np.random.default_rng(rng_seed)
-    gpu_result = tally_votes(
+    gpu_result = tally_raw_votes(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         bootstrap_factor=bootstrap_factor,
@@ -221,7 +222,7 @@ def test_tally_votes_gpu(
      (0.4, 102),
      (0.9, 50),
      (1.0, 1)])
-def test_choose_node_smoke(
+def test_tally_votes_smoke(
         bootstrap_factor,
         bootstrap_iteration):
     """
@@ -237,16 +238,24 @@ def test_choose_node_smoke(
     reference_data = rng.random((n_baseline, n_genes))
     reference_types = [f"type_{ii}" for ii in range(n_baseline)]
 
-    (result,
-     confidence,
-     avg_corr,
-     _) = choose_node(
+    (votes,
+     corr_sum,
+     reference_types) = tally_votes(
         query_gene_data=query_data,
         reference_gene_data=reference_data,
         reference_types=reference_types,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
         rng=rng)
+
+    (result,
+     confidence,
+     avg_corr,
+     _) = reshape_type_assignment(
+            votes=votes,
+            corr_sum=corr_sum,
+            reference_types=reference_types,
+            n_assignments=10)
 
     assert result.shape == (n_query,)
     assert confidence.shape == (n_query,)
@@ -268,21 +277,30 @@ def test_confidence_result():
              [4, 0, 1]])
     mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
 
-    def dummy_tally_votes(*args, **kwargs):
+    def dummy_tally_raw_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
-    with patch(to_replace, new=dummy_tally_votes):
-        (results,
-         confidence,
-         avg_corr,
-         _) = choose_node(
+    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    with patch(to_replace, new=dummy_tally_raw_votes):
+
+        (votes,
+         corr_sum,
+         reference_types) = tally_votes(
             query_gene_data=None,
             reference_gene_data=None,
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=5,
             rng=None)
+
+        (results,
+         confidence,
+         avg_corr,
+         _) = reshape_type_assignment(
+            votes=votes,
+            corr_sum=corr_sum,
+            reference_types=reference_types,
+            n_assignments=10)
 
     np.testing.assert_array_equal(
         results, ['b', 'a', 'c', 'a'])
@@ -308,7 +326,7 @@ def test_confidence_result():
 
 def test_runners_up():
     """
-    Test that choose_node correctly selects the
+    Test that tally_votes + reshape_type_assignment correctly selects the
     N runners up cell types.
     """
 
@@ -321,26 +339,36 @@ def test_runners_up():
              [44, 11, 6, 0, 0]])
     mock_corr_sum = rng.random(mock_votes.shape, dtype=float)
 
-    def dummy_tally_votes(*args, **kwargs):
+    def dummy_tally_raw_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
-    bootstrap_iteration = 16
+    # reshape_type_assignment calculates bootstrap_iteration from the
+    # sum in the first row of votes
+    bootstrap_iteration = 23
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_votes'
-    with patch(to_replace, new=dummy_tally_votes):
-        (results,
-         confidence,
-         avg_corr,
-         runners_up) = choose_node(
+    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    with patch(to_replace, new=dummy_tally_raw_votes):
+
+        (votes,
+         corr_sum,
+         reference_types) = tally_votes(
             query_gene_data=None,
             reference_gene_data=None,
             reference_types=reference_types,
             bootstrap_factor=None,
             bootstrap_iteration=bootstrap_iteration,
-            n_assignments=4,
             rng=None)
 
-    # note: choose_node gets the denominator for bootstrapping
+        (results,
+         confidence,
+         avg_corr,
+         runners_up) = reshape_type_assignment(
+            votes=votes,
+            corr_sum=corr_sum,
+            reference_types=reference_types,
+            n_assignments=4)
+
+    # note: this code gets the denominator for bootstrapping
     # probability from bootstrap_iteration, hence the uniform
     # denominators in the 2nd element of the tuples below
     expected_runners_up = [
@@ -682,3 +710,88 @@ def test_aggregate_votes():
         corr[:, 5],
         atol=0.0,
         rtol=1.0e-6)
+
+
+def test_forced_assignments():
+    """
+    Test that reshape_type_assignment handles forced_assignments
+    correctly
+    """
+
+    votes = np.array([
+        [2, 0, 1, 3],
+        [3, 1, 0, 2],
+        [0, 1, 4, 1]
+    ])
+
+    reference_types = np.array(['a', 'b', 'c', 'd'])
+
+    corr_sum = np.array([
+        [3.5, 0, 1.1, 2.2],
+        [4.1, 0.2, 0, 1.5],
+        [0, 0.4, 2.7, 1.8]
+    ])
+
+    # first without forced assignments
+    (result,
+     prob,
+     corr,
+     runners_up) = reshape_type_assignment(
+                         votes=votes,
+                         reference_types=reference_types,
+                         corr_sum=corr_sum,
+                         n_assignments=3,
+                         forced_assignments=None)
+
+    np.testing.assert_array_equal(
+        result,
+        np.array(['d', 'a', 'c'])
+    )
+    np.testing.assert_allclose(
+        prob,
+        np.array([0.5, 0.5, 2.0/3.0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+    np.testing.assert_allclose(
+        corr,
+        np.array([2.2/3, 4.1/3, 2.7/4]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    # now with forced assignments
+    (result,
+     prob,
+     corr,
+     runners_up) = reshape_type_assignment(
+                         votes=votes,
+                         reference_types=reference_types,
+                         corr_sum=corr_sum,
+                         n_assignments=3,
+                         forced_assignments=np.array(['c', 'd', 'a']))
+
+    np.testing.assert_array_equal(
+        result,
+        np.array(['c', 'd', 'a'])
+    )
+    np.testing.assert_allclose(
+        prob,
+        np.array([1/6, 2/6, 0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+    np.testing.assert_allclose(
+        corr,
+        np.array([1.1, 1.5/2, 0]),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    assert runners_up[0] == [('d', True, 2.2/3, 0.5), ('a', True, 3.5/2, 2/6)]
+    assert runners_up[1] == [('a', True, 4.1/3, 0.5), ('b', True, 0.2, 1/6)]
+    assert runners_up[2][0] == ('c', True, 2.7/4, 4/6)
+
+    # value of runners_up[2][1] depends on how the two entries with votes==1
+    # get sorted; could be platform dependent
+    assert runners_up[2][1] in [('b', True, 0.4, 1/6), ('d', True, 1.8, 1/6)]

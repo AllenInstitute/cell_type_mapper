@@ -19,6 +19,10 @@ from cell_type_mapper.test_utils.cloud_safe import (
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
+from cell_type_mapper.test_utils.comparison_utils import (
+    assert_blobs_equal
+)
+
 from cell_type_mapper.test_utils.anndata_utils import (
     create_h5ad_without_encoding_type
 )
@@ -413,6 +417,10 @@ def test_mapping_from_markers_basic(
             assert 'version' in version_line
 
             header_line = 'cell_id'
+
+            if flatten and not just_once:
+                header_line += ',hierarchy_consistent'
+
             for level in hierarchy:
                 if level == 'cluster':
                     header_line += (
@@ -423,20 +431,32 @@ def test_mapping_from_markers_basic(
                     header_line += (
                         f',{level}_label,{level}_name,{level}_{stat_label}'
                     )
+
             header_line += '\n'
             assert in_file.readline() == header_line
             found_cells = []
+
+            # +2 is for cluster alias and cell_id
+            n_expected = 3*len(hierarchy)+2
+            if flatten and not just_once:
+                # for hierarchy_consisten
+                n_expected += 1
+
             for line in in_file:
                 params = line.strip().split(',')
 
-                # +2 is for cluster alias and cell_id
-                assert len(params) == 3*len(hierarchy)+2
+                assert len(params) == n_expected
 
                 this_cell = result_lookup[params[0]]
                 found_cells.append(params[0])
                 for i_level, level in enumerate(hierarchy):
                     assn_idx = 1+3*i_level
                     conf_idx = 3+3*i_level
+
+                    if flatten and not just_once:
+                        assn_idx += 1
+                        conf_idx += 1
+
                     if level == 'cluster':
                         conf_idx += 1
                     assert params[assn_idx] == this_cell[level]['assignment']
@@ -1188,7 +1208,7 @@ def test_output_compression(
         roundtrip = hdf5_to_blob(
             src_path=hdf5_path)
 
-    assert roundtrip == output_blob
+    assert_blobs_equal(roundtrip, output_blob)
 
 
 def test_integer_indexed_input(

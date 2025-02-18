@@ -58,6 +58,7 @@ def run_type_assignment_on_h5ad_gpu(
         tmp_dir=None,
         log=None,
         max_gb=10,
+        output_taxonomy_tree=None,
         results_output_path=None):
     """
     Assign types at all levels of the taxonomy to the query cells
@@ -125,6 +126,13 @@ def run_type_assignment_on_h5ad_gpu(
     max_gb:
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
+
+    output_taxonomy_tree:
+        optional taxonomy tree reflecting the taxonomy
+        to which the data is to be shaped on output
+        (this might be different from taxonomy_tree because,
+        for instance, the mapper is being run with
+        flatten=True or non-NULL drop_level)
 
     results_output_path:
         Output path for run assignment (a directory).
@@ -205,6 +213,7 @@ def run_type_assignment_on_h5ad_gpu(
     config["rng"] = rng
     config["gpu_index"] = gpu_index
     config["n_assignments"] = n_assignments
+    config["output_taxonomy_tree"] = output_taxonomy_tree
 
     print_freq = 1
 
