@@ -6,6 +6,8 @@ node at the top level of the new taxonomy.
 import pandas as pd
 import warnings
 
+import cell_type_mapper
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree
 )
@@ -127,5 +129,14 @@ def merge_taxonomy_trees(tree_lookup):
             column_hierarchy=output_hierarchy,
             drop_rows=True
         )
+
+    metadata = {
+        'factory': 'merge_taxonomy_trees',
+        'version': cell_type_mapper.__version__,
+        'component_trees': {
+            taxonomy_name: tree_lookup[taxonomy_name].metadata
+        }
+    }
+    output_tree.metadata = metadata
 
     return output_tree, name_map
