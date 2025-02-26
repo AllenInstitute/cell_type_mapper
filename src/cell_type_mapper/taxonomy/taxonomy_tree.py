@@ -7,10 +7,14 @@ from cell_type_mapper.utils.utils import (
     clean_for_json,
     get_timestamp)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
 from cell_type_mapper.taxonomy.utils import (
     validate_taxonomy_tree,
     get_all_leaf_pairs,
-    get_taxonomy_tree_from_h5ad,
+    get_taxonomy_tree,
     convert_tree_to_leaves,
     get_all_pairs,
     get_child_to_parent,
@@ -140,16 +144,41 @@ class TaxonomyTree(object):
             obs dataframe to be read in)
         """
         h5ad_path = pathlib.Path(h5ad_path)
-        data = get_taxonomy_tree_from_h5ad(
-            h5ad_path=h5ad_path,
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        result = cls.from_dataframe(
+            dataframe=obs,
             column_hierarchy=column_hierarchy)
 
-        data['metadata'] = {
+        assert 'metadata' not in result._data
+        result._data['metadata'] = {
             'factory': 'from_h5ad',
             'timestamp': get_timestamp(),
             'params': {
                 'h5ad_path': str(h5ad_path.resolve().absolute()),
                 'column_hierarchy': column_hierarchy}}
+
+        return result
+
+    @classmethod
+    def from_dataframe(cls, dataframe, column_hierarchy, drop_rows=False):
+        """
+        Instantiate from the a dataframe (probably obs
+        from an h5ad file)
+
+        Parameters
+        ----------
+        dataframe:
+            a pandas dataframe
+        column_hierarchy:
+            ordered list of levels in the taxonomy (columns in the
+            obs dataframe to be read in)
+        drop_rows:
+            if True, replace leaf children with empty lists
+        """
+        data = get_taxonomy_tree(
+            obs_records=dataframe.to_dict(orient='records'),
+            column_hierarchy=column_hierarchy,
+            drop_rows=drop_rows)
 
         return cls(data=data)
 
