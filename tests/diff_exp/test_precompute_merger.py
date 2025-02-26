@@ -9,7 +9,6 @@ import h5py
 import json
 import numpy as np
 import pandas as pd
-import tempfile
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -19,6 +18,9 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad
+)
+from cell_type_mapper.diff_exp.merge_precompute import (
+    merge_precomputed_stats_files
 )
 
 
@@ -69,7 +71,7 @@ def create_precompute_file(
 def taxonomyA_fixture(tmp_dir_fixture):
 
     gene_data = [
-        {'gene_id': f'g_{ii}' for ii in range(40)}
+        {'gene_id': f'g_{ii}'} for ii in range(40)
     ]
 
     var = pd.DataFrame(gene_data).set_index('gene_id')
@@ -111,7 +113,6 @@ def taxonomyA_fixture(tmp_dir_fixture):
         cell_records.append(cell)
     obs = pd.DataFrame(cell_records).set_index('cell_id')
 
-
     precompute_path = create_precompute_file(
         obs=obs,
         var=var,
@@ -127,7 +128,7 @@ def taxonomyA_fixture(tmp_dir_fixture):
 def taxonomyB_fixture(tmp_dir_fixture):
 
     gene_data = [
-        {'gene_id': f'g_{ii}' for ii in range(12, 61, 1)}
+        {'gene_id': f'g_{ii}'} for ii in range(12, 61, 1)
     ]
 
     var = pd.DataFrame(gene_data).set_index('gene_id')
@@ -169,7 +170,6 @@ def taxonomyB_fixture(tmp_dir_fixture):
         cell_records.append(cell)
     obs = pd.DataFrame(cell_records).set_index('cell_id')
 
-
     precompute_path = create_precompute_file(
         obs=obs,
         var=var,
@@ -187,7 +187,7 @@ def taxonomyC_fixture(tmp_dir_fixture):
     rng = np.random.default_rng(871100992)
 
     gene_data = [
-        {'gene_id': f'g_{ii}' for ii in range(61)}
+        {'gene_id': f'g_{ii}'} for ii in range(61)
     ]
     rng.shuffle(gene_data)
 
@@ -229,7 +229,6 @@ def taxonomyC_fixture(tmp_dir_fixture):
         cell_records.append(cell)
     obs = pd.DataFrame(cell_records).set_index('cell_id')
 
-
     precompute_path = create_precompute_file(
         obs=obs,
         var=var,
@@ -239,7 +238,6 @@ def taxonomyC_fixture(tmp_dir_fixture):
     )
 
     return precompute_path
-
 
 
 def test_merging_precomputed_stats_files(
@@ -257,7 +255,7 @@ def test_merging_precomputed_stats_files(
         'taxonomyC': taxonomyC_fixture
     }
 
-    dst_path = mktemp_clean(
+    dst_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='merged_stats_',
         suffix='.h5'
@@ -265,7 +263,8 @@ def test_merging_precomputed_stats_files(
 
     merge_precomputed_stats_files(
         src_lookup=src_lookup,
-        dst_path=dst_path
+        dst_path=dst_path,
+        clobber=True
     )
 
     expected_gene_set = set(
@@ -275,9 +274,13 @@ def test_merging_precomputed_stats_files(
     # assemble set of expected leaf clusters
     expected_leaf_set = set()
     for taxonomy_name in src_lookup:
-        with h5py.File(taxonomy_name, 'r') as src:
-            cluster_to_row = json.loads(src['cluster_to_row'][()].decode('utf-8'))
-            tree = TaxonomyTree.from_precomputed_stats(src_lookup[taxonomy_name])
+        with h5py.File(src_lookup[taxonomy_name], 'r') as src:
+            cluster_to_row = json.loads(
+                src['cluster_to_row'][()].decode('utf-8')
+            )
+            tree = TaxonomyTree.from_precomputed_stats(
+                src_lookup[taxonomy_name]
+            )
             leaf_level = tree.leaf_level
             for cl in cluster_to_row.keys():
                 expected_leaf_set.add(f'{taxonomy_name}:{leaf_level}:{cl}')
@@ -289,8 +292,12 @@ def test_merging_precomputed_stats_files(
         assert set(gene_names) == expected_gene_set
 
         # make sure expected leaf nodes are present
-        cluster_to_row = json.loads(actual['cluster_to_row'][()].decode('utf-8')
+        cluster_to_row = json.loads(
+            actual['cluster_to_row'][()].decode('utf-8')
+        )
         assert set(cluster_to_row.keys()) == expected_leaf_set
+
+        actual_n_arr = actual['n_cells'][()]
 
         # loop over source files, verifying numerical contents
         for taxonomy_name in src_lookup:
@@ -301,37 +308,67 @@ def test_merging_precomputed_stats_files(
                 )
 
                 tree = TaxonomyTree(
-                    data=json.loads(expected['taxonomy_tree'][()].decode('utf-8'))
+                    data=json.loads(
+                        expected['taxonomy_tree'][()].decode('utf-8')
+                    )
                 )
                 leaf_level = tree.leaf_level
 
                 # construct a map from gene name to idx in the expected file
                 expected_gene_to_idx = {
-                   g:ii
+                   g: ii
                    for ii, g in enumerate(
                        json.loads(expected['col_names'][()].decode('utf-8')))
                 }
 
                 # which columns do we expect to have made it through to the
                 # merged data
-                gene_idx = np.array([expected_gene_to_idx[g] for g in gene_names])
+                gene_idx = np.array(
+                    [expected_gene_to_idx[g] for g in gene_names]
+                )
 
                 # loop over numerical datasets, verifying contents row by row
                 for key in expected:
-                    if key in ('col_names', 'cluster_to_row', 'metadata'):
+                    if key in ('col_names',
+                               'cluster_to_row',
+                               'metadata',
+                               'taxonomy_tree'):
                         continue
 
                     assert key in actual
 
-                    for ii, cl in enumerate(expected_rows):
-                        expected_data = expected[key][ii, gene_idx]
-                        i_actual = cluster_to_row[
-                            f'{taxonomy_name}:{leaf_level}:{cl}'
-                        ]
-                        actual_data = actual[key][i_actual, :]
-                        np.testing.assert_allclose(
-                            expected_data,
-                            actual_data,
-                            atol=0.0,
-                            rtol=1.0e-6
-                        )
+                    if key == 'n_cells':
+                        nn = expected[key][()]
+                        expected_n = {
+                            cl: nn[expected_rows[cl]]
+                            for cl in expected_rows
+                        }
+
+                        actual_n = {
+                            cl: actual_n_arr[
+                                cluster_to_row[
+                                    f'{taxonomy_name}:{leaf_level}:{cl}'
+                                ]
+                            ]
+                            for cl in expected_rows
+                        }
+
+                        assert actual_n == expected_n
+                    else:
+                        for cl in expected_rows.keys():
+                            expected_data = (
+                                expected[key][expected_rows[cl], :][gene_idx]
+                            )
+
+                            i_actual = cluster_to_row[
+                                f'{taxonomy_name}:{leaf_level}:{cl}'
+                            ]
+
+                            actual_data = actual[key][i_actual, :]
+
+                            np.testing.assert_allclose(
+                                expected_data,
+                                actual_data,
+                                atol=0.0,
+                                rtol=1.0e-6
+                            )
