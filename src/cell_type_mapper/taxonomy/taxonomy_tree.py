@@ -72,6 +72,20 @@ class TaxonomyTree(object):
         }
         self._child_to_parent_level[self.hierarchy[0]] = None
 
+    @property
+    def metadata(self):
+        if 'metadata' not in self._data:
+            return None
+        return self._data['metadata']
+
+    @metadata.setter
+    def metadata(self, value):
+        if self.metadata is not None:
+            raise RuntimeError(
+                "Already set metadata for this TaxonomyTree"
+            )
+        self._data['metadata'] = value
+
     def __eq__(self, other):
         """
         Ignore keys 'metadata' and 'alias_mapping'
@@ -149,8 +163,7 @@ class TaxonomyTree(object):
             dataframe=obs,
             column_hierarchy=column_hierarchy)
 
-        assert 'metadata' not in result._data
-        result._data['metadata'] = {
+        result.metadata = {
             'factory': 'from_h5ad',
             'timestamp': get_timestamp(),
             'params': {
@@ -246,7 +259,7 @@ class TaxonomyTree(object):
             cell_path_str = None
 
         data = dict()
-        data['metadata'] = {
+        metadata = {
             'factory': 'from_data_release',
             'timestamp': get_timestamp(),
             'params': {
@@ -351,7 +364,9 @@ class TaxonomyTree(object):
         if do_pruning:
             data = prune_tree(data)
 
-        return cls(data=data)
+        result = cls(data=data)
+        result.metadata = metadata
+        return result
 
     def to_str(self, indent=None, drop_cells=False):
         """
