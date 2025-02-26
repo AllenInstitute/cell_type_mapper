@@ -9,6 +9,9 @@ import h5py
 import json
 import numpy as np
 import pandas as pd
+import pathlib
+import tempfile
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -16,11 +19,17 @@ from cell_type_mapper.utils.utils import (
 )
 
 from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
+
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad
 )
+
 from cell_type_mapper.diff_exp.merge_precompute import (
     merge_precomputed_stats_files
+)
+
+from cell_type_mapper.cli.reference_markers import (
+    ReferenceMarkerRunner
 )
 
 
@@ -267,6 +276,14 @@ def test_merging_precomputed_stats_files(
         clobber=True
     )
 
+    # check that we can load the merged tree
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        _ = TaxonomyTree.from_precomputed_stats(
+            dst_path
+        )
+
     expected_gene_set = set(
         [f'g_{ii}' for ii in range(12, 40, 1)]
     )
@@ -339,6 +356,10 @@ def test_merging_precomputed_stats_files(
 
                     if key == 'n_cells':
                         nn = expected[key][()]
+
+                        # construct two dicts mapping original leaf
+                        # name to n_cells value; compare that the tw
+                        # dicts are identical
                         expected_n = {
                             cl: nn[expected_rows[cl]]
                             for cl in expected_rows
@@ -372,3 +393,38 @@ def test_merging_precomputed_stats_files(
                                 atol=0.0,
                                 rtol=1.0e-6
                             )
+
+    # make sure that the resulting file can be used to select
+    # reference markers (that ought to prove that all the necessary
+    # data is encoded in there)
+
+    output_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='reference_markers'
+    )
+
+    config = {
+        "precomputed_path_list": [dst_path],
+        "n_valid": 3,
+        "output_dir": output_dir,
+        "n_processors": 1
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = ReferenceMarkerRunner(
+            args=[], input_data=config
+        )
+        runner.run()
+
+    output_dir = pathlib.Path(output_dir)
+    file_list = [n for n in output_dir.iterdir()]
+    assert len(file_list) == 1
+    marker_path = file_list[0]
+    with h5py.File(marker_path, 'r') as src:
+        assert (
+            len(src['sparse_by_pair']['down_gene_idx'][()]) > 0
+            or
+            len(src['sparse_by_pair']['up_gene_idx'][()]) > 0
+        )
