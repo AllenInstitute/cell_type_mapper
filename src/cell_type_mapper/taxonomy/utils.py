@@ -97,7 +97,8 @@ def _get_rows_from_tree(
 
 def get_taxonomy_tree(
         obs_records: list,
-        column_hierarchy: list):
+        column_hierarchy: list,
+        drop_rows: bool = False):
     """
     Convert a list of records into a taxonomy tree
 
@@ -110,6 +111,9 @@ def get_taxonomy_tree(
     column_hierarchy:
         The list of columns denoting taxonomic classes,
         ordered from highest (parent) to lowest (child).
+
+    drop_rows:
+        if True, replace leaf children with empty lists
 
     Returns
     -------
@@ -146,6 +150,10 @@ def get_taxonomy_tree(
             if this_parent not in tree[parent_level]:
                 tree[parent_level][this_parent] = set()
             tree[parent_level][this_parent].add(this_child)
+
+    if drop_rows:
+        for parent in tree[tree['hierarchy'][-1]]:
+            tree[tree['hierarchy'][-1]][parent] = []
 
     validate_taxonomy_tree(tree)
     return tree
