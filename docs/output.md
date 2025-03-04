@@ -223,6 +223,7 @@ will reflect the values of `bootstrapping_probability` and
 the higher levels in the taxonomy recieved. As an illustration,
 consider the following taxonomy
 
+```
 root
 |
 |----|
@@ -240,6 +241,7 @@ classBCD
     |-subclassC
     |
     |-subclassD
+```
 
 i.e., the highest level of the taxonomy is the class level with two taxons,
 classA and classB. The leaf level of the taxonomy consists of four
