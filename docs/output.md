@@ -131,7 +131,7 @@ The taxonomic node chosen for this cell.
 
 #### `'bootstrapping_probability'`
 
-The fraction of bootstrap iterations that selected the assigned taxonomic node
+The fraction of bootstrap iterations that selected the assigned taxonomic node.
 
 #### `'aggregate_probability'`
 
@@ -205,3 +205,72 @@ runners up, these will be empty lists.
 
 **Note:** the runner up fields will be absent for any levels in the
 taxonomy tree that were not directly assigned.
+
+
+#### Special case: flat mapping
+
+If you run the mapping with the configuration parameter `flatten = True`,
+the mapper will assign the cell directly to a cell type at the leaf
+level of the cell type taxonomy and infer the assignments at the higher
+levels of the taxonomy from that assignment. For versions of the
+`cell_type_mapper` code before `1.5.0`, the quality metrics (i.e.
+`bootstrapping_probability` and `avg_correlation`) for the higher
+levels of the cell type taxonomy will be identical to those from
+the leaf level, since the leaf level was the only level considered by
+the mapper. For versions `1.5.0` and later, the quality metrics
+will reflect the values of `bootstrapping_probability` and
+`avg_correlation` corresponding to the actual number of votes
+the higher levels in the taxonomy recieved. As an illustration,
+consider the following taxonomy
+
+root
+|
+|----|
+|    |
+|    |
+|    |-classA
+|        |
+|        |-subclassA
+|
+|
+classBCD
+    |
+    |-subclassB
+    |
+    |-subclassC
+    |
+    |-subclassD
+
+i.e., the highest level of the taxonomy is the class level with two taxons,
+classA and classB. The leaf level of the taxonomy consists of four
+subclasses, subclassA which descends from classA, and subclasses B, C, D
+each of which descend from classBCD. We run flat mapping with more than one
+`bootstrap_iteration` and the vote breakdown for a cell is
+
+subclassA: 2 votes
+subclassB: 3 vote
+subclassD: 1 vote
+
+The cell will be assigned to subclassB with a `bootstrapping_probability` of
+0.5 (3 out of 6 votes). In version `1.4.0` of the mapper,
+`bootstrapping_probability` for classBCD will also be 0.5, whereas in version
+`1.5.0` and later, `bootstrapping_probability` for classBCD will be 0.66,
+since, considering the 1 vote for subclassD, classBCD actually received 4 of
+the 6 votes.
+
+There is, another subtlety to this, however. Imagine that another cell is mapped
+with
+
+subclassA: 2 votes
+subclassB: 1 vote
+subclassC: 1 vote
+subclassD: 1 vote
+
+the cell is now assigned to subclassA, implying an assignment to
+classA even though classBCD received 3 votes and classA only recevied
+2 votes. In order to maintain consistency with the hierarchy of
+the taxonomy the cell will be assigned to classA. However, classBCD
+will be listed in the runners up with a greater `bootstrapping_probability`
+than the assigned classA (again, this is for versions `1.5.0` and later;
+for versions prior to `1.5.0`, there will be no runners up for the inferred
+levels of the taxonomy).
