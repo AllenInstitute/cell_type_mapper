@@ -132,6 +132,9 @@ The taxonomic node chosen for this cell.
 #### `'bootstrapping_probability'`
 
 The fraction of bootstrap iterations that selected the assigned taxonomic node.
+**Note:** there is are special considerations involved in interpreting
+this metric (and all quality metrics) in the case of flat mapping (mapping
+run with `flatten = True`). See discussion below.
 
 #### `'aggregate_probability'`
 
@@ -215,13 +218,13 @@ level of the cell type taxonomy and infer the assignments at the higher
 levels of the taxonomy from that assignment. For versions of the
 `cell_type_mapper` code before `1.5.0`, the quality metrics (i.e.
 `bootstrapping_probability` and `avg_correlation`) for the higher
-levels of the cell type taxonomy will be identical to those from
-the leaf level, since the leaf level was the only level considered by
-the mapper. For versions `1.5.0` and later, the quality metrics
-will reflect the values of `bootstrapping_probability` and
-`avg_correlation` corresponding to the actual number of votes
-the higher levels in the taxonomy recieved. As an illustration,
-consider the following taxonomy
+levels of the cell type taxonomy will be artificially set to
+be equal to those from the leaf level, since the leaf level was
+the only level considered by the mapper. For versions `1.5.0`
+and later, the quality metrics will reflect the values of
+`bootstrapping_probability` and `avg_correlation` corresponding
+to the actual number of votes the higher levels in the taxonomy
+recieved. As an illustration, consider the following taxonomy
 
 ```
 root
