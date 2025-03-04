@@ -207,7 +207,7 @@ runners up, these will be empty lists.
 taxonomy tree that were not directly assigned.
 
 
-#### Special case: flat mapping
+### Special case: flat mapping
 
 If you run the mapping with the configuration parameter `flatten = True`,
 the mapper will assign the cell directly to a cell type at the leaf
