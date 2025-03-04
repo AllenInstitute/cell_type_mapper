@@ -1,6 +1,7 @@
 import h5py
 import numpy as np
 import pathlib
+import warnings
 
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
@@ -131,7 +132,9 @@ def test_infer_election():
         }
     }
 
-    tree = TaxonomyTree(data=tree_data)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        tree = TaxonomyTree(data=tree_data)
 
     votes = np.array(
         [[1, 3, 5, 0, 0, 0, 2],
