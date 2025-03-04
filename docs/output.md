@@ -53,7 +53,7 @@ to the cell at this level of the taxonomy, `name` is the human-readable name
 of the assigned node, and `bootstrapping_probability` is a metric of confidence
 in the assignment. It is the fraction of bootstrap iterations that chose
 the assigned node at that level of the taxonomy. **Note:** in cases where
-`bootstrapping_iteration=1`, there is no "fraction of bootstrap iterations" and
+`bootstrap_iteration=1`, there is no "fraction of bootstrap iterations" and
 `thisLevel_bootstrapping_probability` is replaced with
 `thisLevel_correlation_coefficient`, which is the Pearson's correlation
 coefficient between the gene expression profile of the cell and the
@@ -284,3 +284,13 @@ will be listed in the runners up with a greater `bootstrapping_probability`
 than the assigned classA (again, this is for versions `1.5.0` and later;
 for versions prior to `1.5.0`, there will be no runners up for the inferred
 levels of the taxonomy).
+
+**Note:** when you run with `flatten = True` and `bootstrap_iteration > 1`
+an extra column `hierarchy_consistent` is added to the CSV output.
+This is a boolean that is `True` for cells whose cell type assignment
+did not need to artificially force consistency with the taxonomic
+hierarchy as desicribed above and `False` otherwise. In all cases,
+the cell type assignments will be consistent with the taxonomic
+hierarchy as described above. `hierarchy_consistent = False` is
+just meant to indicate cells with mappings that might suffer
+from quality issues.
