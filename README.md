@@ -50,8 +50,10 @@ taxonomy.
 
 [This Jupyter notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/update/docs/250304/examples/mapping_to_subset_of_abc_atlas_data.ipynb)
 walks the user through the process of downloading a subset of the
-Allen Institute's Whole Mouse Brain data, creating a taxonomy based solely
-on that subset of the data, and mapping data to that new taxonomy.
+Allen Institute's Whole Mouse Brain data using the
+[abc_atlas_access tool](https://alleninstitute.github.io/abc_atlas_access/intro.html),
+creating a taxonomy based solely on that subset of the data,
+and mapping data to that new taxonomy.
 
 ## Detailed documentation
 
