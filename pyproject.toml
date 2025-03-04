@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="cell_type_mapper"
-version="1.5.0rc"
+version="1.5.0"
 dependencies = [
     "anndata>=0.11.0",
     "argschema",
