@@ -27,7 +27,8 @@ from cell_type_mapper.utils.multiprocessing_utils import (
 import cell_type_mapper.utils.distance_utils as distance_utils
 
 from cell_type_mapper.type_assignment.utils import (
-    reconcile_taxonomy_and_markers)
+    reconcile_taxonomy_and_markers,
+    infer_election)
 
 from cell_type_mapper.type_assignment.matching import (
    get_leaf_means,
@@ -58,6 +59,7 @@ def run_type_assignment_on_h5ad_cpu(
         tmp_dir=None,
         log=None,
         max_gb=10,
+        output_taxonomy_tree=None,
         results_output_path=None):
     """
     Assign types at all levels of the taxonomy to the query cells
@@ -125,6 +127,13 @@ def run_type_assignment_on_h5ad_cpu(
     max_gb:
         Approximate maximum number of gigabytes of memory to use
         when converting a CSC matrix to CSR (if necessary)
+
+    output_taxonomy_tree:
+        optional taxonomy tree reflecting the taxonomy
+        to which the data is to be shaped on output
+        (this might be different from taxonomy_tree because,
+        for instance, the mapper is being run with
+        flatten=True or non-NULL drop_level)
 
     results_output_path:
         Output path for run assignment. If given will save individual chunks of
@@ -248,7 +257,8 @@ def run_type_assignment_on_h5ad_cpu(
                     'n_assignments': n_assignments,
                     'output_list': output_list,
                     'output_lock': output_lock,
-                    'results_output_path': buffer_dir})
+                    'results_output_path': buffer_dir,
+                    'output_taxonomy_tree': output_taxonomy_tree})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -300,7 +310,8 @@ def _run_type_assignment_on_h5ad_worker(
         n_assignments,
         output_list,
         output_lock,
-        results_output_path=None):
+        results_output_path=None,
+        output_taxonomy_tree=None):
 
     assignment = run_type_assignment(
         full_query_gene_data=query_cell_chunk,
@@ -310,7 +321,8 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
-        n_assignments=n_assignments)
+        n_assignments=n_assignments,
+        output_taxonomy_tree=output_taxonomy_tree)
 
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_names[idx]
@@ -332,6 +344,7 @@ def run_type_assignment(
         bootstrap_factor_lookup,
         bootstrap_iteration,
         rng,
+        output_taxonomy_tree=None,
         n_assignments=25,
         gpu_index=0,
         timers=None):
@@ -373,6 +386,13 @@ def run_type_assignment(
 
     rng:
         A random number generator
+
+    output_taxonomy_tree:
+        optional taxonomy tree reflecting the taxonomy
+        to which the data is to be shaped on output
+        (this might be different from taxonomy_tree because,
+        for instance, the mapper is being run with
+        flatten=True or non-NULL drop_level)
 
     n_assignments:
         The number of vote getters to track data for.
@@ -465,10 +485,13 @@ def run_type_assignment(
 
                 bootstrap_factor = bootstrap_factor_lookup[str(parent_level)]
 
-                (assignment,
-                 bootstrapping_probability,
-                 avg_corr,
-                 runners_up) = _run_type_assignment(
+                # spock
+                # return raw votes here
+                # reshape in this function
+                # then, we can just do any level inferring at this point
+                (votes,
+                 corr_sum,
+                 reference_types) = _run_type_assignment(
                                 full_query_gene_data=chosen_query_data,
                                 leaf_node_matrix=leaf_node_matrix,
                                 marker_gene_cache_path=marker_gene_cache_path,
@@ -478,88 +501,39 @@ def run_type_assignment(
                                 bootstrap_iteration=bootstrap_iteration,
                                 rng=rng,
                                 gpu_index=gpu_index,
-                                timers=timers,
-                                n_assignments=n_assignments)
+                                timers=timers)
+
                 update_timer("run_type_assignment", t, timers)
 
             elif len(possible_children) == 1:
-                assignment = [possible_children[0]]*chosen_query_data.n_cells
-                bootstrapping_probability = [1.0]*chosen_query_data.n_cells
-                avg_corr = [None]*chosen_query_data.n_cells
-                runners_up = [None]*chosen_query_data.n_cells
+                votes = None
+                corr_sum = None
+                reference_types = possible_children
+
             else:
                 raise RuntimeError(
                     "Not sure how to proceed;\n"
                     f"parent {parent_node}\n"
                     f"has children {possible_children}")
 
-            # populate the dict keeping track of the rows in
-            # full_query_gene_data that were assigned to each
-            # possible child type
-            type_to_idx = dict()
-            idx_to_type = []
-            for idx, celltype in enumerate(set(assignment)):
-                type_to_idx[celltype] = idx
-                idx_to_type.append(celltype)
-            assignment_idx = np.array([type_to_idx[celltype]
-                                       for celltype in assignment])
+            result = update_mapping_result(
+                result=result,
+                child_level=child_level,
+                cell_idx=chosen_idx,
+                votes=votes,
+                corr_sum=corr_sum,
+                reference_types=reference_types,
+                n_assignments=n_assignments,
+                taxonomy_tree=taxonomy_tree,
+                output_taxonomy_tree=output_taxonomy_tree
+            )
 
-            for idx in range(len(idx_to_type)):
-                celltype = idx_to_type[idx]
-                assigned_this = (assignment_idx == idx)
-                assigned_this = chosen_idx[assigned_this]
-                previously_assigned[child_level][celltype] = assigned_this
-
-            # assign cells to their chosen child_level nodes
-            for i_cell, assigned_type, prob, corr, r_up in zip(
-                            chosen_idx,
-                            assignment,
-                            bootstrapping_probability,
-                            avg_corr,
-                            runners_up):
-
-                if r_up is None:
-                    runner_up_assignments = []
-                    runner_up_correlation = []
-                    runner_up_probability = []
-                else:
-                    runner_up_assignments = [
-                        this[0] for this in r_up if this[1]]
-                    runner_up_correlation = [
-                        this[2] for this in r_up if this[1]]
-                    runner_up_probability = [
-                        this[3] for this in r_up if this[1]]
-
-                result[i_cell][child_level] = {
-                    'assignment': assigned_type,
-                    'bootstrapping_probability': prob,
-                    'avg_correlation': corr,
-                    'runner_up_assignment': runner_up_assignments,
-                    'runner_up_correlation': runner_up_correlation,
-                    'runner_up_probability': runner_up_probability}
-
-    # Backfill all cells/levels with avg_correlation == None
-    # using the parent's avg_correlation value.
-    for cell in result:
-        for parent_level, child_level in zip(level_list[:-1], level_list[1:]):
-
-            # parent_level == None if the taxonomy had been trimmed
-            # such that there was only one option at the highest
-            # level of the taxonomy tree.
-            if parent_level is None:
-                continue
-
-            if cell[child_level]['avg_correlation'] is None:
-                cell[child_level]['avg_correlation'] = \
-                    cell[parent_level]['avg_correlation']
-
-    # add aggregate_probability (the product of bootstrapping_probability)
-    # across levels in the taxonomy
-    for cell in result:
-        prob = 1.0
-        for level in taxonomy_tree.hierarchy:
-            prob *= cell[level]['bootstrapping_probability']
-            cell[level]['aggregate_probability'] = prob
+            previously_assigned = update_previously_assigned(
+                result=result,
+                child_level=child_level,
+                chosen_idx=chosen_idx,
+                previously_assigned=previously_assigned
+            )
 
     return result
 
@@ -574,8 +548,7 @@ def _run_type_assignment(
         bootstrap_iteration,
         rng,
         gpu_index=0,
-        timers=None,
-        n_assignments=10):
+        timers=None):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -592,7 +565,7 @@ def _run_type_assignment(
 
     marker_gene_cache_path:
         Path to the HDF5 file where lists of marker genes for
-        discriminating betwen clustes in our taxonomy are stored.
+        discriminating betwen clusters in our taxonomy are stored.
 
         Note: This file takes into account the genes available
         in the query data. So: it is specific to this combination
@@ -601,7 +574,7 @@ def _run_type_assignment(
     taxonomy_tree:
         instance of
         cell_type_mapper.taxonomty.taxonomy_tree.TaxonomyTree
-        ecoding the taxonomy tree
+        encoding the taxonomy tree
 
     parent_node:
         Tuple of the form (level, cell_type) that encodes
@@ -609,7 +582,7 @@ def _run_type_assignment(
         in the query data
 
     bootstrap_factor:
-        Fraction (<=1.0) by which to sampel the marker gene set
+        Fraction (<=1.0) by which to sample the marker gene set
         at each bootstrapping iteration
 
     bootstrap_iteration:
@@ -622,43 +595,34 @@ def _run_type_assignment(
     gpu_index:
         Index of the GPU for this operation. Supports multi-gpu usage
 
-    n_assignments:
-        The number of vote getters to track data for.
-        Ultimate concequence of this is that n_assignments-1
-        "runners up" get reported at each taxonomic level.
-
     Returns
     -------
-    A list of strings. There is one string per row in the
-    full_query_gene_data array. Each string is the child of
-    parent_node to which that cell was assigned.
-
-    An array indicating the confidence (fraction of votes
-    the winner got) in the choice
-
-    An array indicating the correlation coefficient of the
-    query cell with the chosen node over the average number
-    of times the node was chosen.
-
-    An array of tuples of type
-    (name, valid_flag, avg_corr, bootstrapping_probability)
-    listing the n_assignments-1 runner up assignments.
+    votes:
+        (n_cells, n_types) array of votes each unique cell type got
+        for each cell
+    corr_sum:
+        (n_cells, n_types) array of sums of correlations between
+        cells and unique cell types
+    reference_types:
+        array of unique cell types indicating the meaning of columns
+        in votes and corr_sum
     """
 
-    t = time.time()
+    t0 = time.time()
+
     query_data = assemble_query_data(
         full_query_data=full_query_gene_data,
         mean_profile_matrix=leaf_node_matrix,
         marker_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
-    update_timer("assemble", t, timers)
+    update_timer("assemble", t0, timers)
 
-    t = time.time()
-    (result,
-     bootstrapping_probability,
-     avg_corr,
-     runners_up) = choose_node(
+    t0 = time.time()
+
+    (votes,
+     corr_sum,
+     reference_types) = tally_votes(
         query_gene_data=query_data['query_data'].data,
         reference_gene_data=query_data['reference_data'].data,
         reference_types=query_data['reference_types'],
@@ -666,21 +630,20 @@ def _run_type_assignment(
         bootstrap_iteration=bootstrap_iteration,
         rng=rng,
         gpu_index=gpu_index,
-        timers=timers,
-        n_assignments=n_assignments)
-    update_timer("choose_node", t, timers)
+        timers=timers)
 
-    return result, bootstrapping_probability, avg_corr, runners_up
+    update_timer("choose_node_p2", t0, timers)
+
+    return votes, corr_sum, reference_types
 
 
-def choose_node(
+def tally_votes(
          query_gene_data,
          reference_gene_data,
          reference_types,
          bootstrap_factor,
          bootstrap_iteration,
          rng,
-         n_assignments=10,
          gpu_index=0,
          timers=None):
     """
@@ -691,19 +654,90 @@ def choose_node(
     reference_gene_data
         A numpy array of cell-by-marker-gene data for the reference set
     reference_types
-        array of cell types we are chosing from (n_cells in size)
+        array of cell types we are chosing from
     bootstrap_factor
         Factor by which to subsample reference genes at each bootstrap
     bootstrap_iteration
         Number of bootstrapping iterations
     rng
         random number generator
+    gpu_index:
+        Index of the GPU for this operation. Supports multi-gpu usage
+
+    Returns
+    -------
+    votes:
+        (n_cells, n_types) array of votes each unique cell type got
+        for each cell
+    corr_sum:
+        (n_cells, n_types) array of sums of correlations between
+        cells and unique cell types
+    reference_types:
+        array of unique cell types indicating the meaning of columns
+        in votes and corr_sum
+    """
+
+    t0 = time.time()
+
+    (votes,
+     corr_sum) = tally_raw_votes(
+        query_gene_data=query_gene_data,
+        reference_gene_data=reference_gene_data,
+        bootstrap_factor=bootstrap_factor,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng,
+        gpu_index=gpu_index,
+        timers=timers)
+
+    update_timer("tally_votes", t0, timers)
+
+    if len(set(reference_types)) < len(reference_types):
+        (votes,
+         corr_sum,
+         reference_types) = aggregate_votes(
+             vote_array=votes,
+             correlation_array=corr_sum,
+             reference_types=reference_types)
+
+    return (votes, corr_sum, reference_types)
+
+
+def reshape_type_assignment(
+        votes,
+        corr_sum,
+        reference_types,
+        n_assignments,
+        forced_assignments=None):
+    """
+    Take votes, correlations, and cell types.
+
+    Return output shaped for saving to disk.
+
+    Parameters
+    ----------
+    votes:
+        (n_cells, n_types) array of votes for types in
+        reference_types
+
+    corr_sum:
+        (n_cells, n_types) array of correlations between cells
+        and reference_types
+
+    reference_types:
+        array of cell types we are chosing from
+
     n_assignments:
         The number of vote getters to track data for.
         Ultimate concequence of this is that n_assignments-1
         "runners up" get reported at each taxonomic level.
-    gpu_index:
-        Index of the GPU for this operation. Supports multi-gpu usage
+
+    forced_assignments:
+        An optional array of cell types to which these
+        cells *must* be assigned (for instance, to preserve
+        inheritance when backfilling levels in the taxonomy
+        that were skipped). If not None, these cell types
+        will be chosen for the cells, regardless of where
+        they fall in the hierarchy of vote fractions.
 
     Returns
     -------
@@ -719,29 +753,35 @@ def choose_node(
          avg_correlation,
          bootstrappping_probability)
     """
+    if forced_assignments is not None:
+        label_to_idx = {
+            label: idx
+            for idx, label in enumerate(reference_types)
+        }
+        forced_idx = np.array([
+            label_to_idx[label]
+            for label in forced_assignments
+        ])
 
-    t = time.time()
-    (votes,
-     corr_sum) = tally_votes(
-        query_gene_data=query_gene_data,
-        reference_gene_data=reference_gene_data,
-        bootstrap_factor=bootstrap_factor,
-        bootstrap_iteration=bootstrap_iteration,
-        rng=rng,
-        gpu_index=gpu_index,
-        timers=timers)
+    bootstrap_iteration = votes[0, :].sum()
 
-    if len(set(reference_types)) < len(reference_types):
-        (votes,
-         corr_sum,
-         reference_types) = aggregate_votes(
-             vote_array=votes,
-             correlation_array=corr_sum,
-             reference_types=reference_types)
+    if forced_assignments is not None:
+        result = np.array(forced_assignments)
+        assignment_vote_fractions = np.array(
+            [votes[ii, forced_idx[ii]]
+             for ii in range(votes.shape[0])]
+        ).astype(float)
+
+        assignment_corr = np.array(
+            [corr_sum[ii, forced_idx[ii]]
+             for ii in range(votes.shape[0])]
+        ) / np.where(assignment_vote_fractions > 0,
+                     assignment_vote_fractions,
+                     1)
+
+        assignment_vote_fractions /= bootstrap_iteration
 
     n_assignments = min(n_assignments, votes.shape[1])
-
-    update_timer("tally_votes", t, timers)
 
     sorted_by_votes = np.argsort(votes, axis=1)[:, -1::-1]
     sorted_by_votes = sorted_by_votes[:, :n_assignments]
@@ -749,32 +789,43 @@ def choose_node(
     idx_array_2d = np.array([[ii]*sorted_by_votes.shape[1]
                              for ii in range(sorted_by_votes.shape[0])])
 
-    t = time.time()
-    result = [reference_types[ii] for ii in sorted_by_votes[:, 0]]
     votes = votes[idx_array_2d, sorted_by_votes]
     vote_fractions = votes / bootstrap_iteration
+
     denom = np.where(votes > 0, votes, 1)
 
     avg_corr = corr_sum[idx_array_2d, sorted_by_votes] / denom
 
-    update_timer("choose_node_p2", t, timers)
+    if forced_assignments is None:
+        result = np.array(
+            [reference_types[ii] for ii in sorted_by_votes[:, 0]]
+        )
+        assignment_vote_fractions = vote_fractions[:, 0]
+        assignment_corr = avg_corr[:, 0]
 
     runners_up = [
         [(reference_types[sorted_by_votes[i_row, i_col]],
           votes[i_row, i_col] > 0,
           avg_corr[i_row, i_col],
           vote_fractions[i_row, i_col])
-         for i_col in range(1, n_assignments, 1)]
+         for i_col in range(0, n_assignments, 1)
+         if reference_types[sorted_by_votes[i_row, i_col]] != result[i_row]]
         for i_row in range(sorted_by_votes.shape[0])
     ]
 
-    return (np.array(result),
-            vote_fractions[:, 0],
-            avg_corr[:, 0],
+    # trim runners_up down to specified size (in case forced_assignment
+    # causes one of the rows to be too long
+    for row in runners_up:
+        if len(row) >= n_assignments:
+            row.pop(-1)
+
+    return (result,
+            assignment_vote_fractions,
+            assignment_corr,
             runners_up)
 
 
-def tally_votes(
+def tally_raw_votes(
          query_gene_data,
          reference_gene_data,
          bootstrap_factor,
@@ -789,8 +840,6 @@ def tally_votes(
         A numpy array of cell-by-marker-gene data for the query set
     reference_gene_data
         A numpy array of cell-by-marker-gene data for the reference set
-    reference_types
-        array of cell types we are chosing from (n_cells in size)
     bootstrap_factor
         Factor by which to subsample reference genes at each bootstrap
     bootstrap_iteration
@@ -936,3 +985,238 @@ def aggregate_votes(
     return (vote_array_agg,
             corr_array_agg,
             unq_types)
+
+
+def update_previously_assigned(
+        result,
+        child_level,
+        chosen_idx,
+        previously_assigned):
+
+    assignment = [
+        result[ii][child_level]['assignment']
+        for ii in chosen_idx
+    ]
+
+    # populate the dict keeping track of the rows in
+    # full_query_gene_data that were assigned to each
+    # possible child type
+
+    type_to_idx = dict()
+    idx_to_type = []
+    for idx, celltype in enumerate(set(assignment)):
+        type_to_idx[celltype] = idx
+        idx_to_type.append(celltype)
+
+    assignment_idx = np.array([type_to_idx[celltype]
+                               for celltype in assignment])
+
+    for idx in range(len(idx_to_type)):
+        celltype = idx_to_type[idx]
+        assigned_this = (assignment_idx == idx)
+        assigned_this = chosen_idx[assigned_this]
+        previously_assigned[child_level][celltype] = assigned_this
+
+    return previously_assigned
+
+
+def update_mapping_result(
+        result,
+        child_level,
+        cell_idx,
+        votes,
+        corr_sum,
+        reference_types,
+        n_assignments,
+        taxonomy_tree,
+        output_taxonomy_tree):
+
+    parent_level = None
+    if child_level is not None:
+        parent_level = taxonomy_tree.parent_level(child_level)
+
+    if votes is None:
+        n_cells = len(cell_idx)
+        votes = np.ones((n_cells, 1))
+        corr_sum = np.ones((n_cells, 1), dtype=float)
+        if parent_level is not None:
+            for ii, cell_id in enumerate(cell_idx):
+                corr_sum[ii, 0] = (
+                   result[cell_id][parent_level]['avg_correlation']
+                )
+
+    result = _update_mapping_result(
+        result=result,
+        current_level=child_level,
+        cell_idx=cell_idx,
+        votes=votes,
+        corr_sum=corr_sum,
+        reference_types=reference_types,
+        n_assignments=n_assignments,
+        taxonomy_tree=taxonomy_tree,
+        directly_assigned=True)
+
+    # backfill any levels above the child level using these votes
+    if output_taxonomy_tree is not None:
+        cell0 = cell_idx[0]
+        child_array = np.array([
+            result[ii][child_level]['assignment']
+            for ii in cell_idx
+        ])
+        for backfill_level in output_taxonomy_tree.hierarchy:
+
+            if backfill_level == child_level:
+                break
+
+            if backfill_level in result[cell0]:
+                continue
+
+            (backfill_votes,
+             backfill_corr,
+             backfill_types) = infer_election(
+                 votes=votes,
+                 corr_sum=corr_sum,
+                 reference_types=reference_types,
+                 reference_level=child_level,
+                 inference_level=backfill_level,
+                 taxonomy_tree=output_taxonomy_tree)
+
+            result = _update_mapping_result(
+                result=result,
+                current_level=backfill_level,
+                cell_idx=cell_idx,
+                votes=backfill_votes,
+                corr_sum=backfill_corr,
+                reference_types=backfill_types,
+                n_assignments=n_assignments,
+                taxonomy_tree=output_taxonomy_tree,
+                directly_assigned=False,
+                known_child_level=child_level,
+                known_child_array=child_array
+            )
+
+    return result
+
+
+def _update_mapping_result(
+        result,
+        current_level,
+        cell_idx,
+        votes,
+        corr_sum,
+        reference_types,
+        n_assignments,
+        taxonomy_tree,
+        directly_assigned,
+        known_child_level=None,
+        known_child_array=None):
+    """
+    known_child_level:
+        level in the taxonomy tree at which the last election
+        did take place (a descendant of the assignments being inferred here)
+    known_child_array:
+        (n_cells,) array of assignments made at known_child_level
+        if known_child_level and known_child_array are specified,
+        the assignment
+    """
+
+    has_kcl = (known_child_level is not None)
+    has_kca = (known_child_array is not None)
+    if (has_kcl and not has_kca) or (has_kca and not has_kcl):
+        raise RuntimeError(
+            "Must specify both known_child_level and known_child_array "
+            "or neither. You have:\n"
+            f"level: {known_child_level}\n"
+            f"array: {known_child_array}"
+        )
+
+    parent_level = None
+    if current_level is not None:
+        parent_level = taxonomy_tree.parent_level(current_level)
+
+    # find last parent that was directly assigned; use that level's
+    # aggregate_probability as the base for aggregate probability
+    # at the current level
+    cell0 = cell_idx[0]
+    effective_child = current_level
+    while True:
+        candidate_parent = taxonomy_tree.parent_level(effective_child)
+        if candidate_parent is None:
+            dir_assn_parent_level = None
+            break
+        is_present = (candidate_parent in result[cell0])
+        is_direct = False
+        if is_present:
+            is_direct = result[cell0][candidate_parent]['directly_assigned']
+        if is_direct:
+            dir_assn_parent_level = candidate_parent
+            break
+        effective_child = candidate_parent
+
+    # if there is a known child node to which we must enforce
+    # consistent inheritance, propagate that through to
+    # a forced_assignment
+    if has_kcl:
+        forced_assignments = np.array([
+            taxonomy_tree.parents(
+                level=known_child_level,
+                node=known_child)[current_level]
+            for known_child in known_child_array
+        ])
+    else:
+        forced_assignments = None
+
+    (assignment,
+     bootstrapping_probability,
+     avg_corr,
+     runners_up) = reshape_type_assignment(
+                     votes=votes,
+                     corr_sum=corr_sum,
+                     reference_types=reference_types,
+                     n_assignments=n_assignments,
+                     forced_assignments=forced_assignments)
+
+    # assign cells to their chosen current_level nodes
+    for i_cell, assigned_type, prob, corr, r_up in zip(
+                    cell_idx,
+                    assignment,
+                    bootstrapping_probability,
+                    avg_corr,
+                    runners_up):
+
+        if r_up is None:
+            runner_up_assignments = []
+            runner_up_correlation = []
+            runner_up_probability = []
+        else:
+            runner_up_assignments = [
+                this[0] for this in r_up if this[1]]
+            runner_up_correlation = [
+                this[2] for this in r_up if this[1]]
+            runner_up_probability = [
+                this[3] for this in r_up if this[1]]
+
+        if dir_assn_parent_level is None:
+            parent_probability = 1.0
+        else:
+            parent_probability = (
+                result[i_cell][dir_assn_parent_level]['aggregate_probability']
+            )
+
+        aggregate_probability = parent_probability * prob
+
+        if corr is None:
+            if parent_level is not None:
+                corr = result[i_cell][parent_level]['avg_correlation']
+
+        result[i_cell][current_level] = {
+            'assignment': assigned_type,
+            'bootstrapping_probability': prob,
+            'aggregate_probability': aggregate_probability,
+            'avg_correlation': corr,
+            'runner_up_assignment': runner_up_assignments,
+            'runner_up_correlation': runner_up_correlation,
+            'runner_up_probability': runner_up_probability,
+            'directly_assigned': directly_assigned}
+
+    return result

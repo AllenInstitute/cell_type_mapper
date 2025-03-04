@@ -15,6 +15,7 @@ import pytest
 
 import anndata
 import copy
+import h5py
 import hashlib
 import itertools
 import json
@@ -27,11 +28,19 @@ import scipy.sparse as scipy_sparse
 import tempfile
 import warnings
 
+from cell_type_mapper.test_utils.comparison_utils import (
+    assert_blobs_equal
+)
+
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available)
+
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -49,6 +58,10 @@ from cell_type_mapper.cli.from_specified_markers import (
 from cell_type_mapper.utils.output_utils import (
     blob_to_hdf5,
     hdf5_to_blob)
+
+from cell_type_mapper.test_utils.hierarchical_mapping import (
+    assert_mappings_equal
+)
 
 
 @pytest.fixture(scope='module')
@@ -215,18 +228,7 @@ def test_mapping_from_markers_smoke(
     drop_subclass will drop 'subclass' from the taxonomy
     """
 
-    if flatten:
-        actual_levels = ['cluster']
-        mapped_levels = {'class': 'cluster', 'subclass': 'cluster'}
-    elif drop_subclass:
-        actual_levels = ['class', 'cluster']
-        mapped_levels = {'subclass': 'cluster'}
-    else:
-        actual_levels = ['class', 'subclass', 'cluster']
-        mapped_levels = dict()
-
     use_tmp_dir = True
-    use_csv = True
 
     if use_gpu and not is_torch_available():
         return
@@ -239,12 +241,9 @@ def test_mapping_from_markers_smoke(
 
     this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
 
-    if use_csv:
-        csv_path = mkstemp_clean(
-            dir=this_tmp,
-            suffix='.csv')
-    else:
-        csv_path = None
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
 
     result_path = mkstemp_clean(
         dir=this_tmp,
@@ -384,11 +383,13 @@ def test_mapping_from_markers_smoke(
             else:
                 assert cell[level]['directly_assigned']
 
-        # check inheritance
+        # check inheritance (i.e. that assigned cell types are
+        # descended from each other)
         this_leaf = cell[taxonomy_tree.leaf_level]['assignment']
         these_parents = taxonomy_tree.parents(
             level=taxonomy_tree.leaf_level,
             node=this_leaf)
+
         for parent_l in these_parents:
             assert cell[parent_l]['assignment'] == these_parents[parent_l]
 
@@ -406,6 +407,7 @@ def test_mapping_from_markers_smoke(
 
             # check consistency of inheritance
             for parent_level in family_tree:
+
                 assert (
                     cell[parent_level]['assignment']
                     == family_tree[parent_level]
@@ -419,6 +421,7 @@ def test_mapping_from_markers_smoke(
                 this_level['assignment']
                 not in this_level['runner_up_assignment']
             )
+
             assert (
                 len(set(this_level['runner_up_assignment']))
                 == n_runners_up_actual
@@ -454,8 +457,12 @@ def test_mapping_from_markers_smoke(
                         assert r0 > 0.0
                         assert r0 <= r1
 
-                assert this_level['runner_up_probability'][0] <= \
-                    this_level['bootstrapping_probability']
+                # if level was not directly assigned, then the assigned
+                # node/probability will have been forced by inheritance,
+                # not chosen by majority vote
+                if this_level['directly_assigned']:
+                    assert this_level['runner_up_probability'][0] <= \
+                        this_level['bootstrapping_probability']
 
                 # check that probability sums to <= 1
                 assert this_level['bootstrapping_probability'] < 1.0
@@ -469,13 +476,17 @@ def test_mapping_from_markers_smoke(
                 if 'runner_up_assignment' in this_level:
                     for rup in this_level['runner_up_assignment']:
                         assert rup != this_level['assignment']
-                    if not flatten and not drop_subclass:
-                        # if levels were backfilled, runners up might have
-                        # odd inheritance relationship to actual assignments
-                        other_tree = taxonomy_tree.parents(
-                            level=level,
-                            node=rup)
-                        assert other_tree == family_tree
+
+                        if this_level['directly_assigned']:
+                            # if levels were backfilled, runners up might have
+                            # odd inheritance relationship to actual
+                            # assignments
+                            if not flatten and not drop_subclass:
+                                other_tree = taxonomy_tree.parents(
+                                    level=level,
+                                    node=rup)
+
+                                assert other_tree == family_tree
 
     if not just_once:
         assert with_runners_up > 0
@@ -495,14 +506,11 @@ def test_mapping_from_markers_smoke(
 
         # calculate aggregate probability for directly calculated
         # levels
-        for level in actual_levels:
-            prob *= cell[level]['bootstrapping_probability']
-            prob_lookup[level] = prob
-
-        # map probability from actually calculated levels to
-        # levels that were flattened away or dropped
-        for src_level in mapped_levels:
-            prob_lookup[src_level] = prob_lookup[mapped_levels[src_level]]
+        for level in ['class', 'subclass', 'cluster']:
+            this = prob*cell[level]['bootstrapping_probability']
+            prob_lookup[level] = this
+            if cell[level]['directly_assigned']:
+                prob = this
 
         for level in ['class', 'subclass', 'cluster']:
             actual_agg.append(cell[level]['aggregate_probability'])
@@ -513,6 +521,39 @@ def test_mapping_from_markers_smoke(
         expected_agg,
         atol=0.0,
         rtol=1.0e-6)
+
+    # check that hierarchy_consistent is set correctly
+    if flatten and not just_once:
+        expected_consistency = []
+        cell_id = []
+        for cell in actual['results']:
+            is_consistent = True
+            for level in cell:
+                if level == 'cell_id':
+                    continue
+                prob = cell[level]['bootstrapping_probability']
+                rup = cell[level]['runner_up_probability']
+                if len(rup) > 0:
+                    if prob < max(rup):
+                        is_consistent = False
+                        break
+            expected_consistency.append(is_consistent)
+            cell_id.append(cell['cell_id'])
+        expected_consistency = np.array(expected_consistency)
+        cell_id = np.array(cell_id)
+        n_consistent = expected_consistency.sum()
+        assert n_consistent > 0
+        assert n_consistent < len(actual['results'])
+
+        csv_results = pd.read_csv(csv_path, comment='#')
+        np.testing.assert_array_equal(
+            expected_consistency,
+            csv_results.hierarchy_consistent.values
+        )
+        np.testing.assert_array_equal(
+            cell_id,
+            csv_results.cell_id.values.astype(str)
+        )
 
 
 @pytest.mark.parametrize(
@@ -920,7 +961,9 @@ def test_compression_noisy_markers(
         roundtrip = hdf5_to_blob(
             src_path=hdf5_path)
 
-        assert roundtrip == output_blob
+        assert_blobs_equal(
+            blob0=roundtrip,
+            blob1=output_blob)
 
 
 @pytest.mark.parametrize(
@@ -1014,7 +1057,9 @@ def test_cli_compression_noisy_markers(
             src_path=hdf5_result_path)
 
     assert len(output_blob['results']) > 0
-    assert from_hdf5 == output_blob
+    assert_blobs_equal(
+        blob0=from_hdf5,
+        blob1=output_blob)
 
 
 @pytest.mark.parametrize(
@@ -1252,16 +1297,9 @@ def test_hdf5_output_from_cli(
     hdf5_output.pop('log')
     json_output.pop('log')
 
-    assert hdf5_output['results'] == json_output['results']
-    assert hdf5_output['taxonomy_tree'] == json_output['taxonomy_tree']
-    assert hdf5_output['results'] == json_output['results']
-    assert hdf5_output['marker_genes'] == json_output['marker_genes']
-    assert hdf5_output['n_unmapped_genes'] == json_output['n_unmapped_genes']
-    assert hdf5_output['marker_genes'] == json_output['marker_genes']
-    assert hdf5_output['gene_identifier_mapping'] == \
-        json_output['gene_identifier_mapping']
-
-    assert hdf5_output == json_output
+    assert_blobs_equal(
+        blob0=hdf5_output,
+        blob1=json_output)
 
 
 @pytest.mark.parametrize(
@@ -1594,3 +1632,298 @@ def test_mapping_config_roundtrip(
         assert retest_mapping['metadata'] != test_mapping['metadata']
 
     os.environ[env_var] = ''
+
+
+@pytest.mark.parametrize(
+    "specify_markers,collapse_markers",
+    [(True, True),
+     (False, True),
+     (False, False)]
+)
+def test_marker_collapse_params(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        noisy_raw_query_h5ad_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture,
+        specify_markers,
+        collapse_markers):
+    """
+    Test that correct mapping is done when collapse_markers
+    is specified
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = str(
+        noisy_raw_query_h5ad_fixture.resolve().absolute())
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    if specify_markers:
+        marker_path = str(noisy_marker_gene_lookup_fixture)
+    else:
+        marker_path = None
+
+    config['query_markers'] = {
+        'serialized_lookup': marker_path,
+        'collapse_markers': collapse_markers
+    }
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.5,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+
+    msg = (
+        "Cannot have collapse_markers = False if you are not specifying "
+        "a serialized_lookup for query_markers"
+    )
+
+    if (not specify_markers) and (not collapse_markers):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            with pytest.raises(RuntimeError, match=msg):
+                runner = FromSpecifiedMarkersRunner(
+                    args=[],
+                    input_data=config)
+
+                runner.run()
+    else:
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()
+
+        # Now run the mapping, specifying the collapsed markers
+        # in a JSON file and confirm that the mappings come out
+        # identical
+
+        expected_config = copy.deepcopy(config)
+
+        expected_json = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='expected_output_',
+            suffix='.json'
+        )
+        expected_csv = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='expected_output_',
+            suffix='.csv'
+        )
+        expected_config['extended_result_path'] = expected_json
+        expected_config['csv_result_path'] = expected_csv
+
+        taxonomy_tree = TaxonomyTree.from_precomputed_stats(
+            noisy_precomputed_stats_fixture
+        )
+
+        expected_markers = dict()
+        var = read_df_from_h5ad(config['query_path'], df_name='var')
+        query_genes = set(var.index.values)
+        if specify_markers:
+            _src_path = config['query_markers']['serialized_lookup']
+            with open(_src_path, 'rb') as src:
+                src_markers = json.load(src)
+            all_markers = set()
+            for key in src_markers:
+                if key in ('log', 'metadata'):
+                    continue
+                all_markers = all_markers.union(set(src_markers[key]))
+            all_markers = sorted(all_markers)
+        else:
+            with h5py.File(config['precomputed_stats']['path'], 'r') as src:
+                ref_genes = json.loads(
+                    src['col_names'][()].decode('utf-8')
+                )
+
+            all_markers = sorted(
+                query_genes.intersection(set(ref_genes))
+            )
+
+        for parent in taxonomy_tree.all_parents:
+            if parent is None:
+                key = 'None'
+            else:
+                key = f'{parent[0]}/{parent[1]}'
+            expected_markers[key] = all_markers
+
+        expected_marker_path = mkstemp_clean(
+           dir=tmp_dir_fixture,
+           prefix='expected_markers_',
+           suffix='.json'
+        )
+
+        with open(expected_marker_path, 'w') as dst:
+            dst.write(json.dumps(expected_markers, indent=2))
+
+        expected_config['query_markers']['serialized_lookup'] = (
+            expected_marker_path
+        )
+        expected_config['query_markers']['collapse_markers'] = False
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=expected_config)
+
+            runner.run()
+
+        actual = json.load(
+            open(config['extended_result_path'], 'rb')
+        )
+
+        if not specify_markers:
+            # check for warning about genes that were in query
+            # dataset but were not in reference dataset
+            found_it = False
+            match = (
+                "genes in the query dataset were not present in the "
+                "reference dataset."
+            )
+            for msg in actual['log']:
+                if match in msg:
+                    found_it = True
+                    break
+                assert not found_it
+
+        expected = json.load(
+            open(expected_config['extended_result_path'], 'rb')
+        )
+        assert actual != expected
+        assert_mappings_equal(
+            mapping0=actual['results'],
+            mapping1=expected['results']
+        )
+
+        # check that the recorded marker genes in actual are
+        # as expected
+        actual_markers = actual['marker_genes']
+        assert set(actual_markers.keys()) == set(expected_markers.keys())
+        for k in actual_markers:
+            act = set(actual_markers[k])
+            expct = set(expected_markers[k])
+            assert len(act-expct) == 0
+
+            # make sure any difference is due to genes that are
+            # not in the query set
+            diff = (expct-act)
+            assert len(query_genes.intersection(diff)) == 0
+
+
+def test_marker_collapse_params_no_overlap(
+        noisy_precomputed_stats_fixture,
+        noisy_marker_gene_lookup_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture):
+    """
+    Test that the correct error is raised when you
+    specify collapse_markers but there is no overlap
+    between reference genes and your query set
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    query_path = mkstemp_clean(
+        dir=this_tmp,
+        prefix='query_',
+        suffix='.h5ad'
+    )
+
+    var = pd.DataFrame(
+        [{'gene_id': f'special_case_{ii}'}
+         for ii in range(10)]
+    ).set_index('gene_id')
+
+    query_data = anndata.AnnData(
+        var=var,
+        X=np.random.random_sample((15, 10))
+    )
+    query_data.write_h5ad(query_path)
+
+    csv_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.csv')
+
+    result_path = mkstemp_clean(
+        dir=this_tmp,
+        suffix='.json')
+
+    config = dict()
+    config['tmp_dir'] = this_tmp
+
+    config['query_path'] = query_path
+
+    config['extended_result_path'] = result_path
+    config['csv_result_path'] = csv_path
+    config['max_gb'] = 1.0
+
+    config['precomputed_stats'] = {
+        'path': str(
+            noisy_precomputed_stats_fixture.resolve().absolute())}
+
+    config['flatten'] = False
+
+    config['query_markers'] = {
+        'serialized_lookup': None,
+        'collapse_markers': True
+    }
+
+    config['type_assignment'] = {
+        'bootstrap_iteration': 50,
+        'bootstrap_factor': 0.5,
+        'bootstrap_factor_lookup': None,
+        'rng_seed': 1491625,
+        'n_processors': 3,
+        'chunk_size': 1000,
+        'normalization': 'raw',
+        'n_runners_up': 5
+    }
+
+    msg = (
+        "There was no overlap between the genes in the query "
+        "dataset and the genes in the reference dataset"
+    )
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with pytest.raises(RuntimeError, match=msg):
+            runner = FromSpecifiedMarkersRunner(
+                args=[],
+                input_data=config)
+
+            runner.run()

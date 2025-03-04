@@ -1,5 +1,6 @@
 import h5py
 import numbers
+import numpy as np
 
 
 def reconcile_taxonomy_and_markers(
@@ -149,3 +150,60 @@ def validate_bootstrap_factor_lookup(
             log.error(msg)
         else:
             raise RuntimeError(msg)
+
+
+def infer_election(
+        votes,
+        corr_sum,
+        reference_types,
+        reference_level,
+        inference_level,
+        taxonomy_tree):
+    """
+    Infer election results for a level in a cell type taxonomy
+    based on election carried out at one of its child levels.
+
+    Parameters
+    ----------
+    votes:
+        (n_cells, n_cell_types) array of votes
+    corr_sum:
+        (n_cells, n_cell_types) array of correlation sums
+    reference_types:
+        (n_cell_types,) array of labels for cell types
+    reference_level:
+        level in the taxonomy at which the election was actually carried out
+    inference_level:
+        level in the taxonomy we want to infer
+    taxonomy_tree:
+        a TaxonomyTree
+
+    Returns
+    -------
+    votes
+    corr_sum
+    reference_types
+
+    for the inferred level
+    """
+    child_to_parent = {
+        child: taxonomy_tree.parents(
+                   level=reference_level,
+                   node=child)[inference_level]
+        for child in np.unique(reference_types)
+    }
+
+    parent_types = np.unique(list(child_to_parent.values()))
+    parent_idx_lookup = {p: idx for idx, p in enumerate(parent_types)}
+    child_to_parent_idx = np.array([
+        parent_idx_lookup[child_to_parent[child]]
+        for child in reference_types
+    ])
+
+    new_votes = np.zeros((votes.shape[0], len(parent_types)), dtype=float)
+    new_corr = np.zeros((votes.shape[0], len(parent_types)), dtype=float)
+    for child_idx, parent_idx in enumerate(child_to_parent_idx):
+        new_votes[:, parent_idx] += votes[:, child_idx]
+        new_corr[:, parent_idx] += corr_sum[:, child_idx]
+
+    return new_votes, new_corr, parent_types

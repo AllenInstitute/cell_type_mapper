@@ -961,3 +961,35 @@ def test_reverse_name_lookup():
     assert tree.name_to_node(
         level='levelA',
         node='a2') == ('A', 'a2')
+
+
+def test_parent_level():
+    tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    tree = TaxonomyTree(data=tree_data)
+    assert tree.parent_level('leaf') == 'level3'
+    assert tree.parent_level('level3') == 'level2'
+    assert tree.parent_level('level2') == 'level1'
+    assert tree.parent_level('level1') is None
