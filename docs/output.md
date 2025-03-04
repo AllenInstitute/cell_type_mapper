@@ -250,7 +250,9 @@ each of which descend from classBCD. We run flat mapping with more than one
 `bootstrap_iteration` and the vote breakdown for a cell is
 
 subclassA: 2 votes
+
 subclassB: 3 vote
+
 subclassD: 1 vote
 
 The cell will be assigned to subclassB with a `bootstrapping_probability` of
@@ -264,8 +266,11 @@ There is, another subtlety to this, however. Imagine that another cell is mapped
 with
 
 subclassA: 2 votes
+
 subclassB: 1 vote
+
 subclassC: 1 vote
+
 subclassD: 1 vote
 
 the cell is now assigned to subclassA, implying an assignment to
