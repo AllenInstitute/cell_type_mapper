@@ -125,10 +125,17 @@ the children of that parent node.
 a cell in the data that was mapped and encodes the result of the mapping.
 For each level in the taxonomy tree the following are recorded
 
-- `'assignment'`: the taxonomic node chosen for this cell
-- `'bootstrapping_probability'`: the fraction of bootstrap iterations that
-selected the assigned taxonomic node
-- `'aggregate_probability'`: this is the product of `boostrapping_probability`
+#### `'assignment'`
+
+The taxonomic node chosen for this cell.
+
+#### `'bootstrapping_probability'`
+
+The fraction of bootstrap iterations that selected the assigned taxonomic node
+
+#### `'aggregate_probability'`
+
+This is the product of `boostrapping_probability`
 for all levels of the taxonomy starting at the grossest level and
 ending at the current level, i.e. if your taxonomy has levels
 `['class', 'subclass', 'cluster']`, then the `aggregate_probability` at
@@ -136,12 +143,18 @@ the `subclass` level is the product of the `class` level
 `bootstrapping_probability` with the `subclass` level
 `bootstrapping_probability`; the `aggregate_probability` at the `cluster`
 level is the product of the `bootstrapping_probability` at all three levels.
-- `'avg_correlation`': the average Pearson's correlation coefficient between
+
+#### `'avg_correlation`'
+
+The average Pearson's correlation coefficient between
 the gene profile of the cell and the average gene profile of the chosen
 taxonomic node *in the marker genes appropriate for that node.* The average
 is taken over only those bootstrap iterations that selected the assigned
 node.
-- `'directly_assigned'`: this is a boolean. If `True`, then the cell type
+
+#### `'directly_assigned'`
+
+This is a boolean. If `True`, then the cell type
 was assigned directly by the cell type mapper. If `False`, the cell type
 was inferred from a directly assigned child. This may occur if, for instance,
 you run the cell type mapper with `flatten = True`, in which case each cell
