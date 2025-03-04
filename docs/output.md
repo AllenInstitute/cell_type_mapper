@@ -64,6 +64,13 @@ For the leaf node of the taxonomy (`cluster` in our example above), we also
 return `thisLevel_alias`, which is another, theortically universally unique
 identifier for that taxonomic node.
 
+### Special case: `verbose_csv`
+
+If you run the mapping with the config param `verbose_csv = True` (available
+starting in version `1.5.0`), then the CSV file will list both the
+`bootstrapping_probability` and the `correlation_coefficient` for each cell type
+assignment in the file.
+
 ## JSON output file
 
 The extended JSON output file is written to the location specified by the config
@@ -76,7 +83,7 @@ import json
 result_dict = json.load(open('path/to/result/file.json', 'rb'))
 ```
 
-The key-vale pairs of the resulting dict are
+The key-value pairs of the resulting dict are
 
 - `results`: the actual results of the mapping
 - `config`: a dict containing the config parameters for this mapping run
@@ -88,7 +95,6 @@ Below we further document these objects (except for `log` and `config`, which
 should be self explanatory).
 
 ### taxonomy_tree
-
 
 This is a dict that is a serialization of the taxonomy tree to which the
 data was mapped. It can be interpreted as is or used to instantiate a
@@ -117,7 +123,7 @@ the children of that parent node.
 
 `result_dict['results']` points to a list of dicts. Each dict represents
 a cell in the data that was mapped and encodes the result of the mapping.
-For each level in the taxonomy tree there is recorded
+For each level in the taxonomy tree the following are recorded
 
 - `'assignment'`: the taxonomic node chosen for this cell
 - `'bootstrapping_probability'`: the fraction of bootstrap iterations that
