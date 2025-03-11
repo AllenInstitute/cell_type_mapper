@@ -39,7 +39,7 @@ to the taxonomies supported by the on-line MapMyCells tool, consult
 [this page](https://github.com/AllenInstitute/cell_type_mapper/blob/update/docs/250304/docs/input_data_files/running_online_taxonomies_locally.md) and Section 8
 of [this Jupyter notebook.](https://github.com/AllenInstitute/cell_type_mapper/blob/update/docs/250304/examples/mapping_to_subset_of_abc_atlas_data.ipynb)
 
-### Mapping to an user-defined taxonomy
+### Mapping to a user-defined taxonomy
 
 [This Jupyter notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/update/docs/250304/examples/full_mapping_pipeline.ipynb)
 walks the user through the process of creating a new taxonomy from cartoon

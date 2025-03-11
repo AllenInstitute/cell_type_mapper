@@ -265,7 +265,7 @@ The cell will be assigned to subclassB with a `bootstrapping_probability` of
 since, considering the 1 vote for subclassD, classBCD actually received 4 of
 the 6 votes.
 
-There is, another subtlety to this, however. Imagine that another cell is mapped
+There is another subtlety to this, however. Imagine that another cell is mapped
 with
 
 subclassA: 2 votes
