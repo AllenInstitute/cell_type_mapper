@@ -359,6 +359,7 @@ def _validate_h5ad(
 
     if write_to_new_path:
         n_genes = len(var_original)
+        print(f'updating uns at {tmp_h5ad_path}')
         update_uns(
             tmp_h5ad_path,
             {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
