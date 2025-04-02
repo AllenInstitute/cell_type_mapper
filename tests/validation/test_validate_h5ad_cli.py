@@ -933,6 +933,10 @@ def test_validation_cli_on_ensembl_dot(
             dir=tmp_dir_fixture,
             suffix='.json')
 
+        md50 = hashlib.md5()
+        with open(input_path, 'rb') as src:
+            md50.update(src.read())
+
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             runner = ValidateH5adRunner(
@@ -952,6 +956,11 @@ def test_validation_cli_on_ensembl_dot(
         )
         assert list(new_h5ad.var.index.values) == expected
         assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)
+
+        md51 = hashlib.md5()
+        with open(input_path, 'rb') as src:
+            md51.update(src.read())
+        assert md50.hexdigest() == md51.hexdigest()
 
 
 @pytest.mark.parametrize(
@@ -1006,6 +1015,10 @@ def test_roundtrip_of_validation_cli(
         prefix=f"good_input_{density}_",
         suffix=".json")
 
+    md50 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md50.update(src.read())
+
     config = {
         'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
@@ -1019,6 +1032,11 @@ def test_roundtrip_of_validation_cli(
         warnings.simplefilter('ignore')
         runner = ValidateH5adRunner(args=[], input_data=config)
         runner.run()
+
+    md51 = hashlib.md5()
+    with open(orig_path, 'rb') as src:
+        md51.update(src.read())
+    assert md50.hexdigest() == md51.hexdigest()
 
     with open(output_json_path, 'rb') as src:
         output_json = json.load(src)
@@ -1036,10 +1054,19 @@ def test_roundtrip_of_validation_cli(
     new_config.pop('output_json')
     new_config['output_json'] = new_output_json_path
 
+    md50 = hashlib.md5()
+    with open(new_config['input_path'], 'rb') as src:
+        md50.update(src.read())
+
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         roundtrip_runner = ValidateH5adRunner(args=[], input_data=new_config)
         roundtrip_runner.run()
+
+    md51 = hashlib.md5()
+    with open(new_config['input_path'], 'rb') as src:
+        md51.update(src.read())
+    assert md50.hexdigest() == md51.hexdigest()
 
     with open(new_output_json_path, 'rb') as src:
         new_output_json = json.load(src)
