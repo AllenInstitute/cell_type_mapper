@@ -1081,3 +1081,61 @@ def test_roundtrip_of_validation_cli(
     with open(orig_path, 'rb') as src:
         md51.update(src.read())
     assert md50.hexdigest() == md51.hexdigest()
+
+
+def test_obs_with_repeated_cells_validation_cli(
+        good_var_fixture,
+        obs_fixture,
+        good_x_fixture,
+        tmp_dir_fixture):
+    """
+    Smoke test for validating an h5ad file with repeated cell names
+    """
+    n_cells = len(obs_fixture)
+    obs = pd.DataFrame(
+        [
+            {'cell_id': 'foo'}
+            for ii in range(n_cells)
+        ]).set_index('cell_id')
+
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='repeated_cells_',
+        suffix='.h5ad'
+    )
+    src = anndata.AnnData(
+        X=good_x_fixture,
+        obs=obs,
+        var=good_var_fixture
+    )
+    src.write_h5ad(h5ad_path)
+
+    md50 = hashlib.md5()
+    with open(h5ad_path, 'rb') as src:
+        md50.update(src.read())
+
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='validated_repeated_cells_',
+        suffix='.h5ad'
+    )
+
+    config = {
+        'input_path': h5ad_path,
+        'valid_h5ad_path': dst_path,
+        'output_json': mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        roundtrip_runner = ValidateH5adRunner(args=[], input_data=config)
+        roundtrip_runner.run()
+
+    md51 = hashlib.md5()
+    with open(h5ad_path, 'rb') as src:
+        md51.update(src.read())
+
+    assert md50.hexdigest() == md51.hexdigest()
