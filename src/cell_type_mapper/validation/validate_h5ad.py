@@ -168,11 +168,10 @@ def _validate_h5ad(
     active_h5ad_path = pathlib.Path(active_h5ad_path)
 
     if valid_h5ad_path is None:
-        output_dir = pathlib.Path(output_dir)
-        h5ad_name = active_h5ad_path.name.replace(
-                        active_h5ad_path.suffix, '')
-        timestamp = get_timestamp().replace('-', '')
-        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+        new_h5ad_path = _create_valid_h5ad_path(
+            output_dir=output_dir,
+            active_h5ad_path=active_h5ad_path
+        )
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
@@ -322,6 +321,40 @@ def _validate_h5ad(
 
     return output_path, has_warnings
 
+
+def _create_valid_h5ad_path(
+        output_dir,
+        active_h5ad_path):
+    """
+    Create and return path for valid h5ad path
+
+    Parameters
+    ----------
+    output_dir:
+        path to the directory where the valid h5ad file
+        will be written
+    active_h5ad_path:
+        path to the h5ad path being validated
+
+    Returns
+    -------
+    Path where we can write valid h5ad file
+    """
+    output_dir = pathlib.Path(output_dir)
+    h5ad_name = active_h5ad_path.name.replace(
+                    active_h5ad_path.suffix, '')
+    timestamp = get_timestamp().replace('-', '')
+    new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    if new_h5ad_path.exists():
+        salt = 0
+        suffix = new_h5ad_path.suffix
+        base_name = new_h5ad_path.name
+        while True:
+            new_h5ad_path = output_dir / base_name.replace(suffix, f'{salt}{suffix}')
+            salt += 1
+            if not new_h5ad_path.exists():
+                break
+    return new_h5ad_path
 
 def _check_h5ad_integrity(
         active_h5ad_path,
