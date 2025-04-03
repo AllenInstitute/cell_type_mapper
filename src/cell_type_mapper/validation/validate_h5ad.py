@@ -17,7 +17,6 @@ from cell_type_mapper.utils.h5_utils import (
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
-    write_df_to_h5ad,
     copy_layer_to_x,
     read_uns_from_h5ad,
     write_uns_to_h5ad,
@@ -203,8 +202,8 @@ def _validate_h5ad(
     if val_warnings:
         has_warnings = True
 
-    original_h5ad_path = active_h5ad_path
-    if layer != 'X' or mapped_var is not None or new_obs is not None or cast_to_int:
+    if (layer != 'X' or mapped_var is not None
+            or new_obs is not None or cast_to_int):
 
         write_to_new_path = True
 
@@ -285,11 +284,14 @@ def _create_valid_h5ad_path(
         suffix = new_h5ad_path.suffix
         base_name = new_h5ad_path.name
         while True:
-            new_h5ad_path = output_dir / base_name.replace(suffix, f'{salt}{suffix}')
+            new_h5ad_path = (
+                output_dir / base_name.replace(suffix, f'{salt}{suffix}')
+            )
             salt += 1
             if not new_h5ad_path.exists():
                 break
     return new_h5ad_path
+
 
 def _check_h5ad_integrity(
         active_h5ad_path,
@@ -502,13 +504,10 @@ def _create_new_obs(
         h5ad_path=active_h5ad_path,
         df_name='obs')
 
-    new_obs = None
     obs_unique_index = create_uniquely_indexed_df(
         obs_original)
 
     if obs_unique_index is not obs_original:
-        new_obs = obs_unique_index
-        write_to_new_path = True
         msg = (
             "The index values in the obs dataframe of your file "
             "are not unique. We are modifying them to be unique. "

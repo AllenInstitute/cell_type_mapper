@@ -10,7 +10,7 @@ import json
 import numpy as np
 import warnings
 
-from cell_type_mapper.utils.utils import(
+from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
@@ -125,7 +125,7 @@ def test_cli_validation_for_csv(
         expected_gene_labels = np.array(gene_labels)
     else:
         expected_gene_labels = np.array(
-            [mouse_gene_id_lookup[l] for l in gene_labels]
+            [mouse_gene_id_lookup[el] for el in gene_labels]
         )
 
     np.testing.assert_array_equal(

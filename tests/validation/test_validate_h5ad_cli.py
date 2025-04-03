@@ -1152,7 +1152,6 @@ def test_transposed_validation_cli(
     """
     Smoke test for validating an h5ad file with repeated cell names
     """
-    n_cells = len(obs_fixture)
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,

@@ -40,6 +40,7 @@ def x_dtype_fixture(request):
         return 'integer'
     return request.param
 
+
 @pytest.fixture()
 def transposition_fixture(request):
     if not hasattr(request, 'param'):
