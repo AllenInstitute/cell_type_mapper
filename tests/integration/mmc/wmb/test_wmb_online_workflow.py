@@ -7,6 +7,7 @@ import anndata
 import io
 import itertools
 import json
+import numpy as np
 import pandas as pd
 import warnings
 
@@ -517,3 +518,45 @@ def test_online_workflow_WMB_degenerate_cell_labels(
         assert 'cell_id' not in baseline_mapping[pair[0]]
         assert 'cell_id' not in baseline_mapping[pair[1]]
         assert baseline_mapping[pair[0]] != baseline_mapping[pair[1]]
+
+
+def test_online_workflow_WMB_perfect_csvs(
+        marker_lookup_fixture,
+        precomputed_stats_fixture,
+        tmp_dir_fixture):
+    """
+    Test that if CSV has integer counts and ENSEMBL IDs, it can still
+    be run (there was a bug in the validation pipeline that caused
+    the code not to properly track the h5ad file we were writing out)
+    """
+    csv_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='perfect_mouse_',
+        suffix='.csv'
+    )
+    marker_set = set()
+    with open(marker_lookup_fixture, 'rb') as src:
+        markers = json.load(src)
+    for key in markers:
+        if key in ('log', 'metadata'):
+            continue
+        marker_set = marker_set.union(set(markers[key]))
+    marker_set = sorted(marker_set)
+    rng = np.random.default_rng(213131)
+    chosen_markers = rng.choice(marker_set, 20, replace=False)
+    n_cells = 5
+    with open(csv_path, 'w') as dst:
+        for gene in chosen_markers:
+            dst.write(f',{gene}')
+        dst.write('\n')
+        for ii in range(n_cells):
+            dst.write(f'cell{ii}')
+            for jj in range(len(chosen_markers)):
+                dst.write(f',{rng.integers(0,10)}')
+            dst.write('\n')
+    run_pipeline(
+        query_path=csv_path,
+        marker_lookup_path=marker_lookup_fixture,
+        precomputed_path=precomputed_stats_fixture,
+        tmp_dir=tmp_dir_fixture
+    )

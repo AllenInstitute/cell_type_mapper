@@ -17,7 +17,6 @@ from cell_type_mapper.utils.h5_utils import (
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
-    write_df_to_h5ad,
     copy_layer_to_x,
     read_uns_from_h5ad,
     write_uns_to_h5ad,
@@ -129,6 +128,8 @@ def _validate_h5ad(
         output_dir=None,
         valid_h5ad_path=None):
 
+    input_h5ad_path = pathlib.Path(h5ad_path)
+
     if valid_h5ad_path is not None and output_dir is not None:
         raise RuntimeError(
             "Cannot specify both valid_h5ad_path and output_dir; "
@@ -138,7 +139,7 @@ def _validate_h5ad(
         raise RuntimeError(
             "Must specify one of either valid_h5ad_path or output_dir")
 
-    (original_h5ad_path,
+    (active_h5ad_path,
      write_to_new_path) = convert_csv_to_h5ad(
          src_path=h5ad_path,
          log=log
@@ -146,8 +147,169 @@ def _validate_h5ad(
 
     has_warnings = write_to_new_path
 
-    # check that file can even be open and that it contains
-    # layer, obs, and var datasets/groups
+    _check_h5ad_integrity(
+        active_h5ad_path=active_h5ad_path,
+        layer=layer,
+        log=log
+    )
+
+    (active_h5ad_path,
+     was_transposed) = _transpose_file_if_necessary(
+         src_path=active_h5ad_path,
+         layer=layer,
+         tmp_dir=tmp_dir,
+         log=log
+    )
+
+    if was_transposed:
+        has_warnings = True
+        write_to_new_path = True
+
+    active_h5ad_path = pathlib.Path(active_h5ad_path)
+
+    if valid_h5ad_path is None:
+        new_h5ad_path = _create_valid_h5ad_path(
+            output_dir=output_dir,
+            active_h5ad_path=active_h5ad_path
+        )
+    else:
+        new_h5ad_path = pathlib.Path(valid_h5ad_path)
+
+    new_obs = _create_new_obs(
+        active_h5ad_path=active_h5ad_path,
+        log=log
+    )
+
+    if new_obs is not None:
+        has_warnings = True
+
+    (var_original,
+     mapped_var,
+     n_unmapped_genes) = _check_var(
+         active_h5ad_path=active_h5ad_path,
+         gene_id_mapper=gene_id_mapper,
+         log=log)
+
+    (cast_to_int,
+     val_warnings,
+     output_dtype) = _check_values(
+         active_h5ad_path=active_h5ad_path,
+         layer=layer,
+         round_to_int=round_to_int,
+         expected_max=expected_max,
+         log=log)
+
+    if val_warnings:
+        has_warnings = True
+
+    if (layer != 'X' or mapped_var is not None
+            or new_obs is not None or cast_to_int):
+
+        write_to_new_path = True
+
+        (active_h5ad_path,
+         tmp_warnings) = _write_to_tmp_file(
+             active_h5ad_path=active_h5ad_path,
+             layer=layer,
+             mapped_var=mapped_var,
+             var_original=var_original,
+             n_unmapped_genes=n_unmapped_genes,
+             new_obs=new_obs,
+             cast_to_int=cast_to_int,
+             output_dtype=output_dtype,
+             log=log,
+             tmp_dir=tmp_dir)
+
+        if tmp_warnings:
+            has_warnings = True
+
+    if write_to_new_path:
+        copy_h5_excluding_data(
+            src_path=active_h5ad_path,
+            dst_path=new_h5ad_path,
+            excluded_groups=None,
+            excluded_datasets=None)
+        if n_unmapped_genes == 0:
+            uns = read_uns_from_h5ad(new_h5ad_path)
+            if 'AIBS_CDM_n_mapped_genes' not in uns:
+                update_uns(
+                    new_h5ad_path,
+                    {'AIBS_CDM_n_mapped_genes': len(var_original)}
+                )
+    else:
+        if new_h5ad_path.exists():
+            new_h5ad_path.unlink()
+
+    if log is not None:
+        msg = f"DONE VALIDATING ../{input_h5ad_path.name}; "
+        if write_to_new_path:
+            msg += f"reformatted file written to ../{new_h5ad_path.name}\n"
+        else:
+            msg += "no changes required"
+        log.info(msg)
+
+    if write_to_new_path:
+        output_path = new_h5ad_path
+    else:
+        output_path = None
+
+    return output_path, has_warnings
+
+
+def _create_valid_h5ad_path(
+        output_dir,
+        active_h5ad_path):
+    """
+    Create and return path for valid h5ad path
+
+    Parameters
+    ----------
+    output_dir:
+        path to the directory where the valid h5ad file
+        will be written
+    active_h5ad_path:
+        path to the h5ad path being validated
+
+    Returns
+    -------
+    Path where we can write valid h5ad file
+    """
+    output_dir = pathlib.Path(output_dir)
+    h5ad_name = active_h5ad_path.name.replace(
+                    active_h5ad_path.suffix, '')
+    timestamp = get_timestamp().replace('-', '')
+    new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
+    if new_h5ad_path.exists():
+        salt = 0
+        suffix = new_h5ad_path.suffix
+        base_name = new_h5ad_path.name
+        while True:
+            new_h5ad_path = (
+                output_dir / base_name.replace(suffix, f'{salt}{suffix}')
+            )
+            salt += 1
+            if not new_h5ad_path.exists():
+                break
+    return new_h5ad_path
+
+
+def _check_h5ad_integrity(
+        active_h5ad_path,
+        layer,
+        log):
+    """
+    Check that file can even be open and that it contains
+    layer, obs, and var datasets/groups
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        path to the h5ad path being checked
+    layer:
+        the name of the layer being checked for
+    log:
+        optional CLI log for recording messages
+    """
     missing_elements = []
     if layer == 'X':
         full_layer = layer
@@ -157,7 +319,7 @@ def _validate_h5ad(
         full_layer = f'layers/{layer}'
 
     try:
-        with h5py.File(original_h5ad_path, 'r') as src:
+        with h5py.File(active_h5ad_path, 'r') as src:
             for el in (full_layer, 'var', 'obs'):
                 if el not in src:
                     missing_elements.append(el)
@@ -166,7 +328,7 @@ def _validate_h5ad(
         error_msg += (
             "This h5ad file is corrupted such that it could not "
             "even be opened with h5py. See above for the specific "
-            f"error message raised by h5py {original_h5ad_path}."
+            f"error message raised by h5py {active_h5ad_path}."
         )
         if log is None:
             raise RuntimeError(error_msg)
@@ -183,216 +345,6 @@ def _validate_h5ad(
             raise RuntimeError(msg)
         else:
             log.error(msg)
-
-    (original_h5ad_path,
-     was_transposed) = _transpose_file_if_necessary(
-         src_path=original_h5ad_path,
-         layer=layer,
-         tmp_dir=tmp_dir,
-         log=log
-    )
-
-    original_h5ad_path = pathlib.Path(original_h5ad_path)
-
-    if was_transposed:
-        has_warnings = True
-
-    tmp_h5ad_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir,
-            prefix=original_h5ad_path.name,
-            suffix='.h5ad')
-        )
-
-    h5ad_name = original_h5ad_path.name.replace(
-                    original_h5ad_path.suffix, '')
-
-    if valid_h5ad_path is None:
-        output_dir = pathlib.Path(output_dir)
-        timestamp = get_timestamp().replace('-', '')
-        new_h5ad_path = output_dir / f'{h5ad_name}_VALIDATED_{timestamp}.h5ad'
-    else:
-        new_h5ad_path = pathlib.Path(valid_h5ad_path)
-
-    # check that cell names are not repeated
-    obs_original = read_df_from_h5ad(
-        h5ad_path=original_h5ad_path,
-        df_name='obs')
-
-    obs_unique_index = create_uniquely_indexed_df(
-        obs_original)
-
-    write_new_obs = False
-    if obs_unique_index is not obs_original:
-        write_to_new_path = True
-        write_new_obs = True
-        msg = (
-            "The index values in the obs dataframe of your file "
-            "are not unique. We are modifying them to be unique. "
-        )
-        if log is not None:
-            log.warn(msg)
-        else:
-            warnings.warn(msg)
-        has_warnings = True
-
-    # check that gene names are not repeated
-    var_original = read_df_from_h5ad(
-            h5ad_path=original_h5ad_path,
-            df_name='var')
-
-    _check_input_gene_names(
-        var_df=var_original,
-        log=log)
-
-    cast_to_int = False
-    if round_to_int:
-        is_int = is_x_integers(
-            h5ad_path=original_h5ad_path,
-            layer=layer)
-        if not is_int:
-            cast_to_int = True
-
-    (mapped_var,
-     n_unmapped_genes) = map_gene_ids_in_var(
-        var_df=var_original,
-        gene_id_mapper=gene_id_mapper,
-        log=log)
-
-    if expected_max is not None or cast_to_int:
-        x_minmax = get_minmax_x_from_h5ad(
-            h5ad_path=original_h5ad_path,
-            layer=layer)
-
-        if expected_max is not None and x_minmax[1] < expected_max:
-            msg = "VALIDATION: CDM expects raw counts data. The maximum value "
-            msg += f"of the X matrix in ../{original_h5ad_path.name} is "
-            msg += f"{x_minmax[1]}, indicating that this may be "
-            msg += "log normalized data. CDM will proceed, but results "
-            msg += "may be suspect."
-            if log is not None:
-                log.warn(msg)
-            else:
-                warnings.warn(msg)
-            has_warnings = True
-
-    if layer != 'X' or mapped_var is not None or cast_to_int:
-        # Copy data into new file, moving cell by gene data from
-        # layer to X
-        copy_layer_to_x(
-            original_h5ad_path=original_h5ad_path,
-            new_h5ad_path=tmp_h5ad_path,
-            layer=layer)
-
-        write_to_new_path = True
-
-        if log is not None:
-            msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
-                   f"to ../{new_h5ad_path.name}")
-            log.info(msg)
-
-        if mapped_var is not None:
-            if log is not None:
-                msg = "VALIDATION: modifying var dataframe of "
-                msg += f"../{original_h5ad_path.name} to include "
-                msg += "proper gene identifiers"
-                log.info(msg)
-
-            # check if genes are repeated in the mapped var DataFrame
-            if len(mapped_var) != len(set(mapped_var.index.values)):
-                repeats = dict()
-                for orig, mapped in zip(var_original.index.values,
-                                        mapped_var.index.values):
-                    if mapped not in repeats:
-                        repeats[mapped] = []
-                    repeats[mapped].append(orig)
-                for mapped in mapped_var.index.values:
-                    if len(repeats[mapped]) == 1:
-                        repeats.pop(mapped)
-                error_msg = (
-                    "The following gene symbols in your h5ad file "
-                    "mapped to identical gene identifiers in the "
-                    "validated h5ad file. The validated h5ad file must "
-                    "contain unique gene identifiers.\n"
-                )
-                for mapped in repeats:
-                    error_msg += (
-                        f"{json.dumps(repeats[mapped])} "
-                        "all mapped to "
-                        f"{mapped}\n"
-                    )
-                if log is not None:
-                    log.error(error_msg)
-                else:
-                    raise RuntimeError(error_msg)
-
-            write_df_to_h5ad(
-                h5ad_path=tmp_h5ad_path,
-                df_name='var',
-                df_value=mapped_var)
-
-            gene_mapping = {
-                orig: new
-                for orig, new in zip(var_original.index.values,
-                                     mapped_var.index.values)
-                if orig != new}
-
-            uns = read_uns_from_h5ad(tmp_h5ad_path)
-            uns['AIBS_CDM_gene_mapping'] = gene_mapping
-            write_uns_to_h5ad(tmp_h5ad_path, uns)
-            has_warnings = True
-
-        if cast_to_int:
-            output_dtype = choose_int_dtype(x_minmax)
-
-            msg = "VALIDATION: rounding X matrix of "
-            msg += f"{original_h5ad_path.name} to integer values"
-            if log is not None:
-                log.warn(msg)
-            else:
-                warnings.warn(msg)
-            round_x_to_integers(
-                h5ad_path=tmp_h5ad_path,
-                tmp_dir=tmp_dir,
-                output_dtype=output_dtype)
-            has_warnings = True
-
-    if write_to_new_path:
-        n_genes = len(var_original)
-        update_uns(
-            tmp_h5ad_path,
-            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
-
-        if write_new_obs:
-            write_df_to_h5ad(
-                h5ad_path=tmp_h5ad_path,
-                df_name='obs',
-                df_value=obs_unique_index
-            )
-
-        copy_h5_excluding_data(
-            src_path=tmp_h5ad_path,
-            dst_path=new_h5ad_path,
-            excluded_groups=None,
-            excluded_datasets=None)
-    else:
-        if new_h5ad_path.exists():
-            new_h5ad_path.unlink()
-
-    if log is not None:
-        msg = f"DONE VALIDATING ../{original_h5ad_path.name}; "
-        if write_to_new_path:
-            msg += f"reformatted file written to ../{new_h5ad_path.name}\n"
-        else:
-            msg += "no changes required"
-        log.info(msg)
-
-    if write_to_new_path:
-        output_path = new_h5ad_path
-    else:
-        output_path = None
-
-    return output_path, has_warnings
 
 
 def _check_input_gene_names(
@@ -524,3 +476,303 @@ def _transpose_file_if_necessary(
     )
 
     return (new_path, True)
+
+
+def _create_new_obs(
+        active_h5ad_path,
+        log):
+    """
+    Create an obs dataframe with unique index values
+    (in the event that this is not already true)
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        the path to the h5ad file being validated
+    log:
+        optional CLI log for recording errors and
+        warnigns
+
+    Returns
+    -------
+    an obs dataframe with unique index values
+    (returns None if the original obs dataframe
+    satisfied this requirement)
+    """
+    # check that cell names are not repeated
+    obs_original = read_df_from_h5ad(
+        h5ad_path=active_h5ad_path,
+        df_name='obs')
+
+    obs_unique_index = create_uniquely_indexed_df(
+        obs_original)
+
+    if obs_unique_index is not obs_original:
+        msg = (
+            "The index values in the obs dataframe of your file "
+            "are not unique. We are modifying them to be unique. "
+        )
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        return obs_unique_index
+    return None
+
+
+def _check_var(
+        active_h5ad_path,
+        gene_id_mapper,
+        log):
+    """
+    Check uniqueness of genes. Do mapping to ENSEMBL if needed.
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        path to h5ad file being validated
+    gene_id_mapper:
+        the GeneIdMapper that will handle the mapping of gene
+        identifiers into the expected form. If None, infer the
+        mapper based on the species implied by the input gene IDs.
+    log:
+        optional CLI log for recording errors and warnings
+
+    Returns
+    -------
+    var_original:
+        original var dataframe
+    mapped_var:
+        var dataframe mapped to ENSEMBL (None if no mapping
+        needed)
+    n_unmapped_genes:
+        number of genes that failed to map
+    """
+    # check that gene names are not repeated
+    var_original = read_df_from_h5ad(
+            h5ad_path=active_h5ad_path,
+            df_name='var')
+
+    _check_input_gene_names(
+        var_df=var_original,
+        log=log)
+
+    (mapped_var,
+     n_unmapped_genes) = map_gene_ids_in_var(
+        var_df=var_original,
+        gene_id_mapper=gene_id_mapper,
+        log=log)
+
+    return (
+        var_original,
+        mapped_var,
+        n_unmapped_genes
+    )
+
+
+def _record_gene_mapping(
+        mapped_var,
+        var_original,
+        n_unmapped_genes,
+        active_h5ad_path,
+        log):
+    """
+    Record gene mapping in uns; raise error if multiple
+    genes map to same ENSEMBL ID
+
+    Parameters
+    ----------
+    mapped_var:
+        the mapped var dataframe
+    var_original:
+        the input var dataframe
+    n_unmapped_genes:
+        number of genes that failed to map
+    active_h5ad_path:
+        path to the file we are editing
+    log:
+        optional CLI log to record errors/warnings
+    """
+
+    if log is not None:
+        msg = "VALIDATION: modifying var dataframe of "
+        msg += f"../{active_h5ad_path.name} to include "
+        msg += "proper gene identifiers"
+        log.info(msg)
+
+    # check if genes are repeated in the mapped var DataFrame
+    if len(mapped_var) != len(set(mapped_var.index.values)):
+        repeats = dict()
+        for orig, mapped in zip(var_original.index.values,
+                                mapped_var.index.values):
+            if mapped not in repeats:
+                repeats[mapped] = []
+            repeats[mapped].append(orig)
+        for mapped in mapped_var.index.values:
+            if len(repeats[mapped]) == 1:
+                repeats.pop(mapped)
+        error_msg = (
+            "The following gene symbols in your h5ad file "
+            "mapped to identical gene identifiers in the "
+            "validated h5ad file. The validated h5ad file must "
+            "contain unique gene identifiers.\n"
+        )
+        for mapped in repeats:
+            error_msg += (
+                f"{json.dumps(repeats[mapped])} "
+                "all mapped to "
+                f"{mapped}\n"
+            )
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
+
+    gene_mapping = {
+        orig: new
+        for orig, new in zip(var_original.index.values,
+                             mapped_var.index.values)
+        if orig != new}
+
+    uns = read_uns_from_h5ad(active_h5ad_path)
+    uns['AIBS_CDM_gene_mapping'] = gene_mapping
+    uns['AIBS_CDM_n_mapped_genes'] = len(var_original)-n_unmapped_genes
+    write_uns_to_h5ad(active_h5ad_path, uns)
+
+
+def _check_values(
+        active_h5ad_path,
+        layer,
+        round_to_int,
+        expected_max,
+        log):
+    """
+    Check the values of the X matrix
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        path to the h5ad file being validated
+    layer:
+        the layer of the h5ad file being validated
+    round_to_int:
+        boolean indicating if we are to round
+        values to integers or not
+    expected_max:
+        expected maximum value of X matrix
+        (optional; only triggers a warning)
+    log:
+        optional CLI log for recording errors
+        and warnings
+
+    Returns
+    -------
+    A boolean indicating whether or not we need
+    to cast the X matrix to integers
+
+    A boolean indicating if a warning was emitted
+
+    The dtype of the output matrix (in the event
+    rounding is necessary)
+    """
+    cast_to_int = False
+    has_warnings = False
+    if round_to_int:
+        is_int = is_x_integers(
+            h5ad_path=active_h5ad_path,
+            layer=layer)
+        if not is_int:
+            cast_to_int = True
+
+    if expected_max is not None or cast_to_int:
+        x_minmax = get_minmax_x_from_h5ad(
+            h5ad_path=active_h5ad_path,
+            layer=layer)
+
+        if expected_max is not None and x_minmax[1] < expected_max:
+            msg = "VALIDATION: CDM expects raw counts data. The maximum value "
+            msg += f"of the X matrix in ../{active_h5ad_path.name} is "
+            msg += f"{x_minmax[1]}, indicating that this may be "
+            msg += "log normalized data. CDM will proceed, but results "
+            msg += "may be suspect."
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
+            has_warnings = True
+
+    output_dtype = None
+    if cast_to_int:
+        output_dtype = choose_int_dtype(x_minmax)
+
+    return (
+        cast_to_int,
+        has_warnings,
+        output_dtype
+    )
+
+
+def _write_to_tmp_file(
+        active_h5ad_path,
+        layer,
+        mapped_var,
+        var_original,
+        n_unmapped_genes,
+        new_obs,
+        cast_to_int,
+        output_dtype,
+        log,
+        tmp_dir):
+
+    # Copy data into new file, moving cell by gene data from
+    # layer to X
+
+    has_warnings = False
+    tmp_h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix=active_h5ad_path.name,
+            suffix='.h5ad')
+    )
+
+    copy_layer_to_x(
+        original_h5ad_path=active_h5ad_path,
+        new_h5ad_path=tmp_h5ad_path,
+        layer=layer,
+        new_var=mapped_var,
+        new_obs=new_obs)
+
+    active_h5ad_path = tmp_h5ad_path
+
+    if log is not None:
+        msg = (f"VALIDATION: copied "
+               f"to ../{active_h5ad_path.name}")
+        log.info(msg)
+
+    if mapped_var is not None:
+        has_warnings = True
+        _record_gene_mapping(
+            mapped_var=mapped_var,
+            var_original=var_original,
+            n_unmapped_genes=n_unmapped_genes,
+            active_h5ad_path=active_h5ad_path,
+            log=log
+        )
+
+    if cast_to_int:
+        msg = "VALIDATION: rounding X matrix of "
+        msg += f"{active_h5ad_path.name} to integer values"
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        round_x_to_integers(
+            h5ad_path=active_h5ad_path,
+            tmp_dir=tmp_dir,
+            output_dtype=output_dtype)
+        has_warnings = True
+
+    return (
+        active_h5ad_path,
+        has_warnings
+    )
