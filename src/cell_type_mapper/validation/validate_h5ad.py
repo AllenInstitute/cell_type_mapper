@@ -205,53 +205,23 @@ def _validate_h5ad(
 
     original_h5ad_path = active_h5ad_path
     if layer != 'X' or mapped_var is not None or new_obs is not None or cast_to_int:
-        # Copy data into new file, moving cell by gene data from
-        # layer to X
 
         write_to_new_path = True
 
-        tmp_h5ad_path = pathlib.Path(
-            mkstemp_clean(
-                dir=tmp_dir,
-                prefix=active_h5ad_path.name,
-                suffix='.h5ad')
-        )
+        (active_h5ad_path,
+         tmp_warnings) = _write_to_tmp_file(
+             active_h5ad_path=active_h5ad_path,
+             layer=layer,
+             mapped_var=mapped_var,
+             var_original=var_original,
+             n_unmapped_genes=n_unmapped_genes,
+             new_obs=new_obs,
+             cast_to_int=cast_to_int,
+             output_dtype=output_dtype,
+             log=log,
+             tmp_dir=tmp_dir)
 
-        copy_layer_to_x(
-            original_h5ad_path=active_h5ad_path,
-            new_h5ad_path=tmp_h5ad_path,
-            layer=layer,
-            new_var=mapped_var,
-            new_obs=new_obs)
-
-        active_h5ad_path = tmp_h5ad_path
-
-        if log is not None:
-            msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
-                   f"to ../{active_h5ad_path.name}")
-            log.info(msg)
-
-        if mapped_var is not None:
-            has_warnings = True
-            _record_gene_mapping(
-                mapped_var=mapped_var,
-                var_original=var_original,
-                n_unmapped_genes=n_unmapped_genes,
-                active_h5ad_path=active_h5ad_path,
-                log=log
-            )
-
-        if cast_to_int:
-            msg = "VALIDATION: rounding X matrix of "
-            msg += f"{active_h5ad_path.name} to integer values"
-            if log is not None:
-                log.warn(msg)
-            else:
-                warnings.warn(msg)
-            round_x_to_integers(
-                h5ad_path=active_h5ad_path,
-                tmp_dir=tmp_dir,
-                output_dtype=output_dtype)
+        if tmp_warnings:
             has_warnings = True
 
     if write_to_new_path:
@@ -740,4 +710,70 @@ def _check_values(
         cast_to_int,
         has_warnings,
         output_dtype
+    )
+
+
+def _write_to_tmp_file(
+        active_h5ad_path,
+        layer,
+        mapped_var,
+        var_original,
+        n_unmapped_genes,
+        new_obs,
+        cast_to_int,
+        output_dtype,
+        log,
+        tmp_dir):
+
+    # Copy data into new file, moving cell by gene data from
+    # layer to X
+
+    has_warnings = False
+    tmp_h5ad_path = pathlib.Path(
+        mkstemp_clean(
+            dir=tmp_dir,
+            prefix=active_h5ad_path.name,
+            suffix='.h5ad')
+    )
+
+    copy_layer_to_x(
+        original_h5ad_path=active_h5ad_path,
+        new_h5ad_path=tmp_h5ad_path,
+        layer=layer,
+        new_var=mapped_var,
+        new_obs=new_obs)
+
+    active_h5ad_path = tmp_h5ad_path
+
+    if log is not None:
+        msg = (f"VALIDATION: copied "
+               f"to ../{active_h5ad_path.name}")
+        log.info(msg)
+
+    if mapped_var is not None:
+        has_warnings = True
+        _record_gene_mapping(
+            mapped_var=mapped_var,
+            var_original=var_original,
+            n_unmapped_genes=n_unmapped_genes,
+            active_h5ad_path=active_h5ad_path,
+            log=log
+        )
+
+    if cast_to_int:
+        msg = "VALIDATION: rounding X matrix of "
+        msg += f"{active_h5ad_path.name} to integer values"
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        round_x_to_integers(
+            h5ad_path=active_h5ad_path,
+            tmp_dir=tmp_dir,
+            output_dtype=output_dtype)
+        has_warnings = True
+
+    return (
+        active_h5ad_path,
+        has_warnings
     )
