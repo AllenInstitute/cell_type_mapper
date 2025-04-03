@@ -175,36 +175,20 @@ def _validate_h5ad(
     else:
         new_h5ad_path = pathlib.Path(valid_h5ad_path)
 
-    # check that cell names are not repeated
-    obs_original = read_df_from_h5ad(
-        h5ad_path=active_h5ad_path,
-        df_name='obs')
+    new_obs = _create_new_obs(
+        active_h5ad_path=active_h5ad_path,
+        log=log
+    )
 
-    new_obs = None
-    obs_unique_index = create_uniquely_indexed_df(
-        obs_original)
-
-    if obs_unique_index is not obs_original:
-        new_obs = obs_unique_index
-        write_to_new_path = True
-        msg = (
-            "The index values in the obs dataframe of your file "
-            "are not unique. We are modifying them to be unique. "
-        )
-        if log is not None:
-            log.warn(msg)
-        else:
-            warnings.warn(msg)
+    if new_obs is not None:
         has_warnings = True
 
-    # check that gene names are not repeated
-    var_original = read_df_from_h5ad(
-            h5ad_path=active_h5ad_path,
-            df_name='var')
-
-    _check_input_gene_names(
-        var_df=var_original,
-        log=log)
+    (var_original,
+     mapped_var,
+     n_unmapped_genes) = _check_var(
+         active_h5ad_path=active_h5ad_path,
+         gene_id_mapper=gene_id_mapper,
+         log=log)
 
     cast_to_int = False
     if round_to_int:
@@ -213,12 +197,6 @@ def _validate_h5ad(
             layer=layer)
         if not is_int:
             cast_to_int = True
-
-    (mapped_var,
-     n_unmapped_genes) = map_gene_ids_in_var(
-        var_df=var_original,
-        gene_id_mapper=gene_id_mapper,
-        log=log)
 
     if expected_max is not None or cast_to_int:
         x_minmax = get_minmax_x_from_h5ad(
@@ -540,6 +518,100 @@ def _transpose_file_if_necessary(
 
     return (new_path, True)
 
+
+def _create_new_obs(
+        active_h5ad_path,
+        log):
+    """
+    Create an obs dataframe with unique index values
+    (in the event that this is not already true)
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        the path to the h5ad file being validated
+    log:
+        optional CLI log for recording errors and
+        warnigns
+
+    Returns
+    -------
+    an obs dataframe with unique index values
+    (returns None if the original obs dataframe
+    satisfied this requirement)
+    """
+    # check that cell names are not repeated
+    obs_original = read_df_from_h5ad(
+        h5ad_path=active_h5ad_path,
+        df_name='obs')
+
+    new_obs = None
+    obs_unique_index = create_uniquely_indexed_df(
+        obs_original)
+
+    if obs_unique_index is not obs_original:
+        new_obs = obs_unique_index
+        write_to_new_path = True
+        msg = (
+            "The index values in the obs dataframe of your file "
+            "are not unique. We are modifying them to be unique. "
+        )
+        if log is not None:
+            log.warn(msg)
+        else:
+            warnings.warn(msg)
+        return obs_unique_index
+    return None
+
+
+def _check_var(
+        active_h5ad_path,
+        gene_id_mapper,
+        log):
+    """
+    Check uniqueness of genes. Do mapping to ENSEMBL if needed.
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        path to h5ad file being validated
+    gene_id_mapper:
+        the GeneIdMapper that will handle the mapping of gene
+        identifiers into the expected form. If None, infer the
+        mapper based on the species implied by the input gene IDs.
+    log:
+        optional CLI log for recording errors and warnings
+
+    Returns
+    -------
+    var_original:
+        original var dataframe
+    mapped_var:
+        var dataframe mapped to ENSEMBL (None if no mapping
+        needed)
+    n_unmapped_genes:
+        number of genes that failed to map
+    """
+    # check that gene names are not repeated
+    var_original = read_df_from_h5ad(
+            h5ad_path=active_h5ad_path,
+            df_name='var')
+
+    _check_input_gene_names(
+        var_df=var_original,
+        log=log)
+
+    (mapped_var,
+     n_unmapped_genes) = map_gene_ids_in_var(
+        var_df=var_original,
+        gene_id_mapper=gene_id_mapper,
+        log=log)
+
+    return (
+        var_original,
+        mapped_var,
+        n_unmapped_genes
+    )
 
 
 def _record_gene_mapping(
