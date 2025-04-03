@@ -1139,3 +1139,6 @@ def test_obs_with_repeated_cells_validation_cli(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
+
+    result = anndata.read_h5ad(dst_path, backed='r')
+    assert len(result.obs.index.values) == len(set(result.obs.index.values))
