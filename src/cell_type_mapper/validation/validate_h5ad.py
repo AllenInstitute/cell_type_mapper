@@ -214,13 +214,14 @@ def _validate_h5ad(
         h5ad_path=active_h5ad_path,
         df_name='obs')
 
+    new_obs = None
     obs_unique_index = create_uniquely_indexed_df(
         obs_original)
 
     write_new_obs = False
     if obs_unique_index is not obs_original:
+        new_obs = obs_unique_index
         write_to_new_path = True
-        write_new_obs = True
         msg = (
             "The index values in the obs dataframe of your file "
             "are not unique. We are modifying them to be unique. "
@@ -272,7 +273,7 @@ def _validate_h5ad(
             has_warnings = True
 
     original_h5ad_path = active_h5ad_path
-    if layer != 'X' or mapped_var is not None or cast_to_int:
+    if layer != 'X' or mapped_var is not None or new_obs is not None or cast_to_int:
         # Copy data into new file, moving cell by gene data from
         # layer to X
 
@@ -286,7 +287,9 @@ def _validate_h5ad(
         copy_layer_to_x(
             original_h5ad_path=active_h5ad_path,
             new_h5ad_path=tmp_h5ad_path,
-            layer=layer)
+            layer=layer,
+            new_var=mapped_var,
+            new_obs=new_obs)
 
         active_h5ad_path = tmp_h5ad_path
         write_to_new_path = True
@@ -330,11 +333,6 @@ def _validate_h5ad(
                     log.error(error_msg)
                 else:
                     raise RuntimeError(error_msg)
-
-            write_df_to_h5ad(
-                h5ad_path=active_h5ad_path,
-                df_name='var',
-                df_value=mapped_var)
 
             gene_mapping = {
                 orig: new
