@@ -218,7 +218,6 @@ def _validate_h5ad(
     obs_unique_index = create_uniquely_indexed_df(
         obs_original)
 
-    write_new_obs = False
     if obs_unique_index is not obs_original:
         new_obs = obs_unique_index
         write_to_new_path = True
@@ -300,50 +299,14 @@ def _validate_h5ad(
             log.info(msg)
 
         if mapped_var is not None:
-            if log is not None:
-                msg = "VALIDATION: modifying var dataframe of "
-                msg += f"../{active_h5ad_path.name} to include "
-                msg += "proper gene identifiers"
-                log.info(msg)
-
-            # check if genes are repeated in the mapped var DataFrame
-            if len(mapped_var) != len(set(mapped_var.index.values)):
-                repeats = dict()
-                for orig, mapped in zip(var_original.index.values,
-                                        mapped_var.index.values):
-                    if mapped not in repeats:
-                        repeats[mapped] = []
-                    repeats[mapped].append(orig)
-                for mapped in mapped_var.index.values:
-                    if len(repeats[mapped]) == 1:
-                        repeats.pop(mapped)
-                error_msg = (
-                    "The following gene symbols in your h5ad file "
-                    "mapped to identical gene identifiers in the "
-                    "validated h5ad file. The validated h5ad file must "
-                    "contain unique gene identifiers.\n"
-                )
-                for mapped in repeats:
-                    error_msg += (
-                        f"{json.dumps(repeats[mapped])} "
-                        "all mapped to "
-                        f"{mapped}\n"
-                    )
-                if log is not None:
-                    log.error(error_msg)
-                else:
-                    raise RuntimeError(error_msg)
-
-            gene_mapping = {
-                orig: new
-                for orig, new in zip(var_original.index.values,
-                                     mapped_var.index.values)
-                if orig != new}
-
-            uns = read_uns_from_h5ad(active_h5ad_path)
-            uns['AIBS_CDM_gene_mapping'] = gene_mapping
-            write_uns_to_h5ad(active_h5ad_path, uns)
             has_warnings = True
+            _record_gene_mapping(
+                mapped_var=mapped_var,
+                var_original=var_original,
+                n_unmapped_genes=n_unmapped_genes,
+                active_h5ad_path=active_h5ad_path,
+                log=log
+            )
 
         if cast_to_int:
             output_dtype = choose_int_dtype(x_minmax)
@@ -361,23 +324,18 @@ def _validate_h5ad(
             has_warnings = True
 
     if write_to_new_path:
-        n_genes = len(var_original)
-        update_uns(
-            active_h5ad_path,
-            {'AIBS_CDM_n_mapped_genes': n_genes-n_unmapped_genes})
-
-        if write_new_obs:
-            write_df_to_h5ad(
-                h5ad_path=active_h5ad_path,
-                df_name='obs',
-                df_value=obs_unique_index
-            )
-
         copy_h5_excluding_data(
             src_path=active_h5ad_path,
             dst_path=new_h5ad_path,
             excluded_groups=None,
             excluded_datasets=None)
+        if n_unmapped_genes == 0:
+            uns = read_uns_from_h5ad(new_h5ad_path)
+            if 'AIBS_CDM_n_mapped_genes' not in uns:
+                update_uns(
+                    new_h5ad_path,
+                    {'AIBS_CDM_n_mapped_genes': len(var_original)}
+                )
     else:
         if new_h5ad_path.exists():
             new_h5ad_path.unlink()
@@ -527,3 +485,74 @@ def _transpose_file_if_necessary(
     )
 
     return (new_path, True)
+
+
+
+def _record_gene_mapping(
+        mapped_var,
+        var_original,
+        n_unmapped_genes,
+        active_h5ad_path,
+        log):
+    """
+    Record gene mapping in uns; raise error if multiple
+    genes map to same ENSEMBL ID
+
+    Parameters
+    ----------
+    mapped_var:
+        the mapped var dataframe
+    var_original:
+        the input var dataframe
+    n_unmapped_genes:
+        number of genes that failed to map
+    active_h5ad_path:
+        path to the file we are editing
+    log:
+        optional CLI log to record errors/warnings
+    """
+
+    if log is not None:
+        msg = "VALIDATION: modifying var dataframe of "
+        msg += f"../{active_h5ad_path.name} to include "
+        msg += "proper gene identifiers"
+        log.info(msg)
+
+    # check if genes are repeated in the mapped var DataFrame
+    if len(mapped_var) != len(set(mapped_var.index.values)):
+        repeats = dict()
+        for orig, mapped in zip(var_original.index.values,
+                                mapped_var.index.values):
+            if mapped not in repeats:
+                repeats[mapped] = []
+            repeats[mapped].append(orig)
+        for mapped in mapped_var.index.values:
+            if len(repeats[mapped]) == 1:
+                repeats.pop(mapped)
+        error_msg = (
+            "The following gene symbols in your h5ad file "
+            "mapped to identical gene identifiers in the "
+            "validated h5ad file. The validated h5ad file must "
+            "contain unique gene identifiers.\n"
+        )
+        for mapped in repeats:
+            error_msg += (
+                f"{json.dumps(repeats[mapped])} "
+                "all mapped to "
+                f"{mapped}\n"
+            )
+        if log is not None:
+            log.error(error_msg)
+        else:
+            raise RuntimeError(error_msg)
+
+    gene_mapping = {
+        orig: new
+        for orig, new in zip(var_original.index.values,
+                             mapped_var.index.values)
+        if orig != new}
+
+    uns = read_uns_from_h5ad(active_h5ad_path)
+    uns['AIBS_CDM_gene_mapping'] = gene_mapping
+    uns['AIBS_CDM_n_mapped_genes'] = len(var_original)-n_unmapped_genes
+    write_uns_to_h5ad(active_h5ad_path, uns)
