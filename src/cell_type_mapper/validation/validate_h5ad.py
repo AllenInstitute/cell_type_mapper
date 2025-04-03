@@ -164,6 +164,7 @@ def _validate_h5ad(
 
     if was_transposed:
         has_warnings = True
+        write_to_new_path = True
 
     active_h5ad_path = pathlib.Path(active_h5ad_path)
 
@@ -190,35 +191,24 @@ def _validate_h5ad(
          gene_id_mapper=gene_id_mapper,
          log=log)
 
-    cast_to_int = False
-    if round_to_int:
-        is_int = is_x_integers(
-            h5ad_path=active_h5ad_path,
-            layer=layer)
-        if not is_int:
-            cast_to_int = True
+    (cast_to_int,
+     val_warnings,
+     output_dtype) = _check_values(
+         active_h5ad_path=active_h5ad_path,
+         layer=layer,
+         round_to_int=round_to_int,
+         expected_max=expected_max,
+         log=log)
 
-    if expected_max is not None or cast_to_int:
-        x_minmax = get_minmax_x_from_h5ad(
-            h5ad_path=active_h5ad_path,
-            layer=layer)
-
-        if expected_max is not None and x_minmax[1] < expected_max:
-            msg = "VALIDATION: CDM expects raw counts data. The maximum value "
-            msg += f"of the X matrix in ../{active_h5ad_path.name} is "
-            msg += f"{x_minmax[1]}, indicating that this may be "
-            msg += "log normalized data. CDM will proceed, but results "
-            msg += "may be suspect."
-            if log is not None:
-                log.warn(msg)
-            else:
-                warnings.warn(msg)
-            has_warnings = True
+    if val_warnings:
+        has_warnings = True
 
     original_h5ad_path = active_h5ad_path
     if layer != 'X' or mapped_var is not None or new_obs is not None or cast_to_int:
         # Copy data into new file, moving cell by gene data from
         # layer to X
+
+        write_to_new_path = True
 
         tmp_h5ad_path = pathlib.Path(
             mkstemp_clean(
@@ -235,7 +225,6 @@ def _validate_h5ad(
             new_obs=new_obs)
 
         active_h5ad_path = tmp_h5ad_path
-        write_to_new_path = True
 
         if log is not None:
             msg = (f"VALIDATION: copied ../{original_h5ad_path.name} "
@@ -253,8 +242,6 @@ def _validate_h5ad(
             )
 
         if cast_to_int:
-            output_dtype = choose_int_dtype(x_minmax)
-
             msg = "VALIDATION: rounding X matrix of "
             msg += f"{active_h5ad_path.name} to integer values"
             if log is not None:
@@ -682,3 +669,75 @@ def _record_gene_mapping(
     uns['AIBS_CDM_gene_mapping'] = gene_mapping
     uns['AIBS_CDM_n_mapped_genes'] = len(var_original)-n_unmapped_genes
     write_uns_to_h5ad(active_h5ad_path, uns)
+
+
+def _check_values(
+        active_h5ad_path,
+        layer,
+        round_to_int,
+        expected_max,
+        log):
+    """
+    Check the values of the X matrix
+
+    Parameters
+    ----------
+    active_h5ad_path:
+        path to the h5ad file being validated
+    layer:
+        the layer of the h5ad file being validated
+    round_to_int:
+        boolean indicating if we are to round
+        values to integers or not
+    expected_max:
+        expected maximum value of X matrix
+        (optional; only triggers a warning)
+    log:
+        optional CLI log for recording errors
+        and warnings
+
+    Returns
+    -------
+    A boolean indicating whether or not we need
+    to cast the X matrix to integers
+
+    A boolean indicating if a warning was emitted
+
+    The dtype of the output matrix (in the event
+    rounding is necessary)
+    """
+    cast_to_int = False
+    has_warnings = False
+    if round_to_int:
+        is_int = is_x_integers(
+            h5ad_path=active_h5ad_path,
+            layer=layer)
+        if not is_int:
+            cast_to_int = True
+
+    if expected_max is not None or cast_to_int:
+        x_minmax = get_minmax_x_from_h5ad(
+            h5ad_path=active_h5ad_path,
+            layer=layer)
+
+        if expected_max is not None and x_minmax[1] < expected_max:
+            msg = "VALIDATION: CDM expects raw counts data. The maximum value "
+            msg += f"of the X matrix in ../{active_h5ad_path.name} is "
+            msg += f"{x_minmax[1]}, indicating that this may be "
+            msg += "log normalized data. CDM will proceed, but results "
+            msg += "may be suspect."
+            if log is not None:
+                log.warn(msg)
+            else:
+                warnings.warn(msg)
+            has_warnings = True
+
+    output_dtype = None
+    if cast_to_int:
+        output_dtype = choose_int_dtype(x_minmax)
+
+    return (
+        cast_to_int,
+        has_warnings,
+        output_dtype
+    )
