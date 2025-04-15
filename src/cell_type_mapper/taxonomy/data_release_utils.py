@@ -221,13 +221,13 @@ def get_label_to_name(
 
 
 def get_cell_to_cluster_alias(
-        csv_path):
+        cell_metadata_path):
     """
     Read a cell_metadata.csv file. Return a dict mapping
     cell_id to cluster_alias
     """
     header_map = get_header_map(
-        csv_path=csv_path,
+        csv_path=cell_metadata_path,
         desired_columns=[
             'cell_label',
             'cluster_alias'])
@@ -235,7 +235,7 @@ def get_cell_to_cluster_alias(
     cell_idx = header_map['cell_label']
     cluster_idx = header_map['cluster_alias']
     result = dict()
-    with open(csv_path, 'r') as src:
+    with open(cell_metadata_path, 'r') as src:
         src.readline()
         for line in src:
             params = line.strip().split(',')

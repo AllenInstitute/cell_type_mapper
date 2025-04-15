@@ -92,7 +92,7 @@ def test_get_cell_to_cluster_alias(
         cell_to_cluster_fixture):
 
     actual = get_cell_to_cluster_alias(
-        csv_path=cell_metadata_fixture)
+        cell_metadata_path=cell_metadata_fixture)
 
     for cell in cell_to_cluster_fixture:
         assert (

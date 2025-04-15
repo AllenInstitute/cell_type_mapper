@@ -344,7 +344,7 @@ class TaxonomyTree(object):
 
         if cell_metadata_path is not None:
             cell_to_alias = get_cell_to_cluster_alias(
-                csv_path=cell_metadata_path)
+                cell_metadata_path=cell_metadata_path)
 
             for cell in cell_to_alias:
                 alias = cell_to_alias[cell]
