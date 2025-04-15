@@ -73,7 +73,8 @@ def blob_to_csv(
         metadata_path=None,
         config=None,
         valid_suffixes=None,
-        check_consistency=False):
+        check_consistency=False,
+        rows_at_a_time=None):
     """
     Write a set of results originally formatted for a JSON blob
     out to the CSV our users will expect.
@@ -112,6 +113,9 @@ def blob_to_csv(
         A boolean. If True, add a column to each cell indicating
         whether or not the assigned cell type at each level was,
         in fact, the plurality vote getter.
+    rows_at_a_time:
+        if an int, write out the data this many rows at a time.
+        If None, write them all out in one go.
     """
     str_hierarchy = json.dumps(taxonomy_tree.hierarchy)
 
@@ -144,8 +148,14 @@ def blob_to_csv(
         version_str += f" version: {cell_type_mapper.__version__}\n"
         dst.write(version_str)
 
+    column_order = None
+    if rows_at_a_time is None:
+        rows_at_a_time = len(results_blob)
+
+    for r0 in range(0, len(results_blob), rows_at_a_time):
+        results_chunk = results_blob[r0:r0+rows_at_a_time]
         csv_df = blob_to_df(
-            results_blob=results_blob,
+            results_blob=results_chunk,
             taxonomy_tree=taxonomy_tree,
             check_consistency=check_consistency)
 
@@ -182,7 +192,19 @@ def blob_to_csv(
         if len(columns_to_drop) > 0:
             csv_df.drop(columns_to_drop, axis=1, inplace=True)
 
-        csv_df.to_csv(dst, index=False, float_format='%.4f')
+        if column_order is None:
+            column_order = csv_df.columns
+            header = True
+        else:
+            header = False
+
+        csv_df.to_csv(
+            output_path,
+            index=False,
+            float_format='%.4f',
+            mode='a',
+            columns=column_order,
+            header=header)
 
 
 def blob_to_df(

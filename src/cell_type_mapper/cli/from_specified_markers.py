@@ -528,7 +528,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             confidence_label=confidence_label,
             config=config,
             valid_suffixes=valid_suffixes,
-            check_consistency=check_consistency)
+            check_consistency=check_consistency,
+            rows_at_a_time=100000)
 
     if config['obsm_key']:
 
