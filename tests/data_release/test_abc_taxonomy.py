@@ -86,13 +86,31 @@ def test_full_label_to_name(
     assert mapper == term_label_to_name_fixture
 
 
+@pytest.mark.parametrize(
+    'use_cell_to_cluster',
+    [True, False]
+)
 def test_get_cell_to_cluster_alias(
         cell_metadata_fixture,
         alias_fixture,
-        cell_to_cluster_fixture):
+        cell_to_cluster_fixture,
+        cell_to_cluster_membership_fixture,
+        use_cell_to_cluster):
+
+    if use_cell_to_cluster:
+        cell_metadata_path = (
+            cell_to_cluster_membership_fixture['cell_metadata']
+        )
+        cell_to_cluster_path = (
+            cell_to_cluster_membership_fixture['cell_to_cluster']
+        )
+    else:
+        cell_metadata_path = cell_metadata_fixture
+        cell_to_cluster_path = None
 
     actual = get_cell_to_cluster_alias(
-        cell_metadata_path=cell_metadata_fixture)
+        cell_metadata_path=cell_metadata_path,
+        cell_to_cluster_path=cell_to_cluster_path)
 
     for cell in cell_to_cluster_fixture:
         assert (

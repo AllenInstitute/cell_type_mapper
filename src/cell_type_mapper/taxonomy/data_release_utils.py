@@ -3,6 +3,7 @@ This module will contain utility functions to help read the CSV files that
 are part of an official data release taxonomy.
 """
 import json
+import pandas as pd
 
 
 def get_header_map(
@@ -221,6 +222,55 @@ def get_label_to_name(
 
 
 def get_cell_to_cluster_alias(
+        cell_metadata_path,
+        cell_to_cluster_path=None):
+    """
+    Get mapping from cell label to cluster alias.
+
+    Parameters
+    ----------
+    cell_metadata_path:
+        path to cell_metadata.csv file
+    cell_to_cluster_path:
+        path to cell_to_cluster_membership.csv file
+        (can be None)
+
+    Notes
+    -----
+    If cell_to_cluster_path is None, cluster alias will be read
+    from the cluster_alias column in cell_metadata.csv. If
+    cell_to_cluster_path is not None, mapping is taken from that file;
+    cell_metadata is only used to determine which cells are valid
+    (in cases of multi-species taxonomies in which the species cannot
+    be mixed).
+    """
+    if cell_to_cluster_path is None:
+        return _get_cell_to_cluster_alias_from_metadata(
+            cell_metadata_path=cell_metadata_path
+        )
+    return _get_cell_to_cluster_alias(
+        cell_metadata_path=cell_metadata_path,
+        cell_to_cluster_path=cell_to_cluster_path)
+
+
+def _get_cell_to_cluster_alias(
+        cell_metadata_path,
+        cell_to_cluster_path):
+    cell_metadata = pd.read_csv(cell_metadata_path)
+    valid_cells = cell_metadata.cell_label.values
+    cell_to_cluster = pd.read_csv(cell_to_cluster_path)
+    raw = {
+        cell: alias
+        for cell, alias in zip(cell_to_cluster.cell_label.values,
+                               cell_to_cluster.cluster_alias.values)
+    }
+    final = {
+        cell: raw[cell] for cell in valid_cells
+    }
+    return final
+
+
+def _get_cell_to_cluster_alias_from_metadata(
         cell_metadata_path):
     """
     Read a cell_metadata.csv file. Return a dict mapping
@@ -243,6 +293,7 @@ def get_cell_to_cluster_alias(
             cluster = params[cluster_idx]
             if cell in result:
                 raise RuntimeError(
-                    f"cell {cell} listed more than once in {csv_path}")
+                    f"cell {cell} listed more than "
+                    f"once in {cell_metadata_path}")
             result[cell] = cluster
     return result
