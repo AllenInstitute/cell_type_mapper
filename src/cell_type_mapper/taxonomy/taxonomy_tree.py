@@ -219,6 +219,7 @@ class TaxonomyTree(object):
             cluster_annotation_path,
             cluster_membership_path,
             hierarchy,
+            cell_to_cluster_path=None,
             do_pruning=False):
         """
         Construct a TaxonomyTree from the canonical CSV files
@@ -241,6 +242,12 @@ class TaxonomyTree(object):
         hierarchy:
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
+        cell_to_cluster_path:
+            optional path to cell_to_cluster_membership.csv.
+            If provided, this will be used to construct the mapping from
+            cell_label to cluster_alias (using only the cells listed
+            in cell_metadata.csv). If not provided, cluster_alias must
+            be provided as a column in cell_metadata.csv
         do_pruning:
             A boolean. If True, remove all nodes from the tree that are
             not directly connected to the leaf level of the tree. This
@@ -315,7 +322,7 @@ class TaxonomyTree(object):
             valid_term_set_labels=hierarchy,
             name_column='cluster_annotation_term_name')
 
-        # create a mapp from [level][node] to all
+        # create a map from [level][node] to all
         # alternative naming schemes
         final_name_map = dict()
         for k in label_to_name:
@@ -344,7 +351,8 @@ class TaxonomyTree(object):
 
         if cell_metadata_path is not None:
             cell_to_alias = get_cell_to_cluster_alias(
-                cell_metadata_path=cell_metadata_path)
+                cell_metadata_path=cell_metadata_path,
+                cell_to_cluster_path=cell_to_cluster_path)
 
             for cell in cell_to_alias:
                 alias = cell_to_alias[cell]

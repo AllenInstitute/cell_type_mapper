@@ -119,18 +119,36 @@ def test_get_cell_to_cluster_alias(
         )
 
 
+@pytest.mark.parametrize(
+    "use_cell_to_cluster",
+    [True, False]
+)
 def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,
+        cell_to_cluster_membership_fixture,
         cluster_annotation_term_fixture,
         baseline_tree_fixture,
-        baseline_tree_without_cells_fixture):
+        baseline_tree_without_cells_fixture,
+        use_cell_to_cluster):
+
+    if use_cell_to_cluster:
+        cell_metadata_path = (
+            cell_to_cluster_membership_fixture['cell_metadata']
+        )
+        cell_to_cluster_path = (
+            cell_to_cluster_membership_fixture['cell_to_cluster']
+        )
+    else:
+        cell_metadata_path = cell_metadata_fixture
+        cell_to_cluster_path = None
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
         test_tree = TaxonomyTree.from_data_release(
-                cell_metadata_path=cell_metadata_fixture,
+                cell_metadata_path=cell_metadata_path,
+                cell_to_cluster_path=cell_to_cluster_path,
                 cluster_annotation_path=cluster_annotation_term_fixture,
                 cluster_membership_path=cluster_membership_fixture,
                 hierarchy=['class', 'subclass', 'supertype', 'cluster'])
