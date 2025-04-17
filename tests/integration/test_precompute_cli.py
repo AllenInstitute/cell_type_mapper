@@ -479,8 +479,8 @@ def h5ad_path_list_fixture(
 
 
 @pytest.mark.parametrize(
-    "downsample_h5ad_list,split_by_dataset",
-    itertools.product([True, False], [True, False]))
+    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster",
+    itertools.product([True, False], [True, False], [True, False]))
 def test_precompute_cli(
         cell_metadata_fixture,
         cluster_membership_fixture,
@@ -493,7 +493,8 @@ def test_precompute_cli(
         cluster_to_supertype_fixture,
         tmp_dir_fixture,
         downsample_h5ad_list,
-        split_by_dataset):
+        split_by_dataset,
+        use_cell_to_cluster):
     """
     So far, this is only tests the contents of
 
@@ -502,6 +503,37 @@ def test_precompute_cli(
     sumsq
     ge1
     """
+    if use_cell_to_cluster:
+        # test case where cell_label to cluster_alias mapping
+        # is in a separate CSV file
+        cell_metadata_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='cell_metadata_',
+            suffix='.csv'
+        )
+        cell_to_cluster_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='cell_to_cluster_membership_',
+            suffix='.csv'
+        )
+        src = pd.read_csv(cell_metadata_fixture)
+        col_list = list(src.columns)
+        to_keep = [c for c in col_list if c != 'cluster_alias']
+        dst = src[to_keep]
+        dst.to_csv(cell_metadata_path, index=False)
+        cell_to_cluster = src[
+            ["cell_label", "cluster_alias"]
+        ].to_dict(orient='records')
+        cell_to_cluster.append(
+            {'cell_label': 'unreal',
+             'cluster_alias': 'nah'}
+         )
+        cell_to_cluster = pd.DataFrame(cell_to_cluster)
+        cell_to_cluster.to_csv(cell_to_cluster_path, index=False)
+    else:
+        cell_metadata_path = cell_metadata_fixture
+        cell_to_cluster_path = None
+
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5')
@@ -517,7 +549,8 @@ def test_precompute_cli(
         'clobber': True,
         'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
-        'cell_metadata_path': cell_metadata_fixture,
+        'cell_metadata_path': cell_metadata_path,
+        'cell_to_cluster_path': cell_to_cluster_path,
         'cluster_annotation_path': cluster_annotation_term_fixture,
         'cluster_membership_path': cluster_membership_fixture,
         'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],

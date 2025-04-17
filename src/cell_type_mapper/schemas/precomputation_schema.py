@@ -90,6 +90,20 @@ class PrecomputedStatsABCSchema(
         description="Path to cell_metadata.csv; the file mapping cells "
         "to clusters in our cell types taxonomy.")
 
+    cell_to_cluster_path = argschema.fields.InputFile(
+        requred=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Path to cell_to_cluster_membership.csv. If provided, "
+            "the code will get the mapping from cell_label to "
+            "cluster_alias from this file, limiting itself to the "
+            "cells in cell_metadata.csv. If not provided, the code "
+            "will assume that `cluster_alias` is a column in "
+            "cell_metadata.csv"
+        )
+    )
+
     cluster_annotation_path = argschema.fields.InputFile(
         required=True,
         default=None,

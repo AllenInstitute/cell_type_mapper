@@ -62,6 +62,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            cell_metadata_path=self.args['cell_metadata_path'],
            cluster_annotation_path=self.args['cluster_annotation_path'],
            cluster_membership_path=self.args['cluster_membership_path'],
+           cell_to_cluster_path=self.args['cell_to_cluster_path'],
            hierarchy=self.args['hierarchy'],
            do_pruning=self.args['do_pruning'])
 
