@@ -524,7 +524,10 @@ def test_precompute_cli(
         cell_to_cluster = src[
             ["cell_label", "cluster_alias"]
         ].to_dict(orient='records')
-        cell_to_cluster.append({'cell_label': 'unreal', 'cluster_alias': 'nah'})
+        cell_to_cluster.append(
+            {'cell_label': 'unreal',
+             'cluster_alias': 'nah'}
+         )
         cell_to_cluster = pd.DataFrame(cell_to_cluster)
         cell_to_cluster.to_csv(cell_to_cluster_path, index=False)
     else:
