@@ -204,8 +204,8 @@ def cell_metadata_fixture(
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
     return tmp_path
 
@@ -245,8 +245,8 @@ def incomplete_cell_metadata_fixture(
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
 
     return tmp_path
@@ -478,14 +478,60 @@ def h5ad_path_list_fixture(
     return path_list
 
 
+@pytest.fixture(scope='module')
+def h5ad_path_list_extra_cells_fixture(
+        h5ad_path_list_fixture,
+        tmp_dir_fixture):
+    """
+    Return a list of h5ad files, each with
+    extra cells that are not a part of the
+    taxonomy in them
+    """
+    path_list = []
+    dst_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='extra_cells_'
+    )
+    ct = 0
+    rng = np.random.default_rng(761231)
+    for src_path in h5ad_path_list_fixture:
+        src = anndata.read_h5ad(src_path).to_memory()
+        src.file.close()
+        new_obs = []
+        for ii in range(50):
+            new_obs.append(
+                {"cell_id": f"not_in_taxonomy_{ct}"}
+            )
+            ct += 1
+        new_obs = pd.DataFrame(new_obs).set_index("cell_id")
+        new_x = 10.0*rng.random((len(new_obs), len(src.var)))
+        new_a = anndata.AnnData(
+            obs=new_obs,
+            var=src.var,
+            X=new_x
+        )
+        final_a = anndata.concat([new_a, src])
+        dst_path = mkstemp_clean(
+            dir=dst_dir,
+            suffix='.h5ad'
+        )
+        final_a.write_h5ad(dst_path)
+
+        path_list.append(dst_path)
+    return path_list
+
+
 @pytest.mark.parametrize(
-    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster",
-    itertools.product([True, False], [True, False], [True, False]))
+    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster,extra_cells",
+    itertools.product(
+        [True, False], [True, False], [True, False], [True, False])
+    )
 def test_precompute_cli(
         cell_metadata_fixture,
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
         h5ad_path_list_fixture,
+        h5ad_path_list_extra_cells_fixture,
         x_fixture,
         cell_to_cluster_fixture,
         cell_to_dataset_fixture,
@@ -494,7 +540,8 @@ def test_precompute_cli(
         tmp_dir_fixture,
         downsample_h5ad_list,
         split_by_dataset,
-        use_cell_to_cluster):
+        use_cell_to_cluster,
+        extra_cells):
     """
     So far, this is only tests the contents of
 
@@ -538,11 +585,16 @@ def test_precompute_cli(
         dir=tmp_dir_fixture,
         suffix='.h5')
 
-    if downsample_h5ad_list:
-        h5ad_list = [h5ad_path_list_fixture[0],
-                     h5ad_path_list_fixture[1]]
+    if extra_cells:
+        baseline_path_list = h5ad_path_list_extra_cells_fixture
     else:
-        h5ad_list = h5ad_path_list_fixture
+        baseline_path_list = h5ad_path_list_fixture
+
+    if downsample_h5ad_list:
+        h5ad_list = [baseline_path_list[0],
+                     baseline_path_list[1]]
+    else:
+        h5ad_list = baseline_path_list
 
     config = {
         'output_path': output_path,
@@ -605,6 +657,11 @@ def test_precompute_cli(
             cell_by_gene.to_log2CPM_in_place()
 
             for i_row, cell_id in enumerate(obs.index.values):
+
+                # skip cells that are not in the taxonomy
+                if cell_id.startswith('not_in_taxonomy'):
+                    continue
+
                 if dataset == 'None' or \
                         cell_to_dataset_fixture[cell_id] == dataset:
 
