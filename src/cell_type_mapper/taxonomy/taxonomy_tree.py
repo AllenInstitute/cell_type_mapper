@@ -863,16 +863,19 @@ def _get_leaves_from_csv(
         cell_to_cluster_path,
         alias_to_cluster_label):
     leaves = dict()
+
     cell_to_alias = get_cell_to_cluster_alias(
         cell_metadata_path=cell_metadata_path,
         cell_to_cluster_path=cell_to_cluster_path)
 
     for cell in cell_to_alias:
         alias = cell_to_alias[cell]
-        leaf = alias_to_cluster_label[alias]
-        if leaf not in leaves:
-            leaves[leaf] = []
-        leaves[leaf].append(cell)
+        if alias in alias_to_cluster_label:
+            leaf = alias_to_cluster_label[alias]
+            if leaf not in leaves:
+                leaves[leaf] = []
+            leaves[leaf].append(cell)
+
     for leaf in leaves:
         leaves[leaf].sort()
 
