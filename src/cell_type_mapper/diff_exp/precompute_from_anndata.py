@@ -631,6 +631,9 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 else:
                     final_output[k][:, :] += src[k][()]
 
+    if final_output is None:
+        return
+
     with h5py.File(output_path, 'a') as out_file:
         for k in final_output.keys():
             if k == 'n_cells':
