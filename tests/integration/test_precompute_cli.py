@@ -209,6 +209,7 @@ def cell_metadata_fixture(
                 f"{alias},{rng.random()},{dataset_label}\n")
     return tmp_path
 
+
 @pytest.fixture(scope='module')
 def cell_metadata_extra_cells_fixture(
         cell_metadata_fixture,
@@ -228,8 +229,8 @@ def cell_metadata_extra_cells_fixture(
             {"cell_label": f"not_in_taxonomy_{ii}",
              "cluster_alias": nonsense_alias,
              "dataset_label": "gar"}
-        )
-    rng =np.random.default_rng(22131)
+         )
+    rng = np.random.default_rng(22131)
     rng.shuffle(baseline)
     new_data = pd.DataFrame(baseline)
 

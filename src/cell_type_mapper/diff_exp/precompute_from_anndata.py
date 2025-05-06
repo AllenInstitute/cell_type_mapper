@@ -186,6 +186,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
     Assumes that the leaf level of the tree lists the rows in a single
     h5ad file that belong to that cluster
     """
+    output_path = pathlib.Path(output_path)
     cluster_to_input_row = taxonomy_tree.leaf_to_cells
 
     cluster_list = list(cluster_to_input_row)
@@ -206,7 +207,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
             cell_name = cell_name_list[cell_idx]
             cell_name_to_cluster_name[cell_name] = cluster_name
 
-    precompute_summary_stats_from_h5ad_and_lookup(
+    was_written = precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=[data_path],
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
@@ -218,10 +219,11 @@ def precompute_summary_stats_from_h5ad_and_tree(
         copy_data_over=copy_data_over,
         layer=layer)
 
-    with h5py.File(output_path, 'a') as out_file:
-        out_file.create_dataset(
-            'taxonomy_tree',
-            data=taxonomy_tree.to_str().encode('utf-8'))
+    if was_written:
+        with h5py.File(output_path, 'a') as out_file:
+            out_file.create_dataset(
+                'taxonomy_tree',
+                data=taxonomy_tree.to_str().encode('utf-8'))
 
 
 def precompute_summary_stats_from_h5ad_list_and_tree(
@@ -290,11 +292,18 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    Returns
+    -------
+    True if data was writtent to output path. False otherwise
+    (which can happen if no cell actually mapped to the taxonomy)
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
     cells that belong to a given cluster
     """
+
+    output_path = pathlib.Path(output_path)
 
     leaf_to_cells = taxonomy_tree.leaf_to_cells
 
@@ -310,7 +319,7 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
             if cell_set is None or cell_str in cell_set:
                 cell_name_to_cluster_name[cell_str] = cluster
 
-    precompute_summary_stats_from_h5ad_and_lookup(
+    was_written = precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=data_path_list,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
@@ -322,10 +331,12 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         copy_data_over=copy_data_over,
         layer=layer)
 
-    with h5py.File(output_path, 'a') as out_file:
-        out_file.create_dataset(
-            'taxonomy_tree',
-            data=taxonomy_tree.to_str().encode('utf-8'))
+    if was_written:
+        with h5py.File(output_path, 'a') as out_file:
+            out_file.create_dataset(
+                'taxonomy_tree',
+                data=taxonomy_tree.to_str().encode('utf-8'))
+    return was_written
 
 
 def precompute_summary_stats_from_h5ad_and_lookup(
@@ -392,6 +403,11 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
+
+    Returns
+    -------
+    True if data was writtent to output path. False otherwise
+    (which can happen if no cell actually mapped to the taxonomy)
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
 
@@ -402,7 +418,7 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             prefix='precomputation_data_buffer_')
 
     try:
-        _precompute_summary_stats_from_h5ad_and_lookup(
+        flag = _precompute_summary_stats_from_h5ad_and_lookup(
             data_path_list=data_path_list,
             cell_name_to_cluster_name=cell_name_to_cluster_name,
             cluster_to_output_row=cluster_to_output_row,
@@ -415,6 +431,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             layer=layer)
     finally:
         _clean_up(tmp_dir)
+
+    return flag
 
 
 def _precompute_summary_stats_from_h5ad_and_lookup(
@@ -609,13 +627,6 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    _create_empty_stats_file(
-        output_path=output_path,
-        cluster_to_output_row=cluster_to_output_row,
-        n_clusters=n_clusters,
-        n_genes=n_genes,
-        col_names=gene_names)
-
     final_output = None
     for buffer_path in buffer_path_list:
         with h5py.File(buffer_path, 'r') as src:
@@ -632,7 +643,14 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                     final_output[k][:, :] += src[k][()]
 
     if final_output is None:
-        return
+        return False
+
+    _create_empty_stats_file(
+        output_path=output_path,
+        cluster_to_output_row=cluster_to_output_row,
+        n_clusters=n_clusters,
+        n_genes=n_genes,
+        col_names=gene_names)
 
     with h5py.File(output_path, 'a') as out_file:
         for k in final_output.keys():
@@ -640,6 +658,7 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 out_file[k][:] = final_output[k]
             else:
                 out_file[k][:, :] = final_output[k]
+    return True
 
 
 def _process_chunk_spec(
