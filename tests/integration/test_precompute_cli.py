@@ -634,9 +634,12 @@ def test_basic_precompute_cli(
         cell_metadata_path = baseline_metadata
         cell_to_cluster_path = None
 
+    h5ad_tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
     output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5')
+        dir=h5ad_tmp_dir,
+        suffix='.h5',
+        delete=True)
 
     config = {
         'output_path': output_path,
@@ -668,10 +671,25 @@ def test_basic_precompute_cli(
         dataset_to_output['None'] = output_path
     combined_path = pathlib.Path(output_path[:-2] + 'combined.h5')
 
+    expected_files = [
+        pathlib.Path(f).resolve().absolute()
+        for f in dataset_to_output.values()
+    ]
+
     if split_by_dataset:
         assert combined_path.is_file()
+        expected_files.append(combined_path.resolve().absolute())
     else:
-        assert not combined_path.is_file()
+        assert not combined_path.exists()
+
+    # make sure that only the ex[ected files are written
+    # and that they can be opened as HDF5 files
+    output_dir = pathlib.Path(output_path).parent
+    actual_files = [n.resolve().absolute() for n in output_dir.iterdir()]
+    assert set(actual_files) == set(expected_files)
+    for pth in actual_files:
+        with h5py.File(pth, 'r') as src:
+            pass
 
     for dataset in dataset_to_output:
         actual_output = dataset_to_output[dataset]

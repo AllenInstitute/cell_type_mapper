@@ -205,6 +205,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
             with open(output_path, 'wb') as dst:
                 dst.write(b'gar')
+            output_path.unlink()
 
         return final_output_lookup
 
