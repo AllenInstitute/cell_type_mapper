@@ -46,7 +46,8 @@ def precompute_summary_stats_from_h5ad(
         normalization="log2CPM",
         tmp_dir=None,
         n_processors=3,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -94,6 +95,10 @@ def precompute_summary_stats_from_h5ad(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -119,7 +124,8 @@ def precompute_summary_stats_from_h5ad(
         normalization=normalization,
         tmp_dir=tmp_dir,
         n_processors=n_processors,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
@@ -131,7 +137,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -181,6 +188,10 @@ def precompute_summary_stats_from_h5ad_and_tree(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -217,7 +228,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         tmp_dir=tmp_dir,
         n_processors=n_processors,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
     if was_written:
         with h5py.File(output_path, 'a') as out_file:
@@ -236,7 +248,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -292,6 +305,10 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Returns
     -------
     True if data was writtent to output path. False otherwise
@@ -329,7 +346,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         tmp_dir=tmp_dir,
         n_processors=n_processors,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
     if was_written:
         with h5py.File(output_path, 'a') as out_file:
@@ -349,7 +367,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -404,6 +423,10 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Returns
     -------
     True if data was writtent to output path. False otherwise
@@ -428,7 +451,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             tmp_dir=tmp_dir,
             n_processors=n_processors,
             buffer_dir=buffer_dir,
-            layer=layer)
+            layer=layer,
+            gene_id_col=gene_id_col)
     finally:
         _clean_up(tmp_dir)
 
@@ -445,7 +469,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         tmp_dir=None,
         n_processors=3,
         buffer_dir=None,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     If buffer_dir is not None, data is copied there before computatations
     are run (in case buffer_dir is on a faster file system than the data
@@ -489,7 +514,12 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
 
     gene_names = None
     for pth in csr_path_list:
-        these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
+        var = read_df_from_h5ad(pth, 'var')
+        if gene_id_col is None:
+            these_genes = list(var.index.values)
+        else:
+            these_genes = list(var[gene_id_col].values)
+
         if gene_names is None:
             gene_names = these_genes
         else:

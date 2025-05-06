@@ -16,9 +16,6 @@ from cell_type_mapper.taxonomy.utils import (
 from cell_type_mapper.cell_by_gene.utils import (
     convert_to_cpm)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
 from cell_type_mapper.utils.output_utils import (
     precomputed_stats_to_uns,
     uns_to_precomputed_stats
@@ -271,7 +268,20 @@ def create_h5ad(
         x,
         tmp_dir,
         layer,
-        density):
+        density,
+        gene_id_col):
+
+    n_genes = x.shape[1]
+    if gene_id_col is None:
+        var = pd.DataFrame(
+            [{'gene_label': f'g_{ii}'}
+             for ii in range(n_genes)]
+        ).set_index('gene_label')
+    else:
+        var = pd.DataFrame(
+            [{"idx": str(ii**2), gene_id_col: f'g_{ii}'}
+             for ii in range(n_genes)]
+        ).set_index("idx")
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir,
@@ -310,7 +320,8 @@ def create_h5ad(
     a_data = anndata.AnnData(X=xx,
                              obs=obs,
                              layers=layers,
-                             raw=raw)
+                             raw=raw,
+                             var=var)
 
     a_data.write_h5ad(h5ad_path)
 
@@ -322,11 +333,24 @@ def create_many_h5ad(
         x,
         tmp_dir,
         layer,
-        density):
+        density,
+        gene_id_col):
     """
     Store the data in multiple h5ad files;
     return a list to their paths
     """
+    n_genes = x.shape[1]
+    if gene_id_col is None:
+        var = pd.DataFrame(
+            [{'gene_label': f'g_{ii}'}
+             for ii in range(n_genes)]
+        ).set_index('gene_label')
+    else:
+        var = pd.DataFrame(
+            [{"idx": str(ii**2), gene_id_col: f'g_{ii}'}
+             for ii in range(n_genes)]
+        ).set_index("idx")
+
     idx_arr = np.arange(x.shape[0])
     rng = np.random.default_rng(663344)
     rng.shuffle(idx_arr)
@@ -371,7 +395,8 @@ def create_many_h5ad(
             X=xx,
             layers=layers,
             raw=raw,
-            obs=this_obs)
+            obs=this_obs,
+            var=var)
 
         this_path = mkstemp_clean(
             dir=tmp_dir,
@@ -391,7 +416,8 @@ def h5ad_input_path(
         tmp_dir_fixture,
         obs_fixture,
         raw_x_fixture,
-        x_fixture):
+        x_fixture,
+        gene_id_col_fixture):
 
     dataset = dataset_fixture
     layer = layer_fixture
@@ -413,7 +439,8 @@ def h5ad_input_path(
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer,
-                            density=density),
+                            density=density,
+                            gene_id_col=gene_id_col_fixture),
                 'normalization': 'raw',
                 'layer': output_layer}
     elif dataset == 'log2_data':
@@ -422,7 +449,8 @@ def h5ad_input_path(
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer,
-                            density=density),
+                            density=density,
+                            gene_id_col=gene_id_col_fixture),
                 'normalization': 'log2CPM',
                 'layer': output_layer}
     elif dataset == 'raw_data_list':
@@ -431,7 +459,8 @@ def h5ad_input_path(
                             x=raw_x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer,
-                            density=density),
+                            density=density,
+                            gene_id_col=gene_id_col_fixture),
                 'normalization': 'raw',
                 'layer': output_layer}
     elif dataset == 'log2_data_list':
@@ -440,7 +469,8 @@ def h5ad_input_path(
                             x=x_fixture,
                             tmp_dir=tmp_dir_fixture,
                             layer=layer,
-                            density=density),
+                            density=density,
+                            gene_id_col=gene_id_col_fixture),
                 'normalization': 'log2CPM',
                 'layer': output_layer}
     else:
@@ -464,21 +494,33 @@ def density_fixture(request):
     return request.param
 
 
+@pytest.fixture
+def gene_id_col_fixture(request):
+    return request.param
+
+
 @pytest.mark.parametrize(
-        'dataset_fixture, layer_fixture, density_fixture, n_processors',
+        'dataset_fixture, layer_fixture, '
+        'density_fixture, n_processors, gene_id_col_fixture',
         itertools.product(
             ['raw_data', 'log2_data'],
             ['X', 'dummy', 'raw'],
             ['csc', 'csr', 'dense'],
-            [1, 3]
+            [1, 3],
+            [None, 'blah']
         ),
-        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
+        indirect=[
+            'dataset_fixture',
+            'layer_fixture',
+            'density_fixture',
+            'gene_id_col_fixture'])
 def test_precompute_from_data(
         h5ad_input_path,
         layer_fixture,
         dataset_fixture,
         records_fixture,
         density_fixture,
+        gene_id_col_fixture,
         baseline_stats_fixture,
         tmp_dir_fixture,
         n_processors):
@@ -508,7 +550,8 @@ def test_precompute_from_data(
         normalization=normalization,
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col_fixture)
 
     expected_tree = get_taxonomy_tree(
         obs_records=records_fixture,
@@ -534,6 +577,8 @@ def test_precompute_from_data(
         gt0 = in_file["gt0"][()]
         gt1 = in_file["gt1"][()]
         ge1 = in_file["ge1"][()]
+        gene_names = json.loads(in_file['col_names'][()].decode('utf-8'))
+        assert gene_names == [f'g_{ii}' for ii in range(len(gene_names))]
 
     assert not np.array_equal(gt1, ge1)
     assert len(cluster_to_row) == len(baseline_stats_fixture)
@@ -568,18 +613,24 @@ def test_precompute_from_data(
 
 
 @pytest.mark.parametrize(
-        'dataset_fixture, layer_fixture, density_fixture',
+        'dataset_fixture, layer_fixture, density_fixture, gene_id_col_fixture',
         itertools.product(
             ['raw_data', 'log2_data'],
             ['X', 'dummy', 'raw'],
-            ['csc', 'csr', 'dense']
+            ['csc', 'csr', 'dense'],
+            [None]
         ),
-        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
+        indirect=[
+            'dataset_fixture',
+            'layer_fixture',
+            'density_fixture',
+            'gene_id_col_fixture'])
 def test_serialization_of_actual_precomputed_stats(
         h5ad_input_path,
         dataset_fixture,
         layer_fixture,
         density_fixture,
+        gene_id_col_fixture,
         tmp_dir_fixture):
     """
     Test that serialization to uns works on an actual
@@ -609,7 +660,8 @@ def test_serialization_of_actual_precomputed_stats(
         normalization=normalization,
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col_fixture)
 
     uns_path = mkstemp_clean(
         dir=tmp_dir,
@@ -674,15 +726,21 @@ def test_serialization_of_actual_precomputed_stats(
 
 @pytest.mark.parametrize(
         'dataset_fixture, layer_fixture, density_fixture, '
-        'omit_clusters, n_processors, copy_data_over',
+        'omit_clusters, n_processors, copy_data_over, '
+        'gene_id_col_fixture',
         itertools.product(
             ['raw_data_list', 'log2_data_list'],
             ['X', 'dummy', 'raw'],
             ['csc', 'csr', 'dense'],
             [True, False],
             [1, 3],
-            [True, False]),
-        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
+            [True, False],
+            [None, 'blah']),
+        indirect=[
+            'dataset_fixture',
+            'layer_fixture',
+            'density_fixture',
+            'gene_id_col_fixture'])
 def test_precompute_from_many_h5ad_with_lookup(
         records_fixture,
         obs_fixture,
@@ -692,6 +750,7 @@ def test_precompute_from_many_h5ad_with_lookup(
         dataset_fixture,
         layer_fixture,
         density_fixture,
+        gene_id_col_fixture,
         omit_clusters,
         n_processors,
         copy_data_over):
@@ -738,8 +797,6 @@ def test_precompute_from_many_h5ad_with_lookup(
         n: ii
         for ii, n in enumerate(expected_tree['cluster'].keys())}
 
-    gene_names = list(read_df_from_h5ad(path_list[0], 'var').index.values)
-
     precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=path_list,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
@@ -750,7 +807,8 @@ def test_precompute_from_many_h5ad_with_lookup(
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col_fixture)
 
     assert stats_file.is_file()
     with h5py.File(stats_file, "r") as in_file:
@@ -763,6 +821,8 @@ def test_precompute_from_many_h5ad_with_lookup(
         gt0 = in_file["gt0"][()]
         gt1 = in_file["gt1"][()]
         ge1 = in_file["ge1"][()]
+        gene_names = json.loads(in_file['col_names'][()].decode('utf-8'))
+        assert gene_names == [f'g_{ii}' for ii in range(len(gene_names))]
 
     assert not np.array_equal(gt1, ge1)
 
@@ -830,20 +890,27 @@ def test_precompute_from_many_h5ad_with_lookup(
 
 @pytest.mark.parametrize(
         'dataset_fixture,layer_fixture,density_fixture,'
-        'use_cell_set,n_processors,copy_data_over',
+        'use_cell_set,n_processors,copy_data_over, '
+        'gene_id_col_fixture',
         itertools.product(
             ['raw_data_list', 'log2_data_list'],
             ['X', 'raw', 'dummy'],
             ['csc', 'csr', 'dense'],
             [True, False],
             [1, 3],
-            [True, False]),
-        indirect=['dataset_fixture', 'layer_fixture', 'density_fixture'])
+            [True, False],
+            [None, 'blah']),
+        indirect=[
+            'dataset_fixture',
+            'layer_fixture',
+            'density_fixture',
+            'gene_id_col_fixture'])
 def test_precompute_from_many_h5ad_with_tree(
         h5ad_input_path,
         records_fixture,
         obs_fixture,
         baseline_stats_fixture,
+        gene_id_col_fixture,
         tmp_dir_fixture,
         baseline_stats_fixture_limited_cells,
         cell_set_fixture,
@@ -907,7 +974,8 @@ def test_precompute_from_many_h5ad_with_tree(
         n_processors=n_processors,
         tmp_dir=tmp_dir_fixture,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col_fixture)
 
     with h5py.File(stats_file, 'r') as in_file:
         actual_tree = json.loads(
@@ -929,6 +997,8 @@ def test_precompute_from_many_h5ad_with_tree(
         gt0 = in_file["gt0"][()]
         gt1 = in_file["gt1"][()]
         ge1 = in_file["ge1"][()]
+        gene_names = json.loads(in_file['col_names'][()].decode('utf-8'))
+        assert gene_names == [f'g_{ii}' for ii in range(len(gene_names))]
 
     assert not np.array_equal(gt1, ge1)
     assert len(cluster_to_row) == len(ground_truth)
