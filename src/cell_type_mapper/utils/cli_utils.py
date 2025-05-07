@@ -4,6 +4,8 @@ import pathlib
 import time
 import warnings
 
+import cell_type_mapper.utils.gene_utils as gene_utils
+
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
 
@@ -37,7 +39,10 @@ def _check_config(config_dict, config_name, key_name, log):
             log.error(f"'{config_name}' config missing key '{key_name}'")
 
 
-def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
+def _get_query_gene_names(
+        query_gene_path,
+        map_to_ensembl=False,
+        gene_id_col=None):
     """
     If map_to_ensembl is True, automatically map the gene IDs in
     query_gene_path.var.index to ENSEMBL IDs
@@ -49,11 +54,16 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
     were meaningfully mapped (True if a gene was mapped to
     an ENSEMBL ID; false otherwise)
     """
-    var = read_df_from_h5ad(query_gene_path, 'var')
-    result = list(var.index.values)
+    result = gene_utils.get_gene_identifier_list(
+        h5ad_path_list=[query_gene_path],
+        gene_id_col=gene_id_col,
+        duplicate_prefix=gene_utils.invalid_query_prefix()
+    )
+
     n_unmapped = 0
     was_changed = False
     if map_to_ensembl:
+        original_result = np.array(result)
         species = detect_species(result)
         if species is None:
             msg = (
@@ -70,10 +80,10 @@ def _get_query_gene_names(query_gene_path, map_to_ensembl=False):
         result = raw_result['mapped_genes']
         n_unmapped = raw_result['n_unmapped']
 
-        if np.array_equal(np.array(result), var.index.values):
+        if np.array_equal(np.array(result), original_result):
             was_changed = False
         else:
-            delta = np.where(np.array(result) != var.index.values)[0]
+            delta = np.where(np.array(result) != original_result)[0]
             for ii in delta:
                 if 'unmapped' not in result[ii]:
                     was_changed = True
