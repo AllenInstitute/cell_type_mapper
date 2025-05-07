@@ -13,7 +13,10 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.utils.utils import clean_for_json
 
-from cell_type_mapper.taxonomy.taxonomy_tree import TaxonomyTree
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree,
+    prune_by_h5ad
+)
 
 from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
@@ -26,8 +29,7 @@ from cell_type_mapper.taxonomy.utils import (
     get_all_leaf_pairs,
     validate_taxonomy_tree,
     get_child_to_parent,
-    prune_tree,
-    prune_by_h5ad)
+    prune_tree)
 
 
 def test_get_taxonomy_tree(

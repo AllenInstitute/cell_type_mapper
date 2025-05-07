@@ -1,6 +1,7 @@
 import copy
 import h5py
 import json
+import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.utils import (
@@ -880,3 +881,47 @@ def _get_leaves_from_csv(
         leaves[leaf].sort()
 
     return leaves
+
+
+def prune_by_h5ad(
+        taxonomy_tree,
+        h5ad_list):
+    """
+    Take a taxonomy tree and a list of h5ad file.
+    Remove any leaf nodes from the tree that have no cells represented
+    in the h5ad files.
+    """
+    node_list = taxonomy_tree.nodes_at_level(taxonomy_tree.leaf_level)
+    node_flag = np.zeros(len(node_list), dtype=bool)
+    node_to_idx = {node: idx for idx, node in enumerate(node_list)}
+    cell_to_idx = dict()
+    for node in node_list:
+        for child in taxonomy_tree.children(
+                        level=taxonomy_tree.leaf_level,
+                        node=node):
+            cell_to_idx[child] = node_to_idx[node]
+
+    # mark as True any leaf nodes with cells in the h5ad files
+    for h5ad_path in h5ad_list:
+        if node_flag.sum() == len(node_flag):
+            break
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        node_idx = np.unique(
+            [cell_to_idx[cell] for cell in obs.index.values
+             if cell in cell_to_idx]
+        )
+        node_flag[node_idx] = True
+
+    # drop any nodes without cells represented in the h5ad files
+    if node_flag.sum() == len(node_list):
+        return taxonomy_tree
+
+    new_data = copy.deepcopy(taxonomy_tree._data)
+
+    invalid = np.where(np.logical_not(node_flag))[0]
+    for idx in invalid:
+        new_data[taxonomy_tree.leaf_level].pop(node_list[idx])
+
+    new_data = prune_tree(new_data)
+
+    return TaxonomyTree(data=new_data)
