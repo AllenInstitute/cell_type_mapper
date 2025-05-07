@@ -1,6 +1,8 @@
 import numpy as np
 import warnings
 
+import cell_type_mapper.utils.anndata_utils as anndata_utils
+
 
 class DuplicateGeneIDWarning(UserWarning):
     pass
@@ -20,6 +22,62 @@ def invalid_query_prefix():
     stage
     """
     return 'DUPLICATED_QUERY_GENE'
+
+
+
+def get_gene_identifier_list(
+        h5ad_path_list,
+        gene_id_col,
+        duplicate_prefix=invalid_precompute_prefix()):
+    """
+    Get list of gene identifiers from a list of h5ad files.
+
+    Parameters
+    ----------
+    h5ad_path_list:
+        list of h5ad files to extract gene identifiers from
+    gene_id_col:
+        column in var from which to get gene identifiers.
+        If None, use the index of var
+    duplicate_prefix:
+        the prefix to add to the names of genes that are
+        found to be duplicated in the original list of
+        gene identifiers
+
+    Returns
+    -------
+    list of gene identifiers
+
+    Notes
+    -----
+    will raise an exception of the h5ad files give different
+    results for gene name list
+    """
+    gene_names = None
+    for pth in h5ad_path_list:
+        var = anndata_utils.read_df_from_h5ad(pth, 'var')
+        if gene_id_col is None:
+            these_genes = list(var.index.values)
+        else:
+            these_genes = list(var[gene_id_col].values)
+
+        if gene_names is None:
+            gene_names = these_genes
+        else:
+            if gene_names != these_genes:
+                raise RuntimeError(
+                    "Inconsistent gene names list\n"
+                    f"{pth}\nhas gene_names\n{these_genes}\n"
+                    f"which does not match\n{h5ad_path_list[0]}\n"
+                    f"genes\n{gene_names}")
+
+    gene_names = mask_duplicate_gene_identifiers(
+        gene_identifier_list=gene_names,
+        mask_prefix=invalid_precompute_prefix(),
+        log=None
+    )
+
+    return gene_names
 
 
 def mask_duplicate_gene_identifiers(

@@ -4,7 +4,6 @@ import json
 import time
 
 import cell_type_mapper.utils.gene_utils as gene_utils
-import cell_type_mapper.diff_exp.precompute_utils as precompute_utils
 
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
@@ -36,9 +35,10 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
         t0 = time.time()
 
         if self.args['query_path'] is not None:
-            query_gene_names = precompute_utils.get_gene_identifier_list(
+            query_gene_names = gene_utils.get_gene_identifier_list(
                 h5ad_path_list=[self.args['query_path']],
-                gene_id_col=None
+                gene_id_col=None,
+                duplicate_prefix=gene_utils.invalid_precompute_prefix()
             )
         else:
             # find all of the genes that exist in every reference marker

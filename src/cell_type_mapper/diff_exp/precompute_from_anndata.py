@@ -33,7 +33,7 @@ from cell_type_mapper.utils.stats_utils import (
 from cell_type_mapper.diff_exp.precompute import (
     _create_empty_stats_file)
 
-from cell_type_mapper.diff_exp.precompute_utils import (
+from cell_type_mapper.utils.gene_utils import (
     get_gene_identifier_list
 )
 

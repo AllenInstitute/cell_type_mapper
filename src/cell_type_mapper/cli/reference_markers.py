@@ -6,7 +6,6 @@ import pathlib
 import time
 
 import cell_type_mapper.utils.gene_utils as gene_utils
-import cell_type_mapper.diff_exp.precompute_utils as precompute_utils
 
 from cell_type_mapper.utils.cli_utils import (
     config_from_args
@@ -58,9 +57,10 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
         t0 = time.time()
 
         if self.args['query_path'] is not None:
-            gene_list = precompute_utils.get_gene_identifier_list(
+            gene_list = gene_utils.get_gene_identifier_list(
                 h5ad_path_list=[self.args['query_path']],
-                gene_id_col=None
+                gene_id_col=None,
+                duplicate_prefix=gene_utils.invalid_precompute_prefix()
             )
 
             # remove any genes marked as `INVALID_MARKER`; these will
