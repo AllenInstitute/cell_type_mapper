@@ -33,6 +33,10 @@ from cell_type_mapper.utils.stats_utils import (
 from cell_type_mapper.diff_exp.precompute import (
     _create_empty_stats_file)
 
+from cell_type_mapper.utils.gene_utils import (
+    get_gene_identifier_list
+)
+
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
@@ -46,7 +50,8 @@ def precompute_summary_stats_from_h5ad(
         normalization="log2CPM",
         tmp_dir=None,
         n_processors=3,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -94,6 +99,10 @@ def precompute_summary_stats_from_h5ad(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
@@ -119,7 +128,8 @@ def precompute_summary_stats_from_h5ad(
         normalization=normalization,
         tmp_dir=tmp_dir,
         n_processors=n_processors,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
 
 def precompute_summary_stats_from_h5ad_and_tree(
@@ -131,7 +141,8 @@ def precompute_summary_stats_from_h5ad_and_tree(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -181,11 +192,16 @@ def precompute_summary_stats_from_h5ad_and_tree(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
     Note
     ----
     Assumes that the leaf level of the tree lists the rows in a single
     h5ad file that belong to that cluster
     """
+    output_path = pathlib.Path(output_path)
     cluster_to_input_row = taxonomy_tree.leaf_to_cells
 
     cluster_list = list(cluster_to_input_row)
@@ -206,7 +222,7 @@ def precompute_summary_stats_from_h5ad_and_tree(
             cell_name = cell_name_list[cell_idx]
             cell_name_to_cluster_name[cell_name] = cluster_name
 
-    precompute_summary_stats_from_h5ad_and_lookup(
+    was_written = precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=[data_path],
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
@@ -216,12 +232,14 @@ def precompute_summary_stats_from_h5ad_and_tree(
         tmp_dir=tmp_dir,
         n_processors=n_processors,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
-    with h5py.File(output_path, 'a') as out_file:
-        out_file.create_dataset(
-            'taxonomy_tree',
-            data=taxonomy_tree.to_str().encode('utf-8'))
+    if was_written:
+        with h5py.File(output_path, 'a') as out_file:
+            out_file.create_dataset(
+                'taxonomy_tree',
+                data=taxonomy_tree.to_str().encode('utf-8'))
 
 
 def precompute_summary_stats_from_h5ad_list_and_tree(
@@ -234,7 +252,8 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     Precompute the summary stats used to identify marker genes
 
@@ -290,11 +309,22 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
 
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
+    Returns
+    -------
+    True if data was writtent to output path. False otherwise
+    (which can happen if no cell actually mapped to the taxonomy)
+
     Note
     ----
     Assumes that the leaf level of the tree lists the the names of
     cells that belong to a given cluster
     """
+
+    output_path = pathlib.Path(output_path)
 
     leaf_to_cells = taxonomy_tree.leaf_to_cells
 
@@ -310,7 +340,7 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
             if cell_set is None or cell_str in cell_set:
                 cell_name_to_cluster_name[cell_str] = cluster
 
-    precompute_summary_stats_from_h5ad_and_lookup(
+    was_written = precompute_summary_stats_from_h5ad_and_lookup(
         data_path_list=data_path_list,
         cell_name_to_cluster_name=cell_name_to_cluster_name,
         cluster_to_output_row=cluster_to_output_row,
@@ -320,12 +350,15 @@ def precompute_summary_stats_from_h5ad_list_and_tree(
         tmp_dir=tmp_dir,
         n_processors=n_processors,
         copy_data_over=copy_data_over,
-        layer=layer)
+        layer=layer,
+        gene_id_col=gene_id_col)
 
-    with h5py.File(output_path, 'a') as out_file:
-        out_file.create_dataset(
-            'taxonomy_tree',
-            data=taxonomy_tree.to_str().encode('utf-8'))
+    if was_written:
+        with h5py.File(output_path, 'a') as out_file:
+            out_file.create_dataset(
+                'taxonomy_tree',
+                data=taxonomy_tree.to_str().encode('utf-8'))
+    return was_written
 
 
 def precompute_summary_stats_from_h5ad_and_lookup(
@@ -338,7 +371,8 @@ def precompute_summary_stats_from_h5ad_and_lookup(
         tmp_dir=None,
         n_processors=3,
         copy_data_over=False,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
 
     """
     Precompute the summary stats used to identify marker genes
@@ -392,6 +426,15 @@ def precompute_summary_stats_from_h5ad_and_lookup(
 
         If a strong that does not contain '/', look for the layer
         in 'layers/{layer}'
+
+    gene_id_col:
+        the column of the var dataframe from which gene identifiers
+        are to be taken. If None, use the index of var.
+
+    Returns
+    -------
+    True if data was writtent to output path. False otherwise
+    (which can happen if no cell actually mapped to the taxonomy)
     """
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir)
 
@@ -402,7 +445,7 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             prefix='precomputation_data_buffer_')
 
     try:
-        _precompute_summary_stats_from_h5ad_and_lookup(
+        flag = _precompute_summary_stats_from_h5ad_and_lookup(
             data_path_list=data_path_list,
             cell_name_to_cluster_name=cell_name_to_cluster_name,
             cluster_to_output_row=cluster_to_output_row,
@@ -412,9 +455,12 @@ def precompute_summary_stats_from_h5ad_and_lookup(
             tmp_dir=tmp_dir,
             n_processors=n_processors,
             buffer_dir=buffer_dir,
-            layer=layer)
+            layer=layer,
+            gene_id_col=gene_id_col)
     finally:
         _clean_up(tmp_dir)
+
+    return flag
 
 
 def _precompute_summary_stats_from_h5ad_and_lookup(
@@ -427,7 +473,8 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         tmp_dir=None,
         n_processors=3,
         buffer_dir=None,
-        layer='X'):
+        layer='X',
+        gene_id_col=None):
     """
     If buffer_dir is not None, data is copied there before computatations
     are run (in case buffer_dir is on a faster file system than the data
@@ -469,17 +516,10 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         )
         csr_path_list.append(new_pth)
 
-    gene_names = None
-    for pth in csr_path_list:
-        these_genes = list(read_df_from_h5ad(pth, 'var').index.values)
-        if gene_names is None:
-            gene_names = these_genes
-        else:
-            if gene_names != these_genes:
-                raise RuntimeError(
-                    f"{pth}\nhas gene_names\n{these_genes}\n"
-                    f"which does not match\n{data_path_list[0]}\n"
-                    f"genes\n{gene_names}")
+    gene_names = get_gene_identifier_list(
+        h5ad_path_list=csr_path_list,
+        gene_id_col=gene_id_col
+    )
 
     n_clusters = len(cluster_to_output_row)
     n_genes = len(gene_names)
@@ -609,13 +649,6 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    _create_empty_stats_file(
-        output_path=output_path,
-        cluster_to_output_row=cluster_to_output_row,
-        n_clusters=n_clusters,
-        n_genes=n_genes,
-        col_names=gene_names)
-
     final_output = None
     for buffer_path in buffer_path_list:
         with h5py.File(buffer_path, 'r') as src:
@@ -631,12 +664,23 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
                 else:
                     final_output[k][:, :] += src[k][()]
 
+    if final_output is None:
+        return False
+
+    _create_empty_stats_file(
+        output_path=output_path,
+        cluster_to_output_row=cluster_to_output_row,
+        n_clusters=n_clusters,
+        n_genes=n_genes,
+        col_names=gene_names)
+
     with h5py.File(output_path, 'a') as out_file:
         for k in final_output.keys():
             if k == 'n_cells':
                 out_file[k][:] = final_output[k]
             else:
                 out_file[k][:, :] = final_output[k]
+    return True
 
 
 def _process_chunk_spec(

@@ -7,6 +7,8 @@ import shutil
 import tempfile
 import time
 
+import cell_type_mapper.utils.gene_utils as gene_utils
+
 from cell_type_mapper.utils.utils import (
     print_timing,
     _clean_up,
@@ -102,6 +104,12 @@ def find_markers_for_all_taxonomy_pairs_from_p_mask(
         gene_1 is the second best discrminator, and gene_101 is the worst
         discriminator
     """
+
+    # make sure to ignore genes whose name begins with `INVALID_MARKER`
+    if gene_list is None:
+        gene_list = gene_utils.get_valid_marker_genes_from_precomputed_stats(
+            precomputed_stats_path=precomputed_stats_path
+        )
 
     # if tmp_dir is specified, assume it is a faster drive
     # than where p-value-mask normally lives

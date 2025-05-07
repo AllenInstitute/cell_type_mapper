@@ -68,6 +68,17 @@ class QueryPathMixinForSearch(object):
         description="Path to the h5ad file containing the query "
         "dataset")
 
+    query_gene_id_col = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Column in the query h5ad file's var dataframe "
+            "where you can find the gene identifiers. "
+            "If None, use index of var."
+        )
+    )
+
 
 class QueryPathMixinForMarkers(object):
 
@@ -80,6 +91,17 @@ class QueryPathMixinForMarkers(object):
             "to assemble list of genes that are acceptable "
             "as markers."
         ))
+
+    query_gene_id_col = argschema.fields.String(
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Column in the query h5ad file's var dataframe "
+            "where you can find the gene identifiers. "
+            "If None, use index of var."
+        )
+    )
 
 
 class NProcessorsMixin(object):

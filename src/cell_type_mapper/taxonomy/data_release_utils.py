@@ -215,7 +215,7 @@ def get_label_to_name(
                     raise RuntimeError(
                         f"alias={alias} used more than once at level="
                         f"{level}\nvalues\n"
-                        f"{json.dumps(repeat_labels,indent=2)}")
+                        f"{json.dumps(repeat_labels, indent=2)}")
             used_aliases[level].add(alias)
             result[this_key] = alias
     return result

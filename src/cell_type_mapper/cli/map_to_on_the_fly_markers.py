@@ -138,13 +138,16 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
     def _run(self, tmp_dir, log):
 
         query_path = self.args['query_path']
+        query_gene_id_col = self.args['query_gene_id_col']
 
         if self.args['map_to_ensembl']:
             (new_gene_ids,
              _,
              gene_names_changed) = _get_query_gene_names(
-                                     query_gene_path=query_path,
-                                     map_to_ensembl=True)
+                         query_gene_path=query_path,
+                         map_to_ensembl=True,
+                         gene_id_col=query_gene_id_col
+             )
 
             if gene_names_changed:
 
@@ -169,6 +172,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                 )
 
                 query_path = new_query_path
+                query_gene_id_col = None
 
                 log.info(
                     "Copied query_path over, mapping genes to "
@@ -193,6 +197,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             'precomputed_path_list': ref_stats_list,
             'output_dir': reference_marker_dir,
             'query_path': query_path,
+            'query_gene_id_col': query_gene_id_col,
             'n_processors': self.args['n_processors'],
             'drop_level': self.args['drop_level'],
             'cloud_safe': self.args['cloud_safe']
@@ -227,6 +232,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             'tmp_dir': self.args['tmp_dir'],
             'output_path': query_marker_path,
             'query_path': query_path,
+            'query_gene_id_col': query_gene_id_col,
             'reference_marker_path_list': reference_marker_files
         }
 
@@ -260,6 +266,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
             mapping_config[k] = self.args[k]
 
         mapping_config['query_path'] = query_path
+        mapping_config['query_gene_id_col'] = query_gene_id_col
 
         mapping_runner = FromSpecifiedMarkersRunner(
             args=[],

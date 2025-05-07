@@ -442,7 +442,7 @@ def label_to_obs_fixture(
         this = {
             'cell_label': cell_label,
             'field0': f'f0_{i_cell}',
-            'field1': f'a{rng.integers(0,999)}'
+            'field1': f'a{rng.integers(0, 999)}'
         }
         lookup[cell_label] = this
     return lookup

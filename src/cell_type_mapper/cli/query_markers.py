@@ -3,15 +3,14 @@ import h5py
 import json
 import time
 
+import cell_type_mapper.utils.gene_utils as gene_utils
+
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
 from cell_type_mapper.utils.cli_utils import (
     config_from_args
 )
-
-from cell_type_mapper.utils.anndata_utils import (
-     read_df_from_h5ad)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_gene_lookup_from_ref_list)
@@ -33,11 +32,11 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
         t0 = time.time()
 
         if self.args['query_path'] is not None:
-            var = read_df_from_h5ad(
-                self.args['query_path'],
-                df_name='var')
-            query_gene_names = list(var.index.values)
-
+            query_gene_names = gene_utils.get_gene_identifier_list(
+                h5ad_path_list=[self.args['query_path']],
+                gene_id_col=self.args['query_gene_id_col'],
+                duplicate_prefix=gene_utils.invalid_precompute_prefix()
+            )
         else:
             # find all of the genes that exist in every reference marker
             # file
@@ -50,6 +49,13 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
                     query_gene_names = these
                 else:
                     query_gene_names = query_gene_names.intersection(these)
+
+        # remove any genes whose identifiers start with `INVALID_MARKER`;
+        # these will have been duplicate genes in the reference data
+        query_gene_names = [
+            _gene for _gene in query_gene_names
+            if not _gene.startswith(gene_utils.invalid_precompute_prefix())
+        ]
 
         n_per_utility_override = None
         if self.args['n_per_utility_override'] is not None:

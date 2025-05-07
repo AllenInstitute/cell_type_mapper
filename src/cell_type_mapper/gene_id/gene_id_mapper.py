@@ -139,7 +139,7 @@ class GeneIdMapper(object):
 
             if unmappable_genes > 0 and strict:
                 msg += "\nunmappable genes were\n"
-                msg += f"{json.dumps(bad_genes,indent=2)}"
+                msg += f"{json.dumps(bad_genes, indent=2)}"
                 if self.log is not None:
                     self.log.error(msg)
                 else:

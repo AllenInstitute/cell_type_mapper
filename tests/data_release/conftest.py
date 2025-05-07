@@ -151,8 +151,8 @@ def cell_metadata_fixture(
             cluster_name = cell_to_cluster_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
 
@@ -234,8 +234,8 @@ def incomplete_cell_metadata_fixture(
                 continue
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
 

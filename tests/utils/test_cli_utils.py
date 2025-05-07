@@ -9,7 +9,9 @@ import warnings
 from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
-from cell_type_mapper.utils.cli_utils import _get_query_gene_names
+from cell_type_mapper.utils.cli_utils import (
+     _get_query_gene_names
+)
 
 
 @pytest.mark.parametrize(

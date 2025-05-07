@@ -347,22 +347,14 @@ class TaxonomyTree(object):
         data['name_mapper'] = final_name_map
 
         # now add leaves (referring to them by their labels)
-        leaves = dict()
 
         if cell_metadata_path is not None:
-            cell_to_alias = get_cell_to_cluster_alias(
+            leaves = _get_leaves_from_csv(
                 cell_metadata_path=cell_metadata_path,
-                cell_to_cluster_path=cell_to_cluster_path)
-
-            for cell in cell_to_alias:
-                alias = cell_to_alias[cell]
-                leaf = alias_to_cluster_label[alias]
-                if leaf not in leaves:
-                    leaves[leaf] = []
-                leaves[leaf].append(cell)
-            for leaf in leaves:
-                leaves[leaf].sort()
+                cell_to_cluster_path=cell_to_cluster_path,
+                alias_to_cluster_label=alias_to_cluster_label)
         else:
+            leaves = dict()
             for parent in data[hierarchy[-2]].keys():
                 for child in data[hierarchy[-2]][parent]:
                     leaves[child] = []
@@ -864,3 +856,27 @@ class TaxonomyTree(object):
                 cell[parent_level] = new_data
 
         return assignments
+
+
+def _get_leaves_from_csv(
+        cell_metadata_path,
+        cell_to_cluster_path,
+        alias_to_cluster_label):
+    leaves = dict()
+
+    cell_to_alias = get_cell_to_cluster_alias(
+        cell_metadata_path=cell_metadata_path,
+        cell_to_cluster_path=cell_to_cluster_path)
+
+    for cell in cell_to_alias:
+        alias = cell_to_alias[cell]
+        if alias in alias_to_cluster_label:
+            leaf = alias_to_cluster_label[alias]
+            if leaf not in leaves:
+                leaves[leaf] = []
+            leaves[leaf].append(cell)
+
+    for leaf in leaves:
+        leaves[leaf].sort()
+
+    return leaves
