@@ -4,7 +4,8 @@ import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.gene_utils import (
-    mask_duplicate_gene_identifiers
+    mask_duplicate_gene_identifiers,
+    invalid_precompute_prefix
 )
 
 from cell_type_mapper.utils.h5_utils import (
@@ -296,7 +297,7 @@ def get_gene_identifier_list(
 
     gene_names = mask_duplicate_gene_identifiers(
         gene_identifier_list=gene_names,
-        mask_prefix='INVALID_MARKER',
+        mask_prefix=invalid_precompute_prefix(),
         log=None
     )
 

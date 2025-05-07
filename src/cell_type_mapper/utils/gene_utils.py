@@ -6,6 +6,14 @@ class DuplicateGeneIDWarning(UserWarning):
     pass
 
 
+def invalid_precompute_prefix():
+    """
+    Prefix for genes that are duplicated at precomputation
+    stage
+    """
+    return 'INVALID_MARKER'
+
+
 def mask_duplicate_gene_identifiers(
         gene_identifier_list,
         mask_prefix='DUPLICATE_GENE',
