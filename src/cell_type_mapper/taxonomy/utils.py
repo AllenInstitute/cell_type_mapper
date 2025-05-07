@@ -513,7 +513,8 @@ def prune_by_h5ad(
             break
         obs = read_df_from_h5ad(h5ad_path, df_name='obs')
         node_idx = np.unique(
-            [cell_to_idx[cell] for cell in obs.index.values]
+            [cell_to_idx[cell] for cell in obs.index.values
+             if cell in cell_to_idx]
         )
         node_flag[node_idx] = True
 
