@@ -486,3 +486,49 @@ def prune_tree(tree):
                     tree[parent_level].pop(parent_node)
                     keep_going = True
     return tree
+
+
+def prune_by_h5ad(
+        taxonomy_tree,
+        h5ad_list):
+    """
+    Take a taxonomy tree and a list of h5ad file.
+    Remove any leaf nodes from the tree that have no cells represented
+    in the h5ad files.
+    """
+    node_list = taxonomy_tree.nodes_at_level(taxonomy_tree.leaf_level)
+    node_flag = np.zeros(len(node_list), dtype=bool)
+    node_to_idx = {node: idx for idx, node in enumerate(node_list)}
+    cell_to_idx = dict()
+    for node in node_list:
+        for child in taxonomy_tree.children(
+                        level=taxonomy_tree.leaf_level,
+                        node=node):
+            cell_to_idx[child] = node_to_idx[node]
+
+    # mark as True any leaf nodes with cells in the h5ad files
+    novel = 0
+    for h5ad_path in h5ad_list:
+        if node_flag.sum() == len(node_flag):
+            break
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        for cell_id in obs.index.values:
+            if cell_id in cell_to_idx:
+                idx = cell_to_idx[cell_id]
+                if not node_flag[idx]:
+                    novel += 1
+                    node_flag[idx] = True
+                    if novel == len(node_list):
+                        break
+
+    # drop any nodes without cells represented in the h5ad files
+    if node_flag.sum() == len(node_list):
+        return taxonomy_tree
+
+    invalid = np.where(np.logical_not(node_flag))[0]
+    for idx in invalid:
+        taxonomy_tree = taxonomy_tree.drop_node(
+            level=taxonomy_tree.leaf_level,
+            node=node_list[idx]
+        )
+    return taxonomy_tree

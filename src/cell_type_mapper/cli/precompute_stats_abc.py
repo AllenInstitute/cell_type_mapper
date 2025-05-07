@@ -20,6 +20,8 @@ import pandas as pd
 import pathlib
 import time
 
+import cell_type_mapper.taxonomy.utils as taxonomy_utils
+
 from cell_type_mapper.schemas.precomputation_schema import (
     PrecomputedStatsABCSchema)
 
@@ -65,6 +67,14 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            cell_to_cluster_path=self.args['cell_to_cluster_path'],
            hierarchy=self.args['hierarchy'],
            do_pruning=self.args['do_pruning'])
+
+        if self.args['do_pruning']:
+            taxonomy_tree = taxonomy_utils.prune_by_h5ad(
+                taxonomy_tree=taxonomy_tree,
+                h5ad_list=self.args['h5ad_path_list']
+            )
+
+        print("CREATED TAXONOMY")
 
         cell_metadata = pd.read_csv(self.args['cell_metadata_path'])
         dataset_to_cell_set = dict()
