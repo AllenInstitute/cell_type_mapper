@@ -545,13 +545,13 @@ def test_get_gene_duplicated_identifier_list(
 
     expected = [
         'albert',
-        'INVALID_MARKER_1_0',
-        'INVALID_MARKER_0_0',
+        'INVALID_MARKER_jackie_0',
+        'INVALID_MARKER_fred_0',
         'tallulah',
-        'INVALID_MARKER_0_1',
-        'INVALID_MARKER_1_1',
+        'INVALID_MARKER_fred_1',
+        'INVALID_MARKER_jackie_1',
         'bob',
-        'INVALID_MARKER_1_2'
+        'INVALID_MARKER_jackie_2'
     ]
 
     var = pd.DataFrame(

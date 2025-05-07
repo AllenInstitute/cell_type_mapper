@@ -28,8 +28,8 @@ def test_mask_gene_id(use_log):
 
     with_dup = ['a', 'b', 'a', 'c', 'd', 'c', 'c', 'e']
     expected = [
-        'DUMMY_0_0', 'b', 'DUMMY_0_1', 'DUMMY_1_0',
-        'd', 'DUMMY_1_1', 'DUMMY_1_2', 'e'
+        'DUMMY_a_0', 'b', 'DUMMY_a_1', 'DUMMY_c_0',
+        'd', 'DUMMY_c_1', 'DUMMY_c_2', 'e'
     ]
 
     msg = "The following gene identifiers occurred more than once"

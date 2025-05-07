@@ -14,6 +14,14 @@ def invalid_precompute_prefix():
     return 'INVALID_MARKER'
 
 
+def invalid_query_prefix():
+    """
+    Prefix for genes that are duplicated at the mapping
+    stage
+    """
+    return 'DUPLICATED_QUERY_GENE'
+
+
 def mask_duplicate_gene_identifiers(
         gene_identifier_list,
         mask_prefix='DUPLICATE_GENE',
@@ -41,22 +49,18 @@ def mask_duplicate_gene_identifiers(
     contain nonsense.
     """
     unq, ct = np.unique(gene_identifier_list, return_counts=True)
-    duplicate_to_idx = dict()
-    idx_to_ct = dict()
-    idx = 0
+    duplicate_to_ct = dict()
     for unq_val, ct_val in zip(unq, ct):
         if ct_val == 1:
             continue
-        duplicate_to_idx[unq_val] = idx
-        idx_to_ct[idx] = 0
-        idx += 1
+        duplicate_to_ct[unq_val] = 0
 
-    if len(duplicate_to_idx) > 0:
+    if len(duplicate_to_ct) > 0:
         msg = (
             "The following gene identifiers occurred more than once "
             "in your data. They will be ignored: "
         )
-        msg += str(sorted(duplicate_to_idx.keys()))
+        msg += str(sorted(duplicate_to_ct.keys()))
         if log is not None:
             log.warn(msg)
         else:
@@ -67,13 +71,12 @@ def mask_duplicate_gene_identifiers(
 
     output = []
     for gene in gene_identifier_list:
-        if gene not in duplicate_to_idx:
+        if gene not in duplicate_to_ct:
             output.append(gene)
         else:
-            idx = duplicate_to_idx[gene]
-            ct = idx_to_ct[idx]
-            new_name = f'{mask_prefix}_{idx}_{ct}'
-            idx_to_ct[idx] += 1
+            ct = duplicate_to_ct[gene]
+            new_name = f'{mask_prefix}_{gene}_{ct}'
+            duplicate_to_ct[gene] += 1
             output.append(new_name)
     return output
 
