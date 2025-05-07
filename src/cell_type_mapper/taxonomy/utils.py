@@ -512,14 +512,10 @@ def prune_by_h5ad(
         if node_flag.sum() == len(node_flag):
             break
         obs = read_df_from_h5ad(h5ad_path, df_name='obs')
-        for cell_id in obs.index.values:
-            if cell_id in cell_to_idx:
-                idx = cell_to_idx[cell_id]
-                if not node_flag[idx]:
-                    novel += 1
-                    node_flag[idx] = True
-                    if novel == len(node_list):
-                        break
+        node_idx = np.unique(
+            [cell_to_idx[cell] for cell in obs.index.values]
+        )
+        node_flag[node_idx] = True
 
     # drop any nodes without cells represented in the h5ad files
     if node_flag.sum() == len(node_list):
