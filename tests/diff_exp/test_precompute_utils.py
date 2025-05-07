@@ -14,6 +14,10 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
+from cell_type_mapper.utils.gene_utils import (
+    DuplicateGeneIDWarning
+)
+
 from cell_type_mapper.diff_exp.precompute_utils import (
     run_leaf_census,
     merge_precompute_files,
@@ -522,3 +526,60 @@ def test_get_gene_identifier_list(
             h5ad_path_list=h5ad_path_list,
             gene_id_col=gene_id_col
         )
+
+
+@pytest.mark.parametrize('gene_id_col', [None, 'blah'])
+def test_get_gene_duplicated_identifier_list(
+        tmp_dir_fixture,
+        gene_id_col):
+
+    gene_names = [
+        'albert',
+        'jackie',
+        'fred',
+        'tallulah',
+        'fred',
+        'jackie',
+        'bob',
+        'jackie']
+
+    expected = [
+        'albert',
+        'INVALID_MARKER_1_0',
+        'INVALID_MARKER_0_0',
+        'tallulah',
+        'INVALID_MARKER_0_1',
+        'INVALID_MARKER_1_1',
+        'bob',
+        'INVALID_MARKER_1_2'
+    ]
+
+    var = pd.DataFrame(
+        [{'idx': ii**2, 'blah': gene_names[ii]}
+         for ii in range(len(gene_names))]
+    )
+
+    if gene_id_col is None:
+        var = var.set_index('blah')
+    else:
+        var = var.set_index('idx')
+
+    h5ad_path_list = []
+    for ii in range(3):
+        xx = np.random.random_sample((7, len(gene_names)))
+        aa = anndata.AnnData(X=xx, var=var)
+        pth = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad'
+        )
+        aa.write_h5ad(pth)
+        h5ad_path_list.append(pth)
+
+    msg = "The following gene identifiers occurred more than once"
+    with pytest.warns(DuplicateGeneIDWarning, match=msg):
+        actual = get_gene_identifier_list(
+            h5ad_path_list=h5ad_path_list,
+            gene_id_col=gene_id_col
+        )
+
+    assert actual == expected
