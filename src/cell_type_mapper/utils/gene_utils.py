@@ -1,3 +1,5 @@
+import h5py
+import json
 import numpy as np
 import warnings
 
@@ -138,3 +140,20 @@ def mask_duplicate_gene_identifiers(
             output.append(new_name)
     return output
 
+
+def get_valid_marker_genes_from_precomputed_stats(
+        precomputed_stats_path):
+    """
+    Read gene names from a precomputed_stats file.
+    Only return those whose identifiers do not begin
+    with the invalid marker prefix
+    """
+    with h5py.File(precomputed_stats_path, 'r') as src:
+        raw_gene_list = json.loads(
+            src['col_names'][()].decode('utf-8')
+        )
+    gene_list = [
+        _gene for _gene in raw_gene_list
+        if not _gene.startswith(invalid_precompute_prefix())
+    ]
+    return gene_list

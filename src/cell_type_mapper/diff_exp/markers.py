@@ -137,14 +137,9 @@ def find_markers_for_all_taxonomy_pairs(
 
     # make sure to ignore genes whose name begins with `INVALID_MARKER`
     if gene_list is None:
-        with h5py.File(precomputed_stats_path, 'r') as src:
-            raw_gene_list = json.loads(
-                src['col_names'][()].decode('utf-8')
-            )
-        gene_list = [
-            _gene for _gene in raw_gene_list
-            if not _gene.startswith(gene_utils.invalid_precompute_prefix())
-        ]
+        gene_list = gene_utils.get_valid_marker_genes_from_precomputed_stats(
+            precomputed_stats_path=precomputed_stats_path
+        )
 
     tmp_dir = tempfile.mkdtemp(dir=tmp_dir, prefix='find_markers_')
     tmp_dir = pathlib.Path(tmp_dir)
