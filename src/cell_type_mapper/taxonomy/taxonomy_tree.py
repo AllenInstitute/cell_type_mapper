@@ -919,9 +919,11 @@ def prune_by_h5ad(
     new_data = copy.deepcopy(taxonomy_tree._data)
 
     invalid = np.where(np.logical_not(node_flag))[0]
+    print(f'pruning {len(invalid)} of {len(node_list)} nodes')
     for idx in invalid:
         new_data[taxonomy_tree.leaf_level].pop(node_list[idx])
 
+    print('calling prune')
     new_data = prune_tree(new_data)
 
     return TaxonomyTree(data=new_data)
