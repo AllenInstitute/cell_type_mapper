@@ -98,7 +98,8 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 cell_set=cell_set,
                 n_processors=self.args['n_processors'],
                 tmp_dir=self.args['tmp_dir'],
-                layer=self.args['layer'])
+                layer=self.args['layer'],
+                gene_id_col=self.args['gene_id_col'])
 
             if was_written:
                 files_to_merge.append(output_path)

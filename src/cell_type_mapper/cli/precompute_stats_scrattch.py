@@ -44,7 +44,8 @@ class PrecomputationScrattchRunner(argschema.ArgSchemaParser):
             normalization=self.args['normalization'],
             tmp_dir=self.args['tmp_dir'],
             n_processors=self.args['n_processors'],
-            layer=self.args['layer'])
+            layer=self.args['layer'],
+            gene_id_col=self.args['gene_id_col'])
 
         metadata.update(
             get_execution_metadata(

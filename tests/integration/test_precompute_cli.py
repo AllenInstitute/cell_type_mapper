@@ -465,19 +465,34 @@ def x_fixture(
     return data
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
+def gene_id_col_fixture(request):
+    if not hasattr(request, 'param'):
+        return None
+    return request.param
+
+
+@pytest.fixture()
 def h5ad_path_list_fixture(
         cell_to_cluster_fixture,
         x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        gene_id_col_fixture):
     rng = np.random.default_rng(7612221)
     path_list = []
     n_cells = x_fixture.shape[0]
     n_genes = x_fixture.shape[1]
     var_data = [
-        {'gene_id': f'gene_{ii}', 'garbage': _create_word(rng)}
+        {
+            'gene_id': f'gene_{ii}',
+            'garbage': _create_word(rng),
+            'idx': f'x_{ii**2}'}
         for ii in range(n_genes)]
-    var = pd.DataFrame(var_data).set_index('gene_id')
+
+    if gene_id_col_fixture is None:
+        var = pd.DataFrame(var_data).set_index('gene_id')
+    else:
+        var = pd.DataFrame(var_data).set_index('idx')
 
     cell_name_list = list(cell_to_cluster_fixture.keys())
     cell_name_list.sort()
@@ -516,7 +531,7 @@ def h5ad_path_list_fixture(
     return path_list
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
 def h5ad_path_list_extra_cells_fixture(
         h5ad_path_list_fixture,
         tmp_dir_fixture):
@@ -549,6 +564,7 @@ def h5ad_path_list_extra_cells_fixture(
             X=new_x
         )
         final_a = anndata.concat([new_a, src])
+        final_a.var = src.var
         dst_path = mkstemp_clean(
             dir=dst_dir,
             suffix='.h5ad'
@@ -560,9 +576,15 @@ def h5ad_path_list_extra_cells_fixture(
 
 
 @pytest.mark.parametrize(
-    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster,extra_cells",
+    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster,extra_cells,"
+    "gene_id_col_fixture",
     itertools.product(
-        [True, False], [True, False], [True, False], [True, False])
+        [True, False],
+        [True, False],
+        [True, False],
+        [True, False],
+        [None, 'gene_id']),
+    indirect=["gene_id_col_fixture"]
     )
 def test_basic_precompute_cli(
         cell_metadata_fixture,
@@ -572,6 +594,7 @@ def test_basic_precompute_cli(
         h5ad_path_list_fixture,
         h5ad_path_list_extra_cells_fixture,
         x_fixture,
+        gene_id_col_fixture,
         cell_to_cluster_fixture,
         cell_to_dataset_fixture,
         dataset_list_fixture,
@@ -651,7 +674,8 @@ def test_basic_precompute_cli(
         'cluster_annotation_path': cluster_annotation_term_fixture,
         'cluster_membership_path': cluster_membership_fixture,
         'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
-        'split_by_dataset': split_by_dataset}
+        'split_by_dataset': split_by_dataset,
+        'gene_id_col': gene_id_col_fixture}
 
     runner = PrecomputationABCRunner(
         args=[],
@@ -800,7 +824,7 @@ def test_basic_precompute_cli(
                         rtol=1.0e-6)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
 def precomputed_stats_path_fixture(
         h5ad_path_list_fixture,
         cell_metadata_fixture,
