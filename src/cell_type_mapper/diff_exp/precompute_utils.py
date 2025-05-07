@@ -3,6 +3,10 @@ import json
 import numpy as np
 import pathlib
 
+from cell_type_mapper.utils.gene_utils import (
+    mask_duplicate_gene_identifiers
+)
+
 from cell_type_mapper.utils.h5_utils import (
     copy_h5_excluding_data)
 
@@ -289,4 +293,11 @@ def get_gene_identifier_list(
                     f"{pth}\nhas gene_names\n{these_genes}\n"
                     f"which does not match\n{h5ad_path_list[0]}\n"
                     f"genes\n{gene_names}")
+
+    gene_names = mask_duplicate_gene_identifiers(
+        gene_identifier_list=gene_names,
+        mask_prefix='INVALID_MARKER',
+        log=None
+    )
+
     return gene_names
