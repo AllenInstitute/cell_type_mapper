@@ -33,6 +33,10 @@ from cell_type_mapper.utils.stats_utils import (
 from cell_type_mapper.diff_exp.precompute import (
     _create_empty_stats_file)
 
+from cell_type_mapper.diff_exp.precompute_utils import (
+    get_gene_identifier_list
+)
+
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
@@ -512,22 +516,10 @@ def _precompute_summary_stats_from_h5ad_and_lookup(
         )
         csr_path_list.append(new_pth)
 
-    gene_names = None
-    for pth in csr_path_list:
-        var = read_df_from_h5ad(pth, 'var')
-        if gene_id_col is None:
-            these_genes = list(var.index.values)
-        else:
-            these_genes = list(var[gene_id_col].values)
-
-        if gene_names is None:
-            gene_names = these_genes
-        else:
-            if gene_names != these_genes:
-                raise RuntimeError(
-                    f"{pth}\nhas gene_names\n{these_genes}\n"
-                    f"which does not match\n{data_path_list[0]}\n"
-                    f"genes\n{gene_names}")
+    gene_names = get_gene_identifier_list(
+        h5ad_path_list=csr_path_list,
+        gene_id_col=gene_id_col
+    )
 
     n_clusters = len(cluster_to_output_row)
     n_genes = len(gene_names)

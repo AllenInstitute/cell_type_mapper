@@ -6,6 +6,10 @@ import pathlib
 from cell_type_mapper.utils.h5_utils import (
     copy_h5_excluding_data)
 
+from cell_type_mapper.utils.anndata_utils import (
+    read_df_from_h5ad
+)
+
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
@@ -243,3 +247,46 @@ def drop_nodes_from_precomputed_stats(
                     src_idx = src_cluster_to_idx[leaf]
                     dst_idx = new_cluster_to_idx[leaf]
                     dst_data[dst_idx, :] = src_data[src_idx, :]
+
+
+def get_gene_identifier_list(
+        h5ad_path_list,
+        gene_id_col):
+    """
+    Get list of gene identifiers from a list of h5ad files.
+
+    Parameters
+    ----------
+    h5ad_path_list:
+        list of h5ad files to extract gene identifiers from
+    gene_id_col:
+        column in var from which to get gene identifiers.
+        If None, use the index of var
+
+    Returns
+    -------
+    list of gene identifiers
+
+    Notes
+    -----
+    will raise an exception of the h5ad files give different
+    results for gene name list
+    """
+    gene_names = None
+    for pth in h5ad_path_list:
+        var = read_df_from_h5ad(pth, 'var')
+        if gene_id_col is None:
+            these_genes = list(var.index.values)
+        else:
+            these_genes = list(var[gene_id_col].values)
+
+        if gene_names is None:
+            gene_names = these_genes
+        else:
+            if gene_names != these_genes:
+                raise RuntimeError(
+                    "Inconsistent gene names list\n"
+                    f"{pth}\nhas gene_names\n{these_genes}\n"
+                    f"which does not match\n{h5ad_path_list[0]}\n"
+                    f"genes\n{gene_names}")
+    return gene_names

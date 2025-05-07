@@ -17,7 +17,8 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
 from cell_type_mapper.diff_exp.precompute_utils import (
     run_leaf_census,
     merge_precompute_files,
-    drop_nodes_from_precomputed_stats)
+    drop_nodes_from_precomputed_stats,
+    get_gene_identifier_list)
 
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad)
@@ -460,3 +461,64 @@ def test_drop_node_from_precompute(
                         atol=0.0,
                         rtol=1.0e-6
                     )
+
+
+@pytest.mark.parametrize('gene_id_col', [None, 'blah'])
+def test_get_gene_identifier_list(
+        tmp_dir_fixture,
+        gene_id_col):
+
+    gene_names = ['albert', 'jackie', 'tallulah', 'fred']
+    var = pd.DataFrame(
+        [{'idx': ii**2, 'blah': gene_names[ii]}
+         for ii in range(len(gene_names))]
+    )
+
+    if gene_id_col is None:
+        var = var.set_index('blah')
+    else:
+        var = var.set_index('idx')
+
+    h5ad_path_list = []
+    for ii in range(3):
+        xx = np.random.random_sample((7, len(gene_names)))
+        aa = anndata.AnnData(X=xx, var=var)
+        pth = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad'
+        )
+        aa.write_h5ad(pth)
+        h5ad_path_list.append(pth)
+
+    actual = get_gene_identifier_list(
+        h5ad_path_list=h5ad_path_list,
+        gene_id_col=gene_id_col
+    )
+    assert actual == gene_names
+
+    # test case where the h5ad files do not have the
+    # same gene name list
+    bad_var = pd.DataFrame(
+        [{'idx': ii**2, 'blah': f'g_{ii}'}
+         for ii in range(len(gene_names))]
+    )
+
+    if gene_id_col is None:
+        bad_var = bad_var.set_index('blah')
+    else:
+        bad_var = bad_var.set_index('idx')
+
+    bad_pth = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad'
+    )
+    xx = np.random.random_sample((4, len(gene_names)))
+    aa = anndata.AnnData(X=xx, var=bad_var)
+    aa.write_h5ad(bad_pth)
+    h5ad_path_list.append(bad_pth)
+    msg = "Inconsistent gene names list"
+    with pytest.raises(RuntimeError, match=msg):
+        get_gene_identifier_list(
+            h5ad_path_list=h5ad_path_list,
+            gene_id_col=gene_id_col
+        )
