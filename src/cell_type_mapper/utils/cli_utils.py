@@ -2,7 +2,6 @@ import copy
 import numpy as np
 import pathlib
 import time
-import warnings
 
 import cell_type_mapper.utils.gene_utils as gene_utils
 
@@ -21,9 +20,6 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
-
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
 
 
 def _check_config(config_dict, config_name, key_name, log):
@@ -90,6 +86,7 @@ def _get_query_gene_names(
                     break
 
     return result, n_unmapped, was_changed
+
 
 def create_precomputed_stats_file(
         precomputed_config,

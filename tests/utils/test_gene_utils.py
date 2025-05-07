@@ -5,14 +5,13 @@ import numpy as np
 import pandas as pd
 
 from cell_type_mapper.utils.utils import (
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean)
 
 from cell_type_mapper.cli.cli_log import (
     CommandLog
 )
 
-from cell_type_mapper.utils.gene_utils import(
+from cell_type_mapper.utils.gene_utils import (
      mask_duplicate_gene_identifiers,
      get_gene_identifier_list,
      DuplicateGeneIDWarning

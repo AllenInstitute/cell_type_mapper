@@ -6,10 +6,6 @@ import pathlib
 from cell_type_mapper.utils.h5_utils import (
     copy_h5_excluding_data)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad
-)
-
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 

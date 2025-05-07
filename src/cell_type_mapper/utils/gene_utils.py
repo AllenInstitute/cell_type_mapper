@@ -26,7 +26,6 @@ def invalid_query_prefix():
     return 'DUPLICATED_QUERY_GENE'
 
 
-
 def get_gene_identifier_list(
         h5ad_path_list,
         gene_id_col,

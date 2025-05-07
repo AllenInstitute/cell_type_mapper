@@ -14,9 +14,6 @@ from cell_type_mapper.utils.cli_utils import (
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
 from cell_type_mapper.diff_exp.markers import (
     find_markers_for_all_taxonomy_pairs)
 

@@ -12,9 +12,6 @@ from cell_type_mapper.utils.cli_utils import (
     config_from_args
 )
 
-from cell_type_mapper.utils.anndata_utils import (
-     read_df_from_h5ad)
-
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_gene_lookup_from_ref_list)
 
