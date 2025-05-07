@@ -355,6 +355,35 @@ def raw_query_h5ad_fixture(
 
 
 @pytest.fixture(scope='module')
+def raw_query_h5ad_alt_gene_col_fixture(
+        raw_query_h5ad_fixture,
+        tmp_dir_fixture):
+    """
+    The same data as in raw_query_h5ad_fixture,
+    but the gene identifiers are in a different column
+    in var (not the index).
+    """
+    src = anndata.read_h5ad(
+        raw_query_h5ad_fixture).to_memory()
+    src.file.close()
+    new_var = src.var.reset_index()
+    new_var = new_var.set_index('garbage')
+
+    new_a = anndata.AnnData(
+        obs=src.obs,
+        X=src.X,
+        var=new_var
+    )
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='alt_gene_col_',
+        suffix='.h5ad'
+    )
+    new_a.write_h5ad(dst_path)
+    return dst_path
+
+
+@pytest.fixture(scope='module')
 def precomputed_path_fixture(
         tmp_dir_fixture,
         raw_reference_h5ad_fixture,

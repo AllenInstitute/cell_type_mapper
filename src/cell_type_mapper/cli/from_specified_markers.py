@@ -343,7 +343,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
      n_unmapped,
      _) = _get_query_gene_names(
         query_loc,
-        map_to_ensembl=config['map_to_ensembl'])
+        map_to_ensembl=config['map_to_ensembl'],
+        gene_id_col=config['query_gene_id_col'])
 
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir,

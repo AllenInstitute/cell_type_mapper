@@ -37,7 +37,7 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
         if self.args['query_path'] is not None:
             query_gene_names = gene_utils.get_gene_identifier_list(
                 h5ad_path_list=[self.args['query_path']],
-                gene_id_col=None,
+                gene_id_col=self.args['query_gene_id_col'],
                 duplicate_prefix=gene_utils.invalid_precompute_prefix()
             )
         else:

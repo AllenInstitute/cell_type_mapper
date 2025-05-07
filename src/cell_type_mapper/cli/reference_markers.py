@@ -59,7 +59,7 @@ class ReferenceMarkerRunner(argschema.ArgSchemaParser):
         if self.args['query_path'] is not None:
             gene_list = gene_utils.get_gene_identifier_list(
                 h5ad_path_list=[self.args['query_path']],
-                gene_id_col=None,
+                gene_id_col=self.args['query_gene_id_col'],
                 duplicate_prefix=gene_utils.invalid_precompute_prefix()
             )
 

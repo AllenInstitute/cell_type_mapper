@@ -1457,3 +1457,71 @@ def test_mapping_with_nan_expression(
             if msg in line:
                 found_warnings.add(msg)
     assert len(found_warnings) == len(expected_warnings)
+
+
+def test_mapping_from_alt_gene_col(
+        ab_initio_assignment_fixture,
+        raw_query_cell_x_gene_fixture,
+        raw_query_h5ad_fixture,
+        raw_query_h5ad_alt_gene_col_fixture,
+        precomputed_stats_fixture,
+        tmp_dir_fixture):
+    """
+    Map the same data twice (changing where the gene identifier
+    is stored in var). Make sure mapping results are equivalent
+    """
+
+    this_tmp = tempfile.mkdtemp(dir=tmp_dir_fixture)
+    ab_initio_config = ab_initio_assignment_fixture['ab_initio_config']
+
+    baseline_dst = mkstemp_clean(
+        dir=this_tmp,
+        prefix='baseline_',
+        suffix='.json'
+    )
+
+    baseline_config = dict()
+    baseline_config['tmp_dir'] = this_tmp
+    baseline_config['query_path'] = str(raw_query_h5ad_fixture)
+    baseline_config['query_gene_id_col'] = None
+    baseline_config['precomputed_stats'] = {'path': precomputed_stats_fixture}
+    baseline_config['type_assignment'] = copy.deepcopy(
+        ab_initio_config['type_assignment'])
+    baseline_config['query_markers'] = {
+        'serialized_lookup': ab_initio_assignment_fixture['markers']}
+
+    baseline_config['extended_result_path'] = baseline_dst
+    baseline_config['csv_result_path'] = None
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=baseline_config)
+        runner.run()
+
+    test_config = copy.deepcopy(baseline_config)
+    test_dst = mkstemp_clean(
+        dir=this_tmp,
+        prefix='test_',
+        suffix='.json'
+    )
+
+    test_config['query_path'] = str(raw_query_h5ad_alt_gene_col_fixture)
+    test_config['query_gene_id_col'] = 'gene_name'
+    test_config['extended_result_path'] = test_dst
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=test_config)
+        runner.run()
+
+    with open(baseline_dst, 'rb') as src:
+        baseline = json.load(src)
+    with open(test_dst, 'rb') as src:
+        test = json.load(src)
+    assert test['results'] == baseline['results']

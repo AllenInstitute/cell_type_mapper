@@ -1280,3 +1280,98 @@ def test_OTF_map_to_ensembl(
         final_md5.update(src.read())
 
     assert final_md5.hexdigest() == baseline_md5.hexdigest()
+
+
+def test_OTF_alt_gene_id_col(
+        tmp_dir_fixture,
+        human_gene_data_fixture,
+        baseline_mapping_fixture):
+    """
+    Test that OTF mapper can handle data with the query
+    gene IDs in a different column
+    """
+
+    density = 'csr'
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    precomputed_path = human_gene_data_fixture['precompute']
+    query_path = human_gene_data_fixture[density]
+
+    alt_col_query = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad'
+    )
+
+    src_var = read_df_from_h5ad(query_path, df_name='var')
+    new_var = [
+        {'gene_id': g, 'idx': ii*3}
+        for ii, g in enumerate(src_var.index.values)
+    ]
+    new_var = pd.DataFrame(new_var).set_index('idx')
+    src = anndata.read_h5ad(query_path).to_memory()
+    new_a = anndata.AnnData(
+        obs=src.obs,
+        X=src.X,
+        var=new_var
+    )
+    new_a.write_h5ad(alt_col_query)
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='otf_map_to_ensembl_',
+        suffix='.json'
+    )
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='otf_map_to_ensembl_test_',
+        suffix='.json'
+    )
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precomputed_path)},
+        'drop_level': None,
+        'query_path': str(query_path),
+        'query_gene_id_col': None,
+        'log_path': None,
+        'map_to_ensembl': True,
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'rng_seed': 777,
+            'bootstrap_factor': 0.5,
+            'chunk_size': 50},
+        'extended_result_path': baseline_path,
+        'csv_result_path': None,
+        'summary_metadata_path': None,
+        'cloud_safe': True,
+        'nodes_to_drop': None
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    test_config = copy.deepcopy(config)
+    test_config['query_path'] = alt_col_query
+    test_config['query_gene_id_col'] = 'gene_id'
+    test_config['extended_result_path'] = test_path
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=test_config)
+        runner.run()
+
+    with open(baseline_path, 'rb') as src:
+        baseline = json.load(src)
+    with open(test_path, 'rb') as src:
+        test = json.load(src)
+    assert baseline['results'] == test['results']
+    assert baseline['config'] != test['config']
