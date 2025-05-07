@@ -20,8 +20,6 @@ import pandas as pd
 import pathlib
 import time
 
-import cell_type_mapper.taxonomy.utils as taxonomy_utils
-
 from cell_type_mapper.schemas.precomputation_schema import (
     PrecomputedStatsABCSchema)
 
@@ -29,7 +27,9 @@ from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
+    TaxonomyTree,
+    prune_by_h5ad
+)
 
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad_list_and_tree)
@@ -69,7 +69,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            do_pruning=self.args['do_pruning'])
 
         if self.args['do_pruning']:
-            taxonomy_tree = taxonomy_utils.prune_by_h5ad(
+            taxonomy_tree = prune_by_h5ad(
                 taxonomy_tree=taxonomy_tree,
                 h5ad_list=self.args['h5ad_path_list']
             )
