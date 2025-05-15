@@ -289,13 +289,13 @@ def aggregate_stats(
             sumsq_arr += these_stats['sumsq']
 
         if 'gt0' in these_stats:
-            gt0 += these_stats['gt0']
+            gt0 += these_stats['gt0'].astype(int)
 
         if 'gt1' in these_stats:
-            gt1 += these_stats['gt1']
+            gt1 += these_stats['gt1'].astype(int)
 
         if 'ge1' in these_stats:
-            ge1 += these_stats['ge1']
+            ge1 += these_stats['ge1'].astype(int)
         else:
             has_ge1 = False
 
