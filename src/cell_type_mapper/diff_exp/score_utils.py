@@ -190,6 +190,9 @@ def read_raw_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
+        # cast indexes to integers
+        row_lookup = {k: int(row_lookup[k]) for k in row_lookup}
+
         all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
         all_keys = list(all_keys.intersection(set(in_file.keys())))
 
