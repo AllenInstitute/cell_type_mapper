@@ -2,6 +2,7 @@ import pytest
 
 import copy
 import numpy as np
+import pandas as pd
 import pathlib
 import shutil
 import tempfile
@@ -150,10 +151,50 @@ def cell_metadata_fixture(
             cluster_name = cell_to_cluster_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
+
+
+@pytest.fixture(scope='module')
+def cell_to_cluster_membership_fixture(
+        tmp_dir_fixture,
+        cell_metadata_fixture):
+    """
+    Break the cell_metadata_fixture file up so that cluster_alias
+    is actually recorded in a cell_to_cluster_membership file
+    (along with some extra cells that aren't in cell_metadata)
+
+    Return the path to the new cell_metadata.csv and the
+    cell_to_cluster_membership.csv
+    """
+    new_cell_metadata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_',
+        suffix='.csv'
+    )
+    cell_to_cluster_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_to_cluster_membership_',
+        suffix='.csv'
+    )
+    src = pd.read_csv(cell_metadata_fixture)
+    cell_to_cluster = src[
+        ['cell_label', 'cluster_alias']
+    ].to_dict(orient='records')
+    cell_to_cluster.append(
+            {'cell_label': 'not_really_a_cell',
+             'cluster_alias': 'bogus_alias'}
+    )
+    cell_to_cluster = pd.DataFrame(cell_to_cluster)
+    cell_to_cluster.to_csv(cell_to_cluster_path)
+    new_cell_metadata = src[['cell_label', 'nonsense', 'more_nonsense']]
+    new_cell_metadata.to_csv(new_cell_metadata_path)
+    return {
+        'cell_metadata': new_cell_metadata_path,
+        'cell_to_cluster': cell_to_cluster_path
+    }
 
 
 @pytest.fixture(scope='module')
@@ -193,8 +234,8 @@ def incomplete_cell_metadata_fixture(
                 continue
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()}\n")
     return pathlib.Path(tmp_path)
 

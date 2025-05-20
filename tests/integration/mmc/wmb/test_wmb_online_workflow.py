@@ -552,7 +552,7 @@ def test_online_workflow_WMB_perfect_csvs(
         for ii in range(n_cells):
             dst.write(f'cell{ii}')
             for jj in range(len(chosen_markers)):
-                dst.write(f',{rng.integers(0,10)}')
+                dst.write(f',{rng.integers(0, 10)}')
             dst.write('\n')
     run_pipeline(
         query_path=csv_path,

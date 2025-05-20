@@ -11,15 +11,13 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.utils.csc_to_csr import (
-    csc_to_csr_on_disk)
-
 from cell_type_mapper.utils.sparse_utils import (
     load_csr,
     _load_disjoint_csr)
 
 from cell_type_mapper.utils.anndata_utils import (
-    infer_attrs
+    infer_attrs,
+    pivot_sparse_h5ad
 )
 
 
@@ -85,8 +83,11 @@ class AnnDataRowIterator(object):
     log:
         an optional CommandLog for tracking warnings during CLI runs
     max_gb:
-        maximum number of gigabytes to use (approximate) when converting
-        CSC matrix to CSR (if necessary)
+        maximum number of gigabytes to use (approximate)
+        when converting CSC matrix to CSR (if necessary)
+    n_processors:
+        number of processors to use when converting CSC matrix to CSR
+        matrix
     """
 
     def __init__(
@@ -97,7 +98,8 @@ class AnnDataRowIterator(object):
             tmp_dir=None,
             log=None,
             max_gb=10,
-            keep_open=True):
+            keep_open=True,
+            n_processors=4):
 
         if layer == 'X':
             self._layer = layer
@@ -112,6 +114,7 @@ class AnnDataRowIterator(object):
         self.tmp_dir = None
 
         self.max_gb = max_gb
+        self.n_processors = n_processors
         h5ad_path = pathlib.Path(h5ad_path)
         if not h5ad_path.is_file():
             raise RuntimeError(
@@ -264,19 +267,23 @@ class AnnDataRowIterator(object):
                 print(msg)
 
             self.n_rows = array_shape[0]
-            with h5py.File(h5ad_path, 'r', swmr=True) as src:
-                csc_to_csr_on_disk(
-                    csc_group=src[self.layer],
-                    csr_path=self.tmp_path,
-                    array_shape=array_shape,
-                    max_gb=0.8*self.max_gb)
+            pivot_sparse_h5ad(
+                src_path=h5ad_path,
+                dst_path=self.tmp_path,
+                tmp_dir=self.tmp_dir,
+                n_processors=self.n_processors,
+                compression=False,
+                layer=self.layer,
+                max_gb=self.max_gb
+            )
 
             self._iterator_type = 'CSRRow'
             self._chunk_iterator = CSRRowIterator(
                 h5_path=self.tmp_path,
                 row_chunk_size=row_chunk_size,
                 array_shape=array_shape,
-                keep_open=keep_open)
+                keep_open=keep_open,
+                h5_group=self.layer)
 
             duration = time.time()-t0
             if self.log is not None:

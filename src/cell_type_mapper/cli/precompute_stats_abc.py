@@ -27,7 +27,9 @@ from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
-    TaxonomyTree)
+    TaxonomyTree,
+    prune_by_h5ad
+)
 
 from cell_type_mapper.diff_exp.precompute_from_anndata import (
     precompute_summary_stats_from_h5ad_list_and_tree)
@@ -62,8 +64,17 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
            cell_metadata_path=self.args['cell_metadata_path'],
            cluster_annotation_path=self.args['cluster_annotation_path'],
            cluster_membership_path=self.args['cluster_membership_path'],
+           cell_to_cluster_path=self.args['cell_to_cluster_path'],
            hierarchy=self.args['hierarchy'],
            do_pruning=self.args['do_pruning'])
+
+        if self.args['do_pruning']:
+            taxonomy_tree = prune_by_h5ad(
+                taxonomy_tree=taxonomy_tree,
+                h5ad_list=self.args['h5ad_path_list']
+            )
+
+        print("CREATED TAXONOMY")
 
         cell_metadata = pd.read_csv(self.args['cell_metadata_path'])
         dataset_to_cell_set = dict()
@@ -82,13 +93,13 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 continue
 
             output_path = dataset_to_output[dataset]
-            files_to_merge.append(output_path)
             print(f'writing {output_path} from dataset {dataset}')
             if dataset in dataset_to_cell_set:
                 cell_set = dataset_to_cell_set[dataset]
             else:
                 cell_set = None
-            precompute_summary_stats_from_h5ad_list_and_tree(
+
+            was_written = precompute_summary_stats_from_h5ad_list_and_tree(
                 data_path_list=self.args['h5ad_path_list'],
                 taxonomy_tree=taxonomy_tree,
                 rows_at_a_time=10000,
@@ -97,19 +108,23 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
                 cell_set=cell_set,
                 n_processors=self.args['n_processors'],
                 tmp_dir=self.args['tmp_dir'],
-                layer=self.args['layer'])
+                layer=self.args['layer'],
+                gene_id_col=self.args['gene_id_col'])
 
-            metadata = copy.deepcopy(parent_metadata)
-            metadata['dataset'] = dataset
-            metadata.update(
-                get_execution_metadata(
-                    module_file=__file__,
-                    t0=local_t0))
+            if was_written:
+                files_to_merge.append(output_path)
+                metadata = copy.deepcopy(parent_metadata)
+                metadata['dataset'] = dataset
+                metadata.update(
+                    get_execution_metadata(
+                        module_file=__file__,
+                        t0=local_t0))
 
-            with h5py.File(output_path, 'a') as out_file:
-                out_file.create_dataset(
-                    'metadata',
-                    data=json.dumps(metadata).encode('utf-8'))
+                with h5py.File(output_path, 'a') as out_file:
+                    out_file.create_dataset(
+                        'metadata',
+                        data=json.dumps(metadata).encode('utf-8'))
+
             dur = time.time()-t0
             print(f'completed {dataset} after {dur:.2e} seconds')
 
@@ -201,6 +216,7 @@ class PrecomputationABCRunner(argschema.ArgSchemaParser):
 
             with open(output_path, 'wb') as dst:
                 dst.write(b'gar')
+            output_path.unlink()
 
         return final_output_lookup
 

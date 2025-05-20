@@ -190,7 +190,8 @@ def create_raw_h5ad(
         obs,
         raw_cell_by_gene,
         tmp_dir,
-        config):
+        config,
+        gene_id_col):
 
     n_cells = len(raw_cell_by_gene)
     k = list(raw_cell_by_gene.keys())[0]
@@ -210,8 +211,13 @@ def create_raw_h5ad(
         suffix='.h5ad')
 
     var = pd.DataFrame(
-        [{'gene': f'g_{ii}'}
-         for ii in range(n_genes)]).set_index('gene')
+        [{'gene': f'g_{ii}', 'idx': ii**2}
+         for ii in range(n_genes)])
+
+    if gene_id_col is None:
+        var = var.set_index('gene')
+    else:
+        var = var.set_index('idx')
 
     if config['layer'] == 'X':
         xx = x
@@ -260,7 +266,8 @@ def create_log2_h5ad(
         obs,
         log2_cell_by_gene,
         tmp_dir,
-        config):
+        config,
+        gene_id_col):
 
     n_cells = len(log2_cell_by_gene)
     k = list(log2_cell_by_gene.keys())[0]
@@ -280,8 +287,13 @@ def create_log2_h5ad(
         suffix='.h5ad')
 
     var = pd.DataFrame(
-        [{'gene': f'g_{ii}'}
-         for ii in range(n_genes)]).set_index('gene')
+        [{'gene': f'g_{ii}', 'idx': ii**2}
+         for ii in range(n_genes)])
+
+    if gene_id_col is None:
+        var = var.set_index('gene')
+    else:
+        var = var.set_index('idx')
 
     if config['layer'] == 'X':
         xx = x
@@ -311,7 +323,14 @@ def create_log2_h5ad(
     return h5ad_path, config
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture()
+def gene_id_col_fixture(request):
+    if not hasattr(request, 'param'):
+        return None
+    return request.param
+
+
+@pytest.fixture
 def h5ad_path_fixture(
         obs_fixture,
         log2_cell_by_gene_fixture,
@@ -319,7 +338,8 @@ def h5ad_path_fixture(
         tmp_dir_fixture,
         layer_fixture,
         density_fixture,
-        normalization_fixture):
+        normalization_fixture,
+        gene_id_col_fixture):
 
     config = {
         'layer': layer_fixture,
@@ -332,14 +352,16 @@ def h5ad_path_fixture(
             obs=obs_fixture,
             raw_cell_by_gene=raw_cell_by_gene_fixture,
             tmp_dir=tmp_dir_fixture,
-            config=config
+            config=config,
+            gene_id_col=gene_id_col_fixture
         )
     elif config['normalization'] == 'log2CPM':
         return create_log2_h5ad(
             obs=obs_fixture,
             log2_cell_by_gene=log2_cell_by_gene_fixture,
             tmp_dir=tmp_dir_fixture,
-            config=config
+            config=config,
+            gene_id_col=gene_id_col_fixture
         )
     else:
         raise RuntimeError(
@@ -348,20 +370,27 @@ def h5ad_path_fixture(
 
 
 @pytest.mark.parametrize(
-        ' n_processors, density_fixture, layer_fixture, normalization_fixture',
+        ' n_processors, density_fixture, layer_fixture, '
+        'normalization_fixture, gene_id_col_fixture',
         itertools.product(
             (1, 3),
             ('csc', 'csr', 'dense'),
             ('X', 'raw', 'dummy'),
-            ('raw', 'log2CPM')
+            ('raw', 'log2CPM'),
+            (None, 'gene')
         ),
-        indirect=['density_fixture', 'layer_fixture', 'normalization_fixture'])
+        indirect=[
+            'density_fixture',
+            'layer_fixture',
+            'normalization_fixture',
+            'gene_id_col_fixture'])
 def test_precompute_scrattch_cli(
         taxonomy_fixture,
         cluster_stats_fixture,
         n_processors,
         tmp_dir_fixture,
-        h5ad_path_fixture):
+        h5ad_path_fixture,
+        gene_id_col_fixture):
 
     input_path = h5ad_path_fixture[0]
     input_config = h5ad_path_fixture[1]
@@ -384,7 +413,8 @@ def test_precompute_scrattch_cli(
         'output_path': output_path,
         'hierarchy': ['class', 'subclass', 'cluster'],
         'clobber': True,
-        'layer': layer
+        'layer': layer,
+        'gene_id_col': gene_id_col_fixture
     }
 
     runner = PrecomputationScrattchRunner(
@@ -397,7 +427,9 @@ def test_precompute_scrattch_cli(
     assert actual_path.is_file()
 
     src = anndata.read_h5ad(input_path, backed='r')
-    gene_names = src.var.index.values
+    gene_names = [
+        f'g_{ii}' for ii in range(src.shape[1])
+    ]
 
     with h5py.File(actual_path, 'r') as src:
         assert 'metadata' in src

@@ -115,7 +115,7 @@ def h5ad_fixture(
     for i_cell in range(x_fixture.shape[0]):
         this = {'cell_id': f'c_{i_cell}'}
         if i_cell < 100:
-            cluster = f'clus_{i_cell%14}'
+            cluster = f'clus_{i_cell % 14}'
         else:
             cluster = rng.choice(cluster_list)
         parents = cluster_to_parent_fixture[cluster]

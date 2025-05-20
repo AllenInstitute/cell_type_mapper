@@ -205,17 +205,19 @@ def test_blob_to_df(results_fixture, check_consistency):
 
 
 @pytest.mark.parametrize(
-    'with_metadata,check_consistency',
+    'with_metadata,check_consistency,rows_at_a_time',
     itertools.product(
         [True, False],
-        [True, False]
+        [True, False],
+        [None, 1]
     )
 )
 def test_blob_to_csv(
         tmp_dir_fixture,
         with_metadata,
         results_fixture,
-        check_consistency):
+        check_consistency,
+        rows_at_a_time):
 
     class DummyTree(object):
         hierarchy = ['level1', 'level3', 'level7']
@@ -250,7 +252,8 @@ def test_blob_to_csv(
         metadata_path=metadata_path,
         check_consistency=check_consistency,
         confidence_key='bootstrapping_probability',
-        confidence_label='bootstrapping_probability')
+        confidence_label='bootstrapping_probability',
+        rows_at_a_time=rows_at_a_time)
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()
@@ -311,7 +314,8 @@ def test_blob_to_csv(
         output_path=csv_path,
         metadata_path=metadata_path,
         confidence_key='corr',
-        confidence_label='number')
+        confidence_label='number',
+        rows_at_a_time=rows_at_a_time)
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()
@@ -339,11 +343,18 @@ def test_blob_to_csv(
     assert actual_lines[4+n_offset] == cell1
 
 
-@pytest.mark.parametrize('with_metadata', [True, False])
+@pytest.mark.parametrize(
+    'with_metadata,rows_at_a_time',
+    itertools.product(
+        [True, False],
+        [None, 1]
+    )
+)
 def test_blob_to_csv_with_mapping(
         tmp_dir_fixture,
         with_metadata,
-        results_fixture):
+        results_fixture,
+        rows_at_a_time):
     """
     Test with a name mapping
     """
@@ -409,7 +420,8 @@ def test_blob_to_csv_with_mapping(
         output_path=csv_path,
         metadata_path=metadata_path,
         confidence_key='bootstrapping_probability',
-        confidence_label='bootstrapping_probability')
+        confidence_label='bootstrapping_probability',
+        rows_at_a_time=rows_at_a_time)
 
     with open(csv_path, 'r') as src:
         actual_lines = src.readlines()

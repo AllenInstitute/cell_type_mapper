@@ -1,10 +1,22 @@
 import pytest
+
+import anndata
 import copy
 import json
 import itertools
+import pandas as pd
 import warnings
 
+from cell_type_mapper.utils.utils import (
+    mkstemp_clean
+)
+
 from cell_type_mapper.utils.utils import clean_for_json
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree,
+    prune_by_h5ad
+)
 
 from cell_type_mapper.taxonomy.utils import (
     get_taxonomy_tree,
@@ -625,3 +637,85 @@ def test_prune_tree():
 
     tree = prune_tree(tree)
     assert tree == expected
+
+
+def test_prune_by_h5ad(tmp_dir_fixture):
+
+    data = {
+        'hierarchy': ['l0', 'l1', 'l2'],
+        'l0': {
+           'A': ['a', 'b'],
+           'B': ['c'],
+           'C': ['d', 'e']
+        },
+        'l1': {
+           'a': ['aa'],
+           'b': ['bb', 'cc'],
+           'c': ['dd', 'ee'],
+           'd': ['ff'],
+           'e': ['gg', 'hh']
+        },
+        'l2': {
+            'aa': ['c0', 'c1'],
+            'bb': ['c2', 'c3'],
+            'cc': ['c4', 'c5'],
+            'dd': ['c6', 'c7'],
+            'ee': ['c8', 'c9'],
+            'ff': ['c10', 'c11'],
+            'gg': ['c12', 'c13'],
+            'hh': ['c14', 'c15']
+        }
+    }
+
+    initial_tree = TaxonomyTree(data=data)
+
+    h5ad_path_list = []
+    for i0, i1, in [(0, 7), (7, 12), (12, 16)]:
+        pth = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5ad'
+        )
+        obs = pd.DataFrame(
+            [{'cell': f'c{ii}'} for ii in range(i0, i1, 2)]
+        ).set_index('cell')
+        aa = anndata.AnnData(obs=obs)
+        aa.write_h5ad(pth)
+        h5ad_path_list.append(pth)
+
+    full_tree = prune_by_h5ad(
+        taxonomy_tree=initial_tree,
+        h5ad_list=h5ad_path_list)
+
+    assert full_tree == initial_tree
+
+    abbreviated_tree = prune_by_h5ad(
+        taxonomy_tree=initial_tree,
+        h5ad_list=h5ad_path_list[:-1])
+
+    assert abbreviated_tree != initial_tree
+
+    abbr_data = {
+        'hierarchy': ['l0', 'l1', 'l2'],
+        'l0': {
+           'A': ['a', 'b'],
+           'B': ['c'],
+           'C': ['d']
+        },
+        'l1': {
+           'a': ['aa'],
+           'b': ['bb', 'cc'],
+           'c': ['dd', 'ee'],
+           'd': ['ff'],
+        },
+        'l2': {
+            'aa': [],
+            'bb': [],
+            'cc': [],
+            'dd': [],
+            'ee': [],
+            'ff': []
+        }
+    }
+
+    expected_tree = TaxonomyTree(abbr_data)
+    assert abbreviated_tree.is_equal_to(expected_tree)

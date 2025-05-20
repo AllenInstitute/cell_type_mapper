@@ -1,6 +1,7 @@
 import copy
 import h5py
 import json
+import numpy as np
 import pathlib
 
 from cell_type_mapper.utils.utils import (
@@ -219,6 +220,7 @@ class TaxonomyTree(object):
             cluster_annotation_path,
             cluster_membership_path,
             hierarchy,
+            cell_to_cluster_path=None,
             do_pruning=False):
         """
         Construct a TaxonomyTree from the canonical CSV files
@@ -241,6 +243,12 @@ class TaxonomyTree(object):
         hierarchy:
             list of term_set labels (*not* aliases) in the hierarchy
             from most gross to most fine
+        cell_to_cluster_path:
+            optional path to cell_to_cluster_membership.csv.
+            If provided, this will be used to construct the mapping from
+            cell_label to cluster_alias (using only the cells listed
+            in cell_metadata.csv). If not provided, cluster_alias must
+            be provided as a column in cell_metadata.csv
         do_pruning:
             A boolean. If True, remove all nodes from the tree that are
             not directly connected to the leaf level of the tree. This
@@ -315,7 +323,7 @@ class TaxonomyTree(object):
             valid_term_set_labels=hierarchy,
             name_column='cluster_annotation_term_name')
 
-        # create a mapp from [level][node] to all
+        # create a map from [level][node] to all
         # alternative naming schemes
         final_name_map = dict()
         for k in label_to_name:
@@ -340,21 +348,14 @@ class TaxonomyTree(object):
         data['name_mapper'] = final_name_map
 
         # now add leaves (referring to them by their labels)
-        leaves = dict()
 
         if cell_metadata_path is not None:
-            cell_to_alias = get_cell_to_cluster_alias(
-                csv_path=cell_metadata_path)
-
-            for cell in cell_to_alias:
-                alias = cell_to_alias[cell]
-                leaf = alias_to_cluster_label[alias]
-                if leaf not in leaves:
-                    leaves[leaf] = []
-                leaves[leaf].append(cell)
-            for leaf in leaves:
-                leaves[leaf].sort()
+            leaves = _get_leaves_from_csv(
+                cell_metadata_path=cell_metadata_path,
+                cell_to_cluster_path=cell_to_cluster_path,
+                alias_to_cluster_label=alias_to_cluster_label)
         else:
+            leaves = dict()
             for parent in data[hierarchy[-2]].keys():
                 for child in data[hierarchy[-2]][parent]:
                     leaves[child] = []
@@ -856,3 +857,73 @@ class TaxonomyTree(object):
                 cell[parent_level] = new_data
 
         return assignments
+
+
+def _get_leaves_from_csv(
+        cell_metadata_path,
+        cell_to_cluster_path,
+        alias_to_cluster_label):
+    leaves = dict()
+
+    cell_to_alias = get_cell_to_cluster_alias(
+        cell_metadata_path=cell_metadata_path,
+        cell_to_cluster_path=cell_to_cluster_path)
+
+    for cell in cell_to_alias:
+        alias = cell_to_alias[cell]
+        if alias in alias_to_cluster_label:
+            leaf = alias_to_cluster_label[alias]
+            if leaf not in leaves:
+                leaves[leaf] = []
+            leaves[leaf].append(cell)
+
+    for leaf in leaves:
+        leaves[leaf].sort()
+
+    return leaves
+
+
+def prune_by_h5ad(
+        taxonomy_tree,
+        h5ad_list):
+    """
+    Take a taxonomy tree and a list of h5ad file.
+    Remove any leaf nodes from the tree that have no cells represented
+    in the h5ad files.
+    """
+    node_list = taxonomy_tree.nodes_at_level(taxonomy_tree.leaf_level)
+    node_flag = np.zeros(len(node_list), dtype=bool)
+    node_to_idx = {node: idx for idx, node in enumerate(node_list)}
+    cell_to_idx = dict()
+    for node in node_list:
+        for child in taxonomy_tree.children(
+                        level=taxonomy_tree.leaf_level,
+                        node=node):
+            cell_to_idx[child] = node_to_idx[node]
+
+    # mark as True any leaf nodes with cells in the h5ad files
+    for h5ad_path in h5ad_list:
+        if node_flag.sum() == len(node_flag):
+            break
+        obs = read_df_from_h5ad(h5ad_path, df_name='obs')
+        node_idx = np.unique(
+            [cell_to_idx[cell] for cell in obs.index.values
+             if cell in cell_to_idx]
+        )
+        node_flag[node_idx] = True
+
+    # drop any nodes without cells represented in the h5ad files
+    if node_flag.sum() == len(node_list):
+        return taxonomy_tree
+
+    new_data = copy.deepcopy(taxonomy_tree._data)
+
+    invalid = np.where(np.logical_not(node_flag))[0]
+    print(f'pruning {len(invalid)} of {len(node_list)} nodes')
+    for idx in invalid:
+        new_data[taxonomy_tree.leaf_level].pop(node_list[idx])
+
+    print('calling prune')
+    new_data = prune_tree(new_data)
+
+    return TaxonomyTree(data=new_data)

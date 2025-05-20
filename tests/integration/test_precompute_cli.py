@@ -204,10 +204,48 @@ def cell_metadata_fixture(
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
     return tmp_path
+
+
+@pytest.fixture(scope='module')
+def cell_metadata_extra_cells_fixture(
+        cell_metadata_fixture,
+        alias_fixture,
+        tmp_dir_fixture):
+
+    nonsense_alias = max(alias_fixture.values()) + 10
+
+    baseline = pd.read_csv(cell_metadata_fixture).to_dict(orient='records')
+    dst_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='cell_metadata_extra_cells_',
+        suffix='.csv'
+    )
+    for ii in range(200):
+        baseline.append(
+            {"cell_label": f"not_in_taxonomy_{ii}",
+             "cluster_alias": nonsense_alias,
+             "dataset_label": "gar"}
+         )
+    rng = np.random.default_rng(22131)
+    rng.shuffle(baseline)
+    new_data = pd.DataFrame(baseline)
+
+    def float_format_fn(val):
+        if pd.isna(val):
+            output = ''
+        output = str(int(val))
+        return output
+
+    new_data.to_csv(
+        dst_path,
+        index=False,
+        float_format=float_format_fn)
+
+    return dst_path
 
 
 @pytest.fixture(scope='module')
@@ -245,8 +283,8 @@ def incomplete_cell_metadata_fixture(
             dataset_label = cell_to_dataset_fixture[cell_name]
             alias = alias_fixture[cluster_name]
             out_file.write(
-                f"{rng.integers(99,1111)},{cell_name},"
-                f"{rng.integers(88,10000)},"
+                f"{rng.integers(99, 1111)},{cell_name},"
+                f"{rng.integers(88, 10000)},"
                 f"{alias},{rng.random()},{dataset_label}\n")
 
     return tmp_path
@@ -427,19 +465,34 @@ def x_fixture(
     return data
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
+def gene_id_col_fixture(request):
+    if not hasattr(request, 'param'):
+        return None
+    return request.param
+
+
+@pytest.fixture()
 def h5ad_path_list_fixture(
         cell_to_cluster_fixture,
         x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        gene_id_col_fixture):
     rng = np.random.default_rng(7612221)
     path_list = []
     n_cells = x_fixture.shape[0]
     n_genes = x_fixture.shape[1]
     var_data = [
-        {'gene_id': f'gene_{ii}', 'garbage': _create_word(rng)}
+        {
+            'gene_id': f'gene_{ii}',
+            'garbage': _create_word(rng),
+            'idx': f'x_{ii**2}'}
         for ii in range(n_genes)]
-    var = pd.DataFrame(var_data).set_index('gene_id')
+
+    if gene_id_col_fixture is None:
+        var = pd.DataFrame(var_data).set_index('gene_id')
+    else:
+        var = pd.DataFrame(var_data).set_index('idx')
 
     cell_name_list = list(cell_to_cluster_fixture.keys())
     cell_name_list.sort()
@@ -478,22 +531,79 @@ def h5ad_path_list_fixture(
     return path_list
 
 
+@pytest.fixture()
+def h5ad_path_list_extra_cells_fixture(
+        h5ad_path_list_fixture,
+        tmp_dir_fixture):
+    """
+    Return a list of h5ad files, each with
+    extra cells that are not a part of the
+    taxonomy in them
+    """
+    path_list = []
+    dst_dir = tempfile.mkdtemp(
+        dir=tmp_dir_fixture,
+        prefix='extra_cells_'
+    )
+    ct = 0
+    rng = np.random.default_rng(761231)
+    for src_path in h5ad_path_list_fixture:
+        src = anndata.read_h5ad(src_path).to_memory()
+        src.file.close()
+        new_obs = []
+        for ii in range(50):
+            new_obs.append(
+                {"cell_id": f"not_in_taxonomy_{ct}"}
+            )
+            ct += 1
+        new_obs = pd.DataFrame(new_obs).set_index("cell_id")
+        new_x = 10.0*rng.random((len(new_obs), len(src.var)))
+        new_a = anndata.AnnData(
+            obs=new_obs,
+            var=src.var,
+            X=new_x
+        )
+        final_a = anndata.concat([new_a, src])
+        final_a.var = src.var
+        dst_path = mkstemp_clean(
+            dir=dst_dir,
+            suffix='.h5ad'
+        )
+        final_a.write_h5ad(dst_path)
+
+        path_list.append(dst_path)
+    return path_list
+
+
 @pytest.mark.parametrize(
-    "downsample_h5ad_list,split_by_dataset",
-    itertools.product([True, False], [True, False]))
-def test_precompute_cli(
+    "downsample_h5ad_list,split_by_dataset,use_cell_to_cluster,extra_cells,"
+    "gene_id_col_fixture",
+    itertools.product(
+        [True, False],
+        [True, False],
+        [True, False],
+        [True, False],
+        [None, 'gene_id']),
+    indirect=["gene_id_col_fixture"]
+    )
+def test_basic_precompute_cli(
         cell_metadata_fixture,
+        cell_metadata_extra_cells_fixture,
         cluster_membership_fixture,
         cluster_annotation_term_fixture,
         h5ad_path_list_fixture,
+        h5ad_path_list_extra_cells_fixture,
         x_fixture,
+        gene_id_col_fixture,
         cell_to_cluster_fixture,
         cell_to_dataset_fixture,
         dataset_list_fixture,
         cluster_to_supertype_fixture,
         tmp_dir_fixture,
         downsample_h5ad_list,
-        split_by_dataset):
+        split_by_dataset,
+        use_cell_to_cluster,
+        extra_cells):
     """
     So far, this is only tests the contents of
 
@@ -502,26 +612,70 @@ def test_precompute_cli(
     sumsq
     ge1
     """
-    output_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5')
+
+    if extra_cells:
+        baseline_h5ad_path_list = h5ad_path_list_extra_cells_fixture
+        baseline_metadata = cell_metadata_extra_cells_fixture
+    else:
+        baseline_h5ad_path_list = h5ad_path_list_fixture
+        baseline_metadata = cell_metadata_fixture
 
     if downsample_h5ad_list:
-        h5ad_list = [h5ad_path_list_fixture[0],
-                     h5ad_path_list_fixture[1]]
+        h5ad_list = [baseline_h5ad_path_list[0],
+                     baseline_h5ad_path_list[1]]
     else:
-        h5ad_list = h5ad_path_list_fixture
+        h5ad_list = baseline_h5ad_path_list
+
+    if use_cell_to_cluster:
+        # test case where cell_label to cluster_alias mapping
+        # is in a separate CSV file
+        cell_metadata_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='cell_metadata_',
+            suffix='.csv'
+        )
+        cell_to_cluster_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            prefix='cell_to_cluster_membership_',
+            suffix='.csv'
+        )
+        src = pd.read_csv(baseline_metadata)
+        col_list = list(src.columns)
+        to_keep = [c for c in col_list if c != 'cluster_alias']
+        dst = src[to_keep]
+        dst.to_csv(cell_metadata_path, index=False)
+        cell_to_cluster = src[
+            ["cell_label", "cluster_alias"]
+        ].to_dict(orient='records')
+        cell_to_cluster.append(
+            {'cell_label': 'unreal',
+             'cluster_alias': 'nah'}
+         )
+        cell_to_cluster = pd.DataFrame(cell_to_cluster)
+        cell_to_cluster.to_csv(cell_to_cluster_path, index=False)
+    else:
+        cell_metadata_path = baseline_metadata
+        cell_to_cluster_path = None
+
+    h5ad_tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    output_path = mkstemp_clean(
+        dir=h5ad_tmp_dir,
+        suffix='.h5',
+        delete=True)
 
     config = {
         'output_path': output_path,
         'clobber': True,
         'h5ad_path_list': h5ad_list,
         'normalization': 'raw',
-        'cell_metadata_path': cell_metadata_fixture,
+        'cell_metadata_path': cell_metadata_path,
+        'cell_to_cluster_path': cell_to_cluster_path,
         'cluster_annotation_path': cluster_annotation_term_fixture,
         'cluster_membership_path': cluster_membership_fixture,
         'hierarchy': ['class', 'subclass', 'supertype', 'cluster'],
-        'split_by_dataset': split_by_dataset}
+        'split_by_dataset': split_by_dataset,
+        'gene_id_col': gene_id_col_fixture}
 
     runner = PrecomputationABCRunner(
         args=[],
@@ -541,10 +695,25 @@ def test_precompute_cli(
         dataset_to_output['None'] = output_path
     combined_path = pathlib.Path(output_path[:-2] + 'combined.h5')
 
+    expected_files = [
+        pathlib.Path(f).resolve().absolute()
+        for f in dataset_to_output.values()
+    ]
+
     if split_by_dataset:
         assert combined_path.is_file()
+        expected_files.append(combined_path.resolve().absolute())
     else:
-        assert not combined_path.is_file()
+        assert not combined_path.exists()
+
+    # make sure that only the ex[ected files are written
+    # and that they can be opened as HDF5 files
+    output_dir = pathlib.Path(output_path).parent
+    actual_files = [n.resolve().absolute() for n in output_dir.iterdir()]
+    assert set(actual_files) == set(expected_files)
+    for pth in actual_files:
+        with h5py.File(pth, 'r') as src:
+            pass
 
     for dataset in dataset_to_output:
         actual_output = dataset_to_output[dataset]
@@ -572,6 +741,11 @@ def test_precompute_cli(
             cell_by_gene.to_log2CPM_in_place()
 
             for i_row, cell_id in enumerate(obs.index.values):
+
+                # skip cells that are not in the taxonomy
+                if cell_id.startswith('not_in_taxonomy'):
+                    continue
+
                 if dataset == 'None' or \
                         cell_to_dataset_fixture[cell_id] == dataset:
 
@@ -650,7 +824,7 @@ def test_precompute_cli(
                         rtol=1.0e-6)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture()
 def precomputed_stats_path_fixture(
         h5ad_path_list_fixture,
         cell_metadata_fixture,

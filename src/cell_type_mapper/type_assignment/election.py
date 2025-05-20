@@ -197,7 +197,8 @@ def run_type_assignment_on_h5ad_cpu(
         row_chunk_size=chunk_size,
         tmp_dir=tmp_dir,
         log=log,
-        max_gb=max_gb)
+        max_gb=max_gb,
+        n_processors=max(4, n_processors//2))
 
     process_list = []
     if results_output_path:
