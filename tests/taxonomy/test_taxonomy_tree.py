@@ -869,7 +869,8 @@ def test_reverse_name_lookup():
                     'name': 'node_a1'
                 },
                 'a2': {
-                    'name': 'node_a2'
+                    'name': 'node_a2',
+                    'alias': 'node_a2_alias'
                 }
             },
             'B': {
@@ -882,7 +883,8 @@ def test_reverse_name_lookup():
             },
             'C': {
                 'c1': {
-                    'name': 'node_c1'
+                    'name': 'node_c1',
+                    'aka': 'node_c1_aka'
                 },
                 'c2': {
                     'name': 'node_c2'
@@ -961,6 +963,33 @@ def test_reverse_name_lookup():
     assert tree.name_to_node(
         level='levelA',
         node='a2') == ('A', 'a2')
+
+    # test cases with alternate name_keys
+    assert tree.name_to_node(
+        level='levelA',
+        node='node_a2_alias',
+        name_key='alias') == ('A', 'a2')
+
+    msg = "not a valid node in this taxonomy"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_node(
+            level='levelA',
+            node='node_a2',
+            name_key='aka'
+        )
+
+    assert tree.name_to_node(
+        level='C',
+        node='node_c1_aka',
+        name_key='aka') == ('C', 'c1')
+
+    msg = "'silly' is not a valid name key"
+    with pytest.raises(RuntimeError, match=msg):
+        tree.name_to_node(
+            level='levelA',
+            node='junk',
+            name_key='silly'
+        )
 
 
 def test_parent_level():

@@ -54,16 +54,18 @@ class TaxonomyTree(object):
         self._name_to_node = dict()
         for level in self.hierarchy:
             self._name_to_node[level] = dict()
-            for node in self.nodes_at_level(level):
-                node_name = self.label_to_name(
-                    level=level,
-                    label=node,
-                    name_key='name')
-                if node_name == node:
-                    continue
-                if node_name not in self._name_to_node[level]:
-                    self._name_to_node[level][node_name] = []
-                self._name_to_node[level][node_name].append(node)
+            for name_key in self._name_key_list():
+                self._name_to_node[level][name_key] = dict()
+                for node in self.nodes_at_level(level):
+                    node_name = self.label_to_name(
+                        level=level,
+                        label=node,
+                        name_key=name_key)
+                    if node_name == node:
+                        continue
+                    if node_name not in self._name_to_node[level][name_key]:
+                        self._name_to_node[level][name_key][node_name] = []
+                    self._name_to_node[level][name_key][node_name].append(node)
 
         self._child_to_parent_level = {
             child_level: parent_level
@@ -663,7 +665,7 @@ class TaxonomyTree(object):
             return label
         return name_mapper[level][label][name_key]
 
-    def name_to_node(self, level, node):
+    def name_to_node(self, level, node, name_key='name'):
         """
         Map a level, node pair from human-readable to unique, machine-readable
         values.
@@ -675,6 +677,9 @@ class TaxonomyTree(object):
             machine-readable
         node:
             the node being mapped. Either human-readable or machine-readable
+        name_key:
+            the "type" of name being looked up from (likely either
+            'name' or 'alias')
 
         Returns
         -------
@@ -700,11 +705,20 @@ class TaxonomyTree(object):
         if node in self._data[level]:
             return (level, node)
 
-        if node not in self._name_to_node[level]:
-            msg = f'({input_level}, {node}) not a valid node in this taxonomy'
+        if name_key not in self._name_to_node[level]:
+            msg = (
+                f"'{name_key}' is not a valid name key for this taxonomy"
+            )
             raise RuntimeError(msg)
 
-        candidates = self._name_to_node[level][node]
+        if node not in self._name_to_node[level][name_key]:
+            msg = (
+                f"({input_level}, {node}) not a valid node in this taxonomy "
+                f"(at least, not as an '{name_key}')"
+            )
+            raise RuntimeError(msg)
+
+        candidates = self._name_to_node[level][name_key][node]
         if len(candidates) > 1:
             msg = f"""
             ({input_level}, {node}) maps to many nodes: {candidates}
@@ -857,6 +871,24 @@ class TaxonomyTree(object):
                 cell[parent_level] = new_data
 
         return assignments
+
+    def _name_key_list(self):
+        """
+        Return list of valid name keys
+        """
+        if 'name_mapper' not in self._data:
+            return ['name']
+        name_mapper = self._data['name_mapper']
+        key_set = set(['name'])
+        for level in self.hierarchy:
+            if level not in name_mapper:
+                continue
+            for node in self.nodes_at_level(level):
+                if node not in name_mapper[level]:
+                    continue
+                subset = set(name_mapper[level][node].keys())
+                key_set = key_set.union(subset)
+        return sorted(key_set)
 
 
 def _get_leaves_from_csv(
