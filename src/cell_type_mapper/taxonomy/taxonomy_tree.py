@@ -268,6 +268,14 @@ class TaxonomyTree(object):
         else:
             cell_path_str = None
 
+        if cell_to_cluster_path is not None:
+            cell_to_cluster_path = pathlib.Path(cell_to_cluster_path)
+            cell_to_cluster_str = str(
+                cell_to_cluster_path.resolve().absolute()
+            )
+        else:
+            cell_to_cluster_str = None
+
         data = dict()
         metadata = {
             'factory': 'from_data_release',
@@ -279,6 +287,7 @@ class TaxonomyTree(object):
                     str(cluster_annotation_path.resolve().absolute()),
                 'cluster_membership_path':
                     str(cluster_membership_path.resolve().absolute()),
+                'cell_to_cluster_path': cell_to_cluster_str,
                 'hierarchy': hierarchy,
                 'do_pruning': do_pruning}}
 
