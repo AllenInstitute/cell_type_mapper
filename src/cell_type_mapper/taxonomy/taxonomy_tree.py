@@ -516,6 +516,49 @@ class TaxonomyTree(object):
         new_data = prune_tree(new_data)
         return TaxonomyTree(data=new_data)
 
+    def drop_node_batch(self, node_batch):
+        """
+        Return a new TaxonomyTree having dropped the specified nodes
+        and pruned the tree appropriately.
+
+        Parameters
+        ----------
+        node_batch:
+           a list of tuples of the form
+           (level, node)
+           indicating which nodes to drop from the tree
+
+        Parameters
+        ----------
+        A new TaxonomyTree
+        """
+        new_data = copy.deepcopy(self._data)
+
+        for pair in node_batch:
+            level = pair[0]
+            node = pair[1]
+            if level not in self.hierarchy:
+                raise RuntimeError(
+                    f"Level {level} not present in tree"
+                )
+            if node not in self.nodes_at_level(level):
+                raise RuntimeError(
+                    f"Node {node} not present at level {level}"
+                )
+
+            if 'metadata' in new_data:
+                if 'dropped_nodes' not in new_data['metadata']:
+                    new_data['metadata']['dropped_nodes'] = []
+                new_data['metadata']['dropped_nodes'].append(
+                    {'level': level, 'node': node}
+                )
+
+            for leaf in self.as_leaves[level][node]:
+                new_data[self.leaf_level].pop(leaf)
+
+        new_data = prune_tree(new_data)
+        return TaxonomyTree(data=new_data)
+
     @property
     def hierarchy(self):
         return copy.deepcopy(self._data['hierarchy'])
