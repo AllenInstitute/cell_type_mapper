@@ -834,6 +834,72 @@ def test_drop_node_errors():
         tree.drop_node(level='level2', node='garbage')
 
 
+def test_drop_node_batch():
+
+    full_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2a', 'l2c', 'l2e']),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2a': set(['l3b',]),
+                   'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2e': set(['l3g',]),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3b': set([str(ii) for ii in range(3, 7)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3g': set([str(ii) for ii in range(19, 21)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)}}
+
+    test_tree = TaxonomyTree(
+        data=full_tree_data)
+
+    # drop all leaves descended from l3g
+    nodes_to_drop = [
+        ('leaf', str(ii))
+        for ii in range(19, 21)
+    ]
+
+    # also drop l2a
+    nodes_to_drop.append(('level2', 'l2a'))
+
+    test_tree = test_tree.drop_node_batch(nodes_to_drop)
+
+    expected_tree_data = {
+        'hierarchy': ['level1', 'level2', 'level3', 'leaf'],
+        'level1': {'l1a': set(['l2b', 'l2d']),
+                   'l1b': set(['l2c',]),
+                   'l1c': set(['l2f',])
+                   },
+        'level2': {'l2b': set(['l3a', 'l3c']),
+                   'l2c': set(['l3e',]),
+                   'l2d': set(['l3d', 'l3f', 'l3h']),
+                   'l2f': set(['l3i',])},
+        'level3': {'l3a': set([str(ii) for ii in range(3)]),
+                   'l3c': set([str(ii) for ii in range(7, 9)]),
+                   'l3d': set([str(ii) for ii in range(9, 13)]),
+                   'l3e': set([str(ii) for ii in range(13, 15)]),
+                   'l3f': set([str(ii) for ii in range(15, 19)]),
+                   'l3h': set([str(ii) for ii in range(21, 23)]),
+                   'l3i': set(['23',])},
+        'leaf': {str(k): range(26*k, 26*(k+1))
+                 for k in range(24)
+                 if k not in [3, 4, 5, 6, 19, 20]}}
+
+    expected_tree = TaxonomyTree(data=expected_tree_data)
+
+    assert expected_tree == test_tree
+
+
 def test_reverse_name_lookup():
     """
     Test TaxonomyTree method to lookup levels and nodes by
