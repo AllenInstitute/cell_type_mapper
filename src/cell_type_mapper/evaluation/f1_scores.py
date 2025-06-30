@@ -99,14 +99,13 @@ def avg_f1(
             estimated_false_pos[level][cut] = 0
 
     for cell in mapping:
-        agg_prob = 1.0
         ancestor_passed_corr = {
             cut[1]: True
             for cut in cut_list if cut[0] == 'correlation'
         }
         for level in taxonomy_tree.hierarchy:
             assigned_val = cell[level]['assignment']
-            agg_prob *= cell[level]['bootstrapping_probability']
+            agg_prob = cell[level]['aggregate_probability']
             true_val = truth[cell['cell_id']][level]
             true_idx = nodes_to_idx[level][true_val]
             n_cells[level][true_idx] += 1
