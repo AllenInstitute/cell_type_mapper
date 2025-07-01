@@ -98,7 +98,7 @@ def avg_f1(
             true_neg[level][cut] = np.zeros(n_nodes, dtype=int)
             estimated_false_pos[level][cut] = 0
 
-    hierarchy = taxonomy_tree.hierarcy
+    hierarchy = taxonomy_tree.hierarchy
     for cell in mapping:
         ancestor_passed_corr = {
             cut[1]: True
