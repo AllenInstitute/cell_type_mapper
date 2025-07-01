@@ -8,6 +8,10 @@ import numpy as np
 import pandas as pd
 import pathlib
 
+from cell_type_mapper.test_utils.comparison_utils import (
+    assert_blobs_equal
+)
+
 from cell_type_mapper.utils.utils import (
     _clean_up,
     mkstemp_clean)
@@ -17,7 +21,9 @@ from cell_type_mapper.utils.output_utils import (
     blob_to_df,
     blob_to_csv,
     precomputed_stats_to_uns,
-    uns_to_precomputed_stats)
+    uns_to_precomputed_stats,
+    blob_to_hdf5,
+    hdf5_to_blob)
 
 
 @pytest.fixture(scope='module')
@@ -665,3 +671,74 @@ def test_precomputed_stats_to_uns(
         original_uns['maybe'],
         roundtrip_h5ad.uns['maybe']
     )
+
+
+def test_hdf5_to_blob(tmp_dir_fixture):
+
+    h5_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='hdf5_to_blob_',
+        suffix='.h5'
+    )
+
+    tree = {
+        'hierarchy': ['class', 'subclass', 'cluster'],
+        'class': {'A': ['a', 'b'], 'B': ['c']},
+        'subclass': {'a': ['aa'], 'b': ['bb', 'cc'], 'c': ['dd']},
+        'cluster': {'aa': [], 'bb': [], 'cc': [], 'dd': []}
+    }
+
+    blob = {
+        'taxonomy_tree': tree,
+        'metadata': {'another': ['silly', 'dict']},
+        'marker_genes': {'third': {'silly': 'dict'}},
+        'n_unmapped_genes': 17,
+        'config': {'type_assignment': {'n_runners_up': 3}},
+        'log': ['list', 'of', 'text', 'lines'],
+        'gene_identifier_mapping': {'a': 'gene dict'},
+        'results': [
+             {'cell_id': 'cell_0',
+              'class': {
+                  'assignment': 'B',
+                  'bootstrapping_probability': 0.7,
+                  'avg_correlation': 0.13,
+                  'aggregate_probability': 0.7,
+                  'directly_assigned': True,
+                  'runner_up_assignment': ['A'],
+                  'runner_up_probability': [0.3],
+                  'runner_up_correlation': [0.05]
+              },
+              'subclass': {
+                  'assignment': 'c',
+                  'bootstrapping_probability': 0.9,
+                  'aggregate_probability': 0.63,
+                  'avg_correlation': 0.5,
+                  'directly_assigned': False,
+                  'runner_up_assignment': [],
+                  'runner_up_probability': [],
+                  'runner_up_correlation': []
+              },
+              'cluster': {
+                   'assignment': 'dd',
+                   'bootstrapping_probability': 0.9,
+                   'aggregate_probability': 1.05,
+                   'avg_correlation': 0.4,
+                   'directly_assigned': True,
+                   'runner_up_assignment': [],
+                   'runner_up_probability': [],
+                   'runner_up_correlation': []
+              }
+             }
+         ]
+    }
+
+    blob_to_hdf5(
+        output_blob=blob,
+        dst_path=h5_path
+    )
+
+    roundtrip = hdf5_to_blob(
+        h5_path
+    )
+
+    assert_blobs_equal(roundtrip, blob)
