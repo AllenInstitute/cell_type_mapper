@@ -600,11 +600,11 @@ def _hdf5_to_blob_structure(
     Structure the raw data read from the HDF5 file into the expected
     JSON blob
     """
-
+    hierarchy = taxonomy_tree.hierarchy
     results = []
     for i_cell, cell_id in enumerate(cell_id_arr):
         cell = {'cell_id': cell_id.decode('utf-8')}
-        for i_level, level in enumerate(taxonomy_tree.hierarchy):
+        for i_level, level in enumerate(hierarchy):
             this = {
                 'assignment': int_to_node[level][assignment[i_cell, i_level]],
                 'bootstrapping_probability': prob[i_cell, i_level],
