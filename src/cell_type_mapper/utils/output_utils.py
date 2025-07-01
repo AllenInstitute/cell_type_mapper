@@ -487,7 +487,8 @@ def _blob_to_hdf5_results(
 
 
 def hdf5_to_blob(
-        src_path):
+        src_path,
+        keep_runners_up=True):
     """
     Read in HDF5-serialized mapping results and return them
     as a dict of the form usually produced in the "extended"
@@ -497,6 +498,8 @@ def hdf5_to_blob(
     ----------
     src_path:
         Path to the HDF5 file to be read.
+    keep_runners_up:
+        Boolean. If False, ignore runners up.
 
     Returns
     -------
@@ -528,7 +531,8 @@ def hdf5_to_blob(
         r_assignment=raw_data['r_assignment'],
         r_prob=raw_data['r_prob'],
         r_corr=raw_data['r_corr'],
-        n_r=raw_data['n_r']
+        n_r=raw_data['n_r'],
+        keep_runners_up=keep_runners_up
     )
 
 
@@ -590,7 +594,8 @@ def _hdf5_to_blob_structure(
         r_assignment,
         r_prob,
         r_corr,
-        n_r):
+        n_r,
+        keep_runners_up):
     """
     Structure the raw data read from the HDF5 file into the expected
     JSON blob
@@ -616,17 +621,18 @@ def _hdf5_to_blob_structure(
                 'runner_up_correlation': []
             })
 
-            if r_assignment is not None:
-                for i_r in range(n_r):
-                    if r_assignment[i_cell, i_level, i_r] < 0:
-                        break
-                    node = int_to_node[level][
-                        r_assignment[i_cell, i_level, i_r]]
-                    this['runner_up_assignment'].append(node)
-                    this['runner_up_probability'].append(
-                        r_prob[i_cell, i_level, i_r])
-                    this['runner_up_correlation'].append(
-                        r_corr[i_cell, i_level, i_r])
+            if keep_runners_up:
+                if r_assignment is not None:
+                    for i_r in range(n_r):
+                        if r_assignment[i_cell, i_level, i_r] < 0:
+                            break
+                        node = int_to_node[level][
+                            r_assignment[i_cell, i_level, i_r]]
+                        this['runner_up_assignment'].append(node)
+                        this['runner_up_probability'].append(
+                            r_prob[i_cell, i_level, i_r])
+                        this['runner_up_correlation'].append(
+                            r_corr[i_cell, i_level, i_r])
             cell[level] = this
         results.append(cell)
     blob['results'] = results
