@@ -688,6 +688,8 @@ def test_hdf5_to_blob(tmp_dir_fixture):
         'cluster': {'aa': [], 'bb': [], 'cc': [], 'dd': []}
     }
 
+    # this data does not have to be 'scientifically' consistent
+    # with the taxonomy tree above; it just has to be shaped correctly
     blob = {
         'taxonomy_tree': tree,
         'metadata': {'another': ['silly', 'dict']},
@@ -728,7 +730,39 @@ def test_hdf5_to_blob(tmp_dir_fixture):
                    'runner_up_probability': [],
                    'runner_up_correlation': []
               }
-             }
+              },
+             {'cell_id': 'cell_1',
+              'class': {
+                  'assignment': 'A',
+                  'bootstrapping_probability': 0.8,
+                  'avg_correlation': 0.6,
+                  'aggregate_probability': 0.8,
+                  'directly_assigned': True,
+                  'runner_up_assignment': [],
+                  'runner_up_probability': [],
+                  'runner_up_correlation': []
+              },
+              'subclass': {
+                  'assignment': 'c',
+                  'bootstrapping_probability': 0.9,
+                  'aggregate_probability': 0.63,
+                  'avg_correlation': 0.5,
+                  'directly_assigned': False,
+                  'runner_up_assignment': [],
+                  'runner_up_probability': [],
+                  'runner_up_correlation': []
+              },
+              'cluster': {
+                   'assignment': 'dd',
+                   'bootstrapping_probability': 0.9,
+                   'aggregate_probability': 1.05,
+                   'avg_correlation': 0.4,
+                   'directly_assigned': True,
+                   'runner_up_assignment': ['bb', 'aa'],
+                   'runner_up_probability': [0.18, 0.05],
+                   'runner_up_correlation': [0.07, 0.09]
+              }
+              }
          ]
     }
 
