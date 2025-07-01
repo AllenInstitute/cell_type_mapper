@@ -117,7 +117,8 @@ def blob_to_csv(
         if an int, write out the data this many rows at a time.
         If None, write them all out in one go.
     """
-    str_hierarchy = json.dumps(taxonomy_tree.hierarchy)
+    taxonomy_hierarchy = taxonomy_tree.hierarchy
+    str_hierarchy = json.dumps(taxonomy_hierarchy)
 
     default_valid_suffixes = ['_name', '_label', '_alias']
     if valid_suffixes is None:
@@ -132,8 +133,8 @@ def blob_to_csv(
         dst.write(f'# taxonomy hierarchy = {str_hierarchy}\n')
         readable_hierarchy = [
             taxonomy_tree.level_to_name(level_label=level_label)
-            for level_label in taxonomy_tree.hierarchy]
-        if readable_hierarchy != taxonomy_tree.hierarchy:
+            for level_label in taxonomy_hierarchy]
+        if readable_hierarchy != taxonomy_hierarchy:
             str_readable_hierarchy = json.dumps(readable_hierarchy)
             dst.write(f'# readable taxonomy hierarchy = '
                       f'{str_readable_hierarchy}\n')
@@ -160,7 +161,7 @@ def blob_to_csv(
             check_consistency=check_consistency)
 
         column_rename = dict()
-        for level in taxonomy_tree.hierarchy:
+        for level in taxonomy_hierarchy:
             readable_level = taxonomy_tree.level_to_name(level_label=level)
             src_key = f"{readable_level}_{confidence_key}"
             dst_key = f"{readable_level}_{confidence_label}"
@@ -214,13 +215,14 @@ def blob_to_df(
     """
     Convert a JSON blob of results into a pandas dataframe
     """
+    taxonomy_hierarchy = taxonomy_tree.hierarchy
     records = []
     for cell in results_blob:
         this_record = {'cell_id': cell['cell_id']}
         if check_consistency:
             this_record['hierarchy_consistent'] = True
 
-        for level in taxonomy_tree.hierarchy:
+        for level in taxonomy_hierarchy:
             label = cell[level]['assignment']
             if check_consistency:
                 if 'runner_up_probability' in cell[level]:
@@ -382,7 +384,9 @@ def _blob_to_hdf5_results(
     taxonomy_tree = TaxonomyTree(
         data=metadata['taxonomy_tree'])
 
-    n_levels = len(taxonomy_tree.hierarchy)
+    taxonomy_hierarchy = taxonomy_tree.hierarchy
+
+    n_levels = len(taxonomy_hierarchy)
 
     results = output_blob['results']
     n_cells = len(results)
@@ -416,10 +420,10 @@ def _blob_to_hdf5_results(
     int_to_node = dict()
 
     directly_assigned = np.zeros(
-        len(taxonomy_tree.hierarchy),
+        len(taxonomy_hierarchy),
         dtype=bool)
 
-    for i_level, level in enumerate(taxonomy_tree.hierarchy):
+    for i_level, level in enumerate(taxonomy_hierarchy):
 
         directly_assigned[i_level] = results[0][level]['directly_assigned']
 
@@ -432,7 +436,7 @@ def _blob_to_hdf5_results(
 
     for i_cell in range(len(results)):
         cell = results[i_cell]
-        for i_level, level in enumerate(taxonomy_tree.hierarchy):
+        for i_level, level in enumerate(taxonomy_hierarchy):
             idx = node_to_int[level][cell[level]['assignment']]
             assignments[i_cell, i_level] = idx
             corr[i_cell, i_level] = cell[level]['avg_correlation']
@@ -600,11 +604,11 @@ def _hdf5_to_blob_structure(
     Structure the raw data read from the HDF5 file into the expected
     JSON blob
     """
-    hierarchy = taxonomy_tree.hierarchy
+    taxonomy_hierarchy = taxonomy_tree.hierarchy
     results = []
     for i_cell, cell_id in enumerate(cell_id_arr):
         cell = {'cell_id': cell_id.decode('utf-8')}
-        for i_level, level in enumerate(hierarchy):
+        for i_level, level in enumerate(taxonomy_hierarchy):
             this = {
                 'assignment': int_to_node[level][assignment[i_cell, i_level]],
                 'bootstrapping_probability': prob[i_cell, i_level],
