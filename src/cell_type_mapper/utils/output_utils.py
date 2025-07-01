@@ -511,47 +511,71 @@ def hdf5_to_blob(
         if 'assignment' not in src.keys():
             return blob
 
-        directly_assigned = src['directly_assigned'][()]
-
-        cell_id_arr = src['cell_id'][()]
-        int_to_node = json.loads(
-            src['int_to_node'][()].decode('utf-8'))
-
-        assignment = src['assignment'][()]
-        prob = src['bootstrapping_probability'][()]
-        if 'aggregate_probability' in src.keys():
-            agg_prob = src['aggregate_probability'][()]
-        else:
-            agg_prob = None
-        corr = src['average_correlation'][()]
-        if 'runner_up_assignment' in src:
-            r_assignment = src['runner_up_assignment'][()]
-            r_prob = src['runner_up_probability'][()]
-            r_corr = src['runner_up_correlation'][()]
-            n_r = r_assignment.shape[-1]
-        else:
-            r_assignment = None
-            r_prob = None
-            r_corr = None
-            n_r = None
+        raw_data = _hdf5_to_blob_read(h5_handle=src)
 
     taxonomy_tree = TaxonomyTree(data=blob['taxonomy_tree'])
 
     return _hdf5_to_blob_structure(
         blob=blob,
         taxonomy_tree=taxonomy_tree,
-        directly_assigned=directly_assigned,
-        cell_id_arr=cell_id_arr,
-        int_to_node=int_to_node,
-        assignment=assignment,
-        prob=prob,
-        agg_prob=agg_prob,
-        corr=corr,
-        r_assignment=r_assignment,
-        r_prob=r_prob,
-        r_corr=r_corr,
-        n_r=n_r
+        directly_assigned=raw_data['directly_assigned'],
+        cell_id_arr=raw_data['cell_id_arr'],
+        int_to_node=raw_data['int_to_node'],
+        assignment=raw_data['assignment'],
+        prob=raw_data['prob'],
+        agg_prob=raw_data['agg_prob'],
+        corr=raw_data['corr'],
+        r_assignment=raw_data['r_assignment'],
+        r_prob=raw_data['r_prob'],
+        r_corr=raw_data['r_corr'],
+        n_r=raw_data['n_r']
     )
+
+
+def _hdf5_to_blob_read(
+        h5_handle):
+    """
+    Read and return raw data needed to convert HDF5 output file
+    to expected JSON blob
+    """
+    directly_assigned = h5_handle['directly_assigned'][()]
+
+    cell_id_arr = h5_handle['cell_id'][()]
+    int_to_node = json.loads(
+        h5_handle['int_to_node'][()].decode('utf-8'))
+
+    assignment = h5_handle['assignment'][()]
+    prob = h5_handle['bootstrapping_probability'][()]
+    if 'aggregate_probability' in h5_handle.keys():
+        agg_prob = h5_handle['aggregate_probability'][()]
+    else:
+        agg_prob = None
+    corr = h5_handle['average_correlation'][()]
+    if 'runner_up_assignment' in h5_handle:
+        r_assignment = h5_handle['runner_up_assignment'][()]
+        r_prob = h5_handle['runner_up_probability'][()]
+        r_corr = h5_handle['runner_up_correlation'][()]
+        n_r = r_assignment.shape[-1]
+    else:
+        r_assignment = None
+        r_prob = None
+        r_corr = None
+        n_r = None
+
+    return {
+        'directly_assigned': directly_assigned,
+        'cell_id_arr': cell_id_arr,
+        'int_to_node': int_to_node,
+        'assignment': assignment,
+        'prob': prob,
+        'agg_prob': agg_prob,
+        'corr': corr,
+        'r_assignment': r_assignment,
+        'r_prob': r_prob,
+        'r_corr': r_corr,
+        'n_r': n_r
+    }
+
 
 def _hdf5_to_blob_structure(
         blob,
