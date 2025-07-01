@@ -533,8 +533,44 @@ def hdf5_to_blob(
             r_assignment = None
             r_prob = None
             r_corr = None
+            n_r = None
 
     taxonomy_tree = TaxonomyTree(data=blob['taxonomy_tree'])
+
+    return _hdf5_to_blob_structure(
+        blob=blob,
+        taxonomy_tree=taxonomy_tree,
+        directly_assigned=directly_assigned,
+        cell_id_arr=cell_id_arr,
+        int_to_node=int_to_node,
+        assignment=assignment,
+        prob=prob,
+        agg_prob=agg_prob,
+        corr=corr,
+        r_assignment=r_assignment,
+        r_prob=r_prob,
+        r_corr=r_corr,
+        n_r=n_r
+    )
+
+def _hdf5_to_blob_structure(
+        blob,
+        taxonomy_tree,
+        directly_assigned,
+        cell_id_arr,
+        int_to_node,
+        assignment,
+        prob,
+        agg_prob,
+        corr,
+        r_assignment,
+        r_prob,
+        r_corr,
+        n_r):
+    """
+    Structure the raw data read from the HDF5 file into the expected
+    JSON blob
+    """
 
     results = []
     for i_cell, cell_id in enumerate(cell_id_arr):
