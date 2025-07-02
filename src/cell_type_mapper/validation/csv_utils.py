@@ -92,11 +92,16 @@ def convert_csv_to_h5ad(
     else:
         log.warn(warning_msg)
 
+    print('checking first column')
+
     first_column_names = is_first_column_label(
         src_path=src_path
     )
 
+    print(f'first_column_names is {first_column_names}')
+
     try:
+        print('calling anndata read_csv')
         adata = anndata.io.read_csv(
             filename=src_path,
             delimiter=',',
@@ -146,10 +151,14 @@ def is_first_column_label(src_path):
         header = header.decode()
 
     header_params = header.split(',')
+    print(f"header params[0] '{header_params[0]}' -- {len(header_params)}")
+    print(header_params[0]=="",len(header_params[0]),)
     if header_params[0] == '':
         return True
 
+    print('reading to numpy')
     x_array = pd.read_csv(src_path).to_numpy()
+    print('all done')
 
     if not np.issubdtype(x_array[:, 0].dtype, np.number):
         return True
