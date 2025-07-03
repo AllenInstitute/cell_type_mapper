@@ -148,6 +148,18 @@ def is_first_column_label(src_path):
     if is_first_header_column_blank(header_row=header):
         return True
 
+    if is_first_column_of_array_label(src_path):
+        return True
+
+    return False
+
+
+def is_first_column_of_array_label(src_path):
+    """
+    Check the actual array of data in the CSV file at
+    src_path. Return True if the first column is a label
+    of some sort. Return False otherwise.
+    """
     x_array = pd.read_csv(src_path).to_numpy()
 
     if not np.issubdtype(x_array[:, 0].dtype, np.number):
@@ -164,8 +176,6 @@ def is_first_column_label(src_path):
     if is_first_column_sequential(
             x_array=x_array):
         return True
-
-    return False
 
 
 def is_first_column_sequential(x_array):
