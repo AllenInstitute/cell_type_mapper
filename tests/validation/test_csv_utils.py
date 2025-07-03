@@ -16,12 +16,35 @@ from cell_type_mapper.utils.utils import (
 )
 
 from cell_type_mapper.validation.csv_utils import (
+    is_first_header_column_blank,
     is_first_column_sequential,
     is_first_column_floats,
     is_first_column_large,
     is_first_column_label,
     convert_csv_to_h5ad
 )
+
+
+@pytest.mark.parametrize(
+    "first_col, expected",
+    [('', True),
+     ('""', True),
+     ("''", True),
+     (" ", True),
+     ("'", True),
+     ('"', True),
+     ('" "', True),
+     ("' '", True),
+     ('a', False),
+     (1, False)
+     ]
+)
+def test_is_first_header_column_blank(first_col, expected):
+    row = str(first_col) + ',a,b,c'
+    if expected:
+        assert is_first_header_column_blank(row)
+    else:
+        assert not is_first_header_column_blank(row)
 
 
 def test_is_first_column_sequential():

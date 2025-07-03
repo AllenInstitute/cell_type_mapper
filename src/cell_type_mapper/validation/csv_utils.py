@@ -145,8 +145,7 @@ def is_first_column_label(src_path):
     if is_gzip:
         header = header.decode()
 
-    header_params = header.split(',')
-    if header_params[0] == '':
+    if is_first_header_column_blank(header_row=header):
         return True
 
     x_array = pd.read_csv(src_path).to_numpy()
@@ -216,3 +215,18 @@ def is_first_column_large(x_array, n_sig=3):
     return (
         first_col > (mu+3*std)
     ).all()
+
+
+def is_first_header_column_blank(header_row):
+    """
+    Take the first row of a CSV file as a string.
+    Return boolean indicating whether or not the first
+    column (comma delimited) is blank.
+    """
+    header_row = header_row.replace('"', '')
+    header_row = header_row.replace("'", "")
+    header_row = header_row.replace(" ", "")
+    header_params = header_row.split(',')
+    if header_params[0] == '':
+        return True
+    return False
