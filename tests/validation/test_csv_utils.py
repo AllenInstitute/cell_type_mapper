@@ -35,6 +35,8 @@ from cell_type_mapper.validation.csv_utils import (
      ('"', True),
      ('" "', True),
      ("' '", True),
+     (" '' ", True),
+     (' "" ', True),
      ('a', False),
      (1, False)
      ]
