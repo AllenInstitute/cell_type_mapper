@@ -145,8 +145,6 @@ def _validate_h5ad(
          log=log
      )
 
-    print('done writing to new path')
-
     has_warnings = write_to_new_path
 
     _check_h5ad_integrity(
@@ -155,8 +153,6 @@ def _validate_h5ad(
         log=log
     )
 
-    print('transposing')
-
     (active_h5ad_path,
      was_transposed) = _transpose_file_if_necessary(
          src_path=active_h5ad_path,
@@ -164,8 +160,6 @@ def _validate_h5ad(
          tmp_dir=tmp_dir,
          log=log
     )
-
-    print('done transposing')
 
     if was_transposed:
         has_warnings = True
