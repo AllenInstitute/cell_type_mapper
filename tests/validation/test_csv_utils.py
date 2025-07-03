@@ -17,6 +17,7 @@ from cell_type_mapper.utils.utils import (
 
 from cell_type_mapper.validation.csv_utils import (
     is_first_header_column_blank,
+    is_first_column_str,
     is_first_column_sequential,
     is_first_column_floats,
     is_first_column_large,
@@ -324,3 +325,48 @@ def test_csv_conversion_with_bad_txt_file(
             convert_csv_to_h5ad(
                 src_path=csv_path,
                 log=None)
+
+
+@pytest.mark.parametrize(
+    'compression,expected',
+    [(True, True),
+     (False, True),
+     (True, False),
+     (False, False)
+     ]
+)
+def test_is_first_column_str(
+        tmp_dir_fixture,
+        compression,
+        expected):
+    if compression:
+        csv_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.csv.gz'
+        )
+        open_fn = gzip.open
+    else:
+        csv_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.csv'
+        )
+        open_fn = open
+
+    lines = [','.join(('a', 'b', 'c')) + '\n']
+    if expected:
+        for ii in range(3):
+            lines.append('label,' + ','.join(('1', '2')) + '\n')
+    else:
+        for ii in range(3):
+            lines.append(','.join(('1', '2', '3')) + '\n')
+
+    with open_fn(csv_path, 'w') as dst:
+        for this in lines:
+            if compression:
+                this = this.encode('utf-8')
+            dst.write(this)
+
+    if expected:
+        assert is_first_column_str(csv_path)
+    else:
+        assert not is_first_column_str(csv_path)

@@ -4,7 +4,6 @@ Define utility functions for accepting CSV inputs to MapMyCells
 import anndata
 import gzip
 import numpy as np
-import pandas as pd
 import pathlib
 import traceback
 import warnings
@@ -154,15 +153,22 @@ def is_first_column_label(src_path):
     return False
 
 
-def is_first_column_of_array_label(src_path):
+def is_first_column_of_array_label(
+        src_path):
     """
     Check the actual array of data in the CSV file at
     src_path. Return True if the first column is a label
     of some sort. Return False otherwise.
     """
-    x_array = pd.read_csv(src_path).to_numpy()
+    if is_first_column_str(src_path):
+        return True
 
-    if not np.issubdtype(x_array[:, 0].dtype, np.number):
+    x_array = np.loadtxt(
+        src_path,
+        delimiter=',',
+        skiprows=1)
+
+    if x_array.size == 0:
         return True
 
     if is_first_column_large(
@@ -176,6 +182,36 @@ def is_first_column_of_array_label(src_path):
     if is_first_column_sequential(
             x_array=x_array):
         return True
+
+
+def is_first_column_str(src_path):
+    """
+    Scan the lines of the file at src_path.
+    If the first column is non-numerical, return True.
+    Otherwise, return False.
+    """
+    src_path = pathlib.Path(src_path)
+    if src_path.name.endswith('.csv'):
+        open_fn = open
+        mode = 'r'
+        is_gzip = False
+    elif src_path.name.endswith('.gz'):
+        open_fn = gzip.open
+        mode = 'rb'
+        is_gzip = True
+
+    with open_fn(src_path, mode=mode) as src:
+        line_list = src.readlines()
+
+    for line in line_list[1:]:
+        if is_gzip:
+            line = line.decode()
+        params = line.split(',')
+        try:
+            float(params[0])
+        except ValueError:
+            return True
+    return False
 
 
 def is_first_column_sequential(x_array):
