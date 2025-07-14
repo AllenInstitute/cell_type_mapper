@@ -34,7 +34,7 @@ children. This is documented in more detail
 To map an unlabeled cell to the taxonomy, the algorithm
 starts with the root node as the "designated parent" and
 
-1. Take a random subset of 50% of the marker genes for the
+1. Take a random subset of (default is 50%) of the marker genes for the
 designated parent node.
 2. Correlate the cell's gene expression profile (`log2(CPM+1)`
 normalization) with the average gene expression profile of
@@ -46,9 +46,9 @@ correlation coefficient.
 that cluster descends (i.e. if the designated parent is the root
 node, transform the chosen cluster into its corresponding class)
 and assign that child node 1 vote.
-5. Repeat steps (1)-(4) 100 times using a different random 90% of
-marker genes each time. Assign the cell to the child node that
-receives the plurality of votes.
+5. Repeat steps (1)-(4) 100 times using a different random subset of
+marker genes each time (same fraction as in step (1)).
+Assign the cell to the child node that receives the plurality of votes.
 6. Repeat steps (1)-(5) using the child node chosen in (5) as the new
 designated parent. Repeat this entire process until the cell has been
 assigned to every level ("class", "subclass", "cluster") in the
