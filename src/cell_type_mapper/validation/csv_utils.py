@@ -183,6 +183,8 @@ def is_first_column_of_array_label(
             x_array=x_array):
         return True
 
+    return False
+
 
 def is_first_column_str(src_path):
     """
