@@ -244,7 +244,7 @@ def test_validation_of_transposed_h5ad_files(
             suffix='.h5ad'
         )
 
-        validate_h5ad(
+        baseline_path = validate_h5ad(
             h5ad_path=h5ad_fixture['correct'],
             gene_id_mapper=None,
             log=None,
@@ -253,7 +253,10 @@ def test_validation_of_transposed_h5ad_files(
             round_to_int=round_to_int,
             output_dir=None,
             valid_h5ad_path=baseline_path
-        )
+        )[0]
+
+        if baseline_path is None:
+            baseline_path = h5ad_fixture['correct']
 
         test_path = mkstemp_clean(
             dir=tmp_dir_fixture,

@@ -380,9 +380,11 @@ def test_validation_of_h5ad_simple(
             layer=layer,
             round_to_int=round_to_int)
 
-    assert result_path is not None
-    if specify_path:
-        assert str(result_path.resolve().absolute()) == valid_h5ad_path
+    if result_path is not None:
+        if specify_path:
+            assert str(result_path.resolve().absolute()) == valid_h5ad_path
+    else:
+        result_path = orig_path
 
     if round_to_int:
         with h5py.File(result_path, 'r') as in_file:
@@ -435,19 +437,18 @@ def test_validation_of_h5ad_simple(
 
     actual_var = actual.var
 
+    # 2025-07-17: var should no longer be changed by
+    # validaton. We are moving gene mapping functionality into
+    # the actual cell type mapper
     if density not in ("csv", "gz"):
-        assert len(actual_var.columns) == 2
-        assert (
-            list(actual_var['gene_id'].values)
-            == list(var_fixture.index.values)
+        pd.testing.assert_frame_equal(
+            actual_var,
+            var_fixture)
+    else:
+        np.testing.assert_array_equal(
+            actual_var.index.values,
+            var_fixture.index.values
         )
-        assert list(actual_var['val'].values) == list(var_fixture.val.values)
-    actual_idx = list(actual_var.index.values)
-    assert len(actual_idx) == 4
-    assert actual_idx[0] == "ENSG1"
-    assert "unmapped" in actual_idx[1]
-    assert actual_idx[2] == "ENSG0"
-    assert actual_idx[3] == "ENSG2"
 
     # make sure input file did not change
     md51 = hashlib.md5()
@@ -455,17 +456,6 @@ def test_validation_of_h5ad_simple(
         md51.update(src.read())
 
     assert md50.hexdigest() == md51.hexdigest()
-
-    # test that gene ID mapping is in unstructured
-    # metadata
-    uns = actual.uns
-    assert 'AIBS_CDM_gene_mapping' in uns
-
-    old_genes = list(var_fixture.index.values)
-    new_genes = list(actual.var.index.values)
-    for old, new in zip(old_genes, new_genes):
-        assert uns['AIBS_CDM_gene_mapping'][old] == new
-    assert len(uns['AIBS_CDM_gene_mapping']) == len(old_genes)
 
 
 @pytest.mark.parametrize(
@@ -803,55 +793,6 @@ def test_gene_name_errors(tmp_dir_fixture):
                 h5ad_path=h5ad_path,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
                 gene_id_mapper=None)
-
-        # test that an error is raised if, after clipping the
-        # suffix from the Ensembl ID, the list of genes is not
-        # unique
-        var = pd.DataFrame(
-            [{'gene_id': 'ENSG778.3'},
-             {'gene_id': 'ENSF5'},
-             {'gene_id': 'ENSG778.9'}]).set_index('gene_id')
-
-        a = anndata.AnnData(
-            X=np.random.random_sample((n_cells, len(var))),
-            var=var,
-            obs=obs)
-
-        h5ad_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5ad')
-
-        a.write_h5ad(h5ad_path)
-        msg = "mapped to identical gene identifiers"
-        with pytest.raises(RuntimeError, match=msg):
-            validate_h5ad(
-                h5ad_path=h5ad_path,
-                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-                gene_id_mapper=GeneIdMapper.from_mouse())
-
-        # check that an error is raised if two input genes map to the
-        # same gene identifiers
-        var = pd.DataFrame(
-            [{'gene_id': 'Xkr4'},
-             {'gene_id': 'ENSF5'},
-             {'gene_id': 'ENSMUSG00000051951'}]).set_index('gene_id')
-
-        a = anndata.AnnData(
-            X=np.random.random_sample((n_cells, len(var))),
-            var=var,
-            obs=obs)
-
-        h5ad_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5ad')
-
-        a.write_h5ad(h5ad_path)
-        msg = "mapped to identical gene identifiers"
-        with pytest.raises(RuntimeError, match=msg):
-            validate_h5ad(
-                h5ad_path=h5ad_path,
-                valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-                gene_id_mapper=GeneIdMapper.from_mouse())
 
 
 @pytest.mark.parametrize(
