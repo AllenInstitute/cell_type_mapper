@@ -14,9 +14,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup
-)
 
 from cell_type_mapper.cli.validate_h5ad import (
     ValidateH5adRunner
@@ -121,14 +118,10 @@ def test_cli_validation_for_csv(
         expected_cell_labels
     )
 
-    if gene_identifier_type_fixture == 'ensembl':
-        expected_gene_labels = np.array(gene_labels)
-    else:
-        expected_gene_labels = np.array(
-            [mouse_gene_id_lookup[el] for el in gene_labels]
-        )
-
+    # 2025-07-17: var index should no longer be changed
+    # by validation. We are moving gene mapping into the
+    # actual cell type mapper.
     np.testing.assert_array_equal(
         result.var.index.values,
-        expected_gene_labels
+        np.array(gene_labels)
     )
