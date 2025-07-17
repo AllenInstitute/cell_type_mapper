@@ -304,7 +304,7 @@ def do_reference_mapping(
             'extended_result_path': str(output_path),
             'csv_result_path': str(csv_path),
             'summary_metadata_path': metadata_path,
-            'map_to_ensembl': False,
+            'map_to_ensembl': True,
             'type_assignment': {
                 'normalization': 'raw',
                 'bootstrap_iteration': 10,

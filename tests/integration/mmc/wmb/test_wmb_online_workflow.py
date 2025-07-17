@@ -118,8 +118,8 @@ def run_pipeline(
         'extended_result_path': str(output_path),
         'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': False,
         'log_path': log_path,
+        'map_to_ensembl': True,
         'type_assignment': {
             'normalization': 'raw',
             'bootstrap_iteration': 10,
