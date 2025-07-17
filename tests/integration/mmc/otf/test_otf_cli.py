@@ -160,7 +160,8 @@ def run_pipeline(
         'csv_result_path': csv_path,
         'summary_metadata_path': metadata_path,
         'cloud_safe': True,
-        'nodes_to_drop': None
+        'nodes_to_drop': None,
+        'map_to_ensembl': True
     }
 
     with warnings.catch_warnings():

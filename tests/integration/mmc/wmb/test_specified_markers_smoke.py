@@ -111,28 +111,19 @@ def test_ensembl_mapping_in_cli(
                 runner.run()
 
 
-@pytest.mark.parametrize(
-    'map_to_ensembl',
-    [True, False]
-)
 def test_summary_from_validated_file(
         taxonomy_tree_fixture,
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
         tmp_dir_fixture,
-        n_extra_genes_fixture,
-        map_to_ensembl):
+        n_extra_genes_fixture):
     """
     This test makes sure that the summary metadata is correctly recorded
     when ensembl mapping is handled by the validation CLI.
 
     Additionally test that cells in the output CSV file are in the same
     order as in the input h5ad file.
-
-    Toggling map_to_ensemble makes sure that the summary metadata
-    is correctly recorded, even when the ensembl mapping was handled
-    by the validation layer
     """
 
     validated_path = mkstemp_clean(
@@ -183,7 +174,7 @@ def test_summary_from_validated_file(
         'extended_result_path': str(output_path),
         'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': map_to_ensembl,
+        'map_to_ensembl': True,
         'type_assignment': {
             'normalization': 'log2CPM',
             'bootstrap_iteration': 10,
