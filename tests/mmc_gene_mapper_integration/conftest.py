@@ -363,7 +363,7 @@ def mapper_fixture(
 
     to_replace = "mmc_gene_mapper.download.download_manager.DownloadManager"
     with unittest.mock.patch(to_replace, dummy_download_mgr_fixture):
-        gene_mapper = mapper.MMCGeneMapper(
+        gene_mapper = mapper.MMCGeneMapper.create_mapper(
             db_path=db_path,
             local_dir=tmp_dir_fixture,
             data_file_spec=file_spec,
