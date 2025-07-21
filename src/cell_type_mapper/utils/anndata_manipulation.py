@@ -263,7 +263,12 @@ def amalgamate_csr_to_x(
         index_dtype = np.int32
 
     with h5py.File(dst_path, 'a') as dst:
+
+        if dst_grp in dst:
+            del dst[dst_grp]
+
         grp = dst.create_group(dst_grp)
+
         grp.attrs.create(
             name='encoding-type', data='csr_matrix')
         grp.attrs.create(
@@ -394,6 +399,10 @@ def amalgamate_dense_to_x(
     t0 = time.time()
     n_files = len(src_path_list)
     with h5py.File(dst_path, 'a') as dst:
+
+        if dst_grp in dst:
+            del dst[dst_grp]
+
         dst_data = dst.create_dataset(
             dst_grp,
             shape=(n_rows, n_cols),
@@ -401,6 +410,7 @@ def amalgamate_dense_to_x(
             dtype=data_dtype,
             compression=compression,
             compression_opts=compression_opts)
+
         dst_data.attrs.create(
             name='encoding-type', data='array')
         dst_data.attrs.create(

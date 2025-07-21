@@ -152,6 +152,10 @@ def test_validation_of_h5ad_without_encoding(
         layer = 'X'
 
     with h5py.File(orig_path, 'a') as dst:
+
+        if to_write in dst:
+            del dst[to_write]
+
         dst.create_dataset(to_write, data=x_fixture)
 
     gene_id_mapper = GeneIdMapper(data=map_data_fixture)

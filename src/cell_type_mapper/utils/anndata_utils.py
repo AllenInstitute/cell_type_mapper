@@ -359,7 +359,12 @@ def shuffle_csr_h5ad_rows(
     with h5py.File(src_path, 'r') as src:
         src_x = src['X']
         with h5py.File(dst_path, 'a') as dst:
+
+            if 'X' in dst:
+                del dst['X']
+
             dst_x = dst.create_group('X')
+
             for name in attrs:
                 dst_x.attrs.create(name=name, data=attrs[name])
             for name in ('data', 'indices'):
@@ -493,6 +498,10 @@ def pivot_sparse_h5ad(
 
         with h5py.File(tmp_path, 'r') as src:
             with h5py.File(dst_path, 'a') as dst:
+
+                if layer in dst:
+                    del dst[layer]
+
                 dst_x = dst.create_group(layer)
                 for name in attrs:
                     if name != 'encoding-type':
@@ -581,7 +590,12 @@ def subset_csc_h5ad_columns(
             n_non_zero += src_indptr[col+1]-src_indptr[col]
 
         with h5py.File(dst_path, 'a') as dst:
+
+            if 'X' in dst:
+                del dst['X']
+
             dst_x = dst.create_group('X')
+
             for name in new_attrs:
                 dst_x.attrs.create(name=name, data=new_attrs[name])
             for name in ('data', 'indices'):
@@ -829,7 +843,12 @@ def _transpose_sparse_h5ad(
 
     with h5py.File(src_path, 'r') as src:
         with h5py.File(dst_path, 'a') as dst:
+
+            if 'X' in dst:
+                del dst['X']
+
             dst_grp = dst.create_group('X')
+
             for attr_k in dst_attrs:
                 dst_grp.attrs.create(
                     name=attr_k,
@@ -885,6 +904,10 @@ def _transpose_dense_h5ad(
             dst_chunks = src['X'].chunks
             if dst_chunks is not None:
                 dst_chunks = dst_chunks[-1::-1]
+
+            if 'X' in dst:
+                del dst['X']
+
             dst_x = dst.create_dataset(
                 'X',
                 dtype=src['X'].dtype,
