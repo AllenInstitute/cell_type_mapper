@@ -1,5 +1,7 @@
 import pytest
 
+import cell_type_mapper.cli.cli_log as cli_log
+
 
 @pytest.mark.parametrize(
     "gene_list, species, authority, expected",
@@ -43,10 +45,13 @@ def test_mmc_gene_mapper_interface(
     mmc_gene_mapper repo itself)
     """
 
+    log = cli_log.CommandLog()
+
     result = mapper_fixture.map_genes(
         gene_list=gene_list,
         dst_species=species,
-        dst_authority=authority)
+        dst_authority=authority,
+        log=log)
 
     assert len(result['gene_list']) == len(gene_list)
     assert len(result['gene_list']) == len(expected)
