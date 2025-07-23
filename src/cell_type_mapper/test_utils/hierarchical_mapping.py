@@ -18,6 +18,10 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
+import cell_type_mapper.utils.gene_utils as gene_utils
+
+from cell_type_mapper.gene_id.utils import detect_species
+
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
 
@@ -25,8 +29,8 @@ from cell_type_mapper.cli.cli_log import (
     CommandLog)
 
 from cell_type_mapper.utils.cli_utils import (
-    _check_config,
-    _get_query_gene_names)
+    _check_config
+)
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -43,6 +47,8 @@ from cell_type_mapper.type_assignment.election_runner import (
 
 from cell_type_mapper.utils.cli_utils import (
     create_precomputed_stats_file)
+
+from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
 
 
 def run_mapping(config, output_path, log_path=None):
@@ -178,7 +184,7 @@ def _run_mapping(config, tmp_dir, log):
     create_marker_cache_from_reference_markers(
         output_cache_path=query_marker_tmp,
         input_cache_path=reference_marker_tmp,
-        query_gene_names=_get_query_gene_names(query_loc)[0],
+        query_gene_names=_legacy_get_query_gene_names(query_loc)[0],
         taxonomy_tree=taxonomy_tree,
         n_per_utility=query_marker_config['n_per_utility'],
         n_processors=query_marker_config['n_processors'],
@@ -390,6 +396,62 @@ def compare_field(value0, value1, eps=1.0e-4):
         return np.allclose(value0, value1, atol=eps, rtol=eps)
     else:
         return value0 == value1
+
+
+def _legacy_get_query_gene_names(
+        query_gene_path,
+        map_to_ensembl=False,
+        gene_id_col=None):
+    """
+    Legacy implementation that relied on the hard-coded GeneIdMapper
+    class, rather than the mmc_gene_mapper infrastructure
+
+    If map_to_ensembl is True, automatically map the gene IDs in
+    query_gene_path.var.index to ENSEMBL IDs
+
+    Return the list of gene names and the number of genes that could
+    not be mapped (this will be zero of map_to_ensemble is False)
+
+    Also return boolean indicating whether or not any genes
+    were meaningfully mapped (True if a gene was mapped to
+    an ENSEMBL ID; false otherwise)
+    """
+    result = gene_utils.get_gene_identifier_list(
+        h5ad_path_list=[query_gene_path],
+        gene_id_col=gene_id_col,
+        duplicate_prefix=gene_utils.invalid_query_prefix()
+    )
+
+    n_unmapped = 0
+    was_changed = False
+    if map_to_ensembl:
+        original_result = np.array(result)
+        species = detect_species(result)
+        if species is None:
+            msg = (
+                "Could not find a species for the genes you gave:\n"
+                f"First five genes:\n{result[:5]}"
+            )
+            raise RuntimeError(msg)
+
+        gene_id_mapper = GeneIdMapper.from_species(
+            species=species)
+        raw_result = gene_id_mapper.map_gene_identifiers(
+            result,
+            strict=False)
+        result = raw_result['mapped_genes']
+        n_unmapped = raw_result['n_unmapped']
+
+        if np.array_equal(np.array(result), original_result):
+            was_changed = False
+        else:
+            delta = np.where(np.array(result) != original_result)[0]
+            for ii in delta:
+                if 'unmapped' not in result[ii]:
+                    was_changed = True
+                    break
+
+    return result, n_unmapped, was_changed
 
 
 if __name__ == "__main__":
