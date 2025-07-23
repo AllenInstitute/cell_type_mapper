@@ -121,7 +121,7 @@ def map_aibs_marker_lookup(
         all_markers = all_markers.union(set(raw_markers[k]))
     all_markers = list(all_markers)
 
-    symbol_to_ensembl = map_aibs_gene_names(all_markers)
+    symbol_to_ensembl = _map_aibs_gene_names(all_markers)
 
     result = dict()
     for k in raw_markers:
@@ -131,7 +131,7 @@ def map_aibs_marker_lookup(
     return result
 
 
-def map_aibs_gene_names(raw_gene_names):
+def _map_aibs_gene_names(raw_gene_names):
     """
     Take a list of gene names; return a dict mapping them
     to Ensembl IDs, accounting for AIBS-specific gene
