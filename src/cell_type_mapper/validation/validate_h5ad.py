@@ -36,7 +36,6 @@ from cell_type_mapper.gene_id.utils import (
 
 def validate_h5ad(
         h5ad_path,
-        gene_id_mapper,
         log=None,
         expected_max=20,
         tmp_dir=None,
@@ -51,10 +50,6 @@ def validate_h5ad(
     ----------
     h5ad_path:
         Path to the source h5ad file
-    gene_id_mapper:
-        the GeneIdMapper that will handle the mapping of gene
-        identifiers into the expected form. If None, infer the
-        mapper based on the species implied by the input gene IDs.
     log:
         Optional logger to log messages for CLI
     expected_max:
@@ -98,7 +93,6 @@ def validate_h5ad(
     try:
         result = _validate_h5ad(
             h5ad_path=h5ad_path,
-            gene_id_mapper=gene_id_mapper,
             log=log,
             expected_max=expected_max,
             tmp_dir=tmp_dir,
@@ -114,7 +108,6 @@ def validate_h5ad(
 
 def _validate_h5ad(
         h5ad_path,
-        gene_id_mapper,
         log=None,
         expected_max=20,
         tmp_dir=None,
@@ -180,7 +173,6 @@ def _validate_h5ad(
 
     var_original = _check_var(
          active_h5ad_path=active_h5ad_path,
-         gene_id_mapper=gene_id_mapper,
          log=log)
 
     (cast_to_int,
@@ -505,7 +497,6 @@ def _create_new_obs(
 
 def _check_var(
         active_h5ad_path,
-        gene_id_mapper,
         log):
     """
     Check uniqueness of genes. Do mapping to ENSEMBL if needed.
@@ -514,10 +505,6 @@ def _check_var(
     ----------
     active_h5ad_path:
         path to h5ad file being validated
-    gene_id_mapper:
-        the GeneIdMapper that will handle the mapping of gene
-        identifiers into the expected form. If None, infer the
-        mapper based on the species implied by the input gene IDs.
     log:
         optional CLI log for recording errors and warnings
 

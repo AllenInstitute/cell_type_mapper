@@ -229,7 +229,6 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 h5ad_path=self.args['input_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
-                gene_id_mapper=None,
                 log=command_log,
                 expected_max=expected_max,
                 tmp_dir=self.args['tmp_dir'],

@@ -246,7 +246,6 @@ def test_validation_of_transposed_h5ad_files(
 
         baseline_path = validate_h5ad(
             h5ad_path=h5ad_fixture['correct'],
-            gene_id_mapper=None,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',
@@ -266,7 +265,6 @@ def test_validation_of_transposed_h5ad_files(
 
         validate_h5ad(
             h5ad_path=test_src_path,
-            gene_id_mapper=None,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',

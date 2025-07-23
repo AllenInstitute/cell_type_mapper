@@ -23,9 +23,6 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
-
 from cell_type_mapper.validation.validate_h5ad import (
     validate_h5ad)
 
@@ -158,8 +155,6 @@ def test_validation_of_h5ad_without_encoding(
 
         dst.create_dataset(to_write, data=x_fixture)
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     valid_h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
@@ -171,7 +166,6 @@ def test_validation_of_h5ad_without_encoding(
             h5ad_path=orig_path,
             output_dir=None,
             valid_h5ad_path=valid_h5ad_path,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture,
             layer=layer,
             round_to_int=True,
@@ -210,8 +204,6 @@ def test_validation_of_corrupted_h5ad(
         X=x_fixture)
     a_data.write_h5ad(orig_path)
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     valid_h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         suffix='.h5ad')
@@ -226,7 +218,6 @@ def test_validation_of_corrupted_h5ad(
                     h5ad_path=orig_path,
                     output_dir=None,
                     valid_h5ad_path=valid_h5ad_path,
-                    gene_id_mapper=gene_id_mapper,
                     tmp_dir=tmp_dir_fixture,
                     layer='X',
                     round_to_int=True,
@@ -353,8 +344,6 @@ def test_validation_of_h5ad_simple(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     if as_layer:
         layer = 'garbage'
     else:
@@ -375,7 +364,6 @@ def test_validation_of_h5ad_simple(
             h5ad_path=orig_path,
             output_dir=output_dir,
             valid_h5ad_path=valid_h5ad_path,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture,
             layer=layer,
             round_to_int=round_to_int)
@@ -489,14 +477,11 @@ def test_validation_of_good_h5ad(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
             output_dir=tmp_dir_fixture,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture)
 
     assert result_path is None
@@ -540,14 +525,11 @@ def test_validation_of_h5ad_ignoring_norm(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
             output_dir=tmp_dir_fixture,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture,
             round_to_int=False)
 
@@ -599,14 +581,11 @@ def test_validation_of_good_h5ad_in_layer(
     with open(orig_path, 'rb') as src:
         md50.update(src.read())
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
             output_dir=tmp_dir_fixture,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture,
             layer='garbage')
 
@@ -697,12 +676,9 @@ def test_validation_of_h5ad_diverse_dtypes(
         with open(orig_path, 'rb') as src:
             md50.update(src.read())
 
-        gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
             output_dir=tmp_dir_fixture,
-            gene_id_mapper=gene_id_mapper,
             tmp_dir=tmp_dir_fixture)
 
     assert result_path is not None
@@ -722,7 +698,6 @@ def test_validation_of_h5ad_errors():
     with pytest.raises(RuntimeError, match="Cannot specify both"):
         validate_h5ad(
             h5ad_path='silly',
-            gene_id_mapper='nonsense',
             tmp_dir=None,
             output_dir='foo',
             valid_h5ad_path='bar')
@@ -730,7 +705,6 @@ def test_validation_of_h5ad_errors():
     with pytest.raises(RuntimeError, match="Must specify one of either"):
         validate_h5ad(
             h5ad_path='silly',
-            gene_id_mapper='nonsense',
             tmp_dir=None,
             output_dir=None,
             valid_h5ad_path=None)
@@ -770,7 +744,7 @@ def test_gene_name_errors(tmp_dir_fixture):
             validate_h5ad(
                 h5ad_path=h5ad_path,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-                gene_id_mapper=None)
+            )
 
         # case of repeated gene name
         var = pd.DataFrame(
@@ -792,7 +766,7 @@ def test_gene_name_errors(tmp_dir_fixture):
             validate_h5ad(
                 h5ad_path=h5ad_path,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
-                gene_id_mapper=None)
+            )
 
 
 @pytest.mark.parametrize(
@@ -832,8 +806,6 @@ def test_missing_element(
         excluded_groups=[excluded_element],
         max_elements=10000)
 
-    gene_id_mapper = GeneIdMapper(data=map_data_fixture)
-
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         msg = (
@@ -844,5 +816,4 @@ def test_missing_element(
             _, _ = validate_h5ad(
                 h5ad_path=incomplete_path,
                 output_dir=tmp_dir_fixture,
-                gene_id_mapper=gene_id_mapper,
                 tmp_dir=tmp_dir_fixture)
