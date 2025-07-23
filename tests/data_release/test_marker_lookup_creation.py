@@ -15,7 +15,7 @@ from cell_type_mapper.marker_lookup.marker_lookup import (
 from cell_type_mapper.cli.marker_cache_from_csv_dir import (
     MarkerCacheRunner)
 
-from cell_type_mapper.data.cellranger_6_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.cellranger_6_lookup import (
     cellranger_6_lookup)
 
 

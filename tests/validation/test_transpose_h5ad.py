@@ -19,11 +19,11 @@ from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
     mouse_gene_id_lookup
 )
 
-from cell_type_mapper.data.human_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
     human_gene_id_lookup
 )
 

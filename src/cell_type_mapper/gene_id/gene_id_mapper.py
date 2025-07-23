@@ -6,10 +6,10 @@ import cell_type_mapper.utils.utils as utils
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
     mouse_gene_id_lookup)
 
-from cell_type_mapper.data.human_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
     human_gene_id_lookup)
 
 

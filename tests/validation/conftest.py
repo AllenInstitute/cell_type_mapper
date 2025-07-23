@@ -7,7 +7,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
     mouse_gene_id_lookup
 )
 

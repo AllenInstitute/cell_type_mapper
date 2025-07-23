@@ -19,7 +19,7 @@ import shutil
 import tempfile
 import warnings
 
-from cell_type_mapper.data.human_gene_id_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
     human_gene_id_lookup)
 
 from cell_type_mapper.utils.anndata_utils import (

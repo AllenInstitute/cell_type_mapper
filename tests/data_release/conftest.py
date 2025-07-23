@@ -15,7 +15,7 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.data.cellranger_6_lookup import (
+from cell_type_mapper.test_utils.gene_mapping.cellranger_6_lookup import (
     cellranger_6_lookup)
 
 
