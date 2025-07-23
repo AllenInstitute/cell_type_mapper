@@ -10,7 +10,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean)
 
 from cell_type_mapper.utils.cli_utils import (
-     _get_query_gene_names
+     get_query_gene_names
 )
 
 
@@ -80,9 +80,9 @@ def test_get_query_gene_names(tmp_dir_fixture, as_ensembl, species):
 
         if species == 'nonsense' and as_ensembl:
             with pytest.raises(RuntimeError, match="Could not find a species"):
-                _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
+                get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
         else:
-            actual = _get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
+            actual = get_query_gene_names(src_path, map_to_ensembl=as_ensembl)
             if as_ensembl:
                 for idx in (0, 1, 3):
                     assert actual[0][idx] == expected_ensembl[idx]
@@ -146,7 +146,7 @@ def test_flag_in_get_query_gene_names(
 
             a_data.write_h5ad(src_path)
 
-            result = _get_query_gene_names(
+            result = get_query_gene_names(
                 query_gene_path=src_path,
                 map_to_ensembl=True)
 

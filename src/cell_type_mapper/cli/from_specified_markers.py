@@ -44,7 +44,7 @@ from cell_type_mapper.cli.cli_log import (
     CommandLog)
 
 from cell_type_mapper.utils.cli_utils import (
-    _get_query_gene_names,
+    get_query_gene_names,
     config_from_args)
 
 from cell_type_mapper.diff_exp.precompute_utils import (
@@ -341,7 +341,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     (query_gene_names,
      n_unmapped,
-     _) = _get_query_gene_names(
+     _) = get_query_gene_names(
         query_loc,
         map_to_ensembl=config['map_to_ensembl'],
         gene_id_col=config['query_gene_id_col'])

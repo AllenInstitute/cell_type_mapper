@@ -35,7 +35,7 @@ def _check_config(config_dict, config_name, key_name, log):
             log.error(f"'{config_name}' config missing key '{key_name}'")
 
 
-def _get_query_gene_names(
+def get_query_gene_names(
         query_gene_path,
         map_to_ensembl=False,
         gene_id_col=None):

@@ -20,7 +20,7 @@ from cell_type_mapper.diff_exp.precompute_utils import (
 
 from cell_type_mapper.utils.cli_utils import (
     config_from_args,
-    _get_query_gene_names
+    get_query_gene_names
 )
 
 from cell_type_mapper.utils.output_utils import (
@@ -143,7 +143,7 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         if self.args['map_to_ensembl']:
             (new_gene_ids,
              _,
-             gene_names_changed) = _get_query_gene_names(
+             gene_names_changed) = get_query_gene_names(
                          query_gene_path=query_path,
                          map_to_ensembl=True,
                          gene_id_col=query_gene_id_col
