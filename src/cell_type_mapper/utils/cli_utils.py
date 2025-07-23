@@ -40,7 +40,8 @@ def align_query_gene_names(
         query_gene_path,
         gene_id_col=None,
         precomputed_stats_path=None,
-        gene_mapper_db_path=None):
+        gene_mapper_db_path=None,
+        log=None):
     """
     If map_to_ensembl is True, automatically map the gene IDs in
     query_gene_path.var.index to ENSEMBL IDs
@@ -68,75 +69,93 @@ def align_query_gene_names(
     was_changed = False
     if map_genes:
 
-        with h5py.File(precomputed_stats_path, 'r') as src:
-            input_genes = json.loads(
-                src['col_names'][()].decode('utf-8')
-            )
-
-        input_gene_data = species_detection.detect_species_and_authority(
-            db_path=gene_mapper_db_path,
-            gene_list=input_genes
-        )
-
-        input_authority = set(input_gene_data['authority'])
-
-        if len(input_authority) == 1 and 'symbol' in input_authority:
-            raise ValueError(
-                "reference data contains gene symbols; will not be "
-                "able to infer a species during gene alignment"
-            )
-
-        if 'symbol' in input_authority:
-            input_authority.remove('symbol')
-
-        if len(input_authority) != 1:
-            raise ValueError(
-               "Could not find single authority to map genes to; "
-               f"options are {input_authority}"
-            )
-        dst_authority = input_authority.pop()
-        dst_species = input_gene_data['species'].name
-        print(f'dst_species {dst_species}')
-        print(input_genes)
-
-        if dst_species is None:
-            msg = (
-                "Could not find a species for the genes you gave:\n"
-                f"First five genes:\n{result[:5]}"
-            )
-            raise RuntimeError(msg)
-
-        gene_mapper = gene_mapper_module.MMCGeneMapper(
-            db_path=gene_mapper_db_path
-        )
-
-        original_result = np.array(result)
-
-        raw_result = gene_mapper.map_genes(
-            gene_list=result,
-            dst_species=dst_species,
-            dst_authority=dst_authority,
-            ortholog_citation='NCBI',
-            log=None,
-            invalid_mapping_prefix=gene_utils.invalid_query_prefix()
-        )
-
-        result = raw_result['gene_list']
-        n_unmapped = 0
-        for gene_name in result:
-            if 'UNMAPPABLE' in gene_name:
-                n_unmapped += 1
-
-        if np.array_equal(np.array(result), original_result):
-            was_changed = False
-        else:
-            delta = np.where(np.array(result) != original_result)[0]
-            for ii in delta:
-                if 'UNMAPPABLE' not in result[ii]:
-                    was_changed = True
-                    break
+        (result,
+         n_unmapped,
+         was_changed) = _align_gene_names(
+             precomputed_stats_path=precomputed_stats_path,
+             gene_mapper_db_path=gene_mapper_db_path,
+             gene_list=result,
+             log=log)
 
     return result, n_unmapped, was_changed
+
+
+def _align_gene_names(
+        precomputed_stats_path,
+        gene_mapper_db_path,
+        gene_list,
+        log):
+
+    was_changed = False
+
+    with h5py.File(precomputed_stats_path, 'r') as src:
+        input_genes = json.loads(
+            src['col_names'][()].decode('utf-8')
+        )
+
+    input_gene_data = species_detection.detect_species_and_authority(
+        db_path=gene_mapper_db_path,
+        gene_list=input_genes
+    )
+
+    input_authority = set(input_gene_data['authority'])
+
+    if len(input_authority) == 1 and 'symbol' in input_authority:
+        raise ValueError(
+            "reference data contains gene symbols; will not be "
+            "able to infer a species during gene alignment"
+        )
+
+    if 'symbol' in input_authority:
+        input_authority.remove('symbol')
+
+    if len(input_authority) != 1:
+        raise ValueError(
+           "Could not find single authority to map genes to; "
+           f"options are {input_authority}"
+        )
+    dst_authority = input_authority.pop()
+    dst_species = input_gene_data['species'].name
+
+    if dst_species is None:
+        msg = (
+            "Could not find a species for the genes you gave:\n"
+            f"First five genes:\n{result[:5]}"
+        )
+        raise RuntimeError(msg)
+
+    gene_mapper = gene_mapper_module.MMCGeneMapper(
+        db_path=gene_mapper_db_path
+    )
+
+    original_result = np.array(gene_list)
+
+    raw_result = gene_mapper.map_genes(
+        gene_list=gene_list,
+        dst_species=dst_species,
+        dst_authority=dst_authority,
+        ortholog_citation='NCBI',
+        log=log,
+        invalid_mapping_prefix=gene_utils.invalid_query_prefix()
+    )
+
+    result = raw_result['gene_list']
+    n_unmapped = 0
+    for gene_name in result:
+        if 'UNMAPPABLE' in gene_name:
+            n_unmapped += 1
+
+    if np.array_equal(np.array(result), original_result):
+        was_changed = False
+    else:
+        delta = np.where(np.array(result) != original_result)[0]
+        for ii in delta:
+            if 'UNMAPPABLE' not in result[ii]:
+                was_changed = True
+                break
+
+    return result, n_unmapped, was_changed
+
 
 
 def create_precomputed_stats_file(
