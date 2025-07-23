@@ -53,21 +53,6 @@ def align_query_gene_names(
     an ENSEMBL ID; false otherwise)
     """
 
-    if precomputed_stats_path is not None:
-        if gene_mapper_db_path is None:
-            raise ValueError(
-                "You specified a precomputed_stats_path "
-                "but not a gene_mapper_db_path for "
-                "align_query_gene_names; you must specify both or neither"
-            )
-    if gene_mapper_db_path is not None:
-        if precomputed_stats_path is None:
-            raise ValueError(
-                "You specified a gene_mapper_db_path but not a "
-                "precomputed_stats_path for align_query_gene_names; "
-                "you must specify both or neigher"
-            )
-
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
