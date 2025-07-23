@@ -1,16 +1,15 @@
 import copy
+import h5py
+import json
 import numpy as np
 import pathlib
 import time
 
 import cell_type_mapper.utils.gene_utils as gene_utils
+import mmc_gene_mapper.mapper.species_detection as species_detection
 
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
-
-from cell_type_mapper.gene_id.utils import detect_species
-
-from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -20,6 +19,8 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
+
+import mmc_gene_mapper.mapper.mapper as gene_mapper_module
 
 
 def _check_config(config_dict, config_name, key_name, log):
@@ -35,10 +36,11 @@ def _check_config(config_dict, config_name, key_name, log):
             log.error(f"'{config_name}' config missing key '{key_name}'")
 
 
-def get_query_gene_names(
+def align_query_gene_names(
         query_gene_path,
-        map_to_ensembl=False,
-        gene_id_col=None):
+        gene_id_col=None,
+        precomputed_stats_path=None,
+        gene_mapper_db_path=None):
     """
     If map_to_ensembl is True, automatically map the gene IDs in
     query_gene_path.var.index to ENSEMBL IDs
@@ -50,38 +52,102 @@ def get_query_gene_names(
     were meaningfully mapped (True if a gene was mapped to
     an ENSEMBL ID; false otherwise)
     """
+
+    if precomputed_stats_path is not None:
+        if gene_mapper_db_path is None:
+            raise ValueError(
+                "You specified a precomputed_stats_path "
+                "but not a gene_mapper_db_path for "
+                "align_query_gene_names; you must specify both or neither"
+            )
+    if gene_mapper_db_path is not None:
+        if precomputed_stats_path is None:
+            raise ValueError(
+                "You specified a gene_mapper_db_path but not a "
+                "precomputed_stats_path for align_query_gene_names; "
+                "you must specify both or neigher"
+            )
+
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
         duplicate_prefix=gene_utils.invalid_query_prefix()
     )
 
+    map_genes = False
+    if gene_mapper_db_path is not None:
+        if precomputed_stats_path is not None:
+            map_genes = True
+
     n_unmapped = 0
     was_changed = False
-    if map_to_ensembl:
-        original_result = np.array(result)
-        species = detect_species(result)
-        if species is None:
+    if map_genes:
+
+        with h5py.File(precomputed_stats_path, 'r') as src:
+            input_genes = json.loads(
+                src['col_names'][()].decode('utf-8')
+            )
+
+        input_gene_data = species_detection.detect_species_and_authority(
+            db_path=gene_mapper_db_path,
+            gene_list=input_genes
+        )
+
+        input_authority = set(input_gene_data['authority'])
+
+        if len(input_authority) == 1 and 'symbol' in input_authority:
+            raise ValueError(
+                "reference data contains gene symbols; will not be "
+                "able to infer a species during gene alignment"
+            )
+
+        if 'symbol' in input_authority:
+            input_authority.remove('symbol')
+
+        if len(input_authority) != 1:
+            raise ValueError(
+               "Could not find single authority to map genes to; "
+               f"options are {input_authority}"
+            )
+        dst_authority = input_authority.pop()
+        dst_species = input_gene_data['species'].name
+        print(f'dst_species {dst_species}')
+        print(input_genes)
+
+        if dst_species is None:
             msg = (
                 "Could not find a species for the genes you gave:\n"
                 f"First five genes:\n{result[:5]}"
             )
             raise RuntimeError(msg)
 
-        gene_id_mapper = GeneIdMapper.from_species(
-            species=species)
-        raw_result = gene_id_mapper.map_gene_identifiers(
-            result,
-            strict=False)
-        result = raw_result['mapped_genes']
-        n_unmapped = raw_result['n_unmapped']
+        gene_mapper = gene_mapper_module.MMCGeneMapper(
+            db_path=gene_mapper_db_path
+        )
+
+        original_result = np.array(result)
+
+        raw_result = gene_mapper.map_genes(
+            gene_list=result,
+            dst_species=dst_species,
+            dst_authority=dst_authority,
+            ortholog_citation='NCBI',
+            log=None,
+            invalid_mapping_prefix=gene_utils.invalid_query_prefix()
+        )
+
+        result = raw_result['gene_list']
+        n_unmapped = 0
+        for gene_name in result:
+            if 'UNMAPPABLE' in gene_name:
+                n_unmapped += 1
 
         if np.array_equal(np.array(result), original_result):
             was_changed = False
         else:
             delta = np.where(np.array(result) != original_result)[0]
             for ii in delta:
-                if 'unmapped' not in result[ii]:
+                if 'UNMAPPABLE' not in result[ii]:
                     was_changed = True
                     break
 

@@ -137,7 +137,7 @@ def legacy_gene_mapping_files(legacy_gene_mapper_tmp_dir_fixture):
                  "source_id": human_v,
                  "symbol": human_k,
                  "name": None,
-                 "in_taxon_label": "Mus musculus"
+                 "in_taxon_label": "Homo sapiens"
                  }
             )
 
@@ -316,3 +316,9 @@ def legacy_gene_mapper_fixture(
         )
 
     return gene_mapper
+
+
+@pytest.fixture(scope='session')
+def legacy_gene_mapper_db_path_fixture(
+        legacy_gene_mapper_fixture):
+    return legacy_gene_mapper_fixture.db_path
