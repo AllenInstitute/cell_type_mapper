@@ -61,6 +61,9 @@ def taxonomy_tree_fixture():
 
 @pytest.fixture(scope='session')
 def gene_name_fixture():
+    """
+    Return list of gene names
+    """
     rng = np.random.default_rng(2213)
     result = [k for k in mouse_gene_id_lookup.keys() if 'NCBI' not in k]
     result = rng.choice(result, 432, replace=False)
@@ -69,6 +72,9 @@ def gene_name_fixture():
 
 @pytest.fixture(scope='session')
 def gene_id_fixture(gene_name_fixture):
+    """
+    Return list of ensembl IDs
+    """
     return [mouse_gene_id_lookup[g] for g in gene_name_fixture]
 
 
@@ -159,20 +165,43 @@ def query_h5ad_fixture(
         density_specification=density_fixture,
         gene_name_list=gene_name_fixture,
         tmp_dir_path=tmp_dir_fixture,
-        n_extra_genes=n_extra_genes_fixture
+        n_extra_genes=n_extra_genes_fixture,
+        flavor='symbol'
     )
 
+
+@pytest.fixture()
+def reference_query_h5ad_fixture(
+        density_fixture,
+        gene_id_fixture,
+        tmp_dir_fixture,
+        n_extra_genes_fixture):
+
+    return create_query_h5ad(
+        density_specification=density_fixture,
+        gene_name_list=gene_id_fixture,
+        tmp_dir_path=tmp_dir_fixture,
+        n_extra_genes=n_extra_genes_fixture,
+        flavor='id'
+    )
 
 def create_query_h5ad(
         density_specification,
         gene_name_list,
         tmp_dir_path,
-        n_extra_genes):
+        n_extra_genes,
+        flavor):
+    """
+    flavor indicates whether the genes are specified with
+    symbols or IDs
+    """
 
     if not hasattr(create_query_h5ad, '_cache'):
         create_query_h5ad._cache = dict()
+    if flavor not in create_query_h5ad._cache:
+        create_query_h5ad._cache[flavor] = dict()
 
-    if density_specification not in create_query_h5ad._cache:
+    if density_specification not in create_query_h5ad._cache[flavor]:
         h5ad_path = mkstemp_clean(
             dir=tmp_dir_path,
             prefix='query_data_',
@@ -219,13 +248,13 @@ def create_query_h5ad(
             var=var)
 
         a_data.write_h5ad(h5ad_path)
-        create_query_h5ad._cache[density_specification] = h5ad_path
-    return create_query_h5ad._cache[density_specification]
+        create_query_h5ad._cache[flavor][density_specification] = h5ad_path
+    return create_query_h5ad._cache[flavor][density_specification]
 
 
 @pytest.fixture()
 def reference_mapping_fixture(
-        query_h5ad_fixture,
+        reference_query_h5ad_fixture,
         marker_lookup_fixture,
         precomputed_stats_fixture,
         density_fixture,
@@ -236,7 +265,7 @@ def reference_mapping_fixture(
     that lacked the encoding-type metadata field)
     """
     return do_reference_mapping(
-        query_h5ad_path=query_h5ad_fixture,
+        query_h5ad_path=reference_query_h5ad_fixture,
         marker_lookup_path=marker_lookup_fixture,
         precomputed_stats_path=precomputed_stats_fixture,
         density_specification=density_fixture,
@@ -304,7 +333,7 @@ def do_reference_mapping(
             'extended_result_path': str(output_path),
             'csv_result_path': str(csv_path),
             'summary_metadata_path': metadata_path,
-            'map_to_ensembl': True,
+            'map_to_ensembl': False,
             'type_assignment': {
                 'normalization': 'raw',
                 'bootstrap_iteration': 10,
