@@ -29,7 +29,7 @@ def invalid_query_prefix():
 def get_gene_identifier_list(
         h5ad_path_list,
         gene_id_col,
-        duplicate_prefix=invalid_precompute_prefix()):
+        duplicate_prefix=None):
     """
     Get list of gene identifiers from a list of h5ad files.
 
@@ -53,7 +53,14 @@ def get_gene_identifier_list(
     -----
     will raise an exception of the h5ad files give different
     results for gene name list
+
+    this function performs no mapping on gene identifiers. It only
+    masks out gene identifiers with duplicate names
     """
+
+    if duplicate_prefix is None:
+        duplicate_prefix = invalid_precompute_prefix()
+
     gene_names = None
     for pth in h5ad_path_list:
         var = anndata_utils.read_df_from_h5ad(pth, 'var')
@@ -74,7 +81,7 @@ def get_gene_identifier_list(
 
     gene_names = mask_duplicate_gene_identifiers(
         gene_identifier_list=gene_names,
-        mask_prefix=invalid_precompute_prefix(),
+        mask_prefix=duplicate_prefix,
         log=None
     )
 
