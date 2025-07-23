@@ -14,8 +14,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
 
-from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -64,6 +63,7 @@ def gene_name_fixture():
     """
     Return list of gene names
     """
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
     rng = np.random.default_rng(2213)
     result = [k for k in mouse_gene_id_lookup.keys() if 'NCBI' not in k]
     result = rng.choice(result, 432, replace=False)
@@ -75,6 +75,7 @@ def gene_id_fixture(gene_name_fixture):
     """
     Return list of ensembl IDs
     """
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
     return [mouse_gene_id_lookup[g] for g in gene_name_fixture]
 
 
@@ -184,6 +185,7 @@ def reference_query_h5ad_fixture(
         n_extra_genes=n_extra_genes_fixture,
         flavor='id'
     )
+
 
 def create_query_h5ad(
         density_specification,

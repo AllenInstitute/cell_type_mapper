@@ -5,11 +5,7 @@ import re
 from cell_type_mapper.gene_id.utils import (
     is_ensembl)
 
-from cell_type_mapper.test_utils.gene_mapping.cellranger_6_lookup import (
-    cellranger_6_lookup)
-
-from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 def marker_lookup_from_tree_and_csv(
@@ -149,6 +145,8 @@ def _map_aibs_gene_names(raw_gene_names):
     bad_symbols = []
     used_ensembl = set()
     symbol_to_ensembl = dict()
+    cellranger_6_lookup = gene_mappers.get_cellranger_gene_id_mapping()
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
     for symbol in raw_gene_names:
         ensembl = None
         if symbol in cellranger_6_lookup:

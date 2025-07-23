@@ -15,8 +15,7 @@ from cell_type_mapper.marker_lookup.marker_lookup import (
 from cell_type_mapper.cli.marker_cache_from_csv_dir import (
     MarkerCacheRunner)
 
-from cell_type_mapper.test_utils.gene_mapping.cellranger_6_lookup import (
-    cellranger_6_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 def test_marker_creation_function(
@@ -66,6 +65,8 @@ def test_marker_creation_cli(
         cluster_annotation_term_fixture,
         tmp_dir_fixture,
         map_to_ensembl):
+
+    cellranger_6_lookup = gene_mappers.get_cellranger_gene_id_mapping()
 
     taxonomy_tree = TaxonomyTree.from_data_release(
         cell_metadata_path=cell_metadata_fixture,

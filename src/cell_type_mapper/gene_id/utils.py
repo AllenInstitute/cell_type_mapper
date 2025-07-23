@@ -1,10 +1,6 @@
 import re
 
-from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
-
-from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
-    human_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 def is_ensembl(gene_id):
@@ -35,6 +31,8 @@ def detect_species(gene_id_list):
     - If there are no known gene symbols present, return None
     """
 
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
+    human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
     if not hasattr(detect_species, '_cache'):
         detect_species._cache = dict()
         for species, lookup in [('mouse', mouse_gene_id_lookup),

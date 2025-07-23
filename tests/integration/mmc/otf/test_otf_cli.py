@@ -19,8 +19,7 @@ import shutil
 import tempfile
 import warnings
 
-from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
-    human_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
@@ -326,6 +325,8 @@ def human_gene_data_fixture(
     so that we can test the full validation-through-mapping
     pipeline.
     """
+
+    human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
 
     rng = np.random.default_rng(6177112)
     genes_to_map = set()

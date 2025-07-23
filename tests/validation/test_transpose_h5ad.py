@@ -19,13 +19,7 @@ from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
 )
 
-from cell_type_mapper.test_utils.gene_mapping.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup
-)
-
-from cell_type_mapper.test_utils.gene_mapping.human_gene_id_lookup import (
-    human_gene_id_lookup
-)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 from cell_type_mapper.validation.validate_h5ad import (
     _transpose_file_if_necessary,
@@ -48,6 +42,9 @@ def h5ad_fixture(
         tmp_dir_fixture,
         density_fixture,
         species_fixture):
+
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
+    human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
 
     rng = np.random.default_rng(6611223)
     n_cells = 613
