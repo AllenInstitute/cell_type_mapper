@@ -321,4 +321,4 @@ def legacy_gene_mapper_fixture(
 @pytest.fixture(scope='session')
 def legacy_gene_mapper_db_path_fixture(
         legacy_gene_mapper_fixture):
-    return legacy_gene_mapper_fixture.db_path
+    return str(legacy_gene_mapper_fixture.db_path)

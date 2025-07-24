@@ -30,7 +30,8 @@ from cell_type_mapper.schemas.mixins import (
     NProcessorsMixin,
     NodesToDropMixin,
     VerboseStdoutMixin,
-    MapToEnsemblMixin)
+    MapToEnsemblMixin,
+    GeneMappingMixin)
 
 from cell_type_mapper.schemas.reference_marker_finder import (
     ReferenceFinderConfigMixin)
@@ -87,7 +88,8 @@ class MapperSchema_OTF(
         NProcessorsMixin,
         NodesToDropMixin,
         VerboseStdoutMixin,
-        MapToEnsemblMixin):
+        MapToEnsemblMixin,
+        GeneMappingMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerSchema_OTF,
@@ -140,13 +142,18 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         query_path = self.args['query_path']
         query_gene_id_col = self.args['query_gene_id_col']
 
-        if self.args['map_to_ensembl']:
+        gene_mapping_metadata = dict()
+        if self.args['gene_mapping'] is not None:
             (new_gene_ids,
              _,
-             gene_names_changed) = align_query_gene_names(
-                         query_gene_path=query_path,
-                         map_to_ensembl=True,
-                         gene_id_col=query_gene_id_col
+             gene_names_changed,
+             gene_mapping_metadata) = align_query_gene_names(
+                     query_gene_path=query_path,
+                     gene_id_col=query_gene_id_col,
+                     precomputed_stats_path=(
+                         self.args['precomputed_stats']['path']
+                     ),
+                     gene_mapper_db_path=self.args['gene_mapping']['db_path']
              )
 
             if gene_names_changed:
@@ -277,6 +284,10 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         mapping_result = mapping_runner.run_mapping(write_to_disk=False)
         if mapping_result['mapping_exception'] is None:
             log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
+        mapping_result['output'].pop('gene_identifier_mapping')
+        mapping_result['output']['gene_identifier_mapping'] = (
+            gene_mapping_metadata
+        )
         return mapping_result
 
     def drop_nodes_from_taxonomy(self, tmp_dir):

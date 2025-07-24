@@ -65,7 +65,8 @@ from cell_type_mapper.cli.validate_h5ad import (
 def run_pipeline(
         query_path,
         precomputed_path,
-        tmp_dir):
+        tmp_dir,
+        gene_mapper_db_path):
     """
     Run the full validation-through-mapping pipeline
     for the online OTF MapMyCells implementation
@@ -78,6 +79,8 @@ def run_pipeline(
         Path to precomputed_stats file
     tmp_dir:
         Path to tmp_dir
+    gene_mapper_db_path:
+        path to db file used by mmc_gene_mapper
 
     Returns
     --------
@@ -145,6 +148,7 @@ def run_pipeline(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {'db_path': gene_mapper_db_path},
         'drop_level': None,
         'query_path': validated_path,
         'log_path': log_path,
@@ -159,8 +163,7 @@ def run_pipeline(
         'csv_result_path': csv_path,
         'summary_metadata_path': metadata_path,
         'cloud_safe': True,
-        'nodes_to_drop': None,
-        'map_to_ensembl': True
+        'nodes_to_drop': None
     }
 
     with warnings.catch_warnings():
@@ -878,7 +881,8 @@ def test_online_workflow_OTF(
         human_gene_data_fixture,
         density,
         baseline_mapping_fixture,
-        file_type):
+        file_type,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper
@@ -919,7 +923,8 @@ def test_online_workflow_OTF(
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     baseline_df = pd.read_csv(
@@ -948,7 +953,8 @@ def test_OTF_log_path(
         keep_encoding,
         density,
         file_type,
-        human_gene_data_fixture):
+        human_gene_data_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that specified log_path contains same data as JSON log
     """
@@ -964,7 +970,8 @@ def test_OTF_log_path(
      log_path) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     with open(log_path, 'r') as src:
@@ -1005,7 +1012,8 @@ def test_online_workflow_OTF_csv_shape(
         baseline_mapping_fixture,
         cell_label_header,
         cell_label_type,
-        suffix):
+        suffix,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper. Specifically, check
@@ -1040,7 +1048,8 @@ def test_online_workflow_OTF_csv_shape(
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     baseline_df = pd.read_csv(
@@ -1074,7 +1083,8 @@ def test_online_workflow_OTF_csv_shape(
 
 def test_online_workflow_OTF_degenerate_cell_labels(
         human_gene_data_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that, when cell labels are repeated, the mapping proceeds and
     the order of cells is preserved
@@ -1144,7 +1154,8 @@ def test_online_workflow_OTF_degenerate_cell_labels(
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=str(tmp_dir_fixture)
+         tmp_dir=str(tmp_dir_fixture),
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # do the mapping on the h5ad with degenerate cell labels
@@ -1154,7 +1165,8 @@ def test_online_workflow_OTF_degenerate_cell_labels(
      _) = run_pipeline(
          query_path=test_h5ad_path,
          precomputed_path=precomputed_path,
-         tmp_dir=str(tmp_dir_fixture)
+         tmp_dir=str(tmp_dir_fixture),
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # compare the contents of the two mappings
@@ -1206,7 +1218,8 @@ def test_OTF_map_to_ensembl(
         tmp_dir_fixture,
         human_gene_data_fixture,
         baseline_mapping_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that OTF mapper can handle mapping to ensembl by
     itself
@@ -1237,10 +1250,12 @@ def test_OTF_map_to_ensembl(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        },
         'drop_level': None,
         'query_path': str(query_path),
         'log_path': None,
-        'map_to_ensembl': True,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {
@@ -1287,7 +1302,8 @@ def test_OTF_map_to_ensembl(
 def test_OTF_alt_gene_id_col(
         tmp_dir_fixture,
         human_gene_data_fixture,
-        baseline_mapping_fixture):
+        baseline_mapping_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that OTF mapper can handle data with the query
     gene IDs in a different column
@@ -1335,11 +1351,11 @@ def test_OTF_alt_gene_id_col(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {'db_path': legacy_gene_mapper_db_path_fixture},
         'drop_level': None,
         'query_path': str(query_path),
         'query_gene_id_col': None,
         'log_path': None,
-        'map_to_ensembl': True,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {

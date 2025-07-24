@@ -41,12 +41,21 @@ def test_ensembl_mapping_in_cli(
         tmp_dir_fixture,
         n_extra_genes_fixture,
         map_to_ensembl,
-        write_summary):
+        write_summary,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test for expected behavior (error/no error) when we just
     ask the from_specified_markers CLI to map gene names to
     ENSEMBLID
     """
+
+    if map_to_ensembl:
+        gene_config = {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
+    else:
+        gene_config = None
+
     output_path = mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='outptut_',
@@ -67,10 +76,10 @@ def test_ensembl_mapping_in_cli(
         'query_markers': {
             'serialized_lookup': str(marker_lookup_fixture)
         },
+        'gene_mapping': gene_config,
         'query_path': str(query_h5ad_fixture),
         'extended_result_path': str(output_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': map_to_ensembl,
         'type_assignment': {
             'normalization': 'log2CPM',
             'bootstrap_iteration': 10,
@@ -117,7 +126,8 @@ def test_summary_from_validated_file(
         precomputed_stats_fixture,
         query_h5ad_fixture,
         tmp_dir_fixture,
-        n_extra_genes_fixture):
+        n_extra_genes_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     This test makes sure that the summary metadata is correctly recorded
     when ensembl mapping is handled by the validation CLI.
@@ -170,11 +180,13 @@ def test_summary_from_validated_file(
         'query_markers': {
             'serialized_lookup': str(marker_lookup_fixture)
         },
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        },
         'query_path': validated_path,
         'extended_result_path': str(output_path),
         'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': True,
         'type_assignment': {
             'normalization': 'log2CPM',
             'bootstrap_iteration': 10,
@@ -233,7 +245,8 @@ def test_cli_on_truncated_precompute(
         query_h5ad_fixture,
         tmp_dir_fixture,
         n_extra_genes_fixture,
-        hierarchy):
+        hierarchy,
+        legacy_gene_mapper_db_path_fixture):
     """
     Run a smoke test on FromSpecifiedMarkersRunner using a
     precomputed stats file that has been truncated
@@ -268,10 +281,12 @@ def test_cli_on_truncated_precompute(
         'query_markers': {
             'serialized_lookup': str(marker_lookup_fixture)
         },
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        },
         'query_path': str(query_h5ad_fixture),
         'extended_result_path': str(output_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': True,
         'type_assignment': {
             'normalization': 'log2CPM',
             'bootstrap_iteration': 10,
@@ -283,6 +298,7 @@ def test_cli_on_truncated_precompute(
         }
     }
 
+    print('config ',config)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         runner = FromSpecifiedMarkersRunner(

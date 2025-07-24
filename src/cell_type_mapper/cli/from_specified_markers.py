@@ -27,7 +27,6 @@ from cell_type_mapper.utils.utils import (
     warn_on_parallelization)
 
 from cell_type_mapper.utils.anndata_utils import (
-    read_uns_from_h5ad,
     read_df_from_h5ad,
     append_to_obsm)
 
@@ -170,26 +169,13 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
 
             if self.args['summary_metadata_path'] is not None:
                 n_mapped_cells = len(output['results'])
-                uns = read_uns_from_h5ad(
-                        self.args['query_path'])
+
                 n_total_genes = len(
                         read_df_from_h5ad(
                             self.args['query_path'],
                             df_name='var'))
 
-                local_unmapped = output.pop('n_unmapped_genes')
-
-                if self.args['map_to_ensembl']:
-                    n_mapped_genes = n_total_genes - local_unmapped
-                else:
-                    gene_key = 'AIBS_CDM_n_mapped_genes'
-                    if gene_key in uns:
-                        n_mapped_genes = uns[gene_key]
-                    else:
-                        n_mapped_genes = len(
-                            read_df_from_h5ad(
-                                self.args['query_path'],
-                                df_name='var'))
+                n_mapped_genes = n_total_genes - output.pop('n_unmapped_genes')
 
                 with open(self.args['summary_metadata_path'], 'w') as dst:
                     dst.write(
@@ -228,11 +214,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 module_file=__file__,
                 t0=t0)
             output['metadata'] = metadata
-
-            uns = read_uns_from_h5ad(self.args["query_path"])
-            if "AIBS_CDM_gene_mapping" in uns:
-                output["gene_identifier_mapping"] = \
-                    uns["AIBS_CDM_gene_mapping"]
 
             if write_to_disk:
                 write_mapping_to_disk(
@@ -339,12 +320,19 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
 
     # ========= query marker cache =========
 
+    if config['gene_mapping'] is not None:
+        gene_mapping_db = config['gene_mapping']['db_path']
+    else:
+        gene_mapping_db = None
+
     (query_gene_names,
-     n_unmapped,
-     _) = align_query_gene_names(
+     n_genes_unmapped,
+     _,
+     gene_mapping_metadata) = align_query_gene_names(
         query_loc,
-        map_to_ensembl=config['map_to_ensembl'],
-        gene_id_col=config['query_gene_id_col'])
+        gene_id_col=config['query_gene_id_col'],
+        precomputed_stats_path=precomputed_loc,
+        gene_mapper_db_path=gene_mapping_db)
 
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir,
@@ -558,7 +546,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     output["results"] = result
     output["marker_genes"] = marker_gene_lookup
     output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
-    output["n_unmapped_genes"] = n_unmapped
+    output["n_unmapped_genes"] = n_genes_unmapped
+    output["gene_identifier_mapping"] = gene_mapping_metadata
 
     return output
 

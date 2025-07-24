@@ -351,10 +351,7 @@ def test_mapping_from_markers_smoke(
     assert len(actual['results']) == n_query_cells
 
     input_uns = query_adata.uns
-    assert (
-        actual['gene_identifier_mapping']
-        == input_uns['AIBS_CDM_gene_mapping']
-    )
+
     os.environ[env_var] = ''
 
     with_runners_up = 0

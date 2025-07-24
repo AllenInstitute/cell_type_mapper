@@ -486,10 +486,6 @@ def run_type_assignment(
 
                 bootstrap_factor = bootstrap_factor_lookup[str(parent_level)]
 
-                # spock
-                # return raw votes here
-                # reshape in this function
-                # then, we can just do any level inferring at this point
                 (votes,
                  corr_sum,
                  reference_types) = _run_type_assignment(

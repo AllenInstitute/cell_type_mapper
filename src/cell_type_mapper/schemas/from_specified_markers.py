@@ -9,7 +9,8 @@ from cell_type_mapper.schemas.search_mixins import (
 from cell_type_mapper.schemas.mixins import (
     NodesToDropMixin,
     VerboseStdoutMixin,
-    MapToEnsemblMixin
+    MapToEnsemblMixin,
+    GeneMappingMixin
 )
 
 
@@ -18,7 +19,8 @@ class FromSpecifiedMarkersSchema(
         SearchSchemaMixin,
         NodesToDropMixin,
         VerboseStdoutMixin,
-        MapToEnsemblMixin):
+        MapToEnsemblMixin,
+        GeneMappingMixin):
 
     query_markers = argschema.fields.Nested(
         QueryMarkerInputSchema,
