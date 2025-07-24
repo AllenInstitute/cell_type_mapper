@@ -129,8 +129,7 @@ def test_summary_from_validated_file(
         n_extra_genes_fixture,
         legacy_gene_mapper_db_path_fixture):
     """
-    This test makes sure that the summary metadata is correctly recorded
-    when ensembl mapping is handled by the validation CLI.
+    This test makes sure that the summary metadata is correctly recorded.
 
     Additionally test that cells in the output CSV file are in the same
     order as in the input h5ad file.
