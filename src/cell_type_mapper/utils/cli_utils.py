@@ -136,7 +136,7 @@ def _align_query_gene_names(
                 "reference data",
                 to_stdout=True
             )
-        return gene_list, 0, False, dict()
+        return gene_list, False, dict()
 
     dst_species = reference_gene_data['species'].name
     if log is not None:
