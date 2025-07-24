@@ -321,15 +321,24 @@ def baseline_mapping_fixture(
 
 
 @pytest.fixture(scope='module')
+def n_extra_genes_fixture():
+    return 39
+
+
+@pytest.fixture(scope='module')
 def human_gene_data_fixture(
         precomputed_path_fixture,
         noisy_query_h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        n_extra_genes_fixture):
     """
     Take the cartoon fixtures created in conftest.py
     and modify them to have valid human gene labels
     so that we can test the full validation-through-mapping
     pipeline.
+
+    Add extra genes that won't be mapped so that we can
+    check that summary metadata is recorded correctly
     """
 
     human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
@@ -384,11 +393,17 @@ def human_gene_data_fixture(
         {'gene_id': gene_map[g]}
         for g in src.var.index.values
     ]
+    for ii in range(n_extra_genes_fixture):
+        new_var.append({'gene_id': f'unittest_nonsense_{ii}'})
+
     new_var = pd.DataFrame(new_var).set_index('gene_id')
 
     result = {'precompute': new_precompute}
     for density in ('csc', 'csr', 'dense'):
-        x = src.X[()]
+        src_x = src.X[()]
+        x = np.zeros((len(src.obs), len(new_var)), dtype=src_x.dtype)
+        x[:, :src_x.shape[1]] = src_x
+
         if density == 'csc':
             x = scipy.sparse.csc_matrix(x)
         elif density == 'csr':
@@ -885,7 +900,8 @@ def test_online_workflow_OTF(
         density,
         baseline_mapping_fixture,
         file_type,
-        legacy_gene_mapper_db_path_fixture):
+        legacy_gene_mapper_db_path_fixture,
+        n_extra_genes_fixture):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper
@@ -922,7 +938,7 @@ def test_online_workflow_OTF(
 
     (json_path,
      csv_path,
-     _,
+     metadata_path,
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
@@ -945,6 +961,18 @@ def test_online_workflow_OTF(
     baseline = json.load(open(baseline_mapping_fixture['json'], 'rb'))
     test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
+
+    # test that summary metadata is correctly recorded
+    n_genes = len(
+        read_df_from_h5ad(human_gene_data_fixture['dense'], df_name='var')
+    )
+    n_cells = len(
+        read_df_from_h5ad(human_gene_data_fixture['dense'], df_name='obs')
+    )
+    with open(metadata_path, 'rb') as src:
+        summary_metadata = json.load(src)
+    assert summary_metadata['n_mapped_genes'] == n_genes
+    print(test['gene_identifier_mapping'])
 
 
 @pytest.mark.parametrize(
