@@ -69,6 +69,14 @@ def align_query_gene_names(
     if gene_mapper_db_path is not None:
         if precomputed_stats_path is not None:
             map_genes = True
+    else:
+        if log is not None:
+            log.info(
+                "No gene_mapper_db provided. Assuming that query "
+                "genes have already been mapped to the same "
+                "species/authority as reference genes.",
+                to_stdout=True
+            )
 
     n_unmapped = 0
     was_changed = False
@@ -120,27 +128,53 @@ def _align_query_gene_names(
     # not obvious what species to map to;
     # cannot perform mapping
     if reference_gene_data['species'] is None:
+        if log is not None:
+            log.info(
+                "Could not determine species for reference data. "
+                "Going to assume that query genes are already "
+                "mapped to the same species/authority as the "
+                "reference data",
+                to_stdout=True
+            )
         return gene_list, 0, False, dict()
 
     dst_species = reference_gene_data['species'].name
+    if log is not None:
+        log.info(
+            "Reference data belongs to species "
+            f"{reference_gene_data['species']}"
+        )
 
     reference_authority = set(reference_gene_data['authority'])
 
     if len(reference_authority) == 1 and 'symbol' in reference_authority:
-        raise ValueError(
+        msg = (
             "reference data contains gene symbols; will not be "
             "able to infer a species during gene alignment"
         )
+        if log is not None:
+            log.error(msg)
+        else:
+            raise ValueError(msg)
 
     if 'symbol' in reference_authority:
         reference_authority.remove('symbol')
 
     if len(reference_authority) != 1:
-        raise ValueError(
+        msg = (
            "Could not find single authority to map genes to; "
            f"options are {reference_authority}"
         )
+        if log is not None:
+            log.error(msg)
+        else:
+            raise ValueError(msg)
+
     dst_authority = reference_authority.pop()
+    if log is not None:
+        log.info(
+            f"Reference genes are from authority '{dst_authority}'"
+        )
 
     gene_mapper = gene_mapper_module.MMCGeneMapper(
         db_path=gene_mapper_db_path

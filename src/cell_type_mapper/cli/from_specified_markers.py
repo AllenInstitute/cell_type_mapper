@@ -332,7 +332,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         query_loc,
         gene_id_col=config['query_gene_id_col'],
         precomputed_stats_path=precomputed_loc,
-        gene_mapper_db_path=gene_mapping_db)
+        gene_mapper_db_path=gene_mapping_db,
+        log=log)
 
     query_marker_tmp = pathlib.Path(
         mkstemp_clean(dir=tmp_dir,
