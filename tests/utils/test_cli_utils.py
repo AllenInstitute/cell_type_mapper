@@ -145,15 +145,28 @@ def test_align_query_gene_names(
                 for gene in actual[0]:
                     assert 'UNMAPPABLE' in gene
                 assert actual[1] == 4
+                assert not actual[2]
             else:
                 for idx in (0, 1, 3):
                     assert actual[0][idx] == expected_ensembl[idx]
                 assert 'UNMAPPABLE' in actual[0][2]
                 assert actual[1] == 1
+                assert actual[2]
             assert len(actual[0]) == 4
+            expected_mapping = {
+                g0: g1
+                for g0, g1 in zip(input_names, actual[0])
+            }
+
+            # check that metadata dict records the mapping
+            assert actual[3]['mapping'] == expected_mapping
+            assert 'provenance' in actual[3]
+
         else:
             assert actual[0] == input_names
             assert actual[1] == 0
+            assert not actual[2]
+            assert actual[3] == dict()
 
 
 def test_flag_in_align_query_gene_names(
@@ -219,3 +232,54 @@ def test_flag_in_align_query_gene_names(
             assert result[2]
         else:
             assert not result[2]
+
+
+def test_no_species_gene_alignment(
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
+    """
+    Test that, when no species could be found for the
+    reference data, the input genes remain unchanged.
+    """
+    precomputed_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='nonsense_species',
+        suffix='.h5'
+    )
+    gene_names = [
+        'not',
+        'real',
+        'genes'
+    ]
+    with h5py.File(precomputed_path, 'w') as dst:
+        dst.create_dataset(
+            'col_names',
+            data=json.dumps(gene_names).encode('utf-8')
+        )
+
+    input_names = [
+        'Xkr4',
+        'Rrs1',
+        'bob',
+        'NCBIGene:73261']
+
+    var = pd.DataFrame(
+        {'gene': g} for g in input_names
+    ).set_index('gene')
+    adata_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad')
+    adata = anndata.AnnData(var=var)
+    adata.write_h5ad(adata_path)
+
+    actual = align_query_gene_names(
+        query_gene_path=adata_path,
+        gene_id_col=None,
+        precomputed_stats_path=precomputed_path,
+        gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
+        log=None)
+
+    assert actual[0] == input_names
+    assert actual[1] == 0
+    assert not actual[2]
+    assert actual[3] == dict()

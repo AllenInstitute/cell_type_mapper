@@ -52,6 +52,9 @@ def align_query_gene_names(
     Also return boolean indicating whether or not any genes
     were meaningfully mapped (True if a gene was mapped to
     an ENSEMBL ID; false otherwise)
+
+    Return a dict of metadata explaining the mapping that was done
+    and the backing data used to do it.
     """
 
     result = gene_utils.get_gene_identifier_list(
@@ -59,6 +62,8 @@ def align_query_gene_names(
         gene_id_col=gene_id_col,
         duplicate_prefix=gene_utils.invalid_query_prefix()
     )
+
+    metadata = dict()
 
     map_genes = False
     if gene_mapper_db_path is not None:
@@ -71,58 +76,71 @@ def align_query_gene_names(
 
         (result,
          n_unmapped,
-         was_changed) = _align_gene_names(
+         was_changed,
+         metadata) = _align_query_gene_names(
              precomputed_stats_path=precomputed_stats_path,
              gene_mapper_db_path=gene_mapper_db_path,
              gene_list=result,
              log=log)
 
-    return result, n_unmapped, was_changed
+    return result, n_unmapped, was_changed, metadata
 
 
-def _align_gene_names(
+def _align_query_gene_names(
         precomputed_stats_path,
         gene_mapper_db_path,
         gene_list,
         log):
+    """
+    This function will actually perform any gene mapping that
+    needs to be done in order to align the input gene identifiers
+    to the reference gene identifiers.
+
+    Returns
+    -------
+    result -- list of aligned gene identifiers
+    n_unmapped -- integer counting unmappable genes
+    was_changed -- boolean indicating if any meaningful mapping happened
+                   (this will be false if all genes were unmapped)
+    metadata -- a dict recording the mapping done and citations used
+    """
 
     was_changed = False
 
     with h5py.File(precomputed_stats_path, 'r') as src:
-        input_genes = json.loads(
+        reference_genes = json.loads(
             src['col_names'][()].decode('utf-8')
         )
 
-    input_gene_data = species_detection.detect_species_and_authority(
+    reference_gene_data = species_detection.detect_species_and_authority(
         db_path=gene_mapper_db_path,
-        gene_list=input_genes
+        gene_list=reference_genes
     )
 
-    input_authority = set(input_gene_data['authority'])
+    # not obvious what species to map to;
+    # cannot perform mapping
+    if reference_gene_data['species'] is None:
+        return gene_list, 0, False, dict()
 
-    if len(input_authority) == 1 and 'symbol' in input_authority:
+    dst_species = reference_gene_data['species'].name
+
+    reference_authority = set(reference_gene_data['authority'])
+
+    if len(reference_authority) == 1 and 'symbol' in reference_authority:
         raise ValueError(
             "reference data contains gene symbols; will not be "
             "able to infer a species during gene alignment"
         )
 
-    if 'symbol' in input_authority:
-        input_authority.remove('symbol')
+    if 'symbol' in reference_authority:
+        reference_authority.remove('symbol')
 
-    if len(input_authority) != 1:
+    if len(reference_authority) != 1:
         raise ValueError(
            "Could not find single authority to map genes to; "
-           f"options are {input_authority}"
+           f"options are {reference_authority}"
         )
-    dst_authority = input_authority.pop()
-    dst_species = input_gene_data['species'].name
-
-    if dst_species is None:
-        msg = (
-            "Could not find a species for the genes you gave:\n"
-            f"First five genes:\n{result[:5]}"
-        )
-        raise RuntimeError(msg)
+    dst_authority = reference_authority.pop()
 
     gene_mapper = gene_mapper_module.MMCGeneMapper(
         db_path=gene_mapper_db_path
@@ -154,8 +172,12 @@ def _align_gene_names(
                 was_changed = True
                 break
 
-    return result, n_unmapped, was_changed
+    metadata = {
+        'provenance': raw_result['metadata'],
+        'mapping': {g0: g1 for g0, g1 in zip(gene_list, result)}
+    }
 
+    return result, n_unmapped, was_changed, metadata
 
 
 def create_precomputed_stats_file(
