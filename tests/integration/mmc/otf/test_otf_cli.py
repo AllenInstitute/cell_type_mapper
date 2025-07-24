@@ -971,8 +971,8 @@ def test_online_workflow_OTF(
     )
     with open(metadata_path, 'rb') as src:
         summary_metadata = json.load(src)
-    assert summary_metadata['n_mapped_genes'] == n_genes
-    print(test['gene_identifier_mapping'])
+    assert summary_metadata['n_mapped_genes'] == n_genes-n_extra_genes_fixture
+    assert summary_metadata['n_mapped_cells'] == n_cells
 
 
 @pytest.mark.parametrize(
