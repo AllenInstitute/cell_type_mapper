@@ -85,7 +85,11 @@ def run_pipeline(
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path,
-        'log_path': log_path}
+        'log_path': log_path,
+        'gene_mapping': {
+            'db_path': gene_mapper_db_path
+        }
+    }
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')

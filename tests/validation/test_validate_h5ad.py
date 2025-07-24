@@ -120,7 +120,8 @@ def test_validation_of_h5ad_without_encoding(
         map_data_fixture,
         tmp_dir_fixture,
         as_layer,
-        with_log):
+        with_log,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that we can validate a file which does not have
     'encoding-type' in its metadata
@@ -164,6 +165,7 @@ def test_validation_of_h5ad_without_encoding(
 
         validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=None,
             valid_h5ad_path=valid_h5ad_path,
             tmp_dir=tmp_dir_fixture,
@@ -182,7 +184,8 @@ def test_validation_of_corrupted_h5ad(
         x_fixture,
         map_data_fixture,
         tmp_dir_fixture,
-        with_log):
+        with_log,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that the correct failure message is emitted when the h5ad file
     is so corrupted h5py cannot open it
@@ -216,6 +219,7 @@ def test_validation_of_corrupted_h5ad(
                 warnings.simplefilter('ignore')
                 validate_h5ad(
                     h5ad_path=orig_path,
+                    gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
                     output_dir=None,
                     valid_h5ad_path=valid_h5ad_path,
                     tmp_dir=tmp_dir_fixture,
@@ -248,7 +252,8 @@ def test_validation_of_h5ad_simple(
         specify_path,
         csv_label_type,
         csv_label_header,
-        degenerate_cell_labels):
+        degenerate_cell_labels,
+        legacy_gene_mapper_db_path_fixture):
 
     if degenerate_cell_labels:
         if density not in ("csc", "csv"):
@@ -362,6 +367,7 @@ def test_validation_of_h5ad_simple(
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=output_dir,
             valid_h5ad_path=valid_h5ad_path,
             tmp_dir=tmp_dir_fixture,
@@ -454,7 +460,8 @@ def test_validation_of_good_h5ad(
         good_x_fixture,
         map_data_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -481,6 +488,7 @@ def test_validation_of_good_h5ad(
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=tmp_dir_fixture,
             tmp_dir=tmp_dir_fixture)
 
@@ -502,7 +510,8 @@ def test_validation_of_h5ad_ignoring_norm(
         x_fixture,
         map_data_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -529,6 +538,7 @@ def test_validation_of_h5ad_ignoring_norm(
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=tmp_dir_fixture,
             tmp_dir=tmp_dir_fixture,
             round_to_int=False)
@@ -551,7 +561,8 @@ def test_validation_of_good_h5ad_in_layer(
         good_x_fixture,
         map_data_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that new file is written if otherwise
     good cell by gene data is in non-X layer
@@ -585,6 +596,7 @@ def test_validation_of_good_h5ad_in_layer(
         warnings.simplefilter('ignore')
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=tmp_dir_fixture,
             tmp_dir=tmp_dir_fixture,
             layer='garbage')
@@ -630,7 +642,8 @@ def test_validation_of_h5ad_diverse_dtypes(
         map_data_fixture,
         tmp_dir_fixture,
         density,
-        output_dtype):
+        output_dtype,
+        legacy_gene_mapper_db_path_fixture):
     """
     Make sure that correct dtype is chosen
     """
@@ -678,6 +691,7 @@ def test_validation_of_h5ad_diverse_dtypes(
 
         result_path, _ = validate_h5ad(
             h5ad_path=orig_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             output_dir=tmp_dir_fixture,
             tmp_dir=tmp_dir_fixture)
 
@@ -698,6 +712,7 @@ def test_validation_of_h5ad_errors():
     with pytest.raises(RuntimeError, match="Cannot specify both"):
         validate_h5ad(
             h5ad_path='silly',
+            gene_mapper_db_path='junk',
             tmp_dir=None,
             output_dir='foo',
             valid_h5ad_path='bar')
@@ -705,12 +720,13 @@ def test_validation_of_h5ad_errors():
     with pytest.raises(RuntimeError, match="Must specify one of either"):
         validate_h5ad(
             h5ad_path='silly',
+            gene_mapper_db_path='junk',
             tmp_dir=None,
             output_dir=None,
             valid_h5ad_path=None)
 
 
-def test_gene_name_errors(tmp_dir_fixture):
+def test_gene_name_errors(tmp_dir_fixture, legacy_gene_mapper_db_path_fixture):
     """
     Test that an error is raised if a gene name is repeated or if a gene
     name is empty (that last one causes an inscrutable error in anndata
@@ -743,6 +759,7 @@ def test_gene_name_errors(tmp_dir_fixture):
         with pytest.raises(RuntimeError, match="gene name '' is invalid"):
             validate_h5ad(
                 h5ad_path=h5ad_path,
+                gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
             )
 
@@ -765,6 +782,7 @@ def test_gene_name_errors(tmp_dir_fixture):
         with pytest.raises(RuntimeError, match="gene names must be unique"):
             validate_h5ad(
                 h5ad_path=h5ad_path,
+                gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
                 valid_h5ad_path=mkstemp_clean(dir=tmp_dir_fixture),
             )
 
@@ -815,5 +833,6 @@ def test_missing_element(
         with pytest.raises(RuntimeError, match=msg):
             _, _ = validate_h5ad(
                 h5ad_path=incomplete_path,
+                gene_mapper_db_path=None,
                 output_dir=tmp_dir_fixture,
                 tmp_dir=tmp_dir_fixture)

@@ -26,6 +26,9 @@ from cell_type_mapper.utils.output_utils import (
     get_execution_metadata
 )
 
+from cell_type_mapper.schemas.base_schemas import (
+    GeneMappingSchema)
+
 
 class ValidationInputSchema(argschema.ArgSchema):
 
@@ -43,6 +46,17 @@ class ValidationInputSchema(argschema.ArgSchema):
         default=None,
         allow_none=True,
         description="Path to the h5ad file to be validated")
+
+    gene_mapping = argschema.fields.Nested(
+        GeneMappingSchema,
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Parameters used when mapping query data genes "
+            "to reference data genes (if so desired)."
+        )
+    )
 
     valid_h5ad_path = argschema.fields.String(
         required=False,
@@ -227,6 +241,7 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
 
             result_path, has_warnings = validate_h5ad(
                 h5ad_path=self.args['input_path'],
+                gene_mapper_db_path=self.args['gene_mapping']['db_path'],
                 output_dir=self.args['output_dir'],
                 layer=self.args['layer'],
                 log=command_log,

@@ -157,7 +157,8 @@ def test_validation_cli_of_h5ad_simple(
         csv_label_type,
         csv_label_header,
         degenerate_cell_labels,
-        h5ad_path_param):
+        h5ad_path_param,
+        legacy_gene_mapper_db_path_fixture):
     """
     if h5ad_path param is True, then specify the path to the input
     file with 'h5ad_path', not 'input_path'
@@ -334,7 +335,10 @@ def test_validation_cli_of_h5ad_simple(
         'output_json': output_json,
         'layer': layer,
         'round_to_int': round_to_int,
-        'log_path': log_path
+        'log_path': log_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -506,7 +510,8 @@ def test_validation_cli_of_good_h5ad(
         good_x_fixture,
         tmp_dir_fixture,
         density,
-        specify_path):
+        specify_path,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -546,7 +551,10 @@ def test_validation_cli_of_good_h5ad(
         'output_dir': output_dir,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'valid_h5ad_path': valid_path
+        'valid_h5ad_path': valid_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -595,7 +603,8 @@ def test_validation_cli_of_h5ad_preserve_norm(
         obs_fixture,
         x_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -628,7 +637,10 @@ def test_validation_cli_of_h5ad_preserve_norm(
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'round_to_int': False
+        'round_to_int': False,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -653,7 +665,8 @@ def test_validation_cli_of_h5ad_missing_output(
         mouse_var_fixture,
         obs_fixture,
         x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that an error is raised if output_json is not specified
     """
@@ -667,6 +680,9 @@ def test_validation_cli_of_h5ad_missing_output(
         'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with pytest.raises(RuntimeError,
@@ -684,7 +700,8 @@ def test_validation_cli_of_good_h5ad_in_layer(
         x_fixture,
         tmp_dir_fixture,
         density,
-        preserve_norm):
+        preserve_norm,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test behavior of validation CLI when the data is good
     but it is in a non-X layer.
@@ -732,7 +749,10 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': 'garbage',
-        'round_to_int': not preserve_norm
+        'round_to_int': not preserve_norm,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -805,7 +825,8 @@ def test_validation_cli_of_good_h5ad_in_layer(
 
 @pytest.mark.skip('new framework cannot really handle ensembl with a dot')
 def test_validation_cli_on_ensembl_dot(
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
 
     rng = np.random.default_rng(221133)
     obs = pd.DataFrame(
@@ -851,7 +872,10 @@ def test_validation_cli_on_ensembl_dot(
                 input_data={
                     'input_path': input_path,
                     'output_dir': str(tmp_dir_fixture),
-                    'output_json': json_path
+                    'output_json': json_path,
+                    'gene_mapping': {
+                        'db_path': legacy_gene_mapper_db_path_fixture
+                    }
                 })
             runner.run()
 
@@ -879,7 +903,8 @@ def test_roundtrip_of_validation_cli(
         x_fixture,
         tmp_dir_fixture,
         density,
-        preserve_norm):
+        preserve_norm,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test behavior of validation CLI when the data is good
     but it is in a non-X layer.
@@ -931,7 +956,10 @@ def test_roundtrip_of_validation_cli(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json_path,
         'layer': 'garbage',
-        'round_to_int': not preserve_norm
+        'round_to_int': not preserve_norm,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -993,7 +1021,8 @@ def test_obs_with_repeated_cells_validation_cli(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Smoke test for validating an h5ad file with repeated cell names
     """
@@ -1032,7 +1061,10 @@ def test_obs_with_repeated_cells_validation_cli(
         'output_json': mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.json'
-        )
+        ),
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -1054,7 +1086,8 @@ def test_transposed_validation_cli(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Smoke test for validating an h5ad file with repeated cell names
     """
@@ -1094,7 +1127,10 @@ def test_transposed_validation_cli(
         'input_path': h5ad_path,
         'valid_h5ad_path': None,
         'output_dir': output_dir,
-        'output_json': json_path
+        'output_json': json_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():

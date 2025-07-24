@@ -137,11 +137,13 @@ def test_h5ad_transposition_from_genes(
         density_fixture,
         species_fixture,
         h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
 
     (new_path,
      was_transposed) = _transpose_file_if_necessary(
          src_path=h5ad_fixture['correct'],
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
          tmp_dir=tmp_dir_fixture,
          log=None)
 
@@ -154,6 +156,7 @@ def test_h5ad_transposition_from_genes(
         (new_path,
          was_transposed) = _transpose_file_if_necessary(
              src_path=h5ad_fixture['transposed'],
+             gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
              tmp_dir=tmp_dir_fixture,
              log=None)
 
@@ -209,7 +212,8 @@ def test_validation_of_transposed_h5ad_files(
         h5ad_fixture,
         round_to_int,
         as_csv,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that validate_h5ad can handle transposed files
     (including transposed CSV files)
@@ -243,6 +247,7 @@ def test_validation_of_transposed_h5ad_files(
 
         baseline_path = validate_h5ad(
             h5ad_path=h5ad_fixture['correct'],
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',
@@ -262,6 +267,7 @@ def test_validation_of_transposed_h5ad_files(
 
         validate_h5ad(
             h5ad_path=test_src_path,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',

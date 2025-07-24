@@ -48,7 +48,8 @@ def test_cli_validation_for_csv(
         x_dtype_fixture,
         transposition_fixture,
         csv_anndata_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
 
     if label_heading_fixture:
         if label_type_fixture == "random":
@@ -80,7 +81,10 @@ def test_cli_validation_for_csv(
     config = {
         'input_path': csv_path,
         'output_json': json_path,
-        'valid_h5ad_path': dst_path
+        'valid_h5ad_path': dst_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():

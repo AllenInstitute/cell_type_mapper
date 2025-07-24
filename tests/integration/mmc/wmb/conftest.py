@@ -260,7 +260,8 @@ def reference_mapping_fixture(
         marker_lookup_fixture,
         precomputed_stats_fixture,
         density_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     A fixture returning what the mapping should be
     (for comparing results when we are mapping data
@@ -271,7 +272,8 @@ def reference_mapping_fixture(
         marker_lookup_path=marker_lookup_fixture,
         precomputed_stats_path=precomputed_stats_fixture,
         density_specification=density_fixture,
-        tmp_dir_path=tmp_dir_fixture
+        tmp_dir_path=tmp_dir_fixture,
+        gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
 
@@ -280,7 +282,8 @@ def do_reference_mapping(
         marker_lookup_path,
         precomputed_stats_path,
         density_specification,
-        tmp_dir_path):
+        tmp_dir_path,
+        gene_mapper_db_path):
 
     if not hasattr(do_reference_mapping, '_cache'):
         do_reference_mapping._cache = dict()
@@ -299,7 +302,11 @@ def do_reference_mapping(
         validation_config = {
             'input_path': str(query_h5ad_path),
             'valid_h5ad_path': validated_path,
-            'output_json': output_json_path}
+            'output_json': output_json_path,
+            'gene_mapping': {
+                'db_path': gene_mapper_db_path
+            }
+        }
 
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')

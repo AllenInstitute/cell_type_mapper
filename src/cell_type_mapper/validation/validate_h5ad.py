@@ -5,6 +5,8 @@ import tempfile
 import traceback
 import warnings
 
+import mmc_gene_mapper.mapper.species_detection as species_detection
+
 from cell_type_mapper.utils.utils import (
     choose_int_dtype,
     get_timestamp,
@@ -29,13 +31,10 @@ from cell_type_mapper.validation.csv_utils import (
     convert_csv_to_h5ad
 )
 
-from cell_type_mapper.gene_id.utils import (
-    detect_species
-)
-
 
 def validate_h5ad(
         h5ad_path,
+        gene_mapper_db_path=None,
         log=None,
         expected_max=20,
         tmp_dir=None,
@@ -50,6 +49,10 @@ def validate_h5ad(
     ----------
     h5ad_path:
         Path to the source h5ad file
+    gene_mapper_db_path:
+        Path to sqlite db file that we will consult to determine
+        if the index of var contains valid genes or not
+        (produced by mmc_gene_mapper library)
     log:
         Optional logger to log messages for CLI
     expected_max:
@@ -93,6 +96,7 @@ def validate_h5ad(
     try:
         result = _validate_h5ad(
             h5ad_path=h5ad_path,
+            gene_mapper_db_path=gene_mapper_db_path,
             log=log,
             expected_max=expected_max,
             tmp_dir=tmp_dir,
@@ -108,6 +112,7 @@ def validate_h5ad(
 
 def _validate_h5ad(
         h5ad_path,
+        gene_mapper_db_path=None,
         log=None,
         expected_max=20,
         tmp_dir=None,
@@ -144,6 +149,7 @@ def _validate_h5ad(
     (active_h5ad_path,
      was_transposed) = _transpose_file_if_necessary(
          src_path=active_h5ad_path,
+         gene_mapper_db_path=gene_mapper_db_path,
          layer=layer,
          tmp_dir=tmp_dir,
          log=log
@@ -384,6 +390,7 @@ def _check_input_gene_names(
 
 def _transpose_file_if_necessary(
         src_path,
+        gene_mapper_db_path,
         tmp_dir,
         log,
         layer='X'):
@@ -418,13 +425,15 @@ def _transpose_file_if_necessary(
         return (src_path, False)
 
     var = read_df_from_h5ad(src_path, df_name='var')
-    var_species = detect_species(var.index.values)
-    if var_species is not None:
+    if are_valid_genes(
+            gene_list=var.index.values,
+            gene_mapper_db_path=gene_mapper_db_path):
         return (src_path, False)
 
     obs = read_df_from_h5ad(src_path, df_name='obs')
-    obs_species = detect_species(obs.index.values)
-    if obs_species is None:
+    if not are_valid_genes(
+            gene_list=obs.index.values,
+            gene_mapper_db_path=gene_mapper_db_path):
         return (src_path, False)
 
     msg = (
@@ -650,4 +659,20 @@ def _write_to_tmp_file(
     return (
         active_h5ad_path,
         has_warnings
+    )
+
+
+def are_valid_genes(
+        gene_list,
+        gene_mapper_db_path):
+    """
+    Accept a list of gene names/identifiers/etc.
+    Return True if they are recognized genes.
+    False otherwise (in which case, they might be
+    cells and the h5ad file may need to be pivoted)
+    """
+    return species_detection.detect_if_genes(
+        db_path=gene_mapper_db_path,
+        gene_list=gene_list,
+        chunk_size=100000
     )

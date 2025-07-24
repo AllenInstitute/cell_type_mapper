@@ -350,8 +350,6 @@ def test_mapping_from_markers_smoke(
     actual = json.load(open(result_path, 'rb'))
     assert len(actual['results']) == n_query_cells
 
-    input_uns = query_adata.uns
-
     os.environ[env_var] = ''
 
     with_runners_up = 0

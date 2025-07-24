@@ -20,8 +20,6 @@ from cell_type_mapper.utils.utils import (
 
 import cell_type_mapper.utils.gene_utils as gene_utils
 
-from cell_type_mapper.gene_id.utils import detect_species
-
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
 
@@ -47,8 +45,6 @@ from cell_type_mapper.type_assignment.election_runner import (
 
 from cell_type_mapper.utils.cli_utils import (
     create_precomputed_stats_file)
-
-from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
 
 
 def run_mapping(config, output_path, log_path=None):
@@ -400,7 +396,6 @@ def compare_field(value0, value1, eps=1.0e-4):
 
 def _legacy_get_query_gene_names(
         query_gene_path,
-        map_to_ensembl=False,
         gene_id_col=None):
     """
     Legacy implementation that relied on the hard-coded GeneIdMapper
@@ -424,33 +419,6 @@ def _legacy_get_query_gene_names(
 
     n_unmapped = 0
     was_changed = False
-    if map_to_ensembl:
-        original_result = np.array(result)
-        species = detect_species(result)
-        if species is None:
-            msg = (
-                "Could not find a species for the genes you gave:\n"
-                f"First five genes:\n{result[:5]}"
-            )
-            raise RuntimeError(msg)
-
-        gene_id_mapper = GeneIdMapper.from_species(
-            species=species)
-        raw_result = gene_id_mapper.map_gene_identifiers(
-            result,
-            strict=False)
-        result = raw_result['mapped_genes']
-        n_unmapped = raw_result['n_unmapped']
-
-        if np.array_equal(np.array(result), original_result):
-            was_changed = False
-        else:
-            delta = np.where(np.array(result) != original_result)[0]
-            for ii in delta:
-                if 'unmapped' not in result[ii]:
-                    was_changed = True
-                    break
-
     return result, n_unmapped, was_changed
 
 

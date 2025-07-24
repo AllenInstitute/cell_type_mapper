@@ -2,9 +2,6 @@ import json
 import pathlib
 import re
 
-from cell_type_mapper.gene_id.utils import (
-    is_ensembl)
-
 import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
@@ -219,3 +216,16 @@ def _map_aibs_gene_names(raw_gene_names):
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)
     return symbol_to_ensembl
+
+
+def is_ensembl(gene_id):
+    """
+    Return a boolean indicating if the specified
+    gene_id is an Ensembl identifier
+    """
+    if not hasattr(is_ensembl, 'pattern'):
+        is_ensembl.pattern = re.compile(r'ENS[A-Z]+[0-9]+(\.[0-9]+)?')   # noqa W605
+    match = is_ensembl.pattern.fullmatch(gene_id)
+    if match is None:
+        return False
+    return True

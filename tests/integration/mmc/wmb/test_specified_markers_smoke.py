@@ -149,7 +149,11 @@ def test_summary_from_validated_file(
     validation_config = {
         'input_path': str(query_h5ad_fixture),
         'valid_h5ad_path': validated_path,
-        'output_json': output_json_path}
+        'output_json': output_json_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
+    }
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -298,7 +302,6 @@ def test_cli_on_truncated_precompute(
         }
     }
 
-    print('config ',config)
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         runner = FromSpecifiedMarkersRunner(
