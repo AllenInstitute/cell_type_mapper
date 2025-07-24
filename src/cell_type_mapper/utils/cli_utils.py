@@ -60,7 +60,7 @@ def align_query_gene_names(
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
-        duplicate_prefix=gene_utils.invalid_query_prefix()
+        duplicate_prefix=f'UNMAPPABLE.{gene_utils.invalid_query_prefix()}'
     )
 
     metadata = dict()
@@ -78,12 +78,10 @@ def align_query_gene_names(
                 to_stdout=True
             )
 
-    n_unmapped = 0
     was_changed = False
     if map_genes:
 
         (result,
-         n_unmapped,
          was_changed,
          metadata) = _align_query_gene_names(
              precomputed_stats_path=precomputed_stats_path,
@@ -91,6 +89,10 @@ def align_query_gene_names(
              gene_list=result,
              log=log)
 
+    n_unmapped = 0
+    for gene_name in result:
+        if 'UNMAPPABLE' in gene_name:
+            n_unmapped += 1
     return result, n_unmapped, was_changed, metadata
 
 
@@ -107,12 +109,10 @@ def _align_query_gene_names(
     Returns
     -------
     result -- list of aligned gene identifiers
-    n_unmapped -- integer counting unmappable genes
     was_changed -- boolean indicating if any meaningful mapping happened
                    (this will be false if all genes were unmapped)
     metadata -- a dict recording the mapping done and citations used
     """
-
     was_changed = False
 
     with h5py.File(precomputed_stats_path, 'r') as src:
@@ -192,10 +192,6 @@ def _align_query_gene_names(
     )
 
     result = raw_result['gene_list']
-    n_unmapped = 0
-    for gene_name in result:
-        if 'UNMAPPABLE' in gene_name:
-            n_unmapped += 1
 
     if np.array_equal(np.array(result), original_result):
         was_changed = False
@@ -211,7 +207,7 @@ def _align_query_gene_names(
         'mapping': {g0: g1 for g0, g1 in zip(gene_list, result)}
     }
 
-    return result, n_unmapped, was_changed, metadata
+    return result, was_changed, metadata
 
 
 def create_precomputed_stats_file(
