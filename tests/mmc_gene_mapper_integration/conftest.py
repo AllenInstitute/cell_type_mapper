@@ -373,3 +373,8 @@ def mapper_fixture(
         )
 
     return gene_mapper
+
+
+@pytest.fixture(scope='session')
+def mapper_db_path_fixture(mapper_fixture):
+    return str(mapper_fixture.db_path)
