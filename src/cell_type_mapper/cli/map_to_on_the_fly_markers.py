@@ -153,7 +153,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                      precomputed_stats_path=(
                          self.args['precomputed_stats']['path']
                      ),
-                     gene_mapper_db_path=self.args['gene_mapping']['db_path']
+                     gene_mapper_db_path=self.args['gene_mapping']['db_path'],
+                     log=log
              )
 
             if gene_names_changed:
