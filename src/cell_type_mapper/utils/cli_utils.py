@@ -60,7 +60,8 @@ def align_query_gene_names(
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
-        duplicate_prefix=f'UNMAPPABLE.{gene_utils.duplicated_query_prefix()}'
+        duplicate_prefix=f'UNMAPPABLE.{gene_utils.duplicated_query_prefix()}',
+        log=log
     )
 
     metadata = dict()
@@ -81,6 +82,12 @@ def align_query_gene_names(
     was_changed = False
     if map_genes:
 
+        if log is not None:
+            log.info(
+                "***Checking to see if we need to map query genes onto "
+                "reference dataset"
+            )
+
         (result,
          was_changed,
          metadata) = _align_query_gene_names(
@@ -88,6 +95,11 @@ def align_query_gene_names(
              gene_mapper_db_path=gene_mapper_db_path,
              gene_list=result,
              log=log)
+
+        if log is not None:
+            log.info(
+                "***Mapping of query genes to reference dataset complete"
+            )
 
     n_unmapped = 0
     for gene_name in result:

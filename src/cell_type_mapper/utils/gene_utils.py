@@ -37,7 +37,8 @@ def duplicated_query_prefix():
 def get_gene_identifier_list(
         h5ad_path_list,
         gene_id_col,
-        duplicate_prefix=None):
+        duplicate_prefix=None,
+        log=None):
     """
     Get list of gene identifiers from a list of h5ad files.
 
@@ -52,6 +53,9 @@ def get_gene_identifier_list(
         the prefix to add to the names of genes that are
         found to be duplicated in the original list of
         gene identifiers
+    log:
+        a CommandLog for recording which genes were duplicated
+
 
     Returns
     -------
@@ -81,16 +85,20 @@ def get_gene_identifier_list(
             gene_names = these_genes
         else:
             if gene_names != these_genes:
-                raise RuntimeError(
+                msg = (
                     "Inconsistent gene names list\n"
                     f"{pth}\nhas gene_names\n{these_genes}\n"
                     f"which does not match\n{h5ad_path_list[0]}\n"
                     f"genes\n{gene_names}")
+                if log is not None:
+                    log.error(msg)
+                else:
+                    raise RuntimeError(msg)
 
     gene_names = mask_duplicate_gene_identifiers(
         gene_identifier_list=gene_names,
         mask_prefix=duplicate_prefix,
-        log=None
+        log=log
     )
 
     return gene_names
