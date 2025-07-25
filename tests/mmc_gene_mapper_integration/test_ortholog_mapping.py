@@ -7,6 +7,7 @@ import pytest
 
 import anndata
 import copy
+import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -23,6 +24,10 @@ from cell_type_mapper.cli.precompute_stats_scrattch import (
 
 from cell_type_mapper.cli.from_specified_markers import (
     FromSpecifiedMarkersRunner
+)
+
+from cell_type_mapper.cli.map_to_on_the_fly_markers import (
+    OnTheFlyMapper
 )
 
 from cell_type_mapper.test_utils.hierarchical_mapping import (
@@ -155,15 +160,19 @@ def query_markers_fixture(tmp_dir_fixture):
 
 
 @pytest.mark.parametrize(
-     'authority',
-     ['NCBI', 'ENSEMBL']
+     'authority, mapper_mode',
+     itertools.product(
+         ['NCBI', 'ENSEMBL'],
+         ['specified', 'otf']
+     )
  )
-def test_specified_markers_mapping(
+def test_mapping_with_orthologs(
         tmp_dir_fixture,
         precomputed_mouse_fixture,
         query_markers_fixture,
         mapper_db_path_fixture,
-        authority):
+        authority,
+        mapper_mode):
     """
     Generate a query dataset whose genes are identified
     by mouse NCBI genes (just like in reference set).
@@ -238,28 +247,59 @@ def test_specified_markers_mapping(
         dir=tmp_dir_fixture,
         suffix='.json'
     )
-    baseline_config = {
-        'query_path': baseline_path,
-        'extended_result_path': baseline_output_path,
-        'gene_mapping': None,
-        'cloud_safe': False,
-        'precomputed_stats': {'path': precomputed_mouse_fixture},
-        'query_markers': {'serialized_lookup': query_markers_fixture},
-        'type_assignment': {
-            'n_processors': 2,
-            'rng_seed': rng_seed,
-            'bootstrap_factor': 0.5,
-            'bootstrap_iteration': 100,
-            'chunk_size': 50,
-            'normalization': 'raw'
-        }
-    }
 
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=baseline_config
-    )
-    runner.run()
+    if mapper_mode == 'specified':
+        baseline_config = {
+            'query_path': baseline_path,
+            'extended_result_path': baseline_output_path,
+            'gene_mapping': None,
+            'cloud_safe': False,
+            'precomputed_stats': {'path': precomputed_mouse_fixture},
+            'query_markers': {'serialized_lookup': query_markers_fixture},
+            'type_assignment': {
+                'n_processors': 2,
+                'rng_seed': rng_seed,
+                'bootstrap_factor': 0.5,
+                'bootstrap_iteration': 100,
+                'chunk_size': 50,
+                'normalization': 'raw'
+            }
+        }
+
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=baseline_config
+        )
+        runner.run()
+    else:
+        baseline_config = {
+            'query_path': baseline_path,
+            'extended_result_path': baseline_output_path,
+            'gene_mapping': None,
+            'cloud_safe': False,
+            'precomputed_stats': {'path': precomputed_mouse_fixture},
+            'n_processors': 2,
+            'type_assignment': {
+                'rng_seed': rng_seed,
+                'bootstrap_factor': 0.5,
+                'bootstrap_iteration': 100,
+                'chunk_size': 50,
+                'normalization': 'raw'
+            },
+            'tmp_dir': str(tmp_dir_fixture),
+            'reference_markers': {
+                'n_valid': 10
+            },
+            'query_markers': {
+                'n_per_utility': 5
+            }
+        }
+
+        runner = OnTheFlyMapper(
+            args=[],
+            input_data=baseline_config
+        )
+        runner.run()
 
     with open(baseline_output_path, 'rb') as src:
         baseline_output = json.load(src)
@@ -272,11 +312,19 @@ def test_specified_markers_mapping(
     )
     query_config['extended_result_path'] = str(query_output_path)
     query_config['gene_mapping'] = {'db_path': mapper_db_path_fixture}
-    runner = FromSpecifiedMarkersRunner(
-        args=[],
-        input_data=query_config
-    )
-    runner.run()
+
+    if mapper_mode == 'specified':
+        runner = FromSpecifiedMarkersRunner(
+            args=[],
+            input_data=query_config
+        )
+        runner.run()
+    else:
+        runner = OnTheFlyMapper(
+            args=[],
+            input_data=query_config
+        )
+        runner.run()
 
     with open(query_output_path, 'rb') as src:
         query_output = json.load(src)
