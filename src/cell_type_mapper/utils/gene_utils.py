@@ -20,6 +20,14 @@ def invalid_precompute_prefix():
 
 def invalid_query_prefix():
     """
+    Prefix for genes that are invalid at the mapping
+    stage
+    """
+    return 'INVALID_QUERY_GENE'
+
+
+def duplicated_query_prefix():
+    """
     Prefix for genes that are duplicated at the mapping
     stage
     """

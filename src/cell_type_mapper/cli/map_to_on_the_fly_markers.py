@@ -183,8 +183,8 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
                 query_gene_id_col = None
 
                 log.info(
-                    "Copied query_path over, mapping genes to "
-                    "ENSEMBL IDs",
+                    "Copied query_path over; mapping query "
+                    "genes to match reference genes",
                     to_stdout=True
                 )
 

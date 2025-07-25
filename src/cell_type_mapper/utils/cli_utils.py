@@ -60,7 +60,7 @@ def align_query_gene_names(
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
-        duplicate_prefix=f'UNMAPPABLE.{gene_utils.invalid_query_prefix()}'
+        duplicate_prefix=f'UNMAPPABLE.{gene_utils.duplicated_query_prefix()}'
     )
 
     metadata = dict()
