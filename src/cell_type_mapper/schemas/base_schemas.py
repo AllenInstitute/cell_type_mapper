@@ -46,3 +46,17 @@ class QueryMarkerInputSchema(argschema.ArgSchema):
                     "query_markers."
                 )
         return data
+
+
+class GeneMappingSchema(argschema.ArgSchema):
+
+    db_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to sqlite db file that mmc_gene_mapper "
+            "will use when mapping query data genes "
+            "to reference data genes."
+        )
+    )

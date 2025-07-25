@@ -19,13 +19,7 @@ from cell_type_mapper.test_utils.anndata_utils import (
     write_anndata_x_to_csv
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup
-)
-
-from cell_type_mapper.data.human_gene_id_lookup import (
-    human_gene_id_lookup
-)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 from cell_type_mapper.validation.validate_h5ad import (
     _transpose_file_if_necessary,
@@ -48,6 +42,9 @@ def h5ad_fixture(
         tmp_dir_fixture,
         density_fixture,
         species_fixture):
+
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
+    human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
 
     rng = np.random.default_rng(6611223)
     n_cells = 613
@@ -140,11 +137,13 @@ def test_h5ad_transposition_from_genes(
         density_fixture,
         species_fixture,
         h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
 
     (new_path,
      was_transposed) = _transpose_file_if_necessary(
          src_path=h5ad_fixture['correct'],
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
          tmp_dir=tmp_dir_fixture,
          log=None)
 
@@ -157,6 +156,7 @@ def test_h5ad_transposition_from_genes(
         (new_path,
          was_transposed) = _transpose_file_if_necessary(
              src_path=h5ad_fixture['transposed'],
+             gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
              tmp_dir=tmp_dir_fixture,
              log=None)
 
@@ -212,7 +212,8 @@ def test_validation_of_transposed_h5ad_files(
         h5ad_fixture,
         round_to_int,
         as_csv,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that validate_h5ad can handle transposed files
     (including transposed CSV files)
@@ -244,16 +245,19 @@ def test_validation_of_transposed_h5ad_files(
             suffix='.h5ad'
         )
 
-        validate_h5ad(
+        baseline_path = validate_h5ad(
             h5ad_path=h5ad_fixture['correct'],
-            gene_id_mapper=None,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',
             round_to_int=round_to_int,
             output_dir=None,
             valid_h5ad_path=baseline_path
-        )
+        )[0]
+
+        if baseline_path is None:
+            baseline_path = h5ad_fixture['correct']
 
         test_path = mkstemp_clean(
             dir=tmp_dir_fixture,
@@ -263,7 +267,7 @@ def test_validation_of_transposed_h5ad_files(
 
         validate_h5ad(
             h5ad_path=test_src_path,
-            gene_id_mapper=None,
+            gene_mapper_db_path=legacy_gene_mapper_db_path_fixture,
             log=None,
             tmp_dir=tmp_dir_fixture,
             layer='X',

@@ -468,12 +468,6 @@ def test_mapping_from_markers_basic(
             assert len(found_cells) == len(result_lookup)
             assert set(found_cells) == set(result_lookup.keys())
 
-    query_adata = anndata.read_h5ad(raw_query_h5ad_fixture, backed='r')
-    input_uns = query_adata.uns
-
-    assert actual['gene_identifier_mapping'] == input_uns[
-        'AIBS_CDM_gene_mapping']
-
     os.environ[env_var] = ''
 
 

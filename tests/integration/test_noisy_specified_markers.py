@@ -350,11 +350,6 @@ def test_mapping_from_markers_smoke(
     actual = json.load(open(result_path, 'rb'))
     assert len(actual['results']) == n_query_cells
 
-    input_uns = query_adata.uns
-    assert (
-        actual['gene_identifier_mapping']
-        == input_uns['AIBS_CDM_gene_mapping']
-    )
     os.environ[env_var] = ''
 
     with_runners_up = 0
@@ -1927,3 +1922,7 @@ def test_marker_collapse_params_no_overlap(
                 input_data=config)
 
             runner.run()
+
+
+def test_dummy_gene_mapper(legacy_gene_mapper_fixture):
+    pass

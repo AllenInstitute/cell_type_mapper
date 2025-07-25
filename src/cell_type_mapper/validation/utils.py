@@ -14,11 +14,6 @@ from cell_type_mapper.utils.anndata_utils import (
     infer_attrs
 )
 
-from cell_type_mapper.gene_id.utils import detect_species
-
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
-
 
 def is_x_integers(
         h5ad_path,
@@ -167,76 +162,6 @@ def get_minmax_x_from_h5ad(
         elif 'csr' in encoding_type \
                 or 'csc' in encoding_type:
             return _get_minmax_from_sparse(in_file[layer_key])
-
-
-def map_gene_ids_in_var(
-        var_df,
-        gene_id_mapper=None,
-        log=None):
-    """
-    Fix the index of the var dataframe to use the preferred gene identifiers
-    specified in a GeneIdMapper
-
-    Parameters
-    ----------
-    var_df:
-        original var dataframe
-    gene_id_mapper:
-        GeneIdMapper containing data needed to map between gene identification
-        schemes. If None, infer the mapper based on the species implied by
-        the input gene IDs.
-    log:
-        Optional logger for recording messages.
-    Returns
-    -------
-    If the var dataframe needs to be updated, return the updated
-    var dataframe and the number of genes that were unable to be
-    mapped.
-
-    If not, return None (and 0)
-    """
-
-    gene_id_list = list(var_df.index.values)
-
-    if gene_id_mapper is None:
-        species = detect_species(gene_id_list)
-
-        if species is None:
-            msg = (
-                "Could not find a species for the genes you gave:\n"
-                f"First five genes:\n{gene_id_list[:5]}"
-            )
-            if log is not None:
-                log.error(msg)
-            else:
-                raise RuntimeError(msg)
-
-        if log is not None:
-            log.info(f"Mapping genes to {species} genes")
-
-        gene_id_mapper = GeneIdMapper.from_species(
-            species=species,
-            log=log)
-
-    mapping_output = gene_id_mapper.map_gene_identifiers(gene_id_list)
-    new_gene_id_list = mapping_output['mapped_genes']
-    if new_gene_id_list == gene_id_list:
-        return None, 0
-
-    var_df = var_df.reset_index().to_dict(orient='records')
-    idx_key_root = f'{gene_id_mapper.preferred_type}_VALIDATED'
-    idx_key = idx_key_root
-    ct = 0
-    while idx_key in var_df[0]:
-        idx_key = f'{idx_key_root}_{ct}'
-        ct += 1
-
-    for record, gene_id in zip(var_df, new_gene_id_list):
-        record[idx_key] = gene_id
-
-    new_var = pd.DataFrame(var_df).set_index(idx_key)
-
-    return new_var, mapping_output['n_unmapped']
 
 
 def _get_minmax_from_dense(x_dataset):
