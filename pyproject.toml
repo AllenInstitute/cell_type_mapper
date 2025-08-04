@@ -14,6 +14,7 @@ dependencies = [
     "numpy",
     "pytest",
     "pytest-xdist",
+    "pyzmq<27.0.0",
     "scipy<1.15.0"
 ]
 requires-python = ">=3.10"
