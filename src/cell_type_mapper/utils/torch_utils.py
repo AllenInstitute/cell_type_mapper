@@ -58,7 +58,7 @@ def _override_use_torch():
     if not _override_use_torch.has_warned:
         msg = (
             "Nominally, your system is configured to use the GPU "
-            "implmentation of cell_type_mapper. We have found that "
+            "implementation of cell_type_mapper. We have found that "
             "the speed-up due to the GPU is not enough to justify "
             "the more stringent memory requirements, so we are no "
             "longer supporting running the cell_type_mapper on a GPU. "
