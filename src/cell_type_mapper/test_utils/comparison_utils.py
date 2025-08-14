@@ -20,7 +20,7 @@ def assert_blobs_equal(blob0, blob1):
         blob1['gene_identifier_mapping']
 
 
-def assert_mappings_equal(result0, result1, eps=10e-6):
+def assert_mappings_equal(result0, result1, eps=1.0e-6):
     """
     Assert that two mapping 'results' entries
     are equal.
