@@ -25,6 +25,7 @@ def test_convert_to_cpm():
             atol=0.0,
             rtol=1.0e-6)
 
+
 @pytest.mark.parametrize("counts_per", [1000.0, 52.0, 7189.0])
 def test_convert_to_cpm_alt_factor(counts_per):
     n_cells = 312
