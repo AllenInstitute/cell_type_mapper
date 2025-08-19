@@ -6,7 +6,6 @@ import pathlib
 import time
 
 import cell_type_mapper.utils.gene_utils as gene_utils
-import mmc_gene_mapper.mapper.species_detection as species_detection
 
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
@@ -19,8 +18,6 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
-
-import mmc_gene_mapper.mapper.mapper as gene_mapper_module
 
 
 def _check_config(config_dict, config_name, key_name, log):

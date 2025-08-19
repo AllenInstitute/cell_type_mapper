@@ -10,7 +10,6 @@ dependencies = [
     "argschema",
     "matplotlib",
     "marshmallow==3.12.2",
-    "mmc_gene_mapper @ git+https://github.com/AllenInstitute/mmc_gene_mapper@v0.2.0",
     "numpy",
     "pytest",
     "pytest-xdist",

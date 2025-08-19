@@ -5,8 +5,6 @@ import tempfile
 import traceback
 import warnings
 
-import mmc_gene_mapper.mapper.species_detection as species_detection
-
 from cell_type_mapper.utils.utils import (
     choose_int_dtype,
     get_timestamp,
