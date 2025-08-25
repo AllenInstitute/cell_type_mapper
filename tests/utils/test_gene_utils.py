@@ -1,6 +1,7 @@
 import pytest
 
 import anndata
+import itertools
 import numpy as np
 import pandas as pd
 
@@ -116,10 +117,17 @@ def test_get_gene_identifier_list(
         )
 
 
-@pytest.mark.parametrize('gene_id_col', [None, 'blah'])
+@pytest.mark.parametrize(
+    'gene_id_col, duplicate_prefix',
+    itertools.product(
+        [None, 'blah'],
+        [None, 'sthng']
+    )
+)
 def test_get_gene_duplicated_identifier_list(
         tmp_dir_fixture,
-        gene_id_col):
+        gene_id_col,
+        duplicate_prefix):
 
     gene_names = [
         'albert',
@@ -131,15 +139,20 @@ def test_get_gene_duplicated_identifier_list(
         'bob',
         'jackie']
 
+    if duplicate_prefix is None:
+        prefix = 'INVALID_MARKER'
+    else:
+        prefix = duplicate_prefix
+
     expected = [
         'albert',
-        'INVALID_MARKER_jackie_0',
-        'INVALID_MARKER_fred_0',
+        f'{prefix}_jackie_0',
+        f'{prefix}_fred_0',
         'tallulah',
-        'INVALID_MARKER_fred_1',
-        'INVALID_MARKER_jackie_1',
+        f'{prefix}_fred_1',
+        f'{prefix}_jackie_1',
         'bob',
-        'INVALID_MARKER_jackie_2'
+        f'{prefix}_jackie_2'
     ]
 
     var = pd.DataFrame(
@@ -167,7 +180,8 @@ def test_get_gene_duplicated_identifier_list(
     with pytest.warns(DuplicateGeneIDWarning, match=msg):
         actual = get_gene_identifier_list(
             h5ad_path_list=h5ad_path_list,
-            gene_id_col=gene_id_col
+            gene_id_col=gene_id_col,
+            duplicate_prefix=duplicate_prefix
         )
 
     assert actual == expected

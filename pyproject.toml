@@ -4,15 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="cell_type_mapper"
-version="1.5.5"
+version="1.6.0"
 dependencies = [
     "anndata>=0.11.0",
     "argschema",
     "matplotlib",
     "marshmallow==3.12.2",
+    "mmc_gene_mapper @ git+https://github.com/AllenInstitute/mmc_gene_mapper@v0.2.0",
     "numpy",
     "pytest",
     "pytest-xdist",
+    "pyzmq<27.0.0",
     "scipy<1.15.0"
 ]
 requires-python = ">=3.10"

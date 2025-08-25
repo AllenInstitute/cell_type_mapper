@@ -19,8 +19,7 @@ import shutil
 import tempfile
 import warnings
 
-from cell_type_mapper.data.human_gene_id_lookup import (
-    human_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
@@ -66,7 +65,8 @@ from cell_type_mapper.cli.validate_h5ad import (
 def run_pipeline(
         query_path,
         precomputed_path,
-        tmp_dir):
+        tmp_dir,
+        gene_mapper_db_path):
     """
     Run the full validation-through-mapping pipeline
     for the online OTF MapMyCells implementation
@@ -79,6 +79,8 @@ def run_pipeline(
         Path to precomputed_stats file
     tmp_dir:
         Path to tmp_dir
+    gene_mapper_db_path:
+        path to db file used by mmc_gene_mapper
 
     Returns
     --------
@@ -114,7 +116,10 @@ def run_pipeline(
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json,
-        'log_path': log_path
+        'log_path': log_path,
+        'gene_mapping': {
+            'db_path': gene_mapper_db_path
+        }
     }
 
     with warnings.catch_warnings():
@@ -146,6 +151,7 @@ def run_pipeline(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {'db_path': gene_mapper_db_path},
         'drop_level': None,
         'query_path': validated_path,
         'log_path': log_path,
@@ -315,16 +321,27 @@ def baseline_mapping_fixture(
 
 
 @pytest.fixture(scope='module')
+def n_extra_genes_fixture():
+    return 39
+
+
+@pytest.fixture(scope='module')
 def human_gene_data_fixture(
         precomputed_path_fixture,
         noisy_query_h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        n_extra_genes_fixture):
     """
     Take the cartoon fixtures created in conftest.py
     and modify them to have valid human gene labels
     so that we can test the full validation-through-mapping
     pipeline.
+
+    Add extra genes that won't be mapped so that we can
+    check that summary metadata is recorded correctly
     """
+
+    human_gene_id_lookup = gene_mappers.get_human_gene_id_mapping()
 
     rng = np.random.default_rng(6177112)
     genes_to_map = set()
@@ -376,11 +393,17 @@ def human_gene_data_fixture(
         {'gene_id': gene_map[g]}
         for g in src.var.index.values
     ]
+    for ii in range(n_extra_genes_fixture):
+        new_var.append({'gene_id': f'unittest_nonsense_{ii}'})
+
     new_var = pd.DataFrame(new_var).set_index('gene_id')
 
     result = {'precompute': new_precompute}
     for density in ('csc', 'csr', 'dense'):
-        x = src.X[()]
+        src_x = src.X[()]
+        x = np.zeros((len(src.obs), len(new_var)), dtype=src_x.dtype)
+        x[:, :src_x.shape[1]] = src_x
+
         if density == 'csc':
             x = scipy.sparse.csc_matrix(x)
         elif density == 'csr':
@@ -876,7 +899,9 @@ def test_online_workflow_OTF(
         human_gene_data_fixture,
         density,
         baseline_mapping_fixture,
-        file_type):
+        file_type,
+        legacy_gene_mapper_db_path_fixture,
+        n_extra_genes_fixture):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper
@@ -913,11 +938,12 @@ def test_online_workflow_OTF(
 
     (json_path,
      csv_path,
-     _,
+     metadata_path,
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     baseline_df = pd.read_csv(
@@ -936,6 +962,18 @@ def test_online_workflow_OTF(
     test = json.load(open(json_path, 'rb'))
     assert_mappings_equal(baseline['results'], test['results'])
 
+    # test that summary metadata is correctly recorded
+    n_genes = len(
+        read_df_from_h5ad(human_gene_data_fixture['dense'], df_name='var')
+    )
+    n_cells = len(
+        read_df_from_h5ad(human_gene_data_fixture['dense'], df_name='obs')
+    )
+    with open(metadata_path, 'rb') as src:
+        summary_metadata = json.load(src)
+    assert summary_metadata['n_mapped_genes'] == n_genes-n_extra_genes_fixture
+    assert summary_metadata['n_mapped_cells'] == n_cells
+
 
 @pytest.mark.parametrize(
     'keep_encoding,density,file_type',
@@ -946,7 +984,8 @@ def test_OTF_log_path(
         keep_encoding,
         density,
         file_type,
-        human_gene_data_fixture):
+        human_gene_data_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that specified log_path contains same data as JSON log
     """
@@ -962,7 +1001,8 @@ def test_OTF_log_path(
      log_path) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     with open(log_path, 'r') as src:
@@ -1003,7 +1043,8 @@ def test_online_workflow_OTF_csv_shape(
         baseline_mapping_fixture,
         cell_label_header,
         cell_label_type,
-        suffix):
+        suffix,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test the validation-through-mapping flow of simulated human
     data passing through the on-the-fly mapper. Specifically, check
@@ -1038,7 +1079,8 @@ def test_online_workflow_OTF_csv_shape(
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=tmp_dir
+         tmp_dir=tmp_dir,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )
 
     baseline_df = pd.read_csv(
@@ -1072,7 +1114,8 @@ def test_online_workflow_OTF_csv_shape(
 
 def test_online_workflow_OTF_degenerate_cell_labels(
         human_gene_data_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that, when cell labels are repeated, the mapping proceeds and
     the order of cells is preserved
@@ -1142,7 +1185,8 @@ def test_online_workflow_OTF_degenerate_cell_labels(
      _) = run_pipeline(
          query_path=query_path,
          precomputed_path=precomputed_path,
-         tmp_dir=str(tmp_dir_fixture)
+         tmp_dir=str(tmp_dir_fixture),
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # do the mapping on the h5ad with degenerate cell labels
@@ -1152,7 +1196,8 @@ def test_online_workflow_OTF_degenerate_cell_labels(
      _) = run_pipeline(
          query_path=test_h5ad_path,
          precomputed_path=precomputed_path,
-         tmp_dir=str(tmp_dir_fixture)
+         tmp_dir=str(tmp_dir_fixture),
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # compare the contents of the two mappings
@@ -1204,7 +1249,8 @@ def test_OTF_map_to_ensembl(
         tmp_dir_fixture,
         human_gene_data_fixture,
         baseline_mapping_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that OTF mapper can handle mapping to ensembl by
     itself
@@ -1235,10 +1281,12 @@ def test_OTF_map_to_ensembl(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        },
         'drop_level': None,
         'query_path': str(query_path),
         'log_path': None,
-        'map_to_ensembl': True,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {
@@ -1285,7 +1333,8 @@ def test_OTF_map_to_ensembl(
 def test_OTF_alt_gene_id_col(
         tmp_dir_fixture,
         human_gene_data_fixture,
-        baseline_mapping_fixture):
+        baseline_mapping_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that OTF mapper can handle data with the query
     gene IDs in a different column
@@ -1333,11 +1382,11 @@ def test_OTF_alt_gene_id_col(
         'n_processors': 3,
         'tmp_dir': tmp_dir,
         'precomputed_stats': {'path': str(precomputed_path)},
+        'gene_mapping': {'db_path': legacy_gene_mapper_db_path_fixture},
         'drop_level': None,
         'query_path': str(query_path),
         'query_gene_id_col': None,
         'log_path': None,
-        'map_to_ensembl': True,
         'query_markers': {},
         'reference_markers': {},
         'type_assignment': {

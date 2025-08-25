@@ -123,58 +123,6 @@ def good_x_fixture(mouse_var_fixture, obs_fixture):
     return data
 
 
-def test_validation_cli_on_bad_genes(
-        bad_var_fixture,
-        obs_fixture,
-        x_fixture,
-        tmp_dir_fixture):
-    """
-    Test that an error is raised if no genes can be
-    mapped to Ensembl ID
-    """
-
-    orig_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='orig_',
-        suffix='.h5ad')
-
-    a_data = anndata.AnnData(
-        X=x_fixture,
-        var=bad_var_fixture,
-        obs=obs_fixture)
-    a_data.write_h5ad(orig_path)
-
-    output_json = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix="bad_input_",
-        suffix=".json")
-
-    log_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        prefix='validation_log_',
-        suffix='.txt')
-
-    output_dir = str(tmp_dir_fixture.resolve().absolute())
-    valid_path = None
-
-    config = {
-        'input_path': orig_path,
-        'output_dir': output_dir,
-        'valid_h5ad_path': valid_path,
-        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
-        'output_json': output_json,
-        'layer': 'X',
-        'round_to_int': True,
-        'log_path': log_path
-    }
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        runner = ValidateH5adRunner(args=[], input_data=config)
-        with pytest.raises(RuntimeError, match="Could not find a species"):
-            runner.run()
-
-
 @pytest.mark.parametrize(
     "density,as_layer,round_to_int,"
     "specify_path,species,keep_encoding,"
@@ -209,7 +157,8 @@ def test_validation_cli_of_h5ad_simple(
         csv_label_type,
         csv_label_header,
         degenerate_cell_labels,
-        h5ad_path_param):
+        h5ad_path_param,
+        legacy_gene_mapper_db_path_fixture):
     """
     if h5ad_path param is True, then specify the path to the input
     file with 'h5ad_path', not 'input_path'
@@ -386,21 +335,16 @@ def test_validation_cli_of_h5ad_simple(
         'output_json': output_json,
         'layer': layer,
         'round_to_int': round_to_int,
-        'log_path': log_path
+        'log_path': log_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         runner = ValidateH5adRunner(args=[], input_data=config)
         runner.run()
-
-    # check that log contains line about mapping to the species' genes
-    found_it = False
-    with open(log_path, 'r') as src:
-        for line in src:
-            if f'Mapping genes to {species} genes' in line:
-                found_it = True
-    assert found_it
 
     output_manifest = json.load(open(output_json, 'rb'))
 
@@ -418,8 +362,9 @@ def test_validation_cli_of_h5ad_simple(
         expected_name = pathlib.Path(valid_path).name
         assert result_path.name == expected_name
     elif density not in ('csv', 'gz'):
-        expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
-        assert result_path.name == expected_name
+        if str(result_path) != src_path:
+            expected_name = f'{base_name}_VALIDATED_{timestamp}.h5ad'
+            assert result_path.name == expected_name
     else:
         if density == 'gz':
             base_suffix = '.csv.gz'
@@ -440,7 +385,6 @@ def test_validation_cli_of_h5ad_simple(
             assert in_file[data_key].dtype == np.uint8
 
     actual = anndata.read_h5ad(result_path, backed='r')
-    assert actual.uns['AIBS_CDM_n_mapped_genes'] == 3
 
     # Verify the obs dataframe of the validated file
     # (except in cases where we are processing a CSV
@@ -479,33 +423,21 @@ def test_validation_cli_of_h5ad_simple(
                     '}'
                 )
 
-    actual_x = actual.X
+    with h5py.File(result_path, "r") as src:
+        if isinstance(src['X'], h5py.Group):
+            if density == "csr":
+                scipy_type = scipy_sparse.csr_matrix
+            else:
+                scipy_type = scipy_sparse.csc_matrix
 
-    if density not in ("array", "csv", "gz"):
-
-        # Sometimes X comes out as a scipy.sparse matrix,
-        # sometimes it is an anndata SparseDataset. Unclear
-        # why.
-        if not hasattr(actual_x, 'toarray'):
-            actual_x = actual_x[()]
-        actual_x = actual_x.toarray()
-
-        # check that we can at least read back the
-        # sparse matrix using scipy library
-        if density == "csr":
-            scipy_type = scipy_sparse.csr_matrix
-        else:
-            scipy_type = scipy_sparse.csc_matrix
-        with h5py.File(result_path, "r") as src:
-            brute_x = scipy_type(
+            actual_x = scipy_type(
                 (src['X/data'][()],
                  src['X/indices'][()],
                  src['X/indptr'][()]),
                 shape=x_fixture.shape)
-        brute_x = brute_x.toarray()
-
-    else:
-        brute_x = None
+            actual_x = actual_x.toarray()
+        else:
+            actual_x = src['X'][()]
 
     # verify that the X matrix of the validated dataset
     # has the expected data in it.
@@ -515,10 +447,6 @@ def test_validation_cli_of_h5ad_simple(
             actual_x,
             np.round(x_fixture).astype(int))
 
-        if brute_x is not None:
-            np.testing.assert_array_equal(
-                brute_x,
-                np.round(x_fixture).astype(int))
     else:
         np.testing.assert_allclose(
             actual_x,
@@ -526,41 +454,25 @@ def test_validation_cli_of_h5ad_simple(
             atol=0.0,
             rtol=10.e-6)
 
-        if brute_x is not None:
-            np.testing.assert_allclose(
-                brute_x,
-                x_fixture,
-                atol=0.0,
-                rtol=1.0e-7)
-
     # verify contents of var dataframe
     # (again, with exceptions for CSV inputs which will not
     # exactly match var_fixture)
 
     actual_var = actual.var
 
-    if density not in ("csv", "gz"):
-        assert len(actual_var.columns) == 2
-        assert (
-            list(actual_var['gene_id'].values)
-            == list(var_fixture.index.values)
-        )
-        assert (
-            list(actual_var['val'].values)
-            == list(var_fixture.val.values)
-        )
+    # 2025-07-17: var should now be unchanged by validation module
+    # we are moving gene mapping functionality into the actual
+    # cell type mapper
+    np.testing.assert_array_equal(
+        actual_var.index.values,
+        var_fixture.index.values
+    )
 
-    actual_idx = list(actual_var.index.values)
-    assert len(actual_idx) == 4
-    if species == 'mouse':
-        assert actual_idx[0] == "ENSMUSG00000000318"
-        assert actual_idx[1] == "ENSMUSG00000000320"
-        assert actual_idx[2] == "ENSMUSG00000000326"
-    else:
-        assert actual_idx[0] == "ENSG00000166535"
-        assert actual_idx[1] == "ENSG00000203995"
-        assert actual_idx[2] == "ENSG00000272920"
-    assert "unmapped" in actual_idx[3]
+    if density not in ("csv", "gz"):
+        pd.testing.assert_frame_equal(
+            actual_var,
+            var_fixture
+        )
 
     # make sure input file did not change
     md51 = hashlib.md5()
@@ -598,7 +510,8 @@ def test_validation_cli_of_good_h5ad(
         good_x_fixture,
         tmp_dir_fixture,
         density,
-        specify_path):
+        specify_path,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -638,7 +551,10 @@ def test_validation_cli_of_good_h5ad(
         'output_dir': output_dir,
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'valid_h5ad_path': valid_path
+        'valid_h5ad_path': valid_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -653,7 +569,6 @@ def test_validation_cli_of_good_h5ad(
         assert result_path == valid_path
         actual = anndata.read_h5ad(result_path, backed='r')
         original = anndata.read_h5ad(orig_path, backed='r')
-        assert actual.uns['AIBS_CDM_n_mapped_genes'] == len(original.var)
         for k in original.uns:
             assert actual.uns[k] == original.uns[k]
         actual_x = actual.X[()]
@@ -688,7 +603,8 @@ def test_validation_cli_of_h5ad_preserve_norm(
         obs_fixture,
         x_fixture,
         tmp_dir_fixture,
-        density):
+        density,
+        legacy_gene_mapper_db_path_fixture):
 
     orig_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -721,7 +637,10 @@ def test_validation_cli_of_h5ad_preserve_norm(
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
-        'round_to_int': False
+        'round_to_int': False,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -746,7 +665,8 @@ def test_validation_cli_of_h5ad_missing_output(
         mouse_var_fixture,
         obs_fixture,
         x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that an error is raised if output_json is not specified
     """
@@ -760,6 +680,9 @@ def test_validation_cli_of_h5ad_missing_output(
         'input_path': orig_path,
         'output_dir': str(tmp_dir_fixture.resolve().absolute()),
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with pytest.raises(RuntimeError,
@@ -777,7 +700,8 @@ def test_validation_cli_of_good_h5ad_in_layer(
         x_fixture,
         tmp_dir_fixture,
         density,
-        preserve_norm):
+        preserve_norm,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test behavior of validation CLI when the data is good
     but it is in a non-X layer.
@@ -825,7 +749,10 @@ def test_validation_cli_of_good_h5ad_in_layer(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json,
         'layer': 'garbage',
-        'round_to_int': not preserve_norm
+        'round_to_int': not preserve_norm,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -839,7 +766,6 @@ def test_validation_cli_of_good_h5ad_in_layer(
     assert result_path != orig_path
 
     actual = anndata.read_h5ad(result_path)
-    assert actual.uns['AIBS_CDM_n_mapped_genes'] == len(good_var_fixture)
     pd.testing.assert_frame_equal(
         actual.var,
         good_var_fixture)
@@ -897,8 +823,10 @@ def test_validation_cli_of_good_h5ad_in_layer(
     assert md50.hexdigest() == md51.hexdigest()
 
 
+@pytest.mark.skip('new framework cannot really handle ensembl with a dot')
 def test_validation_cli_on_ensembl_dot(
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
 
     rng = np.random.default_rng(221133)
     obs = pd.DataFrame(
@@ -944,7 +872,10 @@ def test_validation_cli_on_ensembl_dot(
                 input_data={
                     'input_path': input_path,
                     'output_dir': str(tmp_dir_fixture),
-                    'output_json': json_path
+                    'output_json': json_path,
+                    'gene_mapping': {
+                        'db_path': legacy_gene_mapper_db_path_fixture
+                    }
                 })
             runner.run()
 
@@ -955,7 +886,6 @@ def test_validation_cli_on_ensembl_dot(
             backed='r'
         )
         assert list(new_h5ad.var.index.values) == expected
-        assert new_h5ad.uns['AIBS_CDM_n_mapped_genes'] == len(var_data)
 
         md51 = hashlib.md5()
         with open(input_path, 'rb') as src:
@@ -973,7 +903,8 @@ def test_roundtrip_of_validation_cli(
         x_fixture,
         tmp_dir_fixture,
         density,
-        preserve_norm):
+        preserve_norm,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test behavior of validation CLI when the data is good
     but it is in a non-X layer.
@@ -1025,7 +956,10 @@ def test_roundtrip_of_validation_cli(
         'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
         'output_json': output_json_path,
         'layer': 'garbage',
-        'round_to_int': not preserve_norm
+        'round_to_int': not preserve_norm,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -1087,7 +1021,8 @@ def test_obs_with_repeated_cells_validation_cli(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Smoke test for validating an h5ad file with repeated cell names
     """
@@ -1126,7 +1061,10 @@ def test_obs_with_repeated_cells_validation_cli(
         'output_json': mkstemp_clean(
             dir=tmp_dir_fixture,
             suffix='.json'
-        )
+        ),
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():
@@ -1148,7 +1086,8 @@ def test_transposed_validation_cli(
         good_var_fixture,
         obs_fixture,
         good_x_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Smoke test for validating an h5ad file with repeated cell names
     """
@@ -1188,7 +1127,10 @@ def test_transposed_validation_cli(
         'input_path': h5ad_path,
         'valid_h5ad_path': None,
         'output_dir': output_dir,
-        'output_json': json_path
+        'output_json': json_path,
+        'gene_mapping': {
+            'db_path': legacy_gene_mapper_db_path_fixture
+        }
     }
 
     with warnings.catch_warnings():

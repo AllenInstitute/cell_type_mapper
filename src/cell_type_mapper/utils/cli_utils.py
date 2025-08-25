@@ -1,16 +1,15 @@
 import copy
+import h5py
+import json
 import numpy as np
 import pathlib
 import time
 
 import cell_type_mapper.utils.gene_utils as gene_utils
+import mmc_gene_mapper.mapper.species_detection as species_detection
 
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
-
-from cell_type_mapper.gene_id.utils import detect_species
-
-from cell_type_mapper.gene_id.gene_id_mapper import GeneIdMapper
 
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
@@ -20,6 +19,8 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
+
+import mmc_gene_mapper.mapper.mapper as gene_mapper_module
 
 
 def _check_config(config_dict, config_name, key_name, log):
@@ -35,10 +36,12 @@ def _check_config(config_dict, config_name, key_name, log):
             log.error(f"'{config_name}' config missing key '{key_name}'")
 
 
-def _get_query_gene_names(
+def align_query_gene_names(
         query_gene_path,
-        map_to_ensembl=False,
-        gene_id_col=None):
+        gene_id_col=None,
+        precomputed_stats_path=None,
+        gene_mapper_db_path=None,
+        log=None):
     """
     If map_to_ensembl is True, automatically map the gene IDs in
     query_gene_path.var.index to ENSEMBL IDs
@@ -49,43 +52,174 @@ def _get_query_gene_names(
     Also return boolean indicating whether or not any genes
     were meaningfully mapped (True if a gene was mapped to
     an ENSEMBL ID; false otherwise)
+
+    Return a dict of metadata explaining the mapping that was done
+    and the backing data used to do it.
     """
+
     result = gene_utils.get_gene_identifier_list(
         h5ad_path_list=[query_gene_path],
         gene_id_col=gene_id_col,
-        duplicate_prefix=gene_utils.invalid_query_prefix()
+        duplicate_prefix=f'UNMAPPABLE.{gene_utils.duplicated_query_prefix()}',
+        log=log
     )
 
-    n_unmapped = 0
-    was_changed = False
-    if map_to_ensembl:
-        original_result = np.array(result)
-        species = detect_species(result)
-        if species is None:
-            msg = (
-                "Could not find a species for the genes you gave:\n"
-                f"First five genes:\n{result[:5]}"
+    metadata = dict()
+
+    map_genes = False
+    if gene_mapper_db_path is not None:
+        if precomputed_stats_path is not None:
+            map_genes = True
+    else:
+        if log is not None:
+            log.info(
+                "No gene_mapper_db provided. Assuming that query "
+                "genes have already been mapped to the same "
+                "species/authority as reference genes.",
+                to_stdout=True
             )
-            raise RuntimeError(msg)
 
-        gene_id_mapper = GeneIdMapper.from_species(
-            species=species)
-        raw_result = gene_id_mapper.map_gene_identifiers(
-            result,
-            strict=False)
-        result = raw_result['mapped_genes']
-        n_unmapped = raw_result['n_unmapped']
+    was_changed = False
+    if map_genes:
 
-        if np.array_equal(np.array(result), original_result):
-            was_changed = False
+        if log is not None:
+            log.info(
+                "***Checking to see if we need to map query genes onto "
+                "reference dataset"
+            )
+
+        (result,
+         was_changed,
+         metadata) = _align_query_gene_names(
+             precomputed_stats_path=precomputed_stats_path,
+             gene_mapper_db_path=gene_mapper_db_path,
+             gene_list=result,
+             log=log)
+
+        if log is not None:
+            log.info(
+                "***Mapping of query genes to reference dataset complete"
+            )
+
+    n_unmapped = 0
+    for gene_name in result:
+        if 'UNMAPPABLE' in gene_name:
+            n_unmapped += 1
+    return result, n_unmapped, was_changed, metadata
+
+
+def _align_query_gene_names(
+        precomputed_stats_path,
+        gene_mapper_db_path,
+        gene_list,
+        log):
+    """
+    This function will actually perform any gene mapping that
+    needs to be done in order to align the input gene identifiers
+    to the reference gene identifiers.
+
+    Returns
+    -------
+    result -- list of aligned gene identifiers
+    was_changed -- boolean indicating if any meaningful mapping happened
+                   (this will be false if all genes were unmapped)
+    metadata -- a dict recording the mapping done and citations used
+    """
+    was_changed = False
+
+    with h5py.File(precomputed_stats_path, 'r') as src:
+        reference_genes = json.loads(
+            src['col_names'][()].decode('utf-8')
+        )
+
+    reference_gene_data = species_detection.detect_species_and_authority(
+        db_path=gene_mapper_db_path,
+        gene_list=reference_genes
+    )
+
+    # not obvious what species to map to;
+    # cannot perform mapping
+    if reference_gene_data['species'] is None:
+        if log is not None:
+            log.info(
+                "Could not determine species for reference data. "
+                "Going to assume that query genes are already "
+                "mapped to the same species/authority as the "
+                "reference data",
+                to_stdout=True
+            )
+        return gene_list, False, dict()
+
+    dst_species = reference_gene_data['species'].name
+    if log is not None:
+        log.info(
+            "Reference data belongs to species "
+            f"{reference_gene_data['species']}"
+        )
+
+    reference_authority = set(reference_gene_data['authority'])
+
+    if len(reference_authority) == 1 and 'symbol' in reference_authority:
+        msg = (
+            "reference data contains gene symbols; will not be "
+            "able to infer a species during gene alignment"
+        )
+        if log is not None:
+            log.error(msg)
         else:
-            delta = np.where(np.array(result) != original_result)[0]
-            for ii in delta:
-                if 'unmapped' not in result[ii]:
-                    was_changed = True
-                    break
+            raise ValueError(msg)
 
-    return result, n_unmapped, was_changed
+    if 'symbol' in reference_authority:
+        reference_authority.remove('symbol')
+
+    if len(reference_authority) != 1:
+        msg = (
+           "Could not find single authority to map genes to; "
+           f"options are {reference_authority}"
+        )
+        if log is not None:
+            log.error(msg)
+        else:
+            raise ValueError(msg)
+
+    dst_authority = reference_authority.pop()
+    if log is not None:
+        log.info(
+            f"Reference genes are from authority '{dst_authority}'"
+        )
+
+    gene_mapper = gene_mapper_module.MMCGeneMapper(
+        db_path=gene_mapper_db_path
+    )
+
+    original_result = np.array(gene_list)
+
+    raw_result = gene_mapper.map_genes(
+        gene_list=gene_list,
+        dst_species=dst_species,
+        dst_authority=dst_authority,
+        ortholog_citation='NCBI',
+        log=log,
+        invalid_mapping_prefix=gene_utils.invalid_query_prefix()
+    )
+
+    result = raw_result['gene_list']
+
+    if np.array_equal(np.array(result), original_result):
+        was_changed = False
+    else:
+        delta = np.where(np.array(result) != original_result)[0]
+        for ii in delta:
+            if 'UNMAPPABLE' not in result[ii]:
+                was_changed = True
+                break
+
+    metadata = {
+        'provenance': raw_result['metadata'],
+        'mapping': {g0: g1 for g0, g1 in zip(gene_list, result)}
+    }
+
+    return result, was_changed, metadata
 
 
 def create_precomputed_stats_file(

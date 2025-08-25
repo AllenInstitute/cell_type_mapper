@@ -2,14 +2,7 @@ import json
 import pathlib
 import re
 
-from cell_type_mapper.gene_id.utils import (
-    is_ensembl)
-
-from cell_type_mapper.data.cellranger_6_lookup import (
-    cellranger_6_lookup)
-
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 def marker_lookup_from_tree_and_csv(
@@ -121,7 +114,7 @@ def map_aibs_marker_lookup(
         all_markers = all_markers.union(set(raw_markers[k]))
     all_markers = list(all_markers)
 
-    symbol_to_ensembl = map_aibs_gene_names(all_markers)
+    symbol_to_ensembl = _map_aibs_gene_names(all_markers)
 
     result = dict()
     for k in raw_markers:
@@ -131,7 +124,7 @@ def map_aibs_marker_lookup(
     return result
 
 
-def map_aibs_gene_names(raw_gene_names):
+def _map_aibs_gene_names(raw_gene_names):
     """
     Take a list of gene names; return a dict mapping them
     to Ensembl IDs, accounting for AIBS-specific gene
@@ -149,6 +142,8 @@ def map_aibs_gene_names(raw_gene_names):
     bad_symbols = []
     used_ensembl = set()
     symbol_to_ensembl = dict()
+    cellranger_6_lookup = gene_mappers.get_cellranger_gene_id_mapping()
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
     for symbol in raw_gene_names:
         ensembl = None
         if symbol in cellranger_6_lookup:
@@ -221,3 +216,16 @@ def map_aibs_gene_names(raw_gene_names):
     if len(error_msg) > 0:
         raise RuntimeError(error_msg)
     return symbol_to_ensembl
+
+
+def is_ensembl(gene_id):
+    """
+    Return a boolean indicating if the specified
+    gene_id is an Ensembl identifier
+    """
+    if not hasattr(is_ensembl, 'pattern'):
+        is_ensembl.pattern = re.compile(r'ENS[A-Z]+[0-9]+(\.[0-9]+)?')   # noqa W605
+    match = is_ensembl.pattern.fullmatch(gene_id)
+    if match is None:
+        return False
+    return True

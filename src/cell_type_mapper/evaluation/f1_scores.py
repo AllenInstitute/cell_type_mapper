@@ -54,6 +54,8 @@ def avg_f1(
                          naively believing aggregate probability
                          (0 for cuts in average correlation)
     """
+    tree_hierarchy = taxonomy_tree.hierarchy
+
     if probability_cut_list is None:
         probability_cut_list = [0.0]
     if correlation_cut_list is None:
@@ -67,7 +69,7 @@ def avg_f1(
     ]
 
     nodes_to_idx = dict()
-    for level in taxonomy_tree.hierarchy:
+    for level in tree_hierarchy:
         nodes_to_idx[level] = dict()
         for ii, node in enumerate(taxonomy_tree.nodes_at_level(level)):
             nodes_to_idx[level][node] = ii
@@ -79,7 +81,7 @@ def avg_f1(
     n_cells = dict()
     n_tot = dict()
     estimated_false_pos = dict()
-    for level in taxonomy_tree.hierarchy:
+    for level in tree_hierarchy:
         n_nodes = len(nodes_to_idx[level])
         n_cells[level] = np.zeros(n_nodes, dtype=int)
         n_tot[level] = 0
@@ -99,14 +101,13 @@ def avg_f1(
             estimated_false_pos[level][cut] = 0
 
     for cell in mapping:
-        agg_prob = 1.0
         ancestor_passed_corr = {
             cut[1]: True
             for cut in cut_list if cut[0] == 'correlation'
         }
-        for level in taxonomy_tree.hierarchy:
+        for level in tree_hierarchy:
             assigned_val = cell[level]['assignment']
-            agg_prob *= cell[level]['bootstrapping_probability']
+            agg_prob = cell[level]['aggregate_probability']
             true_val = truth[cell['cell_id']][level]
             true_idx = nodes_to_idx[level][true_val]
             n_cells[level][true_idx] += 1
@@ -149,7 +150,7 @@ def avg_f1(
                         false_pos[level][cut][assigned_idx] += 1
 
     results = dict()
-    for level in taxonomy_tree.hierarchy:
+    for level in tree_hierarchy:
         results[level] = dict()
         for cut in cut_list:
             if cut[0] not in results[level]:

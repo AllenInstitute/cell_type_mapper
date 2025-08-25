@@ -7,9 +7,7 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean
 )
 
-from cell_type_mapper.data.mouse_gene_id_lookup import (
-    mouse_gene_id_lookup
-)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 @pytest.fixture()
@@ -65,6 +63,8 @@ def csv_anndata_fixture(
         list of gene_labels
         x matrix as an array
     """
+
+    mouse_gene_id_lookup = gene_mappers.get_mouse_gene_id_mapping()
 
     suffix = suffix_fixture
     label_heading = label_heading_fixture

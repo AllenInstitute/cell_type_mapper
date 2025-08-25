@@ -34,7 +34,8 @@ def run_pipeline(
         query_path,
         marker_lookup_path,
         precomputed_path,
-        tmp_dir):
+        tmp_dir,
+        gene_mapper_db_path):
     """
     Run the full validation-through-mapping pipeline
     for the online WMB MapMyCells implementation
@@ -49,6 +50,8 @@ def run_pipeline(
         Path to precomputed_stats file
     tmp_dir:
         Path to tmp_dir
+    gene_mapper_db_path:
+        path to db used by mmc_gene_mapper
 
     Returns
     --------
@@ -82,7 +85,11 @@ def run_pipeline(
         'input_path': query_path,
         'valid_h5ad_path': validated_path,
         'output_json': output_json_path,
-        'log_path': log_path}
+        'log_path': log_path,
+        'gene_mapping': {
+            'db_path': gene_mapper_db_path
+        }
+    }
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -114,11 +121,13 @@ def run_pipeline(
         'query_markers': {
             'serialized_lookup': str(marker_lookup_path)
         },
+        'gene_mapping': {
+            'db_path': gene_mapper_db_path
+        },
         'query_path': validated_path,
         'extended_result_path': str(output_path),
         'csv_result_path': str(csv_path),
         'summary_metadata_path': metadata_path,
-        'map_to_ensembl': False,
         'log_path': log_path,
         'type_assignment': {
             'normalization': 'raw',
@@ -161,7 +170,8 @@ def test_online_WMB_log(
         density_fixture,
         with_encoding_type,
         reference_mapping_fixture,
-        file_type
+        file_type,
+        legacy_gene_mapper_db_path_fixture
         ):
     """
     Test that .txt log and .json log agree
@@ -198,7 +208,8 @@ def test_online_WMB_log(
          query_path=query_path,
          marker_lookup_path=marker_lookup_fixture,
          precomputed_path=precomputed_stats_fixture,
-         tmp_dir=tmp_dir_fixture
+         tmp_dir=tmp_dir_fixture,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     with open(log_path, 'r') as src:
@@ -247,7 +258,8 @@ def test_online_workflow_WMB(
         density_fixture,
         with_encoding_type,
         reference_mapping_fixture,
-        file_type
+        file_type,
+        legacy_gene_mapper_db_path_fixture
         ):
     """
     Test the validation through mapping workflow as it will be run
@@ -288,7 +300,8 @@ def test_online_workflow_WMB(
          query_path=query_path,
          marker_lookup_path=marker_lookup_fixture,
          precomputed_path=precomputed_stats_fixture,
-         tmp_dir=tmp_dir_fixture
+         tmp_dir=tmp_dir_fixture,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     test_df = pd.read_csv(
@@ -327,7 +340,8 @@ def test_online_workflow_WMB_csv_shape(
         reference_mapping_fixture,
         cell_label_header,
         cell_label_type,
-        suffix
+        suffix,
+        legacy_gene_mapper_db_path_fixture
         ):
     """
     Test that mapping is unaffected by the "shape"
@@ -359,7 +373,8 @@ def test_online_workflow_WMB_csv_shape(
          query_path=query_path,
          marker_lookup_path=marker_lookup_fixture,
          precomputed_path=precomputed_stats_fixture,
-         tmp_dir=tmp_dir_fixture
+         tmp_dir=tmp_dir_fixture,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     test_df = pd.read_csv(
@@ -395,7 +410,8 @@ def test_online_workflow_WMB_degenerate_cell_labels(
         marker_lookup_fixture,
         precomputed_stats_fixture,
         query_h5ad_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that, when cell labels are repeated, the mapping proceeds and
     the order of cells is preserved
@@ -462,7 +478,8 @@ def test_online_workflow_WMB_degenerate_cell_labels(
          query_path=query_h5ad_fixture,
          marker_lookup_path=marker_lookup_fixture,
          precomputed_path=precomputed_stats_fixture,
-         tmp_dir=tmp_dir_fixture
+         tmp_dir=tmp_dir_fixture,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # do the mapping on the h5ad with degenerate cell labels
@@ -473,7 +490,8 @@ def test_online_workflow_WMB_degenerate_cell_labels(
          query_path=test_h5ad_path,
          marker_lookup_path=marker_lookup_fixture,
          precomputed_path=precomputed_stats_fixture,
-         tmp_dir=tmp_dir_fixture
+         tmp_dir=tmp_dir_fixture,
+         gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
      )
 
     # compare the contents of the two mappings
@@ -523,7 +541,8 @@ def test_online_workflow_WMB_degenerate_cell_labels(
 def test_online_workflow_WMB_perfect_csvs(
         marker_lookup_fixture,
         precomputed_stats_fixture,
-        tmp_dir_fixture):
+        tmp_dir_fixture,
+        legacy_gene_mapper_db_path_fixture):
     """
     Test that if CSV has integer counts and ENSEMBL IDs, it can still
     be run (there was a bug in the validation pipeline that caused
@@ -558,5 +577,6 @@ def test_online_workflow_WMB_perfect_csvs(
         query_path=csv_path,
         marker_lookup_path=marker_lookup_fixture,
         precomputed_path=precomputed_stats_fixture,
-        tmp_dir=tmp_dir_fixture
+        tmp_dir=tmp_dir_fixture,
+        gene_mapper_db_path=legacy_gene_mapper_db_path_fixture
     )

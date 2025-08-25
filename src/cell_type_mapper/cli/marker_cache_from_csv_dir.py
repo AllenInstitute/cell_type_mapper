@@ -41,7 +41,7 @@ class MarkerCacheInputSchema(argschema.ArgSchema):
         required=True,
         default=None,
         allow_none=False,
-        description="Path to the marker lookpu file that will be written. "
+        description="Path to the marker lookup file that will be written. "
         "Note: the output_json config param is boilerplate mandated by "
         "argschema and not relevant to the use of this tool.")
 
@@ -53,7 +53,7 @@ class MarkerCacheInputSchema(argschema.ArgSchema):
         "it before doing type assignment (this is to accommmodate "
         "the fact that the official taxonomy includes the "
         "'supertype', even though that level is not used "
-        "during hierarchical type assignment")
+        "during hierarchical type assignment)")
 
     map_to_ensembl = argschema.fields.Boolean(
         required=False,

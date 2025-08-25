@@ -5,6 +5,23 @@ import pathlib
 from cell_type_mapper.utils.anndata_utils import (
     does_obsm_have_key)
 
+from cell_type_mapper.schemas.base_schemas import (
+    GeneMappingSchema)
+
+
+class GeneMappingMixin(object):
+
+    gene_mapping = argschema.fields.Nested(
+        GeneMappingSchema,
+        required=False,
+        default=None,
+        allow_none=True,
+        description=(
+            "Parameters used when mapping query data genes "
+            "to reference data genes (if so desired)."
+        )
+    )
+
 
 class MapToEnsemblMixin(object):
 
@@ -12,8 +29,23 @@ class MapToEnsemblMixin(object):
         required=False,
         default=False,
         allow_none=False,
-        description="If True, map the gene names in query_path to "
-        "ENSEMBL IDs before performing cell type mapping.")
+        description=(
+            "OBSOLETE PARAMETER. Mapping of query genes to "
+            "reference genes is now handled via the database "
+            "specified in gene_mapping.db_path"
+        )
+    )
+
+    @post_load
+    def map_to_ensembl_obsolete(self, data, **kwargs):
+        if data['map_to_ensembl']:
+            msg = (
+               "'map_to_ensembl' is no longer used. To map query "
+               "genes onto reference genes, specify an mmc_gene_mapper "
+               "compliant database via the gene_mapping.db_path parameter."
+            )
+            raise RuntimeError(msg)
+        return data
 
 
 class VerboseStdoutMixin(object):

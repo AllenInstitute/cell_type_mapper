@@ -15,8 +15,7 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.data.cellranger_6_lookup import (
-    cellranger_6_lookup)
+import cell_type_mapper.test_utils.gene_mapping.mappers as gene_mappers
 
 
 def _create_word(rng):
@@ -489,6 +488,7 @@ def expected_marker_lookup_fixture(
     """
     Return dict of expected marker lookup
     """
+    cellranger_6_lookup = gene_mappers.get_cellranger_gene_id_mapping()
     parent_list = baseline_tree_fixture.all_parents
     rng = np.random.default_rng(88122312)
 
