@@ -381,6 +381,61 @@ def test_genes_at_a_time(
             assert test != baseline
 
 
+def test_query_n_processors(
+        query_gene_names,
+        ref_marker_path_fixture,
+        precomputed_path_fixture,
+        full_marker_name_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture):
+    """
+    Really just a smoke test to make sure that
+    n_processors doesn't change the result
+    """
+
+    query_path = None
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='baseline_query_markers_',
+        suffix='.json')
+
+    config = {
+        'query_path': query_path,
+        'reference_marker_path_list': [ref_marker_path_fixture],
+        'n_processors': 3,
+        'n_per_utility': 5,
+        'drop_level': None,
+        'output_path': baseline_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute())}
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='test_query_markers_',
+        suffix='.json')
+
+    config['output_path'] = test_path
+    config['n_processors'] = 1
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    baseline = json.load(open(baseline_path, 'rb'))
+    test = json.load(open(test_path, 'rb'))
+    for k in ('log', 'metadata'):
+        baseline.pop(k)
+        test.pop(k)
+
+    assert test == baseline
+
+
 @pytest.fixture(scope='module')
 def p_value_path_fixture(
         precomputed_path_fixture,

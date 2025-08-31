@@ -153,35 +153,56 @@ def select_all_markers(
                 output_dict[chosen_parent] = []
                 completed_parents.add(chosen_parent)
             else:
-                if is_behemoth:
-                    marker_gene_array = parent_marker_cache.spawn_copy()
+                if n_processors > 1:
+                    if is_behemoth:
+                        marker_gene_array = parent_marker_cache.spawn_copy()
+                    else:
+                        marker_gene_array = \
+                            parent_marker_cache.downsample_pairs_to_other(
+                                only_keep_pairs=leaves,
+                                tmp_dir=tmp_dir)
                 else:
-                    marker_gene_array = \
-                        parent_marker_cache.downsample_pairs_to_other(
-                            only_keep_pairs=leaves,
-                            tmp_dir=tmp_dir)
+                    marker_gene_array = parent_marker_cache
 
                 this_n_per = n_per_utility
                 if n_per_utility_override is not None:
                     if chosen_parent in n_per_utility_override:
                         this_n_per = n_per_utility_override[chosen_parent]
 
-                p = multiprocessing.Process(
-                        target=_marker_selection_worker,
-                        kwargs={
-                            'marker_gene_array':
-                                marker_gene_array,
-                            'query_gene_names': query_gene_names,
-                            'genes_at_a_time': genes_at_a_time,
-                            'taxonomy_tree': taxonomy_tree,
-                            'parent_node': chosen_parent,
-                            'n_per_utility': this_n_per,
-                            'output_dict': output_dict,
-                            'stdout_lock': stdout_lock,
-                            'summary_log': summary_log,
-                            'tmp_dir': tmp_dir})
-                p.start()
-                process_dict[chosen_parent] = p
+                kwargs = {
+                    'marker_gene_array': marker_gene_array,
+                    'query_gene_names': query_gene_names,
+                    'genes_at_a_time': genes_at_a_time,
+                    'taxonomy_tree': taxonomy_tree,
+                    'parent_node': chosen_parent,
+                    'n_per_utility': this_n_per,
+                    'output_dict': output_dict,
+                    'stdout_lock': stdout_lock,
+                    'summary_log': summary_log,
+                    'tmp_dir': tmp_dir
+                }
+
+                if n_processors == 1:
+                    _marker_selection_worker(
+                        **kwargs
+                    )
+                else:
+                    p = multiprocessing.Process(
+                            target=_marker_selection_worker,
+                            kwargs={
+                                'marker_gene_array':
+                                    marker_gene_array,
+                                'query_gene_names': query_gene_names,
+                                'genes_at_a_time': genes_at_a_time,
+                                'taxonomy_tree': taxonomy_tree,
+                                'parent_node': chosen_parent,
+                                'n_per_utility': this_n_per,
+                                'output_dict': output_dict,
+                                'stdout_lock': stdout_lock,
+                                'summary_log': summary_log,
+                                'tmp_dir': tmp_dir})
+                    p.start()
+                    process_dict[chosen_parent] = p
 
         # the test on have_chosen_parent is there in case we have
         # a traffic jam of behemoths trying to get through
