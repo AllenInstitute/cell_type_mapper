@@ -69,6 +69,10 @@ def run_type_assignment_on_h5ad(
 
     if normalization == 'raw':
         # check that data is >= 0
+        if log is not None:
+            log.info(
+                "Scanning unlabeled data to check that it is >= 0"
+            )
         is_ge_zero = is_data_ge_zero(h5ad_path=query_h5ad_path, layer='X')
         if not is_ge_zero[0]:
             error_msg = (
@@ -80,6 +84,10 @@ def run_type_assignment_on_h5ad(
                 log.error(error_msg)
             else:
                 raise RuntimeError(error_msg)
+        if log is not None:
+            log.info(
+                "Verified that unlabeled data is >= 0"
+            )
 
     validate_bootstrap_factor_lookup(
         bootstrap_factor_lookup=bootstrap_factor_lookup,

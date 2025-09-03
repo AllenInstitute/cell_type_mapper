@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import psutil
 import tempfile
 
 from cell_type_mapper.utils.utils import (
@@ -187,10 +188,10 @@ def _get_minmax_from_dense(x_dataset):
     ntot = x_shape[0]*x_shape[1]
     nchunk = raw_chunk_size[0]*raw_chunk_size[1]
     chunk_size = (raw_chunk_size[0], raw_chunk_size[1])
-    while nchunk < 1000000000 and nchunk < ntot//2:
+    max_chunk = _mem_based_max_chunk()
+    while nchunk < max_chunk and nchunk < ntot//2:
         chunk_size = (chunk_size[0]*2, chunk_size[1]*2)
         nchunk = chunk_size[0]*chunk_size[1]
-
     for r0 in range(0, x_dataset.shape[0], chunk_size[0]):
         r1 = min(x_dataset.shape[0], r0+chunk_size[0])
         for c0 in range(0, x_dataset.shape[1], chunk_size[1]):
@@ -198,6 +199,7 @@ def _get_minmax_from_dense(x_dataset):
             chunk = x_dataset[r0:r1, c0:c1]
             chunk_min = chunk.min()
             chunk_max = chunk.max()
+            del chunk
             if min_val is None or chunk_min < min_val:
                 min_val = chunk_min
             if max_val is None or chunk_max > max_val:
@@ -229,7 +231,8 @@ def _get_minmax_from_sparse(x_grp):
     ntot = data_dataset.shape[0]
 
     chunk_size = data_dataset.chunks
-    while chunk_size[0] < 1000000000 and chunk_size[0] < ntot//2:
+    max_chunk = _mem_based_max_chunk()
+    while chunk_size[0] < max_chunk and chunk_size[0] < ntot//2:
         chunk_size = (chunk_size[0]*2,)
 
     n_el = data_dataset.shape[0]
@@ -239,6 +242,7 @@ def _get_minmax_from_sparse(x_grp):
         chunk = data_dataset[i0:i1]
         chunk_min = chunk.min()
         chunk_max = chunk.max()
+        del chunk
         if min_val is None or chunk_min < min_val:
             min_val = chunk_min
         if max_val is None or chunk_max > max_val:
@@ -453,3 +457,14 @@ def create_uniquely_indexed_df(input_df):
 
     new_df = pd.DataFrame(data).set_index(index_name)
     return new_df
+
+
+def _mem_based_max_chunk():
+    """
+    maximum chunk size for is_data_ge_zero based on system memory
+    """
+    total_bytes = psutil.virtual_memory().total
+    total_float = total_bytes // 8
+    val = max(1000000, total_float//4)
+    val = min(1000000000, val)
+    return val
