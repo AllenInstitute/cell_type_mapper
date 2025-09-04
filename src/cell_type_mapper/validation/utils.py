@@ -189,9 +189,16 @@ def _get_minmax_from_dense(x_dataset):
     nchunk = raw_chunk_size[0]*raw_chunk_size[1]
     chunk_size = (raw_chunk_size[0], raw_chunk_size[1])
     max_chunk = _mem_based_max_chunk()
+    i_iter = 0
+
     while nchunk < max_chunk and nchunk < ntot//2:
-        chunk_size = (chunk_size[0]*2, chunk_size[1]*2)
+        if i_iter % 2 == 0 and chunk_size[1] < x_shape[1]:
+            chunk_size = (chunk_size[0], chunk_size[1]*2)
+        else:
+            chunk_size = (chunk_size[0]*2, chunk_size[1])
         nchunk = chunk_size[0]*chunk_size[1]
+        i_iter += 1
+
     for r0 in range(0, x_dataset.shape[0], chunk_size[0]):
         r1 = min(x_dataset.shape[0], r0+chunk_size[0])
         for c0 in range(0, x_dataset.shape[1], chunk_size[1]):
@@ -465,6 +472,6 @@ def _mem_based_max_chunk():
     """
     total_bytes = psutil.virtual_memory().total
     total_float = total_bytes // 8
-    val = max(1000000, total_float//4)
+    val = max(1000000, total_float//8)
     val = min(1000000000, val)
     return val
