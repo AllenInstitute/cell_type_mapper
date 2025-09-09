@@ -8,14 +8,23 @@ Science.
 
 ## Installation
 
-To install this library, clone the repository, then (ideally from a clean
-python environment)
+To install this library, run
+```
+pip install cell_type_mapper@git+https://github.com/AllenInstitute/cell_type_mapper
+```
+To install a specific version run
+```
+pip install cell_type_mapper@git+https://github.com/AllenInstitute/cell_type_mapper@{version}
+```
+e.g.
+```
+pip install cell_type_mapper@git+https://github.com/AllenInstitute/cell_type_mapper@v1.5.5
+```
+A list of valid version tags can be found
+[on this page.](https://github.com/AllenInstitute/cell_type_mapper/tags)
 
-- Run `pip install -e .` from the root directory of this repository to install
-this package itself.
-
-This package has been tested extensively with python 3.9. We have no reason to
-believe that it will not also run with python 3.8 and 3.10.
+This package has been tested extensively with python 3.12. We have no reason to
+believe that it will not also run with any python >= 3.10
 
 ## Common use cases
 
@@ -46,7 +55,9 @@ downloads data defining two older (~ 2021) Allen Institute taxonomies,
 one mouse and one human. It walks the user through the process of
 formatting these taxonomies for use with MapMyCells and then performs
 mapping, both cross-validation mapping and a mapping of human data onto
-the mouse taxonomy.
+the mouse taxonomy. It also demonstrates mapping the human data onto the
+[Yao et al. 2023](https://www.nature.com/articles/s41586-023-06812-z)
+Whole Mouse Brain taxonomy.
 
 [This Jupyter notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/update/docs/250304/examples/full_mapping_pipeline.ipynb)
 walks the user through the process of creating a new taxonomy from cartoon
@@ -56,7 +67,9 @@ taxonomy.
 ### Cross-species mapping
 
 [This Jupyter notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/cross_species_mapping.ipynb)
-download rat data from another lab and maps it onto the
+downloads rat data from
+[Phillips et al. 2022](https://www.cell.com/cell-reports/pdf/S2211-1247(22)00364-3.pdf)
+and maps it onto the
 [Yao et al. 2023](https://www.nature.com/articles/s41586-023-06812-z) Whole Mouse Brain taxonomy.
 It demonstrates the general pattern for mapping data from one species onto a taxonomy defined
 in another spcies.
