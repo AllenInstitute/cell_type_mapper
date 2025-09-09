@@ -1,4 +1,4 @@
-import os
+import warnings
 
 
 def is_torch_available():
@@ -38,21 +38,37 @@ def find_num_gpus():
 
 
 def use_torch():
-    env_var = 'AIBS_BKP_USE_TORCH'
-    if env_var in os.environ:
-        if os.environ[env_var] == 'false':
-            return False
-
     if not is_torch_available():
         return False
 
     if is_cuda_available():
-        return True
-
-    if env_var not in os.environ:
-        return False
-
-    if os.environ[env_var] == 'true':
-        return True
+        return _override_use_torch()
 
     return False
+
+
+def _override_use_torch():
+    """
+    Emit a warning explaining that there is no point in using
+    a GPU for this code. Return False for the result of use_torch()
+    """
+    if not hasattr(_override_use_torch, 'has_warned'):
+        _override_use_torch.has_warned = False
+
+    if not _override_use_torch.has_warned:
+        msg = (
+            "Nominally, your system is configured to use the GPU "
+            "implementation of cell_type_mapper. We have found that "
+            "the speed-up due to the GPU is not enough to justify "
+            "the more stringent memory requirements, so we are no "
+            "longer supporting running the cell_type_mapper on a GPU. "
+            "Mapping will proceed with the CPU implementation."
+        )
+        warnings.warn(msg, category=TorchOverrideWarning)
+        _override_use_torch.has_warned = True
+
+    return False
+
+
+class TorchOverrideWarning(UserWarning):
+    pass

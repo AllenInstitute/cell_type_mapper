@@ -46,3 +46,25 @@ class QueryMarkerInputSchema(argschema.ArgSchema):
                     "query_markers."
                 )
         return data
+
+
+class GeneMappingSchema(argschema.ArgSchema):
+
+    db_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to sqlite db file that mmc_gene_mapper "
+            "will use when mapping query data genes "
+            "to reference data genes. This can either be "
+            "created as described in "
+            "https://github.com/AllenInstitute/"
+            "mmc_gene_mapper/blob/main/notebooks/"
+            "gene_mapper_demo.ipynb\n"
+            "or downloaded using the abc_atlas_access "
+            "API as demonstrated in "
+            "https://github.com/AllenInstitute/cell_type_mapper/"
+            "blob/main/examples/cross_species_mapping.ipynb"
+        )
+    )

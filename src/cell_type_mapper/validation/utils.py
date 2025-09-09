@@ -3,6 +3,7 @@ import json
 import numpy as np
 import pandas as pd
 import pathlib
+import psutil
 import tempfile
 
 from cell_type_mapper.utils.utils import (
@@ -13,11 +14,6 @@ from cell_type_mapper.utils.utils import (
 from cell_type_mapper.utils.anndata_utils import (
     infer_attrs
 )
-
-from cell_type_mapper.gene_id.utils import detect_species
-
-from cell_type_mapper.gene_id.gene_id_mapper import (
-    GeneIdMapper)
 
 
 def is_x_integers(
@@ -169,76 +165,6 @@ def get_minmax_x_from_h5ad(
             return _get_minmax_from_sparse(in_file[layer_key])
 
 
-def map_gene_ids_in_var(
-        var_df,
-        gene_id_mapper=None,
-        log=None):
-    """
-    Fix the index of the var dataframe to use the preferred gene identifiers
-    specified in a GeneIdMapper
-
-    Parameters
-    ----------
-    var_df:
-        original var dataframe
-    gene_id_mapper:
-        GeneIdMapper containing data needed to map between gene identification
-        schemes. If None, infer the mapper based on the species implied by
-        the input gene IDs.
-    log:
-        Optional logger for recording messages.
-    Returns
-    -------
-    If the var dataframe needs to be updated, return the updated
-    var dataframe and the number of genes that were unable to be
-    mapped.
-
-    If not, return None (and 0)
-    """
-
-    gene_id_list = list(var_df.index.values)
-
-    if gene_id_mapper is None:
-        species = detect_species(gene_id_list)
-
-        if species is None:
-            msg = (
-                "Could not find a species for the genes you gave:\n"
-                f"First five genes:\n{gene_id_list[:5]}"
-            )
-            if log is not None:
-                log.error(msg)
-            else:
-                raise RuntimeError(msg)
-
-        if log is not None:
-            log.info(f"Mapping genes to {species} genes")
-
-        gene_id_mapper = GeneIdMapper.from_species(
-            species=species,
-            log=log)
-
-    mapping_output = gene_id_mapper.map_gene_identifiers(gene_id_list)
-    new_gene_id_list = mapping_output['mapped_genes']
-    if new_gene_id_list == gene_id_list:
-        return None, 0
-
-    var_df = var_df.reset_index().to_dict(orient='records')
-    idx_key_root = f'{gene_id_mapper.preferred_type}_VALIDATED'
-    idx_key = idx_key_root
-    ct = 0
-    while idx_key in var_df[0]:
-        idx_key = f'{idx_key_root}_{ct}'
-        ct += 1
-
-    for record, gene_id in zip(var_df, new_gene_id_list):
-        record[idx_key] = gene_id
-
-    new_var = pd.DataFrame(var_df).set_index(idx_key)
-
-    return new_var, mapping_output['n_unmapped']
-
-
 def _get_minmax_from_dense(x_dataset):
     """
     Get the minimum and maximum values from the X array if it is dense
@@ -262,9 +188,16 @@ def _get_minmax_from_dense(x_dataset):
     ntot = x_shape[0]*x_shape[1]
     nchunk = raw_chunk_size[0]*raw_chunk_size[1]
     chunk_size = (raw_chunk_size[0], raw_chunk_size[1])
-    while nchunk < 1000000000 and nchunk < ntot//2:
-        chunk_size = (chunk_size[0]*2, chunk_size[1]*2)
+    max_chunk = _mem_based_max_chunk()
+    i_iter = 0
+
+    while nchunk < max_chunk and nchunk < ntot//2:
+        if i_iter % 2 == 0 and chunk_size[1] < x_shape[1]:
+            chunk_size = (chunk_size[0], chunk_size[1]*2)
+        else:
+            chunk_size = (chunk_size[0]*2, chunk_size[1])
         nchunk = chunk_size[0]*chunk_size[1]
+        i_iter += 1
 
     for r0 in range(0, x_dataset.shape[0], chunk_size[0]):
         r1 = min(x_dataset.shape[0], r0+chunk_size[0])
@@ -273,6 +206,7 @@ def _get_minmax_from_dense(x_dataset):
             chunk = x_dataset[r0:r1, c0:c1]
             chunk_min = chunk.min()
             chunk_max = chunk.max()
+            del chunk
             if min_val is None or chunk_min < min_val:
                 min_val = chunk_min
             if max_val is None or chunk_max > max_val:
@@ -304,7 +238,8 @@ def _get_minmax_from_sparse(x_grp):
     ntot = data_dataset.shape[0]
 
     chunk_size = data_dataset.chunks
-    while chunk_size[0] < 1000000000 and chunk_size[0] < ntot//2:
+    max_chunk = _mem_based_max_chunk()
+    while chunk_size[0] < max_chunk and chunk_size[0] < ntot//2:
         chunk_size = (chunk_size[0]*2,)
 
     n_el = data_dataset.shape[0]
@@ -314,6 +249,7 @@ def _get_minmax_from_sparse(x_grp):
         chunk = data_dataset[i0:i1]
         chunk_min = chunk.min()
         chunk_max = chunk.max()
+        del chunk
         if min_val is None or chunk_min < min_val:
             min_val = chunk_min
         if max_val is None or chunk_max > max_val:
@@ -528,3 +464,14 @@ def create_uniquely_indexed_df(input_df):
 
     new_df = pd.DataFrame(data).set_index(index_name)
     return new_df
+
+
+def _mem_based_max_chunk():
+    """
+    maximum chunk size for is_data_ge_zero based on system memory
+    """
+    total_bytes = psutil.virtual_memory().total
+    total_float = total_bytes // 8
+    val = max(1000000, total_float//8)
+    val = min(1000000000, val)
+    return val

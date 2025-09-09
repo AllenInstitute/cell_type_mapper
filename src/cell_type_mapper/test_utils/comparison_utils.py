@@ -20,7 +20,7 @@ def assert_blobs_equal(blob0, blob1):
         blob1['gene_identifier_mapping']
 
 
-def assert_mappings_equal(result0, result1, eps=10e-6):
+def assert_mappings_equal(result0, result1, eps=1.0e-6):
     """
     Assert that two mapping 'results' entries
     are equal.
@@ -54,7 +54,6 @@ def assert_mappings_equal(result0, result1, eps=10e-6):
 
 
 def _assert_element_equal(result0, result1, level, key, eps=1.0e-6):
-
     if isinstance(result0[0][level][key], list):
         val0 = np.concatenate([
             cell[level][key] for cell in result0
@@ -72,6 +71,10 @@ def _assert_element_equal(result0, result1, level, key, eps=1.0e-6):
 
     if np.issubdtype(val0.dtype, np.number):
         if not np.allclose(val0, val1, atol=0.0, rtol=eps):
+            raise RuntimeError(
+                f"{level}:{key} mismatch"
+            )
+        if val0.shape != val1.shape:
             raise RuntimeError(
                 f"{level}:{key} mismatch"
             )
