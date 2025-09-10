@@ -2,7 +2,6 @@ import pytest
 
 import anndata
 import h5py
-import itertools
 import json
 import numpy as np
 import pandas as pd
@@ -56,18 +55,33 @@ def precomputed_stats_fixture(tmp_dir_fixture):
 
 
 @pytest.mark.parametrize(
-    'as_ensembl, species',
-    itertools.product(
-        [True, False],
-        ['human', 'mouse', 'nonsense']
-    )
+    'as_ensembl, species, ensembl_version',
+    [(True, 'human', False),
+     (False, 'human', False),
+     (True, 'mouse', False),
+     (False, 'mouse', False),
+     (True, 'nonsense', False),
+     (False, 'nonsense', False),
+     (True, 'mouse', True)
+     ]
 )
 def test_align_query_gene_names(
         tmp_dir_fixture,
         as_ensembl,
         species,
+        ensembl_version,
         precomputed_stats_fixture,
         legacy_gene_mapper_db_path_fixture):
+    """
+    as_ensembl toggles whether or not we are mapping the genes
+    to ENSEMBL IDs (false means we perform no mapping by passing
+    gene_maper_db=precomputed_stats=None)
+
+    species is the species we are mapping to
+
+    if ensembl_version == True, pass in ENSEMBL IDs with versions
+    appended to them
+    """
 
     if species == 'mouse':
         precomputed_stats_path = precomputed_stats_fixture[species]
@@ -80,11 +94,20 @@ def test_align_query_gene_names(
         db_path = None
 
     if species == 'mouse':
-        input_names = [
-            'Xkr4',
-            'Rrs1',
-            'bob',
-            'NCBIGene:73261']
+        if ensembl_version:
+            input_names = [
+                'ENSMUSG00000051951.123',
+                'ENSMUSG00000061024.456',
+                'silly_gene',
+                'ENSMUSG00000005983.789'
+            ]
+        else:
+            input_names = [
+                'Xkr4',
+                'Rrs1',
+                'bob',
+                'NCBIGene:73261'
+            ]
 
         expected_ensembl = [
             'ENSMUSG00000051951',
