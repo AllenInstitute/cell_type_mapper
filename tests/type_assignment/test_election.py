@@ -18,7 +18,7 @@ from cell_type_mapper.type_assignment.election import (
     tally_raw_votes,
     tally_votes,
     reshape_type_assignment,
-    run_type_assignment,
+    run_hierarchical_type_assignment,
     aggregate_votes)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
@@ -405,10 +405,10 @@ def test_runners_up():
     assert ct_false > 0
 
 
-def test_run_type_assignment(
+def test_run_hierarchical_type_assignment(
         tmp_dir_fixture):
     """
-    Test the outputs of run_type_assignment. Chiefly,
+    Test the outputs of run_hierarchical_type_assignment. Chiefly,
     test that the runners up are, in fact, descendants
     of the parents they are supposed to descend from,
     and that NULL runners up are handled correctly.
@@ -516,7 +516,7 @@ def test_run_type_assignment(
     }
     bootstrap_factor_lookup['None'] = factor
 
-    results = run_type_assignment(
+    results = run_hierarchical_type_assignment(
         full_query_gene_data=query_data,
         leaf_node_matrix=reference_data,
         marker_gene_cache_path=marker_cache_path,
