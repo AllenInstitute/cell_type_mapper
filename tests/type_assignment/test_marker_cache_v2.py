@@ -306,12 +306,8 @@ def test_patching_of_marker_lookup():
         assert marker_lookup != expected
 
 
-def test_create_marker_cache_from_specified_markers(
-        tmp_dir_fixture):
-    """
-    Make sure that marker gene data is transcribed correctly
-    to hdf5 cache.
-    """
+@pytest.fixture
+def marker_cache_fixture(tmp_dir_fixture):
     tree_data = {
         'hierarchy': ['class', 'subclass', 'cluster'],
         'class': {'A': ['a', 'b'], 'B': ['c']},
@@ -353,6 +349,23 @@ def test_create_marker_cache_from_specified_markers(
         taxonomy_tree=taxonomy_tree,
         min_markers=2
     )
+    return {
+        'cache_path': cache_path,
+        'reference_gene_names': reference_gene_names,
+        'query_gene_names': query_gene_names
+    }
+
+
+def test_create_marker_cache_from_specified_markers(
+        marker_cache_fixture):
+    """
+    Make sure that marker gene data is transcribed correctly
+    to hdf5 cache.
+    """
+
+    cache_path = marker_cache_fixture['cache_path']
+    reference_gene_names = marker_cache_fixture['reference_gene_names']
+    query_gene_names = marker_cache_fixture['query_gene_names']
 
     with h5py.File(cache_path, 'r') as src:
         assert set(src.keys()) == set(['all_reference_markers',
