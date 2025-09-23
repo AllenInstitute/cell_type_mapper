@@ -35,7 +35,7 @@ from cell_type_mapper.type_assignment.matching import (
     get_leaf_means,
     assemble_query_data)
 
-from cell_type_mapper.type_assignment.election import (
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
     tally_votes,
     reshape_type_assignment,
     run_hierarchical_type_assignment)

@@ -117,6 +117,89 @@ def assemble_query_data(
     return result
 
 
+def assemble_query_data_hann(
+        full_query_data,
+        mean_profile_matrix,
+        taxonomy_tree,
+        marker_cache_path):
+    """
+    Assemble all of the data needed to select a taxonomy node
+    for a collection of cells via the HANN algorithm.
+
+    Parameters
+    ----------
+    full_query_data:
+        A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
+    mean_profile_matrix:
+        A CellByGeneMatrix containing the mean gene expression profiles
+        for each cell cluster in the reference taxonomy.
+    taxonomy_tree:
+        instance of
+        cell_type_mapper.taxonomy.taxonomy_tree.TaxonomyTree
+        ecoding the taxonomy tree
+    marker_cache_path:
+        Path to the HDF5 file recording the marker genes to be used
+        for this (reference data, query data) pair
+
+    Returns
+    --------
+    A dict
+        'query_data' -> a CellByGeneMatrix containing the query data
+        downsampled to just the needed marker genes
+
+        'reference_data' -> A CellByGeneMatrix containing mean_profile_matrix
+        downsampled to the relevant clusters and marker genes
+
+        'marker_lookup' -> a dict mapping taxons to marker gene arrays
+        as indexes of the gene_identifiers in query_data and reference_data
+    """
+
+    desired_clusters = taxonomy_tree.nodes_at_level(
+        taxonomy_tree.leaf_level
+    )
+
+    parent_nodes = ['None']
+    for level in taxonomy_tree.hierarchy[:-1]:
+        for node in taxonomy_tree.nodes_at_level(level):
+            if len(taxonomy_tree.children(level=level, node=node)) > 1:
+                parent_nodes.append(f'{level}/{node}')
+
+    marker_lookup = dict()
+    desired_genes = set()
+    with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
+        all_ref_identifiers = json.loads(
+            in_file["reference_gene_names"][()].decode("utf-8"))
+        for parent in parent_nodes:
+            this = [all_ref_identifiers[ii]
+                    for ii in in_file[parent]['reference'][()]]
+            marker_lookup[parent] = this
+            desired_genes = desired_genes.union(set(this))
+
+    desired_genes = np.sort(list(desired_genes))
+
+    result = subset_cell_by_gene(
+        full_query_data=full_query_data,
+        mean_profile_matrix=mean_profile_matrix,
+        desired_clusters=desired_clusters,
+        desired_genes=desired_genes
+    )
+
+    gene_to_idx = {
+        gene: idx
+        for idx, gene in enumerate(result['reference_data'].gene_identifiers)
+    }
+
+    marker_as_idx = dict()
+    for key in marker_lookup:
+        marker_as_idx[key] = np.sort([
+            gene_to_idx[gene] for gene in marker_lookup[key]
+        ])
+
+    result['marker_lookup'] = marker_as_idx
+    return result
+
+
 def subset_cell_by_gene(
         full_query_data,
         mean_profile_matrix,
@@ -128,9 +211,9 @@ def subset_cell_by_gene(
     Parameters
     ----------
     full_query_data:
-        CellByGene array of the full query data
+        CellByGeneMatrix of the full query data
     mean_profile_matrix:
-        CellByGene array of the full reference data
+        CellByGeneMatrix of the full reference data
     desired_clusters:
         list of leaf nodes in mean_profile_matrix that we want
     desired_genes:

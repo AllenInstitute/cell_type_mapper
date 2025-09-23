@@ -14,7 +14,7 @@ from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
 
-from cell_type_mapper.type_assignment.election import (
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
     tally_raw_votes,
     tally_votes,
     reshape_type_assignment,
@@ -280,7 +280,9 @@ def test_confidence_result():
     def dummy_tally_raw_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    to_replace = (
+        'cell_type_mapper.type_assignment.hierarchical_mapping.tally_raw_votes'
+    )
     with patch(to_replace, new=dummy_tally_raw_votes):
 
         (votes,
@@ -346,7 +348,9 @@ def test_runners_up():
     # sum in the first row of votes
     bootstrap_iteration = 23
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    to_replace = (
+        'cell_type_mapper.type_assignment.hierarchical_mapping.tally_raw_votes'
+    )
     with patch(to_replace, new=dummy_tally_raw_votes):
 
         (votes,

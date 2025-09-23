@@ -31,7 +31,15 @@ def run_type_assignment_on_h5ad(
         log=None,
         max_gb=10,
         results_output_path=None,
-        output_taxonomy_tree=None):
+        output_taxonomy_tree=None,
+        algorithm="hierarchical"):
+
+    valid_algorithms = ("hierarchical", "hann")
+    if algorithm not in valid_algorithms:
+        raise ValueError(
+            f"'{algorithm}' is not a valid algorithm; "
+            f"only {valid_algorithms} are valid"
+        )
 
     if normalization not in ('raw', 'log2CPM'):
         error_msg = (
@@ -84,7 +92,7 @@ def run_type_assignment_on_h5ad(
         taxonomy_tree=taxonomy_tree,
         log=log)
 
-    result = run_type_assignment_on_h5ad_cpu(
+    tmp_path_list = run_type_assignment_on_h5ad_cpu(
         query_h5ad_path,
         precomputed_stats_path,
         marker_gene_cache_path,
@@ -100,10 +108,11 @@ def run_type_assignment_on_h5ad(
         log=log,
         max_gb=max_gb,
         output_taxonomy_tree=output_taxonomy_tree,
-        results_output_path=results_output_path
+        results_output_path=results_output_path,
+        algorithm=algorithm
     )
 
-    return result
+    return tmp_path_list
 
 
 def collate_hierarchical_mappings(tmp_path_list):
