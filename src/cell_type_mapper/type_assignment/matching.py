@@ -94,21 +94,19 @@ def assemble_query_data(
                     f"'{k}' not in group '{parent_grp}' of marker cache path")
 
         reference_markers = this_grp['reference'][()]
-        raw_query_markers = this_grp['query'][()]
         all_ref_identifiers = json.loads(
             in_file["reference_gene_names"][()].decode("utf-8"))
-        all_query_identifiers = json.loads(
-            in_file["query_gene_names"][()].decode("utf-8"))
+
+    desired_genes = [
+        all_ref_identifiers[ii] for ii in reference_markers
+    ]
 
     # select only the desired query marker genes
     result = subset_cell_by_gene(
         full_query_data=full_query_data,
         mean_profile_matrix=mean_profile_matrix,
         desired_clusters=children,
-        all_query_identifiers=all_query_identifiers,
-        raw_query_markers=raw_query_markers,
-        all_ref_identifiers=all_ref_identifiers,
-        reference_markers=reference_markers
+        desired_genes=desired_genes
     )
 
     reference_types = []
@@ -123,10 +121,7 @@ def subset_cell_by_gene(
         full_query_data,
         mean_profile_matrix,
         desired_clusters,
-        all_query_identifiers,
-        raw_query_markers,
-        all_ref_identifiers,
-        reference_markers):
+        desired_genes):
     """
     Subset cell-by-gene-matrices so that they have the same marker genes
 
@@ -138,15 +133,8 @@ def subset_cell_by_gene(
         CellByGene array of the full reference data
     desired_clusters:
         list of leaf nodes in mean_profile_matrix that we want
-    all_query_identifiers:
-        full list of query gene identifiers from marker gene cache
-    raw_query_markers:
-        query marker indexes read from marker gene cache
-    all_ref_identifiers:
-        full list of reference gene identifiers as read from
-        marker gene cache
-    reference_markers:
-        referene marker indexes as read from marker cache
+    desired_genes:
+        list of gene identifiers we are downsampling to
 
     Returns
     -------
@@ -158,20 +146,14 @@ def subset_cell_by_gene(
         downsampled to the relevant clusters and marker genes
     """
 
-    query_markers = [all_query_identifiers[ii]
-                     for ii in raw_query_markers]
-
     query_data = full_query_data.downsample_genes(
-        selected_genes=query_markers)
-
-    reference_marker_identifiers = [
-        all_ref_identifiers[ii] for ii in reference_markers]
+        selected_genes=desired_genes)
 
     reference_data = mean_profile_matrix.downsample_cells_by_name(
         selected_cells=desired_clusters)
 
     reference_data.downsample_genes_in_place(
-        selected_genes=reference_marker_identifiers)
+        selected_genes=desired_genes)
 
     if not np.array_equal(
                 np.array(query_data.gene_identifiers),
