@@ -10,6 +10,7 @@ import time
 import traceback
 
 import cell_type_mapper
+import cell_type_mapper.utils.write_hierarchical_results as write_hier
 
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
@@ -22,19 +23,11 @@ from cell_type_mapper.utils.torch_utils import (
 from cell_type_mapper.utils.utils import (
     get_timestamp,
     mkstemp_clean,
-    clean_for_json,
     _clean_up,
     warn_on_parallelization)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad,
-    append_to_obsm)
-
 from cell_type_mapper.utils.output_utils import (
-    blob_to_csv,
-    blob_to_df,
-    get_execution_metadata,
-    blob_to_hdf5)
+    get_execution_metadata)
 
 from cell_type_mapper.file_tracker.file_tracker import (
     FileTracker)
@@ -123,24 +116,11 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         else:
             tmp_dir = None
 
-        if self.args['extended_result_path'] is not None:
-            output_path = pathlib.Path(self.args['extended_result_path'])
-        else:
-            output_path = None
-
-        if self.args['hdf5_result_path'] is not None:
-            hdf5_output_path = pathlib.Path(self.args['hdf5_result_path'])
-        else:
-            hdf5_output_path = None
-
-        if self.args['log_path'] is not None:
-            log_path = pathlib.Path(self.args['log_path'])
-        else:
-            log_path = None
-
         # check validity of output_path and log_path
-        for pth in (output_path, log_path):
+        for pth in (self.args['extended_result_path'],
+                    self.args['log_path']):
             if pth is not None:
+                pth = pathlib.Path(pth)
                 if not pth.exists():
                     try:
                         with open(pth, 'w') as out_file:
@@ -161,30 +141,16 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                     dir=self.args['extended_result_dir'],
                     prefix='result_buffer_')
 
-            output = _run_mapping(
+            (sub_result_list,
+             output) = _run_mapping(
                 config=self.args,
                 tmp_dir=tmp_dir,
                 tmp_result_dir=tmp_result_dir,
                 log=log)
 
-            if self.args['summary_metadata_path'] is not None:
-                n_mapped_cells = len(output['results'])
-
-                n_total_genes = len(
-                        read_df_from_h5ad(
-                            self.args['query_path'],
-                            df_name='var'))
-
-                n_mapped_genes = n_total_genes - output.pop('n_unmapped_genes')
-
-                with open(self.args['summary_metadata_path'], 'w') as dst:
-                    dst.write(
-                        json.dumps(
-                            {
-                             'n_mapped_cells': int(n_mapped_cells),
-                             'n_mapped_genes': int(n_mapped_genes)
-                            },
-                            indent=2))
+            output['results'] = collate_hierarchical_mappings(
+                sub_result_list
+            )
 
             _clean_up(tmp_result_dir)
 
@@ -204,60 +170,24 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 "CLEANING UP",
                 to_stdout=True)
 
-            output["config"] = metadata_config
-            output_log = copy.deepcopy(log.log)
-            if self.args['cloud_safe']:
-                output_log = sanitize_paths(output_log)
-            output["log"] = output_log
-
-            metadata = get_execution_metadata(
-                module_file=__file__,
-                t0=t0)
-            output['metadata'] = metadata
-
-            if write_to_disk:
-                write_mapping_to_disk(
-                    output=output,
-                    log=log,
-                    log_path=log_path,
-                    output_path=output_path,
-                    hdf5_output_path=hdf5_output_path,
-                    cloud_safe=self.args['cloud_safe']
-                )
-            else:
-                return {
-                    'output': output,
-                    'log': log,
-                    'log_path': log_path,
-                    'output_path': output_path,
-                    'hdf5_output_path': hdf5_output_path,
-                    'mapping_exception': mapping_exception
-                }
-
-
-def write_mapping_to_disk(
-        output,
-        log,
-        log_path,
-        output_path,
-        hdf5_output_path,
-        cloud_safe):
-
-    if log_path is not None:
-        log.write_log(log_path, cloud_safe=cloud_safe)
-
-    if output_path is not None:
-        with open(output_path, "w") as out_file:
-            out_file.write(
-                json.dumps(
-                    clean_for_json(output), indent=2
-                )
+            output = add_metadata_to_output(
+                output=output,
+                metadata_config=metadata_config,
+                log=log,
+                t0=t0,
+                cloud_safe=self.args['cloud_safe']
             )
 
-    if hdf5_output_path is not None:
-        blob_to_hdf5(
-            output_blob=output,
-            dst_path=hdf5_output_path)
+            return_packet = write_hier.write_hierarchical_output(
+                output=output,
+                config=self.args,
+                log=log,
+                mapping_exception=mapping_exception,
+                write_to_disk=write_to_disk
+            )
+
+            if return_packet is not None:
+                return return_packet
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
@@ -482,75 +412,13 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    if config['csv_result_path'] is not None:
+    metadata = dict()
+    metadata["marker_genes"] = marker_gene_lookup
+    metadata["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+    metadata["n_unmapped_genes"] = n_genes_unmapped
+    metadata["gene_identifier_mapping"] = gene_mapping_metadata
 
-        if config['type_assignment']['bootstrap_iteration'] == 1 \
-                or config['verbose_csv']:
-
-            confidence_key = 'avg_correlation'
-            confidence_label = 'correlation_coefficient'
-
-        else:
-
-            confidence_key = 'bootstrapping_probability'
-            confidence_label = 'bootstrapping_probability'
-
-        if config['verbose_csv']:
-            valid_suffixes = [
-                '_aggregate_probability',
-                '_bootstrapping_probability',
-                '_avg_correlation'
-            ]
-        else:
-            valid_suffixes = None
-
-        check_consistency = False
-        if config['type_assignment']['bootstrap_iteration'] > 1:
-            if config['flatten']:
-                check_consistency = True
-
-        blob_to_csv(
-            results_blob=result,
-            taxonomy_tree=tree_for_metadata,
-            output_path=config['csv_result_path'],
-            metadata_path=config['extended_result_path'],
-            confidence_key=confidence_key,
-            confidence_label=confidence_label,
-            config=config,
-            valid_suffixes=valid_suffixes,
-            check_consistency=check_consistency,
-            rows_at_a_time=100000)
-
-    if config['obsm_key']:
-
-        df = blob_to_df(
-            results_blob=result,
-            taxonomy_tree=tree_for_metadata).set_index('cell_id')
-
-        # need to make sure that the rows are written in
-        # the same order that they occur in the obs
-        # dataframe
-
-        obs = read_df_from_h5ad(
-            h5ad_path=config['query_path'],
-            df_name='obs')
-
-        df = df.loc[obs.index.values]
-
-        append_to_obsm(
-            h5ad_path=config['query_path'],
-            obsm_key=config['obsm_key'],
-            obsm_value=df,
-            clobber=config['obsm_clobber'])
-
-    output = dict()
-    output["results"] = result
-    output["marker_genes"] = marker_gene_lookup
-    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
-    output["n_unmapped_genes"] = n_genes_unmapped
-    output["gene_identifier_mapping"] = gene_mapping_metadata
-
-    return output
+    return (sub_result_list, metadata)
 
 
 def drop_nodes_from_taxonomy(tmp_dir, config):
@@ -586,6 +454,51 @@ def drop_nodes_from_taxonomy(tmp_dir, config):
 
     config['precomputed_stats']['path'] = main_tmp_path
     return config
+
+
+def add_metadata_to_output(
+        output,
+        metadata_config,
+        log,
+        t0,
+        cloud_safe):
+    """
+    Add metadata entries to output dict.
+
+    Parameters
+    ----------
+    output:
+        the dict we are adding metadata entries to
+    metadata_config:
+        the config dict to be recorded as metadata
+    log:
+        the CommandLog for this run
+    t0:
+        the time at which this run started
+    cloud_safe:
+        a boolean indicating whether or not to run
+        this in 'cloud safe' mode (cloud save mode
+        sanitizes paths so that the S3 bucket we are
+        running in cannot be inferred from the
+        metadata packet)
+
+    Returns
+    -------
+    updated output dict (output is also altered in place)
+    """
+    output["config"] = metadata_config
+    output_log = copy.deepcopy(log.log)
+    if cloud_safe:
+        output_log = sanitize_paths(output_log)
+    output["log"] = output_log
+
+    metadata = get_execution_metadata(
+        module_file=__file__,
+        t0=t0)
+
+    output['metadata'] = metadata
+
+    return output
 
 
 def main():
