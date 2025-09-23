@@ -49,8 +49,11 @@ from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
 from cell_type_mapper.cli.from_specified_markers import (
-    FromSpecifiedMarkersRunner,
-    write_mapping_to_disk)
+    FromSpecifiedMarkersRunner)
+
+from cell_type_mapper.utils.write_hierarchical_results import (
+    write_mapping_to_disk
+)
 
 from cell_type_mapper.cli.cli_log import CommandLog
 

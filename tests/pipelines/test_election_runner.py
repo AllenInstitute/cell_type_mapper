@@ -38,7 +38,7 @@ from cell_type_mapper.type_assignment.matching import (
 from cell_type_mapper.type_assignment.election import (
     tally_votes,
     reshape_type_assignment,
-    run_type_assignment)
+    run_hierarchical_type_assignment)
 
 from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
@@ -308,7 +308,7 @@ def test_running_full_election(
             for level in taxonomy_tree.hierarchy}
         bootstrap_factor_lookup['None'] = bootstrap_factor
 
-        result = run_type_assignment(
+        result = run_hierarchical_type_assignment(
             full_query_gene_data=query_cell_by_gene,
             leaf_node_matrix=leaf_node_matrix,
             marker_gene_cache_path=marker_cache_path,
@@ -465,7 +465,7 @@ def test_running_flat_election(
         for level in taxonomy_tree.hierarchy}
     bootstrap_factor_lookup['None'] = bootstrap_factor
 
-    result = run_type_assignment(
+    result = run_hierarchical_type_assignment(
         full_query_gene_data=query_cell_by_gene,
         leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_cache_path,
