@@ -18,6 +18,14 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     validate_marker_lookup,
     create_marker_cache_from_specified_markers)
 
+from cell_type_mapper.type_assignment.matching import (
+    assemble_query_data
+)
+
+from cell_type_mapper.cell_by_gene.cell_by_gene import (
+    CellByGeneMatrix
+)
+
 
 @pytest.fixture
 def taxonomy_tree_fixture():
@@ -352,7 +360,8 @@ def marker_cache_fixture(tmp_dir_fixture):
     return {
         'cache_path': cache_path,
         'reference_gene_names': reference_gene_names,
-        'query_gene_names': query_gene_names
+        'query_gene_names': query_gene_names,
+        'taxonomy_tree': taxonomy_tree
     }
 
 
@@ -454,4 +463,78 @@ def test_create_marker_cache_from_specified_markers(
             'subclass/b',
             'subclass/c'
         ])
+    )
+
+
+def test_assemble_query_data_from_file(
+        marker_cache_fixture):
+
+    rng = np.random.default_rng(13111)
+    n_query_cells = 20
+    query_cells = [f'c{ii}' for ii in range(n_query_cells)]
+    query_genes = marker_cache_fixture['query_gene_names']
+    raw_query_data = rng.random((len(query_cells), len(query_genes)))
+    query_data = CellByGeneMatrix(
+        data=np.copy(raw_query_data),
+        gene_identifiers=query_genes,
+        normalization='log2CPM',
+        cell_identifiers=query_cells
+    )
+
+    taxonomy_tree = marker_cache_fixture['taxonomy_tree']
+    reference_genes = marker_cache_fixture['reference_gene_names']
+    cluster_list = taxonomy_tree.nodes_at_level(taxonomy_tree.leaf_level)
+    raw_reference_data = rng.random((len(cluster_list), len(reference_genes)))
+    reference_data = CellByGeneMatrix(
+        data=np.copy(raw_reference_data),
+        gene_identifiers=reference_genes,
+        normalization='log2CPM',
+        cell_identifiers=cluster_list
+    )
+
+    result = assemble_query_data(
+        full_query_data=query_data,
+        mean_profile_matrix=reference_data,
+        taxonomy_tree=taxonomy_tree,
+        marker_cache_path=marker_cache_fixture['cache_path'],
+        parent_node=('class', 'A')
+    )
+
+    for key in ('reference_data', 'query_data'):
+        np.testing.assert_array_equal(
+            np.array(result[key].gene_identifiers),
+            np.array(['g5', 'g8', 'g6'])
+        )
+
+    np.testing.assert_array_equal(
+        np.array(result['reference_data'].cell_identifiers),
+        np.array(['a1', 'b1', 'b2'])
+    )
+
+    expected = raw_reference_data[
+        np.array([0, 1, 2]), :][:, np.array([4, 6, 7])]
+
+    np.testing.assert_allclose(
+        expected,
+        result['reference_data'].data,
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    np.testing.assert_array_equal(
+        np.array(result['query_data'].cell_identifiers),
+        np.array([f'c{ii}' for ii in range(n_query_cells)])
+    )
+
+    expected = raw_query_data[:, np.array([0, 3, 1])]
+    np.testing.assert_allclose(
+        expected,
+        result['query_data'].data,
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    np.testing.assert_array_equal(
+        np.array(result['reference_types']),
+        np.array(['a', 'b', 'b'])
     )
