@@ -558,6 +558,8 @@ def write_query_markers_to_h5(
             if len(these_reference) > 0:
                 these_reference = np.array(these_reference)
                 these_query = np.array(these_query)
+
+                # sort gene indexes according to reference set
                 sorted_dex = np.argsort(these_reference)
                 these_reference = these_reference[sorted_dex]
                 these_query = these_query[sorted_dex]
