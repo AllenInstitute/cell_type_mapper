@@ -397,7 +397,7 @@ def run_type_assignment(
 
     n_assignments:
         The number of vote getters to track data for.
-        Ultimate concequence of this is that n_assignments-1
+        Ultimate consequence of this is that n_assignments-1
         "runners up" get reported at each taxonomic level.
 
     gpu_index:
