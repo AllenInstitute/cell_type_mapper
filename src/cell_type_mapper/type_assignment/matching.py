@@ -78,6 +78,9 @@ def assemble_query_data(
         for leaf in tree_as_leaves[child_level][child]:
             leaf_to_type[leaf] = child
 
+    children = list(leaf_to_type.keys())
+    children.sort()
+
     with h5py.File(marker_cache_path, 'r', swmr=True) as in_file:
         if parent_grp not in in_file:
             raise RuntimeError(
@@ -98,6 +101,62 @@ def assemble_query_data(
             in_file["query_gene_names"][()].decode("utf-8"))
 
     # select only the desired query marker genes
+    result = subset_cell_by_gene(
+        full_query_data=full_query_data,
+        mean_profile_matrix=mean_profile_matrix,
+        desired_clusters=children,
+        all_query_identifiers=all_query_identifiers,
+        raw_query_markers=raw_query_markers,
+        all_ref_identifiers=all_ref_identifiers,
+        reference_markers=reference_markers
+    )
+
+    reference_types = []
+    for ii, child in enumerate(result['reference_data'].cell_identifiers):
+        reference_types.append(leaf_to_type[child])
+
+    result['reference_types'] = reference_types
+    return result
+
+
+def subset_cell_by_gene(
+        full_query_data,
+        mean_profile_matrix,
+        desired_clusters,
+        all_query_identifiers,
+        raw_query_markers,
+        all_ref_identifiers,
+        reference_markers):
+    """
+    Subset cell-by-gene-matrices so that they have the same marker genes
+
+    Parameters
+    ----------
+    full_query_data:
+        CellByGene array of the full query data
+    mean_profile_matrix:
+        CellByGene array of the full reference data
+    desired_clusters:
+        list of leaf nodes in mean_profile_matrix that we want
+    all_query_identifiers:
+        full list of query gene identifiers from marker gene cache
+    raw_query_markers:
+        query marker indexes read from marker gene cache
+    all_ref_identifiers:
+        full list of reference gene identifiers as read from
+        marker gene cache
+    reference_markers:
+        referene marker indexes as read from marker cache
+
+    Returns
+    -------
+    A dict
+        'query_data' -> a CellByGeneMatrix containing the query data
+        downsampled to just the needed marker genes
+
+        'reference_data' -> A CellByGeneMatrix containing mean_profile_matrix
+        downsampled to the relevant clusters and marker genes
+    """
 
     query_markers = [all_query_identifiers[ii]
                      for ii in raw_query_markers]
@@ -108,20 +167,15 @@ def assemble_query_data(
     reference_marker_identifiers = [
         all_ref_identifiers[ii] for ii in reference_markers]
 
-    children = list(leaf_to_type.keys())
-    children.sort()
-
     reference_data = mean_profile_matrix.downsample_cells_by_name(
-        selected_cells=children)
+        selected_cells=desired_clusters)
 
     reference_data.downsample_genes_in_place(
         selected_genes=reference_marker_identifiers)
 
-    reference_types = []
-    for ii, child in enumerate(reference_data.cell_identifiers):
-        reference_types.append(leaf_to_type[child])
-
-    if query_data.gene_identifiers != reference_data.gene_identifiers:
+    if not np.array_equal(
+                np.array(query_data.gene_identifiers),
+                np.array(reference_data.gene_identifiers)):
         raise RuntimeError(
             "Mismatch between query marker genes and reference marker genes")
 
@@ -137,8 +191,7 @@ def assemble_query_data(
             "should be 'log2CPM'")
 
     return {'query_data': query_data,
-            'reference_data': reference_data,
-            'reference_types': reference_types}
+            'reference_data': reference_data}
 
 
 def get_leaf_means(
