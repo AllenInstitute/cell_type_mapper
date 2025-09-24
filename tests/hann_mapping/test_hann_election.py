@@ -311,3 +311,83 @@ def test_hann_children_of_one_leaf_parent(
 
     # make sure we found something interesting
     assert len(np.unique(new_cell_assignments)) == 2
+
+
+def test_update_hann_votes(
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    test _update_hann_votes
+    """
+
+    reference = cell_by_gene_fixture['reference']
+    n_cells = 3
+
+    votes = np.zeros(
+        (n_cells, reference.n_cells), dtype=int
+    )
+    corr = np.zeros(
+        (n_cells, reference.n_cells), dtype=float
+    )
+
+    cell_assignments = ['a1', 'c2', 'c2']
+    correlation_vector = [0.2, 0.4, 0.3]
+
+    hann_election._update_hann_votes(
+        cell_assignments=cell_assignments,
+        correlation_vector=correlation_vector,
+        reference_cell_by_gene=reference,
+        votes_out=votes,
+        corr_out=corr
+    )
+
+    expected_votes = np.zeros((n_cells, reference.n_cells), dtype=int)
+    expected_votes[0, 0] = 1
+    expected_votes[1, 4] = 1
+    expected_votes[2, 4] = 1
+
+    expected_corr = np.zeros((n_cells, reference.n_cells), dtype=float)
+    expected_corr[0, 0] = 0.2
+    expected_corr[1, 4] = 0.4
+    expected_corr[2, 4] = 0.3
+
+    np.testing.assert_array_equal(
+        actual=votes,
+        desired=expected_votes)
+
+    np.testing.assert_allclose(
+        actual=corr,
+        desired=expected_corr,
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    cell_assignments = ['b2', 'c1', 'c2']
+    correlation_vector = [0.1, 0.5, 0.9]
+
+    hann_election._update_hann_votes(
+        cell_assignments=cell_assignments,
+        correlation_vector=correlation_vector,
+        reference_cell_by_gene=reference,
+        votes_out=votes,
+        corr_out=corr
+    )
+
+    expected_votes[0, 2] = 1
+    expected_votes[1, 3] = 1
+    expected_votes[2, 4] = 2
+
+    expected_corr[0, 2] = 0.1
+    expected_corr[1, 3] = 0.5
+    expected_corr[2, 4] = 1.2
+
+    np.testing.assert_array_equal(
+        actual=votes,
+        desired=expected_votes)
+
+    np.testing.assert_allclose(
+        actual=corr,
+        desired=expected_corr,
+        atol=0.0,
+        rtol=1.0e-6
+    )

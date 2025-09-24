@@ -103,10 +103,13 @@ def _hann_iteration(
 
         cell_assignments = new_cell_assignments
 
-    for i_cell in range(len(cell_assignments)):
-        idx = reference_cell_by_gene.cell_to_row[cell_assignments[i_cell]]
-        votes_out[i_cell, idx] += 1
-        corr_out[i_cell, idx] += correlation_vector[i_cell]
+    _update_hann_votes(
+        cell_assignments=cell_assignments,
+        correlationvector=correlation_vector,
+        reference_cell_by_gene=reference_cell_by_gene,
+        votes_out=votes_out,
+        corr_out=corr_out
+    )
 
 
 def _assign_children_of_one_parent(
@@ -187,3 +190,16 @@ def _assign_children_of_one_parent(
                  ]
             )
         new_cell_assignments[cell_idx] = assignments
+
+
+def _update_hann_votes(
+        cell_assignments,
+        correlation_vector,
+        reference_cell_by_gene,
+        votes_out,
+        corr_out):
+
+    for i_cell in range(len(cell_assignments)):
+        idx = reference_cell_by_gene.cell_to_row[cell_assignments[i_cell]]
+        votes_out[i_cell, idx] += 1
+        corr_out[i_cell, idx] += correlation_vector[i_cell]
