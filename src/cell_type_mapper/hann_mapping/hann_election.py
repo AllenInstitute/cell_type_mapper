@@ -40,19 +40,11 @@ def hann_tally_votes(
         dtype=float
     )
 
-    (child_to_idx,
-     child_to_parent) = _get_lookups(
-                             taxonomy_tree=taxonomy_tree,
-                             reference_data=data['reference_data'])
-
     for ii in range(bootstrap_iteration):
         _hann_iteration(
             query_cell_by_gene=data['query_data'],
             reference_cell_by_gene=data['reference_data'],
             taxonomy_tree=taxonomy_tree,
-            as_leaves=taxonomy_tree.as_leaves,
-            leaf_to_parent=child_to_parent,
-            leaf_to_idx=child_to_idx,
             marker_lookup=data['marker_lookup'],
             bootstrap_factor_lookup=bootstrap_factor_lookup,
             rng=rng,
@@ -65,9 +57,6 @@ def _hann_iteration(
         query_cell_by_gene,
         reference_cell_by_gene,
         taxonomy_tree,
-        as_leaves,
-        leaf_to_parent,
-        leaf_to_idx,
         marker_lookup,
         bootstrap_factor_lookup,
         rng,
@@ -93,8 +82,13 @@ def _hann_iteration(
     )
 
     cell_assignments = np.array(
-        [leaf_to_parent[idx][taxonomy_tree.hierarchy[0]]
-         for idx in chosen]
+        [taxonomy_tree.parents(
+            level=taxonomy_tree.leaf_level,
+            node=reference_cell_by_gene.cell_identifiers[idx])[
+                taxonomy_tree.hierarchy[0]
+            ]
+         for idx in chosen
+         ]
     )
 
     new_cell_assignments = np.array(['']*len(cell_assignments))
@@ -108,9 +102,6 @@ def _hann_iteration(
                 new_cell_assignments=new_cell_assignments,
                 correlation_vector=correlation_vector,
                 taxonomy_tree=taxonomy_tree,
-                as_leaves=as_leaves,
-                leaf_to_idx=leaf_to_idx,
-                leaf_to_parent=leaf_to_parent,
                 level=level,
                 parent=parent,
                 marker_lookup=marker_lookup,
@@ -123,7 +114,7 @@ def _hann_iteration(
         cell_assignments = new_cell_assignments
 
     for i_cell in range(len(cell_assignments)):
-        idx = leaf_to_idx[cell_assignments[i_cell]]
+        idx = reference_cell_by_gene.cell_to_row[cell_assignments[i_cell]]
         votes_out[i_cell, idx] += 1
         corr_out[i_cell, idx] += correlation_vector[i_cell]
 
@@ -133,9 +124,6 @@ def _assign_children_of_one_parent(
         new_cell_assignments,
         correlation_vector,
         taxonomy_tree,
-        as_leaves,
-        leaf_to_idx,
-        leaf_to_parent,
         level,
         parent,
         marker_lookup,
@@ -151,7 +139,8 @@ def _assign_children_of_one_parent(
         new_cell_assignments[cell_idx] = children[0]
     else:
         leaf_idx = np.sort(
-            [leaf_to_idx[leaf] for leaf in as_leaves[level][parent]]
+            [reference_cell_by_gene.cell_to_row[leaf]
+             for leaf in taxonomy_tree.as_leaves[level][parent]]
         )
         marker_idx = marker_lookup[f'{level}/{parent}']
         to_choose = max(
@@ -185,51 +174,12 @@ def _assign_children_of_one_parent(
             correlation_vector[cell_idx] = chosen_corr
         else:
             assignments = np.array(
-                [leaf_to_parent[idx][level] for idx in chosen]
+                [taxonomy_tree.parents(
+                    level=taxonomy_tree.leaf_level,
+                    node=reference_cell_by_gene.cell_identifiers[idx])[
+                        taxonomy_tree.child_level(level)
+                    ]
+                 for idx in chosen
+                 ]
             )
         new_cell_assignments[cell_idx] = assignments
-
-
-def _get_lookups(
-        taxonomy_tree,
-        reference_data):
-    """
-    Construct dicts mapping leaf nodes to their parents in a taxonomy
-    tree and leaf nodes to their integer idx in a reference CellByGeneMatrix
-
-    Parameters
-    ----------
-    taxonomy_tree:
-        a TaxomomyTree
-
-    reference_data:
-        a CellByGeneMatrix
-
-    Returns
-    -------
-    child_to_idx:
-        dict mapping leaf nodes in the taxonomy tree to their
-        row idx in refernence_data
-
-    child_to_parent:
-        dict mapping leaf nodes (as idx) in the taxonomy to
-        parent nodes at all levels
-    """
-    child_to_parent = {
-        leaf: taxonomy_tree.parents(
-                level=taxonomy_tree.leaf_level,
-                node=leaf)
-        for leaf in taxonomy_tree.leaf_nodes
-    }
-
-    child_to_idx = {
-        child: idx
-        for idx, child in enumerate(reference_data.cell_identifiers)
-    }
-
-    child_to_parent = {
-        child_to_idx[child]: child_to_parent[child]
-        for child in child_to_parent
-    }
-
-    return child_to_idx, child_to_parent
