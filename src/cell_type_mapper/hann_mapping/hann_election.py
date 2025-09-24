@@ -5,10 +5,8 @@ import cell_type_mapper.utils.distance_utils as distance_utils
 import cell_type_mapper.type_assignment.matching as matching
 
 
-
-
 def hann_tally_votes(
-        full_query_gene_data,
+        full_query_data,
         leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
@@ -56,7 +54,7 @@ def hann_tally_votes(
             leaf_to_parent=child_to_parent,
             leaf_to_idx=child_to_idx,
             marker_lookup=data['marker_lookup'],
-            bootstrap_factor=bootstrap_factor,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
             rng=rng,
             votes_out=votes,
             corr_out=corr
@@ -71,19 +69,26 @@ def _hann_iteration(
         leaf_to_parent,
         leaf_to_idx,
         marker_lookup,
-        bootstrap_factor,
+        bootstrap_factor_lookup,
         rng,
         votes_out,
         corr_out,
         min_chosen_markers=5):
 
     marker_idx = marker_lookup['None']
+    to_choose = max(
+        min_chosen_markers,
+        np.round(bootstrap_factor_lookup['None']*len(marker_idx)).astype(int)
+    )
+    if to_choose < marker_idx:
+        marker_idx = np.sort(rng.choice(marker_idx, to_choose, replace=False))
+
     query_subset = query_cell_by_gene.data[:, marker_idx]
     reference_subset = reference_cell_by_gene.data[:, marker_idx]
 
-    chosen = correlation_nearest_neighbors(
-        baseline_array=reference,
-        query_array=query,
+    chosen = distance_utils.correlation_nearest_neighbors(
+        baseline_array=reference_subset,
+        query_array=query_subset,
         return_correlation=False
     )
 
@@ -98,56 +103,91 @@ def _hann_iteration(
     for level in taxonomy_tree.hierarchy[1:-1]:
         unq_parents = np.unique(cell_assignments)
         for parent in unq_parents:
-            cell_idx = np.where(cell_assignments==parent)[0]
-            children = taxonomy_tree.children(level=level, node=parent)
-            if len(children) == 1:
-                new_cell_assignments[cell_idx] = children[0]
-            else:
-                leaf_idx = np.sort(
-                    [leaf_to_idx[leaf] for leaf in as_leaves[level][parent]]
-                )
-                marker_idx = marker_idx[f'{level}/{parent}']
-                to_choose = max(
-                    min_chosen_markers,
-                    np.round(bootstrap_factor*len(marker_idx))
-                )
-
-                if to_choose < len(marker_idx):
-                    marker_idx = np.sort(
-                         rng.choice(marker_idx, to_choose, replace=False)
-                    )
-
-                query_subset = query_cell_by_gene.data[cell_idx, :]
-                query_subset = query_subset[:, marker_idx]
-
-                reference_subset = reference_cell_by_gene.data[leaf_idx, :]
-                reference_subset = reference_subset[:, marker_idx]
-
-                (chosen,
-                 chosen_corr) = correlation_nearest_neighbors(
-                                     baseline_array=reference_subset,
-                                     query_array=query_subset,
-                                     return_correlation=True)
-
-                chosen = leaf_idx[chosen]
-                if level == taxonomy_tree.leaf_level:
-                    assignments = np.array(
-                        [reference_cell_by_gene.cell_identifiers[idx]
-                         for idx in chosen]
-                    )
-                    correlation_vector[cell_idx] = chosen_corr
-                else:
-                    assignments = np.array(
-                        [leaf_to_parent[idx][level] for idx in chosen]
-                    )
-                new_cell_assignments[cell_idx] = assignments
+            _assign_children_of_one_parent(
+                cell_assignments=cell_assignments,
+                new_cell_assignments=new_cell_assignments,
+                correlation_vector=correlation_vector,
+                taxonomy_tree=taxonomy_tree,
+                as_leaves=as_leaves,
+                leaf_to_idx=leaf_to_idx,
+                leaf_to_parent=leaf_to_parent,
+                level=level,
+                parent=parent,
+                marker_lookup=marker_lookup,
+                rng=rng,
+                bootstrap_factor=bootstrap_factor_lookup[level],
+                min_chosen_markers=min_chosen_markers,
+                query_cell_by_gene=query_cell_by_gene,
+                reference_cell_by_gene=reference_cell_by_gene)
 
         cell_assignments = new_cell_assignments
 
     for i_cell in range(len(cell_assignments)):
         idx = leaf_to_idx[cell_assignments[i_cell]]
         votes_out[i_cell, idx] += 1
-        corr_out[i_cell, idx] += corrleation_vector[i_cell]
+        corr_out[i_cell, idx] += correlation_vector[i_cell]
+
+
+def _assign_children_of_one_parent(
+        cell_assignments,
+        new_cell_assignments,
+        correlation_vector,
+        taxonomy_tree,
+        as_leaves,
+        leaf_to_idx,
+        leaf_to_parent,
+        level,
+        parent,
+        marker_lookup,
+        rng,
+        bootstrap_factor,
+        min_chosen_markers,
+        query_cell_by_gene,
+        reference_cell_by_gene):
+
+    cell_idx = np.where(cell_assignments == parent)[0]
+    children = taxonomy_tree.children(level=level, node=parent)
+    if len(children) == 1:
+        new_cell_assignments[cell_idx] = children[0]
+    else:
+        leaf_idx = np.sort(
+            [leaf_to_idx[leaf] for leaf in as_leaves[level][parent]]
+        )
+        marker_idx = marker_lookup[f'{level}/{parent}']
+        to_choose = max(
+            min_chosen_markers,
+            np.round(bootstrap_factor*len(marker_idx)).astype(int)
+        )
+
+        if to_choose < len(marker_idx):
+            marker_idx = np.sort(
+                 rng.choice(marker_idx, to_choose, replace=False)
+            )
+
+        query_subset = query_cell_by_gene.data[cell_idx, :]
+        query_subset = query_subset[:, marker_idx]
+
+        reference_subset = reference_cell_by_gene.data[leaf_idx, :]
+        reference_subset = reference_subset[:, marker_idx]
+
+        (chosen,
+         chosen_corr) = distance_utils.correlation_nearest_neighbors(
+                             baseline_array=reference_subset,
+                             query_array=query_subset,
+                             return_correlation=True)
+
+        chosen = leaf_idx[chosen]
+        if level == taxonomy_tree.leaf_level:
+            assignments = np.array(
+                [reference_cell_by_gene.cell_identifiers[idx]
+                 for idx in chosen]
+            )
+            correlation_vector[cell_idx] = chosen_corr
+        else:
+            assignments = np.array(
+                [leaf_to_parent[idx][level] for idx in chosen]
+            )
+        new_cell_assignments[cell_idx] = assignments
 
 
 def _get_lookups(
@@ -184,7 +224,7 @@ def _get_lookups(
 
     child_to_idx = {
         child: idx
-        for idx, child in enumerate(data['reference_data'].cell_identifiers)
+        for idx, child in enumerate(reference_data.cell_identifiers)
     }
 
     child_to_parent = {
