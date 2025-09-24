@@ -64,35 +64,25 @@ def _hann_iteration(
         corr_out,
         min_chosen_markers=5):
 
-    marker_idx = marker_lookup['None']
-    to_choose = max(
-        min_chosen_markers,
-        np.round(bootstrap_factor_lookup['None']*len(marker_idx)).astype(int)
-    )
-    if to_choose < marker_idx:
-        marker_idx = np.sort(rng.choice(marker_idx, to_choose, replace=False))
-
-    query_subset = query_cell_by_gene.data[:, marker_idx]
-    reference_subset = reference_cell_by_gene.data[:, marker_idx]
-
-    chosen = distance_utils.correlation_nearest_neighbors(
-        baseline_array=reference_subset,
-        query_array=query_subset,
-        return_correlation=False
-    )
-
-    cell_assignments = np.array(
-        [taxonomy_tree.parents(
-            level=taxonomy_tree.leaf_level,
-            node=reference_cell_by_gene.cell_identifiers[idx])[
-                taxonomy_tree.hierarchy[0]
-            ]
-         for idx in chosen
-         ]
-    )
-
+    cell_assignments = np.array(['']*len(query_cell_by_gene.n_cells))
     new_cell_assignments = np.array(['']*len(cell_assignments))
     correlation_vector = np.zeros(len(cell_assignments), dtype=float)
+
+    _assign_children_of_one_parent(
+        cell_assignments=cell_assignments,
+        new_cell_assignments=new_cell_assignments,
+        correlation_vector=correlation_vector,
+        taxonomy_tree=taxonomy_tree,
+        parent_level=None,
+        parent=None,
+        marker_lookup=marker_lookup,
+        rng=rng,
+        bootstrap_factor=bootstrap_factor_lookup['None'],
+        min_chosen_markers=min_chosen_markers,
+        query_cell_by_gene=query_cell_by_gene,
+        reference_cell_by_gene=reference_cell_by_gene)
+
+    cell_assignments = new_cell_assignments
 
     for level in taxonomy_tree.hierarchy[1:-1]:
         unq_parents = np.unique(cell_assignments)

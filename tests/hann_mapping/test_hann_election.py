@@ -140,8 +140,16 @@ def test_hann_children_of_one_parent(
             expected[ii] = expected_assn[ii//2]
 
     np.testing.assert_array_equal(
-        new_cell_assignments,
-        expected
+        actual=new_cell_assignments,
+        desired=expected
+    )
+
+    # make sure correlation vector was untouched
+    np.testing.assert_allclose(
+        actual=correlation_vector,
+        desired=np.zeros(len(new_cell_assignments), dtype=float),
+        atol=0.0,
+        rtol=1.0e-6
     )
 
 
@@ -206,3 +214,100 @@ def test_hann_children_of_one_parent_from_root(
         actual=new_cell_assignments,
         desired=expected_assn
     )
+
+    # make sure correlation vector was untouched
+    np.testing.assert_allclose(
+        actual=correlation_vector,
+        desired=np.zeros(len(new_cell_assignments), dtype=float),
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+
+def test_hann_children_of_one_leaf_parent(
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    Test single HANN assignment from a specified parent
+    just above leaf level of the taxonomy
+    """
+    reference = cell_by_gene_fixture['reference']
+    query = cell_by_gene_fixture['query']
+
+    marker_lookup = {
+        'subclass/b': np.arange(7, 25)
+    }
+
+    gene_subset_idx = np.array(
+        [7, 9, 14, 15, 16, 19, 20, 22, 23]
+    )
+
+    query_data = np.copy(query.data)
+    query_data = query_data[:, gene_subset_idx]
+    reference_data = np.copy(reference.data)
+    reference_data = reference_data[:, gene_subset_idx]
+    reference_data = reference_data[np.array([1, 2]), :]
+
+    (expected_nn,
+     expected_corr) = distance_utils.correlation_nearest_neighbors(
+        baseline_array=reference_data,
+        query_array=query_data,
+        return_correlation=True
+    )
+
+    class dummy_rng(object):
+        def choice(self, arr, n, replace=False):
+            return gene_subset_idx
+
+    cell_assignments = np.array(['']*query.n_cells)
+    new_cell_assignments = np.array(['']*query.n_cells)
+    correlation_vector = np.zeros(query.n_cells)
+
+    active_cells = np.arange(0, query.n_cells, 2)
+    expected_nn = expected_nn[active_cells]
+    expected_assn = np.array([
+        {0: 'b1', 1: 'b2'}[nn] for nn in expected_nn
+    ])
+
+    cell_assignments[active_cells] = 'b'
+    cell_assignments[1] = 'a'
+    cell_assignments[5] = 'c'
+
+    hann_election._assign_children_of_one_parent(
+        cell_assignments=cell_assignments,
+        new_cell_assignments=new_cell_assignments,
+        correlation_vector=correlation_vector,
+        taxonomy_tree=tree_fixture,
+        parent_level=tree_fixture.hierarchy[1],
+        parent='b',
+        marker_lookup=marker_lookup,
+        rng=dummy_rng(),
+        bootstrap_factor=0.5,
+        min_chosen_markers=0,
+        query_cell_by_gene=query,
+        reference_cell_by_gene=reference
+    )
+
+    expected = np.array(['']*query.n_cells)
+    for ii in range(query.n_cells):
+        if ii % 2 == 0:
+            expected[ii] = expected_assn[ii//2]
+
+    np.testing.assert_array_equal(
+        actual=new_cell_assignments,
+        desired=expected
+    )
+
+    final_corr = np.zeros(query.n_cells, dtype=float)
+    final_corr[active_cells] = expected_corr[active_cells]
+
+    # make sure correlation vector was untouched
+    np.testing.assert_allclose(
+        actual=correlation_vector,
+        desired=final_corr,
+        atol=0.0,
+        rtol=1.0e-6
+    )
+
+    # make sure we found something interesting
+    assert len(np.unique(new_cell_assignments)) == 2
