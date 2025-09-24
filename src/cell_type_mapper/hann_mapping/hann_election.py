@@ -102,7 +102,7 @@ def _hann_iteration(
                 new_cell_assignments=new_cell_assignments,
                 correlation_vector=correlation_vector,
                 taxonomy_tree=taxonomy_tree,
-                level=level,
+                parent_level=level,
                 parent=parent,
                 marker_lookup=marker_lookup,
                 rng=rng,
@@ -124,7 +124,7 @@ def _assign_children_of_one_parent(
         new_cell_assignments,
         correlation_vector,
         taxonomy_tree,
-        level,
+        parent_level,
         parent,
         marker_lookup,
         rng,
@@ -133,16 +133,22 @@ def _assign_children_of_one_parent(
         query_cell_by_gene,
         reference_cell_by_gene):
 
-    cell_idx = np.where(cell_assignments == parent)[0]
-    children = taxonomy_tree.children(level=level, node=parent)
+    if parent is not None:
+        cell_idx = np.where(cell_assignments == parent)[0]
+    else:
+        cell_idx = np.arange(len(cell_assignments), dtype=int)
+
+    children = taxonomy_tree.children(level=parent_level, node=parent)
+
     if len(children) == 1:
         new_cell_assignments[cell_idx] = children[0]
     else:
-        leaf_idx = np.sort(
-            [reference_cell_by_gene.cell_to_row[leaf]
-             for leaf in taxonomy_tree.as_leaves[level][parent]]
-        )
-        marker_idx = marker_lookup[f'{level}/{parent}']
+
+        if parent is not None:
+            marker_idx = marker_lookup[f'{parent_level}/{parent}']
+        else:
+            marker_idx = marker_lookup['None']
+
         to_choose = max(
             min_chosen_markers,
             np.round(bootstrap_factor*len(marker_idx)).astype(int)
@@ -156,8 +162,14 @@ def _assign_children_of_one_parent(
         query_subset = query_cell_by_gene.data[cell_idx, :]
         query_subset = query_subset[:, marker_idx]
 
-        reference_subset = reference_cell_by_gene.data[leaf_idx, :]
-        reference_subset = reference_subset[:, marker_idx]
+        reference_subset = reference_cell_by_gene.data[:, marker_idx]
+        if parent is not None:
+            leaf_idx = np.sort(
+                [reference_cell_by_gene.cell_to_row[leaf]
+                 for leaf in taxonomy_tree.as_leaves[parent_level][parent]]
+            )
+
+            reference_subset = reference_subset[leaf_idx, :]
 
         (chosen,
          chosen_corr) = distance_utils.correlation_nearest_neighbors(
@@ -165,8 +177,10 @@ def _assign_children_of_one_parent(
                              query_array=query_subset,
                              return_correlation=True)
 
-        chosen = leaf_idx[chosen]
-        if level == taxonomy_tree.leaf_level:
+        if parent is not None:
+            chosen = leaf_idx[chosen]
+
+        if parent_level == taxonomy_tree.hierarchy[-2]:
             assignments = np.array(
                 [reference_cell_by_gene.cell_identifiers[idx]
                  for idx in chosen]
@@ -177,7 +191,7 @@ def _assign_children_of_one_parent(
                 [taxonomy_tree.parents(
                     level=taxonomy_tree.leaf_level,
                     node=reference_cell_by_gene.cell_identifiers[idx])[
-                        taxonomy_tree.child_level(level)
+                        taxonomy_tree.child_level(parent_level)
                     ]
                  for idx in chosen
                  ]

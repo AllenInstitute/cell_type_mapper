@@ -75,7 +75,9 @@ def cell_by_gene_fixture(tree_fixture):
 def test_hann_children_of_one_parent(
         tree_fixture,
         cell_by_gene_fixture):
-
+    """
+    Test single HANN assignment from a specified parent
+    """
     reference = cell_by_gene_fixture['reference']
     query = cell_by_gene_fixture['query']
 
@@ -122,7 +124,7 @@ def test_hann_children_of_one_parent(
         new_cell_assignments=new_cell_assignments,
         correlation_vector=correlation_vector,
         taxonomy_tree=tree_fixture,
-        level=tree_fixture.hierarchy[0],
+        parent_level=tree_fixture.hierarchy[0],
         parent='A',
         marker_lookup=marker_lookup,
         rng=dummy_rng(),
@@ -140,4 +142,67 @@ def test_hann_children_of_one_parent(
     np.testing.assert_array_equal(
         new_cell_assignments,
         expected
+    )
+
+
+def test_hann_children_of_one_parent_from_root(
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    Test single HANN assignment from the root of the
+    taxonomy
+    """
+    reference = cell_by_gene_fixture['reference']
+    query = cell_by_gene_fixture['query']
+
+    marker_lookup = {
+        'None': np.arange(7, 25)
+    }
+
+    gene_subset_idx = np.array(
+        [7, 9, 14, 15, 16, 19, 20, 22, 23]
+    )
+
+    query_data = np.copy(query.data)
+    query_data = query_data[:, gene_subset_idx]
+    reference_data = np.copy(reference.data)
+    reference_data = reference_data[:, gene_subset_idx]
+
+    expected_nn = distance_utils.correlation_nearest_neighbors(
+        baseline_array=reference_data,
+        query_array=query_data,
+        return_correlation=False
+    )
+
+    class dummy_rng(object):
+        def choice(self, arr, n, replace=False):
+            return gene_subset_idx
+
+    cell_assignments = np.array(['']*query.n_cells)
+    new_cell_assignments = np.array(['']*query.n_cells)
+    correlation_vector = np.zeros(query.n_cells)
+
+    expected_assn = np.array([
+        {0: 'A', 1: 'A', 2: 'A', 3: 'B', 4: 'B'}[nn]
+        for nn in expected_nn
+    ])
+
+    hann_election._assign_children_of_one_parent(
+        cell_assignments=cell_assignments,
+        new_cell_assignments=new_cell_assignments,
+        correlation_vector=correlation_vector,
+        taxonomy_tree=tree_fixture,
+        parent_level=None,
+        parent=None,
+        marker_lookup=marker_lookup,
+        rng=dummy_rng(),
+        bootstrap_factor=0.5,
+        min_chosen_markers=0,
+        query_cell_by_gene=query,
+        reference_cell_by_gene=reference
+    )
+
+    np.testing.assert_array_equal(
+        actual=new_cell_assignments,
+        desired=expected_assn
     )
