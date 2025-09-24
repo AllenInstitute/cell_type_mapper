@@ -1088,3 +1088,8 @@ def test_parent_level():
     assert tree.parent_level('level3') == 'level2'
     assert tree.parent_level('level2') == 'level1'
     assert tree.parent_level('level1') is None
+
+    assert tree.child_level('level3') == 'leaf'
+    assert tree.child_level('level2') == 'level3'
+    assert tree.child_level('level1') == 'level2'
+    assert tree.child_level(None) == 'level1'

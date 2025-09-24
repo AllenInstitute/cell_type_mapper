@@ -75,6 +75,11 @@ class TaxonomyTree(object):
         }
         self._child_to_parent_level[self.hierarchy[0]] = None
 
+        self._parent_to_child_level = {
+            self._child_to_parent_level[child]: child
+            for child in self._child_to_parent_level
+        }
+
         self._as_leaves = None
         self._full_parentage = {
             level: dict() for level in self.hierarchy
@@ -586,6 +591,13 @@ class TaxonomyTree(object):
         level in the hierarchy
         """
         return self._child_to_parent_level[level]
+
+    def child_level(self, level):
+        """
+        Return the elvel that is directly below the sepcified
+        level in the hierarchy
+        """
+        return self._parent_to_child_level[level]
 
     def _find_parents(self, level, node):
         """
