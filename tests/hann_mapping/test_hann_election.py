@@ -391,3 +391,60 @@ def test_update_hann_votes(
         atol=0.0,
         rtol=1.0e-6
     )
+
+
+def test_hann_iteration_smoke(
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    Run smoketest on _hann_iteration
+    """
+    marker_lookup = {
+        'None': np.array([1, 2, 3, 5, 11, 15, 16, 17, 18, 19, 20]),
+        'class/A': np.arange(12, 24),
+        'subclass/b': np.arange(19),
+        'subclass/c': np.arange(1, 27, 2)
+    }
+
+    bootstrap_factor_lookup = {
+        'None': 0.5,
+        'class': 0.5,
+        'subclass': 0.5
+    }
+
+    rng = np.random.default_rng(22131)
+    reference = cell_by_gene_fixture['reference']
+    query = cell_by_gene_fixture['query']
+
+    votes = np.zeros((query.n_cells, reference.n_cells), dtype=int)
+    corr = np.zeros((query.n_cells, reference.n_cells), dtype=float)
+
+    n_iter = 5
+    for ii in range(n_iter):
+        hann_election._hann_iteration(
+            query_cell_by_gene=query,
+            reference_cell_by_gene=reference,
+            taxonomy_tree=tree_fixture,
+            marker_lookup=marker_lookup,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
+            rng=rng,
+            votes_out=votes,
+            corr_out=corr,
+            min_chosen_markers=5
+        )
+        assert votes.sum() == (ii+1)*query.n_cells
+
+    # make sure there is a diversity of vote counts
+    np.testing.assert_array_equal(
+        actual=np.unique(votes),
+        desired=np.arange(n_iter+1, dtype=int)
+    )
+
+    col_sum = votes.sum(axis=0)
+    assert col_sum.shape == (reference.n_cells, )
+    assert col_sum.min() > 0
+
+    # make sure that corr was updated
+    assert corr.sum() > 0.0
+    # cannot do detailed check on corr > 0 where
+    # votes > 0 because correlation could be negative

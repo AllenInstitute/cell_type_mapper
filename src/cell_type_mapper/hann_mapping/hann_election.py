@@ -64,9 +64,18 @@ def _hann_iteration(
         corr_out,
         min_chosen_markers=5):
 
-    cell_assignments = np.array(['']*len(query_cell_by_gene.n_cells))
-    new_cell_assignments = np.array(['']*len(cell_assignments))
-    correlation_vector = np.zeros(len(cell_assignments), dtype=float)
+    cell_assignments = np.array(
+        ['']*query_cell_by_gene.n_cells
+    ).astype(object)
+
+    new_cell_assignments = np.array(
+        ['']*query_cell_by_gene.n_cells
+    ).astype(object)
+
+    correlation_vector = np.zeros(
+        query_cell_by_gene.n_cells,
+        dtype=float
+    )
 
     _assign_children_of_one_parent(
         cell_assignments=cell_assignments,
@@ -82,9 +91,9 @@ def _hann_iteration(
         query_cell_by_gene=query_cell_by_gene,
         reference_cell_by_gene=reference_cell_by_gene)
 
-    cell_assignments = new_cell_assignments
+    cell_assignments[:] = new_cell_assignments
 
-    for level in taxonomy_tree.hierarchy[1:-1]:
+    for level in taxonomy_tree.hierarchy[:-1]:
         unq_parents = np.unique(cell_assignments)
         for parent in unq_parents:
             _assign_children_of_one_parent(
@@ -101,11 +110,11 @@ def _hann_iteration(
                 query_cell_by_gene=query_cell_by_gene,
                 reference_cell_by_gene=reference_cell_by_gene)
 
-        cell_assignments = new_cell_assignments
+        cell_assignments[:] = new_cell_assignments
 
     _update_hann_votes(
         cell_assignments=cell_assignments,
-        correlationvector=correlation_vector,
+        correlation_vector=correlation_vector,
         reference_cell_by_gene=reference_cell_by_gene,
         votes_out=votes_out,
         corr_out=corr_out
