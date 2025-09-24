@@ -42,22 +42,10 @@ def hann_tally_votes(
         dtype=float
     )
 
-    child_to_parent = {
-        leaf: taxonomy_tree.parents(
-                level=taxonomy_tree.leaf_level,
-                node=leaf)
-        for leaf in taxonomy_tree.leaf_nodes
-    }
-
-    child_to_idx = {
-        child: idx
-        for idx, child in enumerate(data['reference_data'].cell_identifiers)
-    }
-
-    child_to_parent = {
-        child_to_idx[child]: child_to_parent[child]
-        for child in child_to_parent
-    }
+    (child_to_idx,
+     child_to_parent) = _get_lookups(
+                             taxonomy_tree=taxonomy_tree,
+                             reference_data=data['reference_data'])
 
     for ii in range(bootstrap_iteration):
         _hann_iteration(
@@ -86,7 +74,8 @@ def _hann_iteration(
         bootstrap_factor,
         rng,
         votes_out,
-        corr_out):
+        corr_out,
+        min_chosen_markers=5):
 
     marker_idx = marker_lookup['None']
     query_subset = query_cell_by_gene.data[:, marker_idx]
@@ -104,6 +93,7 @@ def _hann_iteration(
     )
 
     new_cell_assignments = np.array(['']*len(cell_assignments))
+    correlation_vector = np.zeros(len(cell_assignments), dtype=float)
 
     for level in taxonomy_tree.hierarchy[1:-1]:
         unq_parents = np.unique(cell_assignments)
@@ -117,6 +107,15 @@ def _hann_iteration(
                     [leaf_to_idx[leaf] for leaf in as_leaves[level][parent]]
                 )
                 marker_idx = marker_idx[f'{level}/{parent}']
+                to_choose = max(
+                    min_chosen_markers,
+                    np.round(bootstrap_factor*len(marker_idx))
+                )
+
+                if to_choose < len(marker_idx):
+                    marker_idx = np.sort(
+                         rng.choice(marker_idx, to_choose, replace=False)
+                    )
 
                 query_subset = query_cell_by_gene.data[cell_idx, :]
                 query_subset = query_subset[:, marker_idx]
@@ -136,6 +135,7 @@ def _hann_iteration(
                         [reference_cell_by_gene.cell_identifiers[idx]
                          for idx in chosen]
                     )
+                    correlation_vector[cell_idx] = chosen_corr
                 else:
                     assignments = np.array(
                         [leaf_to_parent[idx][level] for idx in chosen]
@@ -143,3 +143,53 @@ def _hann_iteration(
                 new_cell_assignments[cell_idx] = assignments
 
         cell_assignments = new_cell_assignments
+
+    for i_cell in range(len(cell_assignments)):
+        idx = leaf_to_idx[cell_assignments[i_cell]]
+        votes_out[i_cell, idx] += 1
+        corr_out[i_cell, idx] += corrleation_vector[i_cell]
+
+
+def _get_lookups(
+        taxonomy_tree,
+        reference_data):
+    """
+    Construct dicts mapping leaf nodes to their parents in a taxonomy
+    tree and leaf nodes to their integer idx in a reference CellByGeneMatrix
+
+    Parameters
+    ----------
+    taxonomy_tree:
+        a TaxomomyTree
+
+    reference_data:
+        a CellByGeneMatrix
+
+    Returns
+    -------
+    child_to_idx:
+        dict mapping leaf nodes in the taxonomy tree to their
+        row idx in refernence_data
+
+    child_to_parent:
+        dict mapping leaf nodes (as idx) in the taxonomy to
+        parent nodes at all levels
+    """
+    child_to_parent = {
+        leaf: taxonomy_tree.parents(
+                level=taxonomy_tree.leaf_level,
+                node=leaf)
+        for leaf in taxonomy_tree.leaf_nodes
+    }
+
+    child_to_idx = {
+        child: idx
+        for idx, child in enumerate(data['reference_data'].cell_identifiers)
+    }
+
+    child_to_parent = {
+        child_to_idx[child]: child_to_parent[child]
+        for child in child_to_parent
+    }
+
+    return child_to_idx, child_to_parent
