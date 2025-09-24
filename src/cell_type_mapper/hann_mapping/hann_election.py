@@ -12,7 +12,7 @@ def hann_tally_votes(
         taxonomy_tree,
         bootstrap_factor_lookup,
         bootstrap_iteration,
-        rng,):
+        rng):
     """
     Marker lookup can be in terms of gene identifiers
     """
@@ -51,6 +51,8 @@ def hann_tally_votes(
             votes_out=votes,
             corr_out=corr
         )
+
+    return {'votes': votes, 'correlation_sum': corr}
 
 
 def _hann_iteration(

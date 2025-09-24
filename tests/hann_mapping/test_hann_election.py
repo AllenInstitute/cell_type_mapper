@@ -2,9 +2,11 @@ import pytest
 import numpy as np
 import warnings
 
+import cell_type_mapper.utils.utils as cpm_utils
 import cell_type_mapper.utils.distance_utils as distance_utils
 import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
 import cell_type_mapper.cell_by_gene.cell_by_gene as cbg_module
+import cell_type_mapper.type_assignment.marker_cache_v2 as marker_cache
 import cell_type_mapper.hann_mapping.hann_election as hann_election
 
 
@@ -448,3 +450,63 @@ def test_hann_iteration_smoke(
     assert corr.sum() > 0.0
     # cannot do detailed check on corr > 0 where
     # votes > 0 because correlation could be negative
+
+
+def test_hann_tally_votes_smoke(
+        tmp_dir_fixture,
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    Run smoketest of hann_tally_votes
+    """
+    query = cell_by_gene_fixture['query']
+    reference = cell_by_gene_fixture['reference']
+    marker_lookup = {
+        'None': [f'g{ii}' for ii in
+                 (1, 2, 3, 5, 11, 15, 16, 17, 18, 19, 20)],
+        'class/A': [f'g{ii}' for ii in np.arange(12, 24)],
+        'subclass/b': [f'g{ii}' for ii in np.arange(19)],
+        'subclass/c': [f'g{ii}' for ii in np.arange(1, 27, 2)]
+    }
+    marker_cache_path = cpm_utils.mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='hann_marker_cache_',
+        suffix='.h5'
+    )
+    marker_cache.create_marker_cache_from_specified_markers(
+        marker_lookup=marker_lookup,
+        reference_gene_names=reference.gene_identifiers,
+        query_gene_names=query.gene_identifiers,
+        output_cache_path=marker_cache_path,
+        log=None,
+        taxonomy_tree=tree_fixture,
+        min_markers=1
+    )
+
+    rng = np.random.default_rng(611991)
+    bootstrap_iteration = 56
+
+    bootstrap_factor_lookup = {
+        'None': 0.5,
+        'class': 0.5,
+        'subclass': 0.5
+    }
+
+    result = hann_election.hann_tally_votes(
+        full_query_data=query,
+        leaf_node_matrix=reference,
+        marker_gene_cache_path=marker_cache_path,
+        taxonomy_tree=tree_fixture,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng
+    )
+
+    votes = result['votes']
+    assert votes.sum() == bootstrap_iteration*query.n_cells
+    # make sure there is a diversity of vote counts
+    assert len(np.unique(votes)) > 5
+
+    col_sum = votes.sum(axis=0)
+    assert col_sum.shape == (reference.n_cells, )
+    assert col_sum.min() > 0
