@@ -1,9 +1,65 @@
 import json
+import pathlib
 
 import cell_type_mapper.utils.utils as cpm_utils
 import cell_type_mapper.utils.output_utils as output_utils
 import cell_type_mapper.utils.anndata_utils as anndata_utils
 import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
+
+
+def write_hierarchical_output(
+        output,
+        config,
+        log,
+        mapping_exception,
+        write_to_disk):
+
+    if config['extended_result_path'] is not None:
+        output_path = pathlib.Path(config['extended_result_path'])
+    else:
+        output_path = None
+
+    if config['hdf5_result_path'] is not None:
+        hdf5_output_path = pathlib.Path(config['hdf5_result_path'])
+    else:
+        hdf5_output_path = None
+
+    if config['log_path'] is not None:
+        log_path = pathlib.Path(config['log_path'])
+    else:
+        log_path = None
+
+    if config['summary_metadata_path'] is not None:
+        write_summary_metadata_to_disk(
+            summary_metadata_path=config['summary_metadata_path'],
+            output=output,
+            query_path=config['query_path']
+        )
+
+    if config['csv_result_path'] is not None:
+        write_mapping_to_csv(
+            output=output,
+            csv_output_path=config['csv_result_path'],
+            full_output_path=output_path
+        )
+
+    if config['obsm_key'] is not None:
+        write_mapping_to_obsm(
+            output=output,
+            query_path=config['query_path'],
+            obsm_key=config['obsm_key'],
+            obsm_clobber=config['obsm_clobber']
+        )
+
+    if write_to_disk:
+        write_mapping_to_disk(
+            output=output,
+            log=log,
+            log_path=log_path,
+            output_path=output_path,
+            hdf5_output_path=hdf5_output_path,
+            cloud_safe=config['cloud_safe']
+        )
 
 
 def write_mapping_to_disk(

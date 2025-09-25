@@ -117,24 +117,11 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         else:
             tmp_dir = None
 
-        if self.args['extended_result_path'] is not None:
-            output_path = pathlib.Path(self.args['extended_result_path'])
-        else:
-            output_path = None
-
-        if self.args['hdf5_result_path'] is not None:
-            hdf5_output_path = pathlib.Path(self.args['hdf5_result_path'])
-        else:
-            hdf5_output_path = None
-
-        if self.args['log_path'] is not None:
-            log_path = pathlib.Path(self.args['log_path'])
-        else:
-            log_path = None
-
         # check validity of output_path and log_path
-        for pth in (output_path, log_path):
+        for pth in (self.args['extended_result_path'],
+                    self.args['log_path']):
             if pth is not None:
+                pth = pathlib.Path(pth)
                 if not pth.exists():
                     try:
                         with open(pth, 'w') as out_file:
@@ -192,38 +179,36 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 cloud_safe=self.args['cloud_safe']
             )
 
-            if self.args['summary_metadata_path'] is not None:
-                write_hier.write_summary_metadata_to_disk(
-                    summary_metadata_path=self.args['summary_metadata_path'],
-                    output=output,
-                    query_path=self.args['query_path']
-                )
+            write_hier.write_hierarchical_output(
+                output=output,
+                config=self.args,
+                log=log,
+                mapping_exception=mapping_exception,
+                write_to_disk=write_to_disk
+            )
+            if not write_to_disk:
 
-            if self.args['csv_result_path'] is not None:
-                write_hier.write_mapping_to_csv(
-                    output=output,
-                    csv_output_path=self.args['csv_result_path'],
-                    full_output_path=output_path
-                )
+                if self.args['extended_result_path'] is not None:
+                    output_path = pathlib.Path(
+                        self.args['extended_result_path']
+                    )
+                else:
+                    output_path = None
 
-            if self.args['obsm_key'] is not None:
-                write_hier.write_mapping_to_obsm(
-                    output=output,
-                    query_path=self.args['query_path'],
-                    obsm_key=self.args['obsm_key'],
-                    obsm_clobber=self.args['obsm_clobber']
-                )
+                if self.args['hdf5_result_path'] is not None:
+                    hdf5_output_path = pathlib.Path(
+                        self.args['hdf5_result_path']
+                    )
+                else:
+                    hdf5_output_path = None
 
-            if write_to_disk:
-                write_hier.write_mapping_to_disk(
-                    output=output,
-                    log=log,
-                    log_path=log_path,
-                    output_path=output_path,
-                    hdf5_output_path=hdf5_output_path,
-                    cloud_safe=self.args['cloud_safe']
-                )
-            else:
+                if self.args['log_path'] is not None:
+                    log_path = pathlib.Path(
+                        self.args['log_path']
+                    )
+                else:
+                    log_path = None
+
                 return {
                     'output': output,
                     'log': log,
