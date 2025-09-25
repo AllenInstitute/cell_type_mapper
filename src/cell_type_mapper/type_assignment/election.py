@@ -32,7 +32,7 @@ from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 import cell_type_mapper.type_assignment.hierarchical_mapping as hier
-import cell_type_mapper.hann_mapping.hann_election as hann
+import cell_type_mapper.hann_mapping.hann_mapping as hann
 
 
 def run_type_assignment_on_h5ad_cpu(

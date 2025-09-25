@@ -8,7 +8,7 @@ import cell_type_mapper.utils.distance_utils as distance_utils
 import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
 import cell_type_mapper.cell_by_gene.cell_by_gene as cbg_module
 import cell_type_mapper.type_assignment.marker_cache_v2 as marker_cache
-import cell_type_mapper.hann_mapping.hann_election as hann_election
+import cell_type_mapper.hann_mapping.hann_mapping as hann_mapping
 import cell_type_mapper.type_assignment.election as election
 
 
@@ -124,7 +124,7 @@ def test_hann_children_of_one_parent(
     cell_assignments[1] = 'B'
     cell_assignments[5] = 'C'
 
-    hann_election._assign_children_of_one_parent(
+    hann_mapping._assign_children_of_one_parent(
         cell_assignments=cell_assignments,
         new_cell_assignments=new_cell_assignments,
         correlation_vector=correlation_vector,
@@ -200,7 +200,7 @@ def test_hann_children_of_one_parent_from_root(
         for nn in expected_nn
     ])
 
-    hann_election._assign_children_of_one_parent(
+    hann_mapping._assign_children_of_one_parent(
         cell_assignments=cell_assignments,
         new_cell_assignments=new_cell_assignments,
         correlation_vector=correlation_vector,
@@ -278,7 +278,7 @@ def test_hann_children_of_one_leaf_parent(
     cell_assignments[1] = 'a'
     cell_assignments[5] = 'c'
 
-    hann_election._assign_children_of_one_parent(
+    hann_mapping._assign_children_of_one_parent(
         cell_assignments=cell_assignments,
         new_cell_assignments=new_cell_assignments,
         correlation_vector=correlation_vector,
@@ -338,7 +338,7 @@ def test_update_hann_votes(
     cell_assignments = ['a1', 'c2', 'c2']
     correlation_vector = [0.2, 0.4, 0.3]
 
-    hann_election._update_hann_votes(
+    hann_mapping._update_hann_votes(
         cell_assignments=cell_assignments,
         correlation_vector=correlation_vector,
         reference_cell_by_gene=reference,
@@ -370,7 +370,7 @@ def test_update_hann_votes(
     cell_assignments = ['b2', 'c1', 'c2']
     correlation_vector = [0.1, 0.5, 0.9]
 
-    hann_election._update_hann_votes(
+    hann_mapping._update_hann_votes(
         cell_assignments=cell_assignments,
         correlation_vector=correlation_vector,
         reference_cell_by_gene=reference,
@@ -426,7 +426,7 @@ def test_hann_iteration_smoke(
 
     n_iter = 5
     for ii in range(n_iter):
-        hann_election._hann_iteration(
+        hann_mapping._hann_iteration(
             query_cell_by_gene=query,
             reference_cell_by_gene=reference,
             taxonomy_tree=tree_fixture,
@@ -495,7 +495,7 @@ def test_hann_tally_votes_smoke(
         'subclass': 0.5
     }
 
-    result = hann_election.hann_tally_votes(
+    result = hann_mapping.hann_tally_votes(
         full_query_data=query,
         leaf_node_matrix=reference,
         marker_gene_cache_path=marker_cache_path,
@@ -515,7 +515,7 @@ def test_hann_tally_votes_smoke(
     assert col_sum.min() > 0
 
 
-def test_hann_election_chunk_smoke(
+def test_hann_mapping_chunk_smoke(
         tmp_dir_fixture,
         tree_fixture,
         cell_by_gene_fixture):
