@@ -1,3 +1,5 @@
+import json
+
 from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
@@ -7,9 +9,6 @@ from cell_type_mapper.type_assignment.utils import (
 
 from cell_type_mapper.validation.utils import (
     is_data_ge_zero)
-
-from cell_type_mapper.utils.output_utils import (
-    re_order_blob)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
@@ -104,8 +103,15 @@ def run_type_assignment_on_h5ad(
         results_output_path=results_output_path
     )
 
-    result = re_order_blob(
-        results_blob=result,
-        query_path=query_h5ad_path)
-
     return result
+
+
+def collate_hierarchical_mappings(tmp_path_list):
+    """
+    Combine the results of sub worker hierarchical mappings
+    into a single list.
+    """
+    output_list = []
+    for path in tmp_path_list:
+        output_list += json.load(open(path, 'rb'))
+    return output_list

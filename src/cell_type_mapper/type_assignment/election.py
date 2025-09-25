@@ -18,8 +18,8 @@ from cell_type_mapper.utils.utils import (
     update_timer,
     choose_int_dtype,
     clean_for_json,
-    mkstemp_clean,
-    _clean_up)
+    mkstemp_clean
+)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -141,7 +141,13 @@ def run_type_assignment_on_h5ad_cpu(
 
     Returns
     -------
-    A list of dicts. Each dict correponds to a cell in full_query_gene_data.
+    A list of paths to the temporary files that represent the chunks
+    processed by the mapping worker function.
+
+    Notes
+    -----
+    In the case of hierarchical mapping, each file is a JSON file containing
+    a list of dicts. Each dict correponds to a cell in full_query_gene_data.
     The dict maps level in the hierarchy to the type (at that level)
     the cell has been assigned.
 
@@ -153,6 +159,9 @@ def run_type_assignment_on_h5ad_cpu(
                             'bootstrapping_probability': fraction_of_votes},
          ...}
     """
+
+    subset_suffix = '.json'
+
     if results_output_path is not None:
         buffer_dir = pathlib.Path(
                 tempfile.mkdtemp(
@@ -200,7 +209,7 @@ def run_type_assignment_on_h5ad_cpu(
         tmp_path = mkstemp_clean(
             dir=buffer_dir,
             prefix=f'results_{r0}_{r1}_',
-            suffix='.json'
+            suffix=subset_suffix
         )
         tmp_path_list.append(tmp_path)
 
@@ -254,12 +263,7 @@ def run_type_assignment_on_h5ad_cpu(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    output_list = []
-    for path in tmp_path_list:
-        output_list += json.load(open(path, 'rb'))
-    _clean_up(buffer_dir)
-
-    return output_list
+    return tmp_path_list
 
 
 def preprocess_taxonomy_for_mapping(
