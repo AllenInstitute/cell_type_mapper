@@ -159,7 +159,12 @@ def run_type_assignment_on_h5ad_cpu(
                     dir=results_output_path,
                     prefix='results_buffer_'))
     else:
-        buffer_dir = None
+        buffer_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir,
+                prefix='tmp_results_buffer_'
+            )
+        )
 
     if log is not None:
         log.info("Running CPU implementation of type assignment.")
@@ -180,13 +185,6 @@ def run_type_assignment_on_h5ad_cpu(
                              log=log)
 
     process_list = []
-    if results_output_path:
-        output_list, output_lock = [], None
-    else:
-        mgr = multiprocessing.Manager()
-        output_list = mgr.list()
-        output_lock = mgr.Lock()
-
     tot_rows = chunk_iterator.n_rows
     row_ct = 0
     t0 = time.time()
@@ -227,8 +225,6 @@ def run_type_assignment_on_h5ad_cpu(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'n_assignments': n_assignments,
-                    'output_list': output_list,
-                    'output_lock': output_lock,
                     'results_output_path': buffer_dir,
                     'output_taxonomy_tree': output_taxonomy_tree})
         p.start()
@@ -250,15 +246,12 @@ def run_type_assignment_on_h5ad_cpu(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    if buffer_dir is not None:
-        path_list = [n for n in buffer_dir.iterdir()]
-        path_list.sort()
-        output_list = []
-        for path in path_list:
-            output_list += json.load(open(path, 'rb'))
-        _clean_up(buffer_dir)
-    else:
-        output_list = list(output_list)
+    path_list = [n for n in buffer_dir.iterdir()]
+    path_list.sort()
+    output_list = []
+    for path in path_list:
+        output_list += json.load(open(path, 'rb'))
+    _clean_up(buffer_dir)
 
     return output_list
 
@@ -383,9 +376,7 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration,
         rng,
         n_assignments,
-        output_list,
-        output_lock,
-        results_output_path=None,
+        results_output_path,
         output_taxonomy_tree=None):
 
     assignment = run_type_assignment(
@@ -402,13 +393,9 @@ def _run_type_assignment_on_h5ad_worker(
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
-    if results_output_path:
-        this_output_path = os.path.join(results_output_path,
-                                        f"{r0}_{r1}_assignment.json")
-        save_results(assignment, this_output_path)
-    else:
-        with output_lock:
-            output_list += assignment
+    this_output_path = os.path.join(results_output_path,
+                                    f"{r0}_{r1}_assignment.json")
+    save_results(assignment, this_output_path)
 
 
 def run_type_assignment(
