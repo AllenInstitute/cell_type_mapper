@@ -164,41 +164,20 @@ def run_type_assignment_on_h5ad_cpu(
     if log is not None:
         log.info("Running CPU implementation of type assignment.")
 
-    (taxonomy_validity,
-     taxonomy_msg) = reconcile_taxonomy_and_markers(
-         taxonomy_tree=taxonomy_tree,
-         marker_cache_path=marker_gene_cache_path)
-
-    if not taxonomy_validity:
-        full_msg = "taxonomy_tree and marker_cache "
-        full_msg += "appear to describe different taxonomies\n"
-        full_msg += taxonomy_msg
-        if log is not None:
-            log.error(full_msg)
-        else:
-            raise RuntimeError(full_msg)
-
-    obs = read_df_from_h5ad(query_h5ad_path, 'obs')
-    query_cell_names = list(obs.index.values)
-    n_rows = len(obs)
-    max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
-    chunk_size = min(max_chunk_size, chunk_size)
-    del obs
-
-    with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
-        all_query_identifiers = json.loads(
-            in_file["query_gene_names"][()].decode("utf-8"))
-        all_query_markers = [
-            all_query_identifiers[ii]
-            for ii in in_file["all_query_markers"][()]]
-
-    chunk_iterator = AnnDataRowIterator(
-        h5ad_path=query_h5ad_path,
-        row_chunk_size=chunk_size,
-        tmp_dir=tmp_dir,
-        log=log,
-        max_gb=max_gb,
-        n_processors=max(4, n_processors//2))
+    (chunk_iterator,
+     leaf_node_matrix,
+     query_cell_names,
+     all_query_identifiers,
+     all_query_markers) = preprocess_taxonomy_for_mapping(
+                             taxonomy_tree=taxonomy_tree,
+                             marker_gene_cache_path=marker_gene_cache_path,
+                             query_h5ad_path=query_h5ad_path,
+                             precomputed_stats_path=precomputed_stats_path,
+                             chunk_size=chunk_size,
+                             n_processors=n_processors,
+                             tmp_dir=tmp_dir,
+                             max_gb=max_gb,
+                             log=log)
 
     process_list = []
     if results_output_path:
@@ -211,13 +190,6 @@ def run_type_assignment_on_h5ad_cpu(
     tot_rows = chunk_iterator.n_rows
     row_ct = 0
     t0 = time.time()
-
-    # get a CellByGeneMatrix of average expression
-    # profiles for each leaf in the taxonomy
-    leaf_node_matrix = get_leaf_means(
-        taxonomy_tree=taxonomy_tree,
-        precompute_path=precomputed_stats_path,
-        for_marker_selection=False)
 
     chunk_index = -1
     for chunk in chunk_iterator:
@@ -289,6 +261,110 @@ def run_type_assignment_on_h5ad_cpu(
         output_list = list(output_list)
 
     return output_list
+
+
+def preprocess_taxonomy_for_mapping(
+        taxonomy_tree,
+        marker_gene_cache_path,
+        query_h5ad_path,
+        precomputed_stats_path,
+        chunk_size,
+        n_processors,
+        tmp_dir,
+        max_gb,
+        log=None):
+    """
+    Perform boilerplate preprocessing on taxonomy before
+    actual mapping happens.
+
+    Parameters
+    ----------
+    taxonomy_tree:
+        a TaxonomyTree
+    marker_gene_cache_path:
+        path to the marker gene cache file
+    query_h5ad_path:
+        path to the query data
+    precomputed_stats_path:
+        path to the precomputed_stats file
+    chunk_size:
+        number of cells to process at a time
+    n_processors:
+        number of parallel worker processes to
+        spin up
+    tmp_dir:
+        directory where temporary files will be written
+    max_gb:
+        maximum GB of memory to use at once
+        (only used if we have to transpose the query data
+        to CSR)
+    log:
+        optional CommandLog
+
+    Returns
+    -------
+    chunk_iterator:
+        an AnnDataRowIterator for iterating over chunks
+        of query data
+    leaf_node_matrix:
+        a CellByGeneMatrix of the mean cluster profiles
+    query_cell_names:
+        list of cell identifiers in query set
+    all_query_identifiers:
+        list of all query genes
+    all_query_markers:
+        list of all marker genes in query data set
+    """
+
+    (taxonomy_validity,
+     taxonomy_msg) = reconcile_taxonomy_and_markers(
+         taxonomy_tree=taxonomy_tree,
+         marker_cache_path=marker_gene_cache_path)
+
+    if not taxonomy_validity:
+        full_msg = "taxonomy_tree and marker_cache "
+        full_msg += "appear to describe different taxonomies\n"
+        full_msg += taxonomy_msg
+        if log is not None:
+            log.error(full_msg)
+        else:
+            raise RuntimeError(full_msg)
+
+    obs = read_df_from_h5ad(query_h5ad_path, 'obs')
+    query_cell_names = list(obs.index.values)
+    n_rows = len(obs)
+    max_chunk_size = max(1, np.ceil(n_rows/n_processors).astype(int))
+    chunk_size = min(max_chunk_size, chunk_size)
+
+    with h5py.File(marker_gene_cache_path, 'r', swmr=True) as in_file:
+        all_query_identifiers = json.loads(
+            in_file["query_gene_names"][()].decode("utf-8"))
+        all_query_markers = [
+            all_query_identifiers[ii]
+            for ii in in_file["all_query_markers"][()]]
+
+    chunk_iterator = AnnDataRowIterator(
+        h5ad_path=query_h5ad_path,
+        row_chunk_size=chunk_size,
+        tmp_dir=tmp_dir,
+        log=log,
+        max_gb=max_gb,
+        n_processors=max(4, n_processors//2))
+
+    # get a CellByGeneMatrix of average expression
+    # profiles for each leaf in the taxonomy
+    leaf_node_matrix = get_leaf_means(
+        taxonomy_tree=taxonomy_tree,
+        precompute_path=precomputed_stats_path,
+        for_marker_selection=False)
+
+    return (
+        chunk_iterator,
+        leaf_node_matrix,
+        query_cell_names,
+        all_query_identifiers,
+        all_query_markers
+    )
 
 
 def save_results(result, results_output_path):
