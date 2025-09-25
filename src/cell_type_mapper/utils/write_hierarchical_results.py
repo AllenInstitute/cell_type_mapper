@@ -60,6 +60,16 @@ def write_hierarchical_output(
             hdf5_output_path=hdf5_output_path,
             cloud_safe=config['cloud_safe']
         )
+        return None
+
+    return {
+        'output': output,
+        'log': log,
+        'log_path': log_path,
+        'output_path': output_path,
+        'hdf5_output_path': hdf5_output_path,
+        'mapping_exception': mapping_exception
+    }
 
 
 def write_mapping_to_disk(

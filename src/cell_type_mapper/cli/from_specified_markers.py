@@ -179,44 +179,16 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 cloud_safe=self.args['cloud_safe']
             )
 
-            write_hier.write_hierarchical_output(
+            return_packet = write_hier.write_hierarchical_output(
                 output=output,
                 config=self.args,
                 log=log,
                 mapping_exception=mapping_exception,
                 write_to_disk=write_to_disk
             )
-            if not write_to_disk:
 
-                if self.args['extended_result_path'] is not None:
-                    output_path = pathlib.Path(
-                        self.args['extended_result_path']
-                    )
-                else:
-                    output_path = None
-
-                if self.args['hdf5_result_path'] is not None:
-                    hdf5_output_path = pathlib.Path(
-                        self.args['hdf5_result_path']
-                    )
-                else:
-                    hdf5_output_path = None
-
-                if self.args['log_path'] is not None:
-                    log_path = pathlib.Path(
-                        self.args['log_path']
-                    )
-                else:
-                    log_path = None
-
-                return {
-                    'output': output,
-                    'log': log,
-                    'log_path': log_path,
-                    'output_path': output_path,
-                    'hdf5_output_path': hdf5_output_path,
-                    'mapping_exception': mapping_exception
-                }
+            if return_packet is not None:
+                return return_packet
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
