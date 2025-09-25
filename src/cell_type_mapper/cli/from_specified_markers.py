@@ -162,11 +162,22 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                     dir=self.args['extended_result_dir'],
                     prefix='result_buffer_')
 
-            output = _run_mapping(
+            (sub_result_list,
+             output) = _run_mapping(
                 config=self.args,
                 tmp_dir=tmp_dir,
                 tmp_result_dir=tmp_result_dir,
                 log=log)
+
+            output['results'] = collate_hierarchical_mappings(
+                sub_result_list
+            )
+
+            _clean_up(tmp_result_dir)
+
+            log.info(
+                "MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY",
+                to_stdout=True)
 
             if self.args['summary_metadata_path'] is not None:
                 n_mapped_cells = len(output['results'])
@@ -186,12 +197,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                              'n_mapped_genes': int(n_mapped_genes)
                             },
                             indent=2))
-
-            _clean_up(tmp_result_dir)
-
-            log.info(
-                "MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY",
-                to_stdout=True)
 
         except Exception as err:
             mapping_exception = err
@@ -578,19 +583,13 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    output = dict()
-    output["marker_genes"] = marker_gene_lookup
-    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
-    output["n_unmapped_genes"] = n_genes_unmapped
-    output["gene_identifier_mapping"] = gene_mapping_metadata
+    metadata = dict()
+    metadata["marker_genes"] = marker_gene_lookup
+    metadata["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+    metadata["n_unmapped_genes"] = n_genes_unmapped
+    metadata["gene_identifier_mapping"] = gene_mapping_metadata
 
-    result = collate_hierarchical_mappings(
-        sub_result_list
-    )
-
-    output["results"] = result
-
-    return output
+    return (sub_result_list, metadata)
 
 
 def drop_nodes_from_taxonomy(tmp_dir, config):
