@@ -200,9 +200,7 @@ def run_type_assignment_on_h5ad_cpu(
 
     tmp_path_list = []
 
-    chunk_index = -1
     for chunk in chunk_iterator:
-        chunk_index += 1
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
