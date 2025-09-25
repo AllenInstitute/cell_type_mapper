@@ -248,7 +248,6 @@ def run_type_assignment_on_h5ad_cpu(
                     'r0': r0,
                     'r1': r1,
                     'query_cell_chunk': data,
-                    'query_cell_names': name_chunk,
                     'leaf_node_matrix': leaf_node_matrix,
                     'marker_gene_cache_path': marker_gene_cache_path,
                     'taxonomy_tree': taxonomy_tree,
@@ -301,7 +300,6 @@ def _run_type_assignment_on_h5ad_worker(
         r0,
         r1,
         query_cell_chunk,
-        query_cell_names,
         leaf_node_matrix,
         marker_gene_cache_path,
         taxonomy_tree,
@@ -326,7 +324,7 @@ def _run_type_assignment_on_h5ad_worker(
         output_taxonomy_tree=output_taxonomy_tree)
 
     for idx in range(len(assignment)):
-        assignment[idx]['cell_id'] = query_cell_names[idx]
+        assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
     if results_output_path:
         this_output_path = os.path.join(results_output_path,
