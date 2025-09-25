@@ -27,7 +27,8 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+    run_type_assignment_on_h5ad,
+    collate_hierarchical_mappings)
 
 
 @pytest.fixture
@@ -120,6 +121,8 @@ def test_all_of_it(
         bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(123545))
+
+    result = collate_hierarchical_mappings(result)
 
     q_data = anndata.read_h5ad(query_h5ad_path_fixture, backed='r')
     assert len(result) == q_data.X.shape[0]

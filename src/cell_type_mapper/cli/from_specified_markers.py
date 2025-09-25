@@ -51,7 +51,8 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_specified_markers)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+    run_type_assignment_on_h5ad,
+    collate_hierarchical_mappings)
 
 from cell_type_mapper.schemas.from_specified_markers import (
     FromSpecifiedMarkersSchema)
@@ -385,7 +386,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         bootstrap_factor_lookup['None'] = type_assignment_config[
                                                 'bootstrap_factor']
 
-    result = run_type_assignment_on_h5ad(
+    sub_result_list = run_type_assignment_on_h5ad(
         query_h5ad_path=query_loc,
         precomputed_stats_path=precomputed_loc,
         marker_gene_cache_path=query_marker_tmp,
@@ -402,6 +403,10 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         max_gb=config['max_gb'],
         output_taxonomy_tree=tree_for_metadata,
         results_output_path=tmp_result_dir)
+
+    result = collate_hierarchical_mappings(
+        sub_result_list
+    )
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)

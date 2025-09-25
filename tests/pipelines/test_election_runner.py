@@ -44,7 +44,8 @@ from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+    run_type_assignment_on_h5ad,
+    collate_hierarchical_mappings)
 
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
@@ -676,6 +677,7 @@ def test_running_h5ad_election(
             bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=rng)
+    result = collate_hierarchical_mappings(result)
 
     query_data = query_data_fixture
     n_query_cells = query_data.shape[0]
@@ -757,6 +759,10 @@ def test_running_h5ad_election_with_tmp_dir(
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed))
 
+    baseline_result = collate_hierarchical_mappings(
+        baseline_result
+    )
+
     baseline_result = {
         cell['cell_id']: cell for cell in baseline_result}
 
@@ -775,6 +781,8 @@ def test_running_h5ad_election_with_tmp_dir(
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed),
             results_output_path=tmp_result_dir)
+
+    result = collate_hierarchical_mappings(result)
 
     result = {cell['cell_id']: cell for cell in result}
 
@@ -921,6 +929,8 @@ def test_running_h5ad_election_with_tmp_dir_gpu(
             bootstrap_factor_lookup=bootstrap_factor_lookup,
             bootstrap_iteration=bootstrap_iteration,
             rng=np.random.default_rng(rng_seed))
+
+    baseline_result = collate_hierarchical_mappings(baseline_result)
 
     baseline_result = {
         cell['cell_id']: cell for cell in baseline_result}

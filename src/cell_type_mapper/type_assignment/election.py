@@ -1,4 +1,3 @@
-import os
 import h5py
 import json
 import multiprocessing
@@ -19,7 +18,8 @@ from cell_type_mapper.utils.utils import (
     update_timer,
     choose_int_dtype,
     clean_for_json,
-    _clean_up)
+    mkstemp_clean
+)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
     winnow_process_list)
@@ -141,7 +141,13 @@ def run_type_assignment_on_h5ad_cpu(
 
     Returns
     -------
-    A list of dicts. Each dict correponds to a cell in full_query_gene_data.
+    A list of paths to the temporary files that represent the chunks
+    processed by the mapping worker function.
+
+    Notes
+    -----
+    In the case of hierarchical mapping, each file is a JSON file containing
+    a list of dicts. Each dict correponds to a cell in full_query_gene_data.
     The dict maps level in the hierarchy to the type (at that level)
     the cell has been assigned.
 
@@ -153,13 +159,21 @@ def run_type_assignment_on_h5ad_cpu(
                             'bootstrapping_probability': fraction_of_votes},
          ...}
     """
+
+    subset_suffix = '.json'
+
     if results_output_path is not None:
         buffer_dir = pathlib.Path(
                 tempfile.mkdtemp(
                     dir=results_output_path,
                     prefix='results_buffer_'))
     else:
-        buffer_dir = None
+        buffer_dir = pathlib.Path(
+            tempfile.mkdtemp(
+                dir=tmp_dir,
+                prefix='tmp_results_buffer_'
+            )
+        )
 
     if log is not None:
         log.info("Running CPU implementation of type assignment.")
@@ -180,23 +194,22 @@ def run_type_assignment_on_h5ad_cpu(
                              log=log)
 
     process_list = []
-    if results_output_path:
-        output_list, output_lock = [], None
-    else:
-        mgr = multiprocessing.Manager()
-        output_list = mgr.list()
-        output_lock = mgr.Lock()
-
     tot_rows = chunk_iterator.n_rows
     row_ct = 0
     t0 = time.time()
 
-    chunk_index = -1
+    tmp_path_list = []
+
     for chunk in chunk_iterator:
-        chunk_index += 1
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
+        tmp_path = mkstemp_clean(
+            dir=buffer_dir,
+            prefix=f'results_{r0}_{r1}_',
+            suffix=subset_suffix
+        )
+        tmp_path_list.append(tmp_path)
 
         data = chunk[0]
 
@@ -227,9 +240,7 @@ def run_type_assignment_on_h5ad_cpu(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'n_assignments': n_assignments,
-                    'output_list': output_list,
-                    'output_lock': output_lock,
-                    'results_output_path': buffer_dir,
+                    'results_output_path': tmp_path,
                     'output_taxonomy_tree': output_taxonomy_tree})
         p.start()
         process_list.append(p)
@@ -250,17 +261,7 @@ def run_type_assignment_on_h5ad_cpu(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    if buffer_dir is not None:
-        path_list = [n for n in buffer_dir.iterdir()]
-        path_list.sort()
-        output_list = []
-        for path in path_list:
-            output_list += json.load(open(path, 'rb'))
-        _clean_up(buffer_dir)
-    else:
-        output_list = list(output_list)
-
-    return output_list
+    return tmp_path_list
 
 
 def preprocess_taxonomy_for_mapping(
@@ -383,9 +384,7 @@ def _run_type_assignment_on_h5ad_worker(
         bootstrap_iteration,
         rng,
         n_assignments,
-        output_list,
-        output_lock,
-        results_output_path=None,
+        results_output_path,
         output_taxonomy_tree=None):
 
     assignment = run_hierarchical_type_assignment(
@@ -402,13 +401,7 @@ def _run_type_assignment_on_h5ad_worker(
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
-    if results_output_path:
-        this_output_path = os.path.join(results_output_path,
-                                        f"{r0}_{r1}_assignment.json")
-        save_results(assignment, this_output_path)
-    else:
-        with output_lock:
-            output_list += assignment
+    save_results(assignment, results_output_path)
 
 
 def run_hierarchical_type_assignment(
