@@ -220,6 +220,14 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                     full_output_path=output_path
                 )
 
+            if self.args['obsm_key'] is not None:
+                write_mapping_to_obsm(
+                    output=output,
+                    query_path=self.args['query_path'],
+                    obsm_key=self.args['obsm_key'],
+                    obsm_clobber=self.args['obsm_clobber']
+                )
+
             if write_to_disk:
                 write_mapping_to_disk(
                     output=output,
@@ -314,6 +322,38 @@ def write_mapping_to_csv(
         valid_suffixes=valid_suffixes,
         check_consistency=check_consistency,
         rows_at_a_time=100000)
+
+
+def write_mapping_to_obsm(
+       output,
+       query_path,
+       obsm_key,
+       obsm_clobber):
+
+    if 'results' not in output:
+        return None
+
+    tree_for_metadata = TaxonomyTree(output['taxonomy_tree'])
+
+    df = blob_to_df(
+        results_blob=output['results'],
+        taxonomy_tree=tree_for_metadata).set_index('cell_id')
+
+    # need to make sure that the rows are written in
+    # the same order that they occur in the obs
+    # dataframe
+
+    obs = read_df_from_h5ad(
+        h5ad_path=query_path,
+        df_name='obs')
+
+    df = df.loc[obs.index.values]
+
+    append_to_obsm(
+        h5ad_path=query_path,
+        obsm_key=obsm_key,
+        obsm_value=df,
+        clobber=obsm_clobber)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
@@ -547,28 +587,6 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
     result = collate_hierarchical_mappings(
         sub_result_list
     )
-
-    if config['obsm_key']:
-
-        df = blob_to_df(
-            results_blob=result,
-            taxonomy_tree=tree_for_metadata).set_index('cell_id')
-
-        # need to make sure that the rows are written in
-        # the same order that they occur in the obs
-        # dataframe
-
-        obs = read_df_from_h5ad(
-            h5ad_path=config['query_path'],
-            df_name='obs')
-
-        df = df.loc[obs.index.values]
-
-        append_to_obsm(
-            h5ad_path=config['query_path'],
-            obsm_key=config['obsm_key'],
-            obsm_value=df,
-            clobber=config['obsm_clobber'])
 
     output["results"] = result
 
