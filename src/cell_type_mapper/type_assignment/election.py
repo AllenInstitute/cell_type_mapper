@@ -387,7 +387,7 @@ def _run_type_assignment_on_h5ad_worker(
         results_output_path,
         output_taxonomy_tree=None):
 
-    assignment = run_type_assignment(
+    assignment = run_hierarchical_type_assignment(
         full_query_gene_data=query_cell_chunk,
         leaf_node_matrix=leaf_node_matrix,
         marker_gene_cache_path=marker_gene_cache_path,
@@ -404,7 +404,7 @@ def _run_type_assignment_on_h5ad_worker(
     save_results(assignment, results_output_path)
 
 
-def run_type_assignment(
+def run_hierarchical_type_assignment(
         full_query_gene_data,
         leaf_node_matrix,
         marker_gene_cache_path,
