@@ -92,7 +92,7 @@ def run_type_assignment_on_h5ad(
         taxonomy_tree=taxonomy_tree,
         log=log)
 
-    result = run_type_assignment_on_h5ad_cpu(
+    tmp_path_list = run_type_assignment_on_h5ad_cpu(
         query_h5ad_path,
         precomputed_stats_path,
         marker_gene_cache_path,
@@ -112,7 +112,7 @@ def run_type_assignment_on_h5ad(
         algorithm=algorithm
     )
 
-    return result
+    return tmp_path_list
 
 
 def collate_hierarchical_mappings(tmp_path_list):
