@@ -32,6 +32,7 @@ from cell_type_mapper.anndata_iterator.anndata_iterator import (
     AnnDataRowIterator)
 
 import cell_type_mapper.type_assignment.hierarchical_mapping as hier
+import cell_type_mapper.hann_mapping.hann_election as hann
 
 
 def run_type_assignment_on_h5ad_cpu(
@@ -235,8 +236,6 @@ def run_type_assignment_on_h5ad_cpu(
         p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
                 kwargs={
-                    'r0': r0,
-                    'r1': r1,
                     'query_cell_chunk': data,
                     'leaf_node_matrix': leaf_node_matrix,
                     'marker_gene_cache_path': marker_gene_cache_path,
@@ -375,8 +374,6 @@ def preprocess_taxonomy_for_mapping(
 
 
 def _run_type_assignment_on_h5ad_worker(
-        r0,
-        r1,
         query_cell_chunk,
         leaf_node_matrix,
         marker_gene_cache_path,
@@ -405,6 +402,19 @@ def _run_type_assignment_on_h5ad_worker(
             assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
         hier.save_results(assignment, results_output_path)
+        return None
+
+    elif algorithm == "hann":
+        results = hann.hann_tally_votes(
+            full_query_data=query_cell_chunk,
+            leaf_node_matrix=leaf_node_matrix,
+            marker_gene_cache_path=marker_gene_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=rng
+        )
+        hann.save_results(results, results_output_path)
         return None
 
     raise ValueError(

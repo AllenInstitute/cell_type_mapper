@@ -1,3 +1,4 @@
+import h5py
 import numpy as np
 
 import cell_type_mapper.utils.utils as mapper_utils
@@ -52,7 +53,11 @@ def hann_tally_votes(
             corr_out=corr
         )
 
-    return {'votes': votes, 'correlation_sum': corr}
+    return {
+        'votes': votes,
+        'correlation_sum': corr,
+        'cell_identifiers': full_query_data.cell_identifiers
+    }
 
 
 def _hann_iteration(
@@ -214,3 +219,29 @@ def _update_hann_votes(
         idx = reference_cell_by_gene.cell_to_row[cell_assignments[i_cell]]
         votes_out[i_cell, idx] += 1
         corr_out[i_cell, idx] += correlation_vector[i_cell]
+
+
+def save_results(results, results_output_path):
+    with h5py.File(results_output_path, "w") as dst:
+        dst.create_dataset(
+            "votes",
+            data=results["votes"]
+        )
+
+        denom = np.where(
+            results["votes"] > 0,
+            results["votes"],
+            1
+        ).astype(float)
+
+        corr = results["correlation_sum"]/denom
+
+        dst.create_dataset(
+            "correlation",
+            data=corr
+        )
+
+        dst.create_dataset(
+            "cell_identifiers",
+            data=results["cell_identifiers"]
+        )

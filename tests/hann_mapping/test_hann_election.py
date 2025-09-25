@@ -1,13 +1,15 @@
 import pytest
+import h5py
 import numpy as np
 import warnings
 
-import cell_type_mapper.utils.utils as cpm_utils
+import cell_type_mapper.utils.utils as ctm_utils
 import cell_type_mapper.utils.distance_utils as distance_utils
 import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
 import cell_type_mapper.cell_by_gene.cell_by_gene as cbg_module
 import cell_type_mapper.type_assignment.marker_cache_v2 as marker_cache
 import cell_type_mapper.hann_mapping.hann_election as hann_election
+import cell_type_mapper.type_assignment.election as election
 
 
 @pytest.fixture
@@ -68,7 +70,8 @@ def cell_by_gene_fixture(tree_fixture):
     query = cbg_module.CellByGeneMatrix(
         data=query_data,
         gene_identifiers=gene_identifiers,
-        normalization='log2CPM'
+        normalization='log2CPM',
+        cell_identifiers=[f'c{ii}' for ii in range(n_cells)]
     )
 
     return {'reference': reference, 'query': query}
@@ -468,7 +471,7 @@ def test_hann_tally_votes_smoke(
         'subclass/b': [f'g{ii}' for ii in np.arange(19)],
         'subclass/c': [f'g{ii}' for ii in np.arange(1, 27, 2)]
     }
-    marker_cache_path = cpm_utils.mkstemp_clean(
+    marker_cache_path = ctm_utils.mkstemp_clean(
         dir=tmp_dir_fixture,
         prefix='hann_marker_cache_',
         suffix='.h5'
@@ -510,3 +513,85 @@ def test_hann_tally_votes_smoke(
     col_sum = votes.sum(axis=0)
     assert col_sum.shape == (reference.n_cells, )
     assert col_sum.min() > 0
+
+
+def test_hann_election_chunk_smoke(
+        tmp_dir_fixture,
+        tree_fixture,
+        cell_by_gene_fixture):
+    """
+    Run smoketest of election._run_type_assignment_on_h5ad_worker
+    with algorithm == 'hann'
+    """
+    query = cell_by_gene_fixture['query']
+    reference = cell_by_gene_fixture['reference']
+    marker_lookup = {
+        'None': [f'g{ii}' for ii in
+                 (1, 2, 3, 5, 11, 15, 16, 17, 18, 19, 20)],
+        'class/A': [f'g{ii}' for ii in np.arange(12, 24)],
+        'subclass/b': [f'g{ii}' for ii in np.arange(19)],
+        'subclass/c': [f'g{ii}' for ii in np.arange(1, 27, 2)]
+    }
+    marker_cache_path = ctm_utils.mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='hann_marker_cache_',
+        suffix='.h5'
+    )
+    marker_cache.create_marker_cache_from_specified_markers(
+        marker_lookup=marker_lookup,
+        reference_gene_names=reference.gene_identifiers,
+        query_gene_names=query.gene_identifiers,
+        output_cache_path=marker_cache_path,
+        log=None,
+        taxonomy_tree=tree_fixture,
+        min_markers=1
+    )
+
+    rng = np.random.default_rng(611991)
+    bootstrap_iteration = 56
+
+    bootstrap_factor_lookup = {
+        'None': 0.5,
+        'class': 0.5,
+        'subclass': 0.5
+    }
+
+    dst_path = ctm_utils.mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='hann_chunk_',
+        suffix='.h5'
+    )
+
+    election._run_type_assignment_on_h5ad_worker(
+        query_cell_chunk=query,
+        leaf_node_matrix=reference,
+        marker_gene_cache_path=marker_cache_path,
+        taxonomy_tree=tree_fixture,
+        bootstrap_factor_lookup=bootstrap_factor_lookup,
+        bootstrap_iteration=bootstrap_iteration,
+        rng=rng,
+        n_assignments=None,
+        results_output_path=dst_path,
+        output_taxonomy_tree=None,
+        algorithm="hann"
+    )
+
+    with h5py.File(dst_path, "r") as src:
+        votes = src["votes"][()]
+        corr = src["correlation"][()]
+        cell_id = src["cell_identifiers"][()]
+
+    assert votes.sum() == bootstrap_iteration*query.n_cells
+    # make sure there is a diversity of vote counts
+    assert len(np.unique(votes)) > 5
+
+    col_sum = votes.sum(axis=0)
+    assert col_sum.shape == (reference.n_cells, )
+    assert col_sum.min() > 0
+
+    assert corr.shape == votes.shape
+
+    np.testing.assert_array_equal(
+        desired=query.cell_identifiers,
+        actual=[c.decode('utf-8') for c in cell_id]
+    )
