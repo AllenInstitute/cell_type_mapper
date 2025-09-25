@@ -112,3 +112,34 @@ def write_mapping_to_obsm(
         obsm_key=obsm_key,
         obsm_value=df,
         clobber=obsm_clobber)
+
+
+def write_summary_metadata_to_disk(
+        summary_metadata_path,
+        output,
+        query_path):
+    if 'results' not in output:
+        return None
+    n_mapped_cells = len(output['results'])
+
+    n_total_genes = len(
+        anndata_utils.read_df_from_h5ad(
+            query_path,
+            df_name='var'
+        )
+    )
+
+    n_mapped_genes = (
+        n_total_genes - output.pop('n_unmapped_genes')
+    )
+
+    with open(summary_metadata_path, 'w') as dst:
+        dst.write(
+            json.dumps(
+                {
+                 'n_mapped_cells': int(n_mapped_cells),
+                 'n_mapped_genes': int(n_mapped_genes)
+                },
+                indent=2
+            )
+        )

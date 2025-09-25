@@ -26,9 +26,6 @@ from cell_type_mapper.utils.utils import (
     _clean_up,
     warn_on_parallelization)
 
-from cell_type_mapper.utils.anndata_utils import (
-    read_df_from_h5ad)
-
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
 
@@ -175,25 +172,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 "MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY",
                 to_stdout=True)
 
-            if self.args['summary_metadata_path'] is not None:
-                n_mapped_cells = len(output['results'])
-
-                n_total_genes = len(
-                        read_df_from_h5ad(
-                            self.args['query_path'],
-                            df_name='var'))
-
-                n_mapped_genes = n_total_genes - output.pop('n_unmapped_genes')
-
-                with open(self.args['summary_metadata_path'], 'w') as dst:
-                    dst.write(
-                        json.dumps(
-                            {
-                             'n_mapped_cells': int(n_mapped_cells),
-                             'n_mapped_genes': int(n_mapped_genes)
-                            },
-                            indent=2))
-
         except Exception as err:
             mapping_exception = err
             traceback_msg = "an ERROR occurred ===="
@@ -213,6 +191,13 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 t0=t0,
                 cloud_safe=self.args['cloud_safe']
             )
+
+            if self.args['summary_metadata_path'] is not None:
+                write_hier.write_summary_metadata_to_disk(
+                    summary_metadata_path=self.args['summary_metadata_path'],
+                    output=output,
+                    query_path=self.args['query_path']
+                )
 
             if self.args['csv_result_path'] is not None:
                 write_hier.write_mapping_to_csv(
