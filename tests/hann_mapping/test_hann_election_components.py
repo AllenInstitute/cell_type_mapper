@@ -1,36 +1,13 @@
 import pytest
 import h5py
 import numpy as np
-import warnings
 
 import cell_type_mapper.utils.utils as ctm_utils
 import cell_type_mapper.utils.distance_utils as distance_utils
-import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
 import cell_type_mapper.cell_by_gene.cell_by_gene as cbg_module
 import cell_type_mapper.type_assignment.marker_cache_v2 as marker_cache
 import cell_type_mapper.hann_mapping.hann_mapping as hann_mapping
 import cell_type_mapper.type_assignment.election as election
-
-
-@pytest.fixture
-def tree_fixture():
-    tree_data = {
-        'hierarchy': ['class', 'subclass', 'cluster'],
-        'class': {'A': ['a', 'b'], 'B': ['c']},
-        'subclass': {'a': ['a1'],
-                     'b': ['b1', 'b2'],
-                     'c': ['c1', 'c2']},
-        'cluster': {
-            'a1': [],
-            'b1': [],
-            'b2': [],
-            'c1': [],
-            'c2': []}
-    }
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        taxonomy_tree = tree_module.TaxonomyTree(data=tree_data)
-    return taxonomy_tree
 
 
 @pytest.fixture
