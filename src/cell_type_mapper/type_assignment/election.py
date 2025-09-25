@@ -60,7 +60,8 @@ def run_type_assignment_on_h5ad_cpu(
         log=None,
         max_gb=10,
         output_taxonomy_tree=None,
-        results_output_path=None):
+        results_output_path=None,
+        algorithm="hierarchical"):
     """
     Assign types at all levels of the taxonomy to the query cells
     in an h5ad file.
@@ -139,6 +140,10 @@ def run_type_assignment_on_h5ad_cpu(
         Output path for run assignment. If given will save individual chunks of
         the run assignment process to separate files.
 
+    algorithm:
+        either "hierarchical" or "hann".
+        Indicates which mapping algorithm to run
+
     Returns
     -------
     A list of paths to the temporary files that represent the chunks
@@ -160,7 +165,17 @@ def run_type_assignment_on_h5ad_cpu(
          ...}
     """
 
-    subset_suffix = '.json'
+    valid_algorithms = ("hierarchical", "hann")
+    if algorithm not in valid_algorithms:
+        raise ValueError(
+            f"'{algorithm}' is not a valid algorithm; "
+            f"only {valid_algorithms} are valid"
+        )
+
+    if algorithm == "hierarchical":
+        subset_suffix = ".json"
+    elif algorithm == "hann":
+        subset_suffix = ".h5"
 
     if results_output_path is not None:
         buffer_dir = pathlib.Path(
@@ -241,7 +256,8 @@ def run_type_assignment_on_h5ad_cpu(
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'n_assignments': n_assignments,
                     'results_output_path': tmp_path,
-                    'output_taxonomy_tree': output_taxonomy_tree})
+                    'output_taxonomy_tree': output_taxonomy_tree,
+                    'algorithm': algorithm})
         p.start()
         process_list.append(p)
         while len(process_list) >= n_processors:
@@ -385,23 +401,31 @@ def _run_type_assignment_on_h5ad_worker(
         rng,
         n_assignments,
         results_output_path,
-        output_taxonomy_tree=None):
+        output_taxonomy_tree=None,
+        algorithm="hierarchical"):
 
-    assignment = run_hierarchical_type_assignment(
-        full_query_gene_data=query_cell_chunk,
-        leaf_node_matrix=leaf_node_matrix,
-        marker_gene_cache_path=marker_gene_cache_path,
-        taxonomy_tree=taxonomy_tree,
-        bootstrap_factor_lookup=bootstrap_factor_lookup,
-        bootstrap_iteration=bootstrap_iteration,
-        rng=rng,
-        n_assignments=n_assignments,
-        output_taxonomy_tree=output_taxonomy_tree)
+    if algorithm == "hierarchical":
+        assignment = run_hierarchical_type_assignment(
+            full_query_gene_data=query_cell_chunk,
+            leaf_node_matrix=leaf_node_matrix,
+            marker_gene_cache_path=marker_gene_cache_path,
+            taxonomy_tree=taxonomy_tree,
+            bootstrap_factor_lookup=bootstrap_factor_lookup,
+            bootstrap_iteration=bootstrap_iteration,
+            rng=rng,
+            n_assignments=n_assignments,
+            output_taxonomy_tree=output_taxonomy_tree)
 
-    for idx in range(len(assignment)):
-        assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
+        for idx in range(len(assignment)):
+            assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
-    save_results(assignment, results_output_path)
+        save_results(assignment, results_output_path)
+        return None
+
+    raise ValueError(
+        "worker does not know what to do for algorithm: "
+        f"'{algorithm}'"
+    )
 
 
 def run_hierarchical_type_assignment(
