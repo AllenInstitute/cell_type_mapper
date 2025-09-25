@@ -153,6 +153,13 @@ def run_type_assignment_on_h5ad_gpu(
                            'confidence': fraction_of_votes},
          ...}
     """
+    raise NotImplementedError(
+       "We no longer support the GPU implementation of "
+       "hierachical mapping. It should not be needed. "
+       "If this code is executed, it is an error. "
+       "Please report it here: "
+       "https://github.com/AllenInstitute/cell_type_mapper/issues"
+    )
     if results_output_path is not None:
         buffer_dir = pathlib.Path(
                 tempfile.mkdtemp(
