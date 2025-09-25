@@ -213,6 +213,13 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 cloud_safe=self.args['cloud_safe']
             )
 
+            if self.args['csv_result_path'] is not None:
+                write_mapping_to_csv(
+                    output=output,
+                    csv_output_path=self.args['csv_result_path'],
+                    full_output_path=output_path
+                )
+
             if write_to_disk:
                 write_mapping_to_disk(
                     output=output,
@@ -256,6 +263,57 @@ def write_mapping_to_disk(
         blob_to_hdf5(
             output_blob=output,
             dst_path=hdf5_output_path)
+
+
+def write_mapping_to_csv(
+        output,
+        full_output_path,
+        csv_output_path):
+
+    if 'results' not in output:
+        return None
+
+    config = output['config']
+    result = output['results']
+
+    tree_for_metadata = TaxonomyTree(data=output['taxonomy_tree'])
+
+    if config['type_assignment']['bootstrap_iteration'] == 1 \
+            or config['verbose_csv']:
+
+        confidence_key = 'avg_correlation'
+        confidence_label = 'correlation_coefficient'
+
+    else:
+
+        confidence_key = 'bootstrapping_probability'
+        confidence_label = 'bootstrapping_probability'
+
+    if config['verbose_csv']:
+        valid_suffixes = [
+            '_aggregate_probability',
+            '_bootstrapping_probability',
+            '_avg_correlation'
+        ]
+    else:
+        valid_suffixes = None
+
+    check_consistency = False
+    if config['type_assignment']['bootstrap_iteration'] > 1:
+        if config['flatten']:
+            check_consistency = True
+
+    blob_to_csv(
+        results_blob=result,
+        taxonomy_tree=tree_for_metadata,
+        output_path=csv_output_path,
+        metadata_path=full_output_path,
+        confidence_key=confidence_key,
+        confidence_label=confidence_label,
+        config=config,
+        valid_suffixes=valid_suffixes,
+        check_consistency=check_consistency,
+        rows_at_a_time=100000)
 
 
 def _run_mapping(config, tmp_dir, tmp_result_dir, log):
@@ -471,10 +529,6 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         output_taxonomy_tree=tree_for_metadata,
         results_output_path=tmp_result_dir)
 
-    result = collate_hierarchical_mappings(
-        sub_result_list
-    )
-
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 
@@ -484,44 +538,15 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         marker_cache_path=query_marker_tmp,
         taxonomy_tree=taxonomy_tree)
 
-    if config['csv_result_path'] is not None:
+    output = dict()
+    output["marker_genes"] = marker_gene_lookup
+    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
+    output["n_unmapped_genes"] = n_genes_unmapped
+    output["gene_identifier_mapping"] = gene_mapping_metadata
 
-        if config['type_assignment']['bootstrap_iteration'] == 1 \
-                or config['verbose_csv']:
-
-            confidence_key = 'avg_correlation'
-            confidence_label = 'correlation_coefficient'
-
-        else:
-
-            confidence_key = 'bootstrapping_probability'
-            confidence_label = 'bootstrapping_probability'
-
-        if config['verbose_csv']:
-            valid_suffixes = [
-                '_aggregate_probability',
-                '_bootstrapping_probability',
-                '_avg_correlation'
-            ]
-        else:
-            valid_suffixes = None
-
-        check_consistency = False
-        if config['type_assignment']['bootstrap_iteration'] > 1:
-            if config['flatten']:
-                check_consistency = True
-
-        blob_to_csv(
-            results_blob=result,
-            taxonomy_tree=tree_for_metadata,
-            output_path=config['csv_result_path'],
-            metadata_path=config['extended_result_path'],
-            confidence_key=confidence_key,
-            confidence_label=confidence_label,
-            config=config,
-            valid_suffixes=valid_suffixes,
-            check_consistency=check_consistency,
-            rows_at_a_time=100000)
+    result = collate_hierarchical_mappings(
+        sub_result_list
+    )
 
     if config['obsm_key']:
 
@@ -545,12 +570,7 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
             obsm_value=df,
             clobber=config['obsm_clobber'])
 
-    output = dict()
     output["results"] = result
-    output["marker_genes"] = marker_gene_lookup
-    output["taxonomy_tree"] = json.loads(tree_for_metadata.to_str())
-    output["n_unmapped_genes"] = n_genes_unmapped
-    output["gene_identifier_mapping"] = gene_mapping_metadata
 
     return output
 
