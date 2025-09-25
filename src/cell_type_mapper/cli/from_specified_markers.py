@@ -204,16 +204,13 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 "CLEANING UP",
                 to_stdout=True)
 
-            output["config"] = metadata_config
-            output_log = copy.deepcopy(log.log)
-            if self.args['cloud_safe']:
-                output_log = sanitize_paths(output_log)
-            output["log"] = output_log
-
-            metadata = get_execution_metadata(
-                module_file=__file__,
-                t0=t0)
-            output['metadata'] = metadata
+            output = add_metadata_to_output(
+                output=output,
+                metadata_config=metadata_config,
+                log=log,
+                t0=t0,
+                cloud_safe=self.args['cloud_safe']
+            )
 
             if write_to_disk:
                 write_mapping_to_disk(
@@ -586,6 +583,51 @@ def drop_nodes_from_taxonomy(tmp_dir, config):
 
     config['precomputed_stats']['path'] = main_tmp_path
     return config
+
+
+def add_metadata_to_output(
+        output,
+        metadata_config,
+        log,
+        t0,
+        cloud_safe):
+    """
+    Add metadata entries to output dict.
+
+    Parameters
+    ----------
+    output:
+        the dict we are adding metadata entries to
+    metadata_config:
+        the config dict to be recorded as metadata
+    log:
+        the CommandLog for this run
+    t0:
+        the time at which this run started
+    cloud_safe:
+        a boolean indicating whether or not to run
+        this in 'cloud safe' mode (cloud save mode
+        sanitizes paths so that the S3 bucket we are
+        running in cannot be inferred from the
+        metadata packet)
+
+    Returns
+    -------
+    updated output dict (output is also altered in place)
+    """
+    output["config"] = metadata_config
+    output_log = copy.deepcopy(log.log)
+    if cloud_safe:
+        output_log = sanitize_paths(output_log)
+    output["log"] = output_log
+
+    metadata = get_execution_metadata(
+        module_file=__file__,
+        t0=t0)
+
+    output['metadata'] = metadata
+
+    return output
 
 
 def main():
