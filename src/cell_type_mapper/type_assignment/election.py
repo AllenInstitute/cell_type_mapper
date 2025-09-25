@@ -1,4 +1,3 @@
-import os
 import h5py
 import json
 import multiprocessing
@@ -19,6 +18,7 @@ from cell_type_mapper.utils.utils import (
     update_timer,
     choose_int_dtype,
     clean_for_json,
+    mkstemp_clean,
     _clean_up)
 
 from cell_type_mapper.utils.multiprocessing_utils import (
@@ -189,12 +189,20 @@ def run_type_assignment_on_h5ad_cpu(
     row_ct = 0
     t0 = time.time()
 
+    tmp_path_list = []
+
     chunk_index = -1
     for chunk in chunk_iterator:
         chunk_index += 1
         r0 = chunk[1]
         r1 = chunk[2]
         name_chunk = query_cell_names[r0:r1]
+        tmp_path = mkstemp_clean(
+            dir=buffer_dir,
+            prefix=f'results_{r0}_{r1}_',
+            suffix='.json'
+        )
+        tmp_path_list.append(tmp_path)
 
         data = chunk[0]
 
@@ -225,7 +233,7 @@ def run_type_assignment_on_h5ad_cpu(
                     'bootstrap_iteration': bootstrap_iteration,
                     'rng': np.random.default_rng(rng.integers(99, 2**32)),
                     'n_assignments': n_assignments,
-                    'results_output_path': buffer_dir,
+                    'results_output_path': tmp_path,
                     'output_taxonomy_tree': output_taxonomy_tree})
         p.start()
         process_list.append(p)
@@ -246,10 +254,8 @@ def run_type_assignment_on_h5ad_cpu(
     while len(process_list) > 0:
         process_list = winnow_process_list(process_list)
 
-    path_list = [n for n in buffer_dir.iterdir()]
-    path_list.sort()
     output_list = []
-    for path in path_list:
+    for path in tmp_path_list:
         output_list += json.load(open(path, 'rb'))
     _clean_up(buffer_dir)
 
@@ -393,9 +399,7 @@ def _run_type_assignment_on_h5ad_worker(
     for idx in range(len(assignment)):
         assignment[idx]['cell_id'] = query_cell_chunk.cell_identifiers[idx]
 
-    this_output_path = os.path.join(results_output_path,
-                                    f"{r0}_{r1}_assignment.json")
-    save_results(assignment, this_output_path)
+    save_results(assignment, results_output_path)
 
 
 def run_type_assignment(
