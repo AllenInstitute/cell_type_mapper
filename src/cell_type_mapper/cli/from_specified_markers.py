@@ -150,28 +150,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             traceback_msg += f"\n{traceback.format_exc()}\n"
             log.add_msg(traceback_msg)
             raise
+
         finally:
-            algorithm = self.args['type_assignment']['algorithm']
-            if algorithm == 'hierarchical':
-                hier_result = None
-                if sub_result_list is not None:
-                    hier_result = hier.collate_hierarchical_mappings(
-                        sub_result_list
-                    )
-            elif algorithm == 'hann':
-                if sub_result_list is not None:
-                    hann.collate_hann_mappings(
-                        tmp_path_list=sub_result_list,
-                        dst_path=self.args['hdf5_result_path']
-                    )
-
-            if tmp_result_dir is not None:
-                _clean_up(tmp_result_dir)
-
-            _clean_up(tmp_dir)
-
             log.info(
-                "CLEANING UP",
+                "WRITING OUTPUT AND CLEANING UP",
                 to_stdout=True)
 
             metadata = add_metadata_to_output(
@@ -182,7 +164,14 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 cloud_safe=self.args['cloud_safe']
             )
 
+            algorithm = self.args['type_assignment']['algorithm']
             if algorithm == 'hierarchical':
+                hier_result = None
+                if sub_result_list is not None:
+                    hier_result = hier.collate_hierarchical_mappings(
+                        sub_result_list
+                    )
+
                 return_packet = write_hier.write_hierarchical_output(
                     mapping_result=hier_result,
                     metadata=metadata,
@@ -191,7 +180,14 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                     mapping_exception=mapping_exception,
                     write_to_disk=write_to_disk
                 )
+
             elif algorithm == 'hann':
+                if sub_result_list is not None:
+                    hann.collate_hann_mappings(
+                        tmp_path_list=sub_result_list,
+                        dst_path=self.args['hdf5_result_path']
+                    )
+
                 if write_to_disk:
                     write_hann.write_hann_metadata(
                         metadata=metadata,
@@ -206,6 +202,11 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                         'metadata': metadata,
                         'mapping_excpetion': mapping_exception
                     }
+
+            if tmp_result_dir is not None:
+                _clean_up(tmp_result_dir)
+
+            _clean_up(tmp_dir)
 
             if return_packet is not None:
                 return return_packet
