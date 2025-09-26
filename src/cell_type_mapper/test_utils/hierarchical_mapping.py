@@ -41,8 +41,11 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     serialize_markers)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad,
-    collate_hierarchical_mappings)
+    run_type_assignment_on_h5ad)
+
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
+    collate_hierarchical_mappings
+)
 
 from cell_type_mapper.utils.cli_utils import (
     create_precomputed_stats_file)
