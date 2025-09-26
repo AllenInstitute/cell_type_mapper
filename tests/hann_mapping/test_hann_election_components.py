@@ -1,57 +1,11 @@
-import pytest
 import h5py
 import numpy as np
 
 import cell_type_mapper.utils.utils as ctm_utils
 import cell_type_mapper.utils.distance_utils as distance_utils
-import cell_type_mapper.cell_by_gene.cell_by_gene as cbg_module
 import cell_type_mapper.type_assignment.marker_cache_v2 as marker_cache
 import cell_type_mapper.hann_mapping.hann_mapping as hann_mapping
 import cell_type_mapper.type_assignment.election as election
-
-
-@pytest.fixture
-def cell_by_gene_fixture(tree_fixture):
-
-    n_cells = 20
-    n_clusters = len(tree_fixture.nodes_at_level(tree_fixture.leaf_level))
-    n_genes = 30
-    gene_identifiers = [f'g{ii}' for ii in range(n_genes)]
-
-    rng = np.random.default_rng(881231)
-
-    reference_data = np.zeros((n_clusters, n_genes), dtype=float)
-    reference_data[0, 10:25] = np.sin(np.arange(15)*2.0*np.pi/7.0)
-    reference_data[1, 0:18] = np.cos(np.arange(18)*2.0*np.pi/12.0)
-    reference_data[2, 17:n_genes] = 2.0*(rng.random(13)-0.5)
-    reference_data[3, 10:] = 1.2
-    reference_data[4, :15] = 0.7
-    reference_data[4, 15:] = np.linspace(0, 1.5, 15)
-
-    reference = cbg_module.CellByGeneMatrix(
-        data=reference_data,
-        gene_identifiers=gene_identifiers,
-        cell_identifiers=tree_fixture.nodes_at_level(
-            tree_fixture.leaf_level),
-        normalization='log2CPM'
-    )
-
-    query_data = np.zeros((n_cells, n_genes), dtype=float)
-    for i_cells in range(n_cells):
-        pair = rng.choice(np.arange(n_clusters), 2, replace=False)
-        weights = rng.random(2)
-        this = (weights[0]*reference_data[pair[0], :]
-                + weights[1]*reference_data[pair[1], :]) / weights.sum()
-        query_data[i_cells, :] = this
-
-    query = cbg_module.CellByGeneMatrix(
-        data=query_data,
-        gene_identifiers=gene_identifiers,
-        normalization='log2CPM',
-        cell_identifiers=[f'c{ii}' for ii in range(n_cells)]
-    )
-
-    return {'reference': reference, 'query': query}
 
 
 def test_hann_children_of_one_parent(
