@@ -105,11 +105,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         if self.args['type_assignment']['n_processors'] > 1:
             warn_on_parallelization(log=log)
 
-        # create this now in case _run_mapping errors
-        # before creating the output dict (the finally
-        # block will add some logging info to output)
-        output = dict()
-
         if 'tmp_dir' not in self.args:
             raise RuntimeError("did not specify tmp_dir")
 
@@ -136,6 +131,13 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                             "unable to write to "
                             f"{pth.resolve().absolute()}")
 
+        # create this now in case _run_mapping errors
+        # before creating the output dict (the finally
+        # block will add some logging info to output)
+        output = dict()
+        sub_result_list = None
+        tmp_result_dir = None
+
         try:
             if self.args['tmp_dir'] is not None:
                 tmp_result_dir = tempfile.mkdtemp(
@@ -153,12 +155,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                 tmp_result_dir=tmp_result_dir,
                 log=log)
 
-            output['results'] = collate_hierarchical_mappings(
-                sub_result_list
-            )
-
-            _clean_up(tmp_result_dir)
-
             log.info(
                 "MAPPING FROM SPECIFIED MARKERS RAN SUCCESSFULLY",
                 to_stdout=True)
@@ -170,7 +166,16 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             log.add_msg(traceback_msg)
             raise
         finally:
+            if sub_result_list is not None:
+                output['results'] = collate_hierarchical_mappings(
+                    sub_result_list
+                )
+
+            if tmp_result_dir is not None:
+                _clean_up(tmp_result_dir)
+
             _clean_up(tmp_dir)
+
             log.info(
                 "CLEANING UP",
                 to_stdout=True)
