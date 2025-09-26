@@ -445,6 +445,16 @@ def test_hann_tally_votes_smoke(
     assert col_sum.shape == (reference.n_cells, )
     assert col_sum.min() > 0
 
+    np.testing.assert_array_equal(
+        actual=np.array(result['cluster_identifiers']),
+        desired=np.array(reference.cell_identifiers)
+    )
+
+    np.testing.assert_array_equal(
+        actual=np.array(result['cell_identifiers']),
+        desired=np.array(query.cell_identifiers)
+    )
+
 
 def test_hann_mapping_chunk_smoke(
         tmp_dir_fixture,
@@ -511,6 +521,7 @@ def test_hann_mapping_chunk_smoke(
         votes = src["votes"][()]
         corr = src["correlation"][()]
         cell_id = src["cell_identifiers"][()]
+        cluster_id = src["cluster_identifiers"][()]
 
     assert votes.sum() == bootstrap_iteration*query.n_cells
     # make sure there is a diversity of vote counts
@@ -527,6 +538,11 @@ def test_hann_mapping_chunk_smoke(
         actual=[c.decode('utf-8') for c in cell_id]
     )
 
+    np.testing.assert_array_equal(
+        desired=reference.cell_identifiers,
+        actual=[c.decode('utf-8') for c in cluster_id]
+    )
+
 
 def test_collate_hann_mappings(
         tmp_dir_fixture):
@@ -539,6 +555,9 @@ def test_collate_hann_mappings(
     )
     expected_votes = rng.integers(0, 256, (n_cells, n_clusters))
     expected_corr = rng.random((n_cells, n_clusters))
+    expected_cluster_id = np.array(
+        [f'cl_{ii}'.encode('utf-8') for ii in range(n_clusters)]
+    )
 
     path_list = [
         ctm_utils.mkstemp_clean(
@@ -560,6 +579,10 @@ def test_collate_hann_mappings(
             'correlation',
             data=expected_corr[:54, :]
         )
+        dst.create_dataset(
+            'cluster_identifiers',
+            data=expected_cluster_id
+        )
 
     with h5py.File(path_list[1], 'w') as dst:
         dst.create_dataset(
@@ -573,6 +596,10 @@ def test_collate_hann_mappings(
         dst.create_dataset(
             'correlation',
             data=expected_corr[54:91, :]
+        )
+        dst.create_dataset(
+            'cluster_identifiers',
+            data=expected_cluster_id
         )
 
     with h5py.File(path_list[2], 'w') as dst:
@@ -588,6 +615,10 @@ def test_collate_hann_mappings(
             'correlation',
             data=expected_corr[91:, :]
         )
+        dst.create_dataset(
+            'cluster_identifiers',
+            data=expected_cluster_id
+        )
 
     dst_path = ctm_utils.mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -601,12 +632,18 @@ def test_collate_hann_mappings(
 
     with h5py.File(dst_path, 'r') as src:
         cell_id = src['cell_identifiers'][()]
+        cluster_id = src['cluster_identifiers'][()]
         votes = src['votes'][()]
         correlation = src['correlation'][()]
 
     np.testing.assert_array_equal(
         actual=cell_id,
         desired=expected_cell_id
+    )
+
+    np.testing.assert_array_equal(
+        actual=cluster_id,
+        desired=expected_cluster_id
     )
 
     np.testing.assert_array_equal(

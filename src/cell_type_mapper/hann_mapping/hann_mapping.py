@@ -56,7 +56,8 @@ def hann_tally_votes(
     return {
         'votes': votes,
         'correlation_sum': corr,
-        'cell_identifiers': full_query_data.cell_identifiers
+        'cell_identifiers': full_query_data.cell_identifiers,
+        'cluster_identifiers': leaf_node_matrix.cell_identifiers
     }
 
 
@@ -246,6 +247,11 @@ def save_results(results, results_output_path):
             data=results["cell_identifiers"]
         )
 
+        dst.create_dataset(
+            "cluster_identifiers",
+            data=results["cluster_identifiers"]
+        )
+
 
 def collate_hann_mappings(tmp_path_list, dst_path):
     """
@@ -279,6 +285,7 @@ def collate_hann_mappings(tmp_path_list, dst_path):
                 )
 
     cell_identifiers = []
+    cluster_identifiers = None
     with h5py.File(dst_path, 'w') as dst:
         dst_votes = dst.create_dataset(
             "votes",
@@ -300,6 +307,14 @@ def collate_hann_mappings(tmp_path_list, dst_path):
         for pth in tmp_path_list:
             with h5py.File(pth, "r") as src:
                 cell_identifiers.append(src["cell_identifiers"][()])
+                these_clusters = src["cluster_identifiers"][()]
+                if cluster_identifiers is None:
+                    cluster_identifiers = these_clusters
+                else:
+                    if not np.array_equal(these_clusters, cluster_identifiers):
+                        raise RuntimeError(
+                            "mismatch in cluster identifiers"
+                        )
                 n_cells = src["votes"].shape[0]
                 dst_votes[i0:i0+n_cells, :] = src["votes"][()]
                 dst_corr[i0:i0+n_cells, :] = src["correlation"][()]
@@ -308,4 +323,8 @@ def collate_hann_mappings(tmp_path_list, dst_path):
         dst.create_dataset(
             "cell_identifiers",
             data=cell_identifiers
+        )
+        dst.create_dataset(
+            "cluster_identifiers",
+            data=cluster_identifiers
         )
