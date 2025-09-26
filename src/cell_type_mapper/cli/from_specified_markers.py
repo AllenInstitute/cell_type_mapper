@@ -116,21 +116,6 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         else:
             tmp_dir = None
 
-        # check validity of output_path and log_path
-        for pth in (self.args['extended_result_path'],
-                    self.args['log_path']):
-            if pth is not None:
-                pth = pathlib.Path(pth)
-                if not pth.exists():
-                    try:
-                        with open(pth, 'w') as out_file:
-                            out_file.write('junk')
-                        pth.unlink()
-                    except FileNotFoundError:
-                        raise RuntimeError(
-                            "unable to write to "
-                            f"{pth.resolve().absolute()}")
-
         # create this now in case _run_mapping errors
         # before creating the output dict (the finally
         # block will add some logging info to output)

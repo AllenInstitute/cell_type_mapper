@@ -62,7 +62,7 @@ class SearchSchemaMixinBase(
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
 
-    log_path = argschema.fields.String(
+    log_path = argschema.fields.OutputFile(
         required=False,
         default=None,
         allow_none=True,
