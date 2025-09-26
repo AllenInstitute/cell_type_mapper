@@ -1,5 +1,6 @@
 import argschema
 
+from marshmallow.validate import OneOf
 from marshmallow import post_load, ValidationError
 
 from cell_type_mapper.schemas.mixins import (
@@ -79,6 +80,17 @@ class HierarchicalConfigMixin(object):
             "up the tree) until there are at least this many "
             "markers."
         ))
+
+    algorithm = argschema.fields.String(
+        required=False,
+        default="hierarchical",
+        allow_none=False,
+        description=(
+            "Either 'hierarchical' or 'hann'. Indicates which "
+            "mapping algorithm to use."
+        ),
+        validate=OneOf(("hierarchical", "hann"))
+    )
 
     @post_load
     def check_bootstrap_factor(self, data, **kwargs):

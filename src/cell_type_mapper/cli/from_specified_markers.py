@@ -11,6 +11,7 @@ import traceback
 
 import cell_type_mapper
 import cell_type_mapper.utils.write_hierarchical_results as write_hier
+import cell_type_mapper.utils.write_hann_results as write_hann
 
 from cell_type_mapper.utils.cloud_utils import (
     sanitize_paths)
@@ -54,9 +55,8 @@ from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad,
 )
 
-from cell_type_mapper.type_assignment.hierarchical_mapping import (
-    collate_hierarchical_mappings
-)
+import cell_type_mapper.type_assignment.hierarchical_mapping as hier
+import cell_type_mapper.hann_mapping.hann_mapping as hann
 
 from cell_type_mapper.schemas.from_specified_markers import (
     FromSpecifiedMarkersSchema)
@@ -116,25 +116,10 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
         else:
             tmp_dir = None
 
-        # check validity of output_path and log_path
-        for pth in (self.args['extended_result_path'],
-                    self.args['log_path']):
-            if pth is not None:
-                pth = pathlib.Path(pth)
-                if not pth.exists():
-                    try:
-                        with open(pth, 'w') as out_file:
-                            out_file.write('junk')
-                        pth.unlink()
-                    except FileNotFoundError:
-                        raise RuntimeError(
-                            "unable to write to "
-                            f"{pth.resolve().absolute()}")
-
         # create this now in case _run_mapping errors
         # before creating the output dict (the finally
         # block will add some logging info to output)
-        output = dict()
+        metadata = dict()
         sub_result_list = None
         tmp_result_dir = None
 
@@ -149,7 +134,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                     prefix='result_buffer_')
 
             (sub_result_list,
-             output) = _run_mapping(
+             metadata) = _run_mapping(
                 config=self.args,
                 tmp_dir=tmp_dir,
                 tmp_result_dir=tmp_result_dir,
@@ -165,42 +150,73 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             traceback_msg += f"\n{traceback.format_exc()}\n"
             log.add_msg(traceback_msg)
             raise
+
         finally:
-            if sub_result_list is not None:
-                output['results'] = collate_hierarchical_mappings(
-                    sub_result_list
-                )
-
-            if tmp_result_dir is not None:
-                _clean_up(tmp_result_dir)
-
-            _clean_up(tmp_dir)
-
             log.info(
-                "CLEANING UP",
+                "WRITING OUTPUT AND CLEANING UP",
                 to_stdout=True)
 
-            output = add_metadata_to_output(
-                output=output,
+            metadata = add_metadata_to_output(
+                output=metadata,
                 metadata_config=metadata_config,
                 log=log,
                 t0=t0,
                 cloud_safe=self.args['cloud_safe']
             )
 
-            return_packet = write_hier.write_hierarchical_output(
-                output=output,
-                config=self.args,
-                log=log,
-                mapping_exception=mapping_exception,
-                write_to_disk=write_to_disk
-            )
+            algorithm = self.args['type_assignment']['algorithm']
+            if algorithm == 'hierarchical':
+                hier_result = None
+                if sub_result_list is not None:
+                    hier_result = hier.collate_hierarchical_mappings(
+                        sub_result_list
+                    )
+
+                return_packet = write_hier.write_hierarchical_output(
+                    mapping_result=hier_result,
+                    metadata=metadata,
+                    config=self.args,
+                    log=log,
+                    mapping_exception=mapping_exception,
+                    write_to_disk=write_to_disk
+                )
+
+            elif algorithm == 'hann':
+                if sub_result_list is not None:
+                    hann.collate_hann_mappings(
+                        tmp_path_list=sub_result_list,
+                        dst_path=self.args['hdf5_result_path']
+                    )
+
+                if write_to_disk:
+                    write_hann.write_hann_metadata(
+                        metadata=metadata,
+                        log=log,
+                        log_path=self.args['log_path'],
+                        hdf5_output_path=self.args['hdf5_result_path'],
+                        cloud_safe=self.args['cloud_safe']
+                    )
+                    return_packet = None
+                else:
+                    return_packet = {
+                        'metadata': metadata,
+                        'mapping_exception': mapping_exception
+                    }
+
+            if tmp_result_dir is not None:
+                _clean_up(tmp_result_dir)
+
+            _clean_up(tmp_dir)
 
             if return_packet is not None:
                 return return_packet
 
 
-def _run_mapping(config, tmp_dir, tmp_result_dir, log):
+def _run_mapping(
+        config,
+        tmp_dir,
+        tmp_result_dir,
+        log):
 
     if log is not None:
         log.env(f"is_torch_available: {is_torch_available()}")
@@ -411,11 +427,8 @@ def _run_mapping(config, tmp_dir, tmp_result_dir, log):
         log=log,
         max_gb=config['max_gb'],
         output_taxonomy_tree=tree_for_metadata,
-        results_output_path=tmp_result_dir)
-
-    result = collate_hierarchical_mappings(
-        sub_result_list
-    )
+        results_output_path=tmp_result_dir,
+        algorithm=type_assignment_config['algorithm'])
 
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)

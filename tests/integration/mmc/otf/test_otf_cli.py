@@ -11,6 +11,7 @@ import hashlib
 import io
 import itertools
 import json
+import marshmallow
 import numpy as np
 import pandas as pd
 import pathlib
@@ -48,6 +49,10 @@ from cell_type_mapper.test_utils.cloud_safe import (
 from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     _clean_up)
+
+from cell_type_mapper.taxonomy.taxonomy_tree import (
+    TaxonomyTree
+)
 
 from cell_type_mapper.cli.reference_markers import (
     ReferenceMarkerRunner)
@@ -1424,3 +1429,205 @@ def test_OTF_alt_gene_id_col(
         test = json.load(src)
     assert baseline['results'] == test['results']
     assert baseline['config'] != test['config']
+
+
+def test_otf_hann_smoke(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        raw_query_h5ad_fixture):
+    """
+    Smoketest for OnTheFly markers with HANN mapping
+    """
+
+    bootstrap_iteration = 37
+
+    tmp_dir = tempfile.mkdtemp(dir=tmp_dir_fixture)
+
+    output_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='mapping_',
+        suffix='.h5')
+
+    obs = read_df_from_h5ad(
+        raw_query_h5ad_fixture,
+        df_name='obs'
+    )
+
+    tree = TaxonomyTree.from_precomputed_stats(
+        precomputed_path_fixture
+    )
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': tmp_dir,
+        'precomputed_stats': {'path': str(precomputed_path_fixture)},
+        'drop_level': None,
+        'query_path': str(raw_query_h5ad_fixture),
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'bootstrap_iteration': bootstrap_iteration,
+            'algorithm': 'hann'
+        },
+        'hdf5_result_path': output_path,
+        'summary_metadata_path': None,
+        'cloud_safe': False,
+        'nodes_to_drop': None
+    }
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        runner = OnTheFlyMapper(args=[], input_data=config)
+        runner.run()
+
+    with h5py.File(output_path, 'r') as src:
+        votes = src['votes'][()]
+        cell_id = src['cell_identifiers'][()]
+        cluster_id = src['cluster_identifiers'][()]
+        _ = json.loads(src['metadata'][()].decode('utf-8'))
+
+    np.testing.assert_array_equal(
+        desired=obs.index.values,
+        actual=[c.decode('utf-8') for c in cell_id]
+    )
+
+    np.testing.assert_array_equal(
+        desired=tree.nodes_at_level(tree.leaf_level),
+        actual=[c.decode('utf-8') for c in cluster_id]
+    )
+
+    vote_row_count = votes.sum(axis=1)
+    np.testing.assert_array_equal(
+        actual=vote_row_count,
+        desired=bootstrap_iteration*np.ones(len(obs))
+    )
+
+    # arbitrary test for diversity of vote tallies
+    unq_votes = np.unique(votes)
+    assert len(unq_votes) > 5
+
+
+@pytest.fixture(scope='module')
+def query_for_err_fixture(tmp_dir_fixture):
+    """
+    query h5ad file for testing config errors
+    (to make sure we do not write to obsm)
+    """
+    h5ad_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        suffix='.h5ad'
+    )
+
+    n_cells = 5
+    n_genes = 12
+    obs = pd.DataFrame(
+        [{'cell': f'c{ii}'} for ii in range(n_cells)]).set_index('cell')
+    var = pd.DataFrame(
+        [{'gene': f'g{ii}'} for ii in range(n_genes)]).set_index('gene')
+    adata = anndata.AnnData(
+        obs=obs,
+        var=var,
+        X=np.zeros((n_cells, n_genes), dtype=float)
+    )
+
+    adata.write_h5ad(h5ad_path)
+    return h5ad_path
+
+
+@pytest.mark.parametrize(
+    "use_csv_path, use_json_path, use_obsm_key, use_hdf5_path, msg_suffix",
+    ([True, False, False, True, "; you specified csv_result_path"],
+     [False, True, False, True, "; you specified extended_result_path"],
+     [False, False, True, True, "; you specified obsm_key"],
+     [True, True, False, True,
+      "; you specified csv_result_path"
+      "; you specified extended_result_path"],
+     [True, True, True, True,
+      "; you specified csv_result_path"
+      "; you specified extended_result_path"
+      "; you specified obsm_key"],
+     [True, False, False, False,
+      "; you specified csv_result_path; you did not specify hdf5_result_path"],
+     [False, True, False, False,
+      "; you specified extended_result_path"
+      "; you did not specify hdf5_result_path"],
+     [False, False, True, False,
+      "; you specified obsm_key; you did not specify hdf5_result_path"]
+     )
+)
+def test_otf_hann_config_errors(
+        tmp_dir_fixture,
+        precomputed_path_fixture,
+        query_for_err_fixture,
+        use_csv_path,
+        use_json_path,
+        use_obsm_key,
+        use_hdf5_path,
+        msg_suffix):
+    """
+    Make sure expected errors are raised if output config for HANN is incorrect
+    """
+
+    if use_csv_path:
+        csv_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.csv'
+        )
+    else:
+        csv_path = None
+
+    if use_json_path:
+        json_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.json'
+        )
+    else:
+        json_path = None
+
+    if use_obsm_key:
+        obsm_key = 'test_obsm'
+    else:
+        obsm_key = None
+
+    if use_hdf5_path:
+        hdf5_path = mkstemp_clean(
+            dir=tmp_dir_fixture,
+            suffix='.h5'
+        )
+    else:
+        hdf5_path = None
+
+    bootstrap_iteration = 37
+
+    config = {
+        'n_processors': 3,
+        'tmp_dir': str(tmp_dir_fixture),
+        'precomputed_stats': {'path': str(precomputed_path_fixture)},
+        'drop_level': None,
+        'query_path': str(query_for_err_fixture),
+        'query_markers': {},
+        'reference_markers': {},
+        'type_assignment': {
+            'normalization': 'raw',
+            'bootstrap_iteration': bootstrap_iteration,
+            'algorithm': 'hann'
+        },
+        'hdf5_result_path': hdf5_path,
+        'extended_result_path': json_path,
+        'csv_result_path': csv_path,
+        'obsm_key': obsm_key,
+        'summary_metadata_path': None,
+        'cloud_safe': False,
+        'nodes_to_drop': None
+    }
+
+    match = "HANN algorithm can only output to hdf5_result_path"
+    match += msg_suffix
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+
+        with pytest.raises(marshmallow.ValidationError, match=match):
+            OnTheFlyMapper(args=[], input_data=config)
