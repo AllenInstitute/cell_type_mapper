@@ -56,7 +56,8 @@ def hann_tally_votes(
     return {
         'votes': votes,
         'correlation_sum': corr,
-        'cell_identifiers': full_query_data.cell_identifiers
+        'cell_identifiers': full_query_data.cell_identifiers,
+        'cluster_identifiers': leaf_node_matrix.cell_identifiers
     }
 
 
@@ -244,4 +245,86 @@ def save_results(results, results_output_path):
         dst.create_dataset(
             "cell_identifiers",
             data=results["cell_identifiers"]
+        )
+
+        dst.create_dataset(
+            "cluster_identifiers",
+            data=results["cluster_identifiers"]
+        )
+
+
+def collate_hann_mappings(tmp_path_list, dst_path):
+    """
+    Take a list of hdf5 file paths (each file representing
+    and independent chunk of data mapped with the hann
+    algorithm). Collate them into a single output file.
+
+    Parameters
+    ----------
+    tmp_path_list:
+        list of files being collated
+    dst_path:
+        path to final HDF5 file being written
+    """
+    n_cells = 0
+    n_clusters = None
+    vote_dtype = None
+    for pth in tmp_path_list:
+        with h5py.File(pth, 'r') as src:
+            shape = src['votes'].shape
+            if vote_dtype is None:
+                vote_dtype = src['votes'].dtype
+
+        n_cells += shape[0]
+        if n_clusters is None:
+            n_clusters = shape[1]
+        else:
+            if n_clusters != shape[1]:
+                raise RuntimeError(
+                    "Inconsistent number of clusters in HDF5 files"
+                )
+
+    cell_identifiers = []
+    cluster_identifiers = None
+    with h5py.File(dst_path, 'w') as dst:
+        dst_votes = dst.create_dataset(
+            "votes",
+            dtype=vote_dtype,
+            shape=(n_cells, n_clusters),
+            chunks=True,
+            compression="gzip",
+            compression_opts=4
+        )
+        dst_corr = dst.create_dataset(
+            "correlation",
+            dtype=float,
+            shape=(n_cells, n_clusters),
+            chunks=True,
+            compression="gzip",
+            compression_opts=4
+        )
+        i0 = 0
+        for pth in tmp_path_list:
+            with h5py.File(pth, "r") as src:
+                cell_identifiers.append(src["cell_identifiers"][()])
+                these_clusters = src["cluster_identifiers"][()]
+                if cluster_identifiers is None:
+                    cluster_identifiers = these_clusters
+                else:
+                    if not np.array_equal(these_clusters, cluster_identifiers):
+                        raise RuntimeError(
+                            "mismatch in cluster identifiers"
+                        )
+                n_cells = src["votes"].shape[0]
+                dst_votes[i0:i0+n_cells, :] = src["votes"][()]
+                dst_corr[i0:i0+n_cells, :] = src["correlation"][()]
+                i0 += n_cells
+        cell_identifiers = np.concatenate(cell_identifiers)
+        dst.create_dataset(
+            "cell_identifiers",
+            data=cell_identifiers
+        )
+        dst.create_dataset(
+            "cluster_identifiers",
+            data=cluster_identifiers
         )
