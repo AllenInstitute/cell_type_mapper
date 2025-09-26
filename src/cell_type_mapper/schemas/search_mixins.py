@@ -1,4 +1,5 @@
 import argschema
+from marshmallow import post_load
 
 from cell_type_mapper.schemas.mixins import (
     TmpDirMixin,
@@ -71,6 +72,29 @@ class SearchSchemaMixinBase(
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsInputSchema,
         required=True)
+
+    @post_load
+    def align_output_files(self, data, **kwargs):
+        """
+        Check that algorithm selection aligns with output file
+        specification
+        """
+        algorithm = data['type_assignment']['algorithm']
+        if algorithm == 'hann':
+            msg = ""
+            if data['csv_result_path'] is not None:
+                msg += "; you specified csv_result_path"
+            if data['extended_result_path'] is not None:
+                msg += "; you specified extended_result_path"
+            if data['hdf_result_path'] is None:
+                msg += "; you did not specify hdf5_result_path"
+            if len(msg) > 0:
+                msg = (
+                    "HANN algorithm can only output to hdf5_result_path"
+                    f"{msg}"
+                )
+                raise ValueError(msg)
+        return data
 
 
 class SearchSchemaMixin(
