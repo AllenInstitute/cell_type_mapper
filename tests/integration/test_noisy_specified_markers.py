@@ -1922,7 +1922,3 @@ def test_marker_collapse_params_no_overlap(
                 input_data=config)
 
             runner.run()
-
-
-def test_dummy_gene_mapper(legacy_gene_mapper_fixture):
-    pass
