@@ -1,5 +1,3 @@
-import json
-
 from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu
 )
@@ -113,14 +111,3 @@ def run_type_assignment_on_h5ad(
     )
 
     return tmp_path_list
-
-
-def collate_hierarchical_mappings(tmp_path_list):
-    """
-    Combine the results of sub worker hierarchical mappings
-    into a single list.
-    """
-    output_list = []
-    for path in tmp_path_list:
-        output_list += json.load(open(path, 'rb'))
-    return output_list
