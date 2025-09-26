@@ -193,7 +193,7 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
                         metadata=metadata,
                         log=log,
                         log_path=self.args['log_path'],
-                        hdf5_output_path=self.args['hdf5_output_path'],
+                        hdf5_output_path=self.args['hdf5_result_path'],
                         cloud_safe=self.args['cloud_safe']
                     )
                     return_packet = None

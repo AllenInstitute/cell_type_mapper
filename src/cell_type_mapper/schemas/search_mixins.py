@@ -86,7 +86,7 @@ class SearchSchemaMixinBase(
                 msg += "; you specified csv_result_path"
             if data['extended_result_path'] is not None:
                 msg += "; you specified extended_result_path"
-            if data['hdf_result_path'] is None:
+            if data['hdf5_result_path'] is None:
                 msg += "; you did not specify hdf5_result_path"
             if len(msg) > 0:
                 msg = (
