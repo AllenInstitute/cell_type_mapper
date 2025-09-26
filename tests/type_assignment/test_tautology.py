@@ -21,8 +21,12 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad,
-    collate_hierarchical_mappings)
+    run_type_assignment_on_h5ad
+)
+
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
+    collate_hierarchical_mappings
+)
 
 
 @pytest.fixture(scope='module')

@@ -879,6 +879,17 @@ def _update_mapping_result(
     return result
 
 
+def collate_hierarchical_mappings(tmp_path_list):
+    """
+    Combine the results of sub worker hierarchical mappings
+    into a single list.
+    """
+    output_list = []
+    for path in tmp_path_list:
+        output_list += json.load(open(path, 'rb'))
+    return output_list
+
+
 def save_results(result, results_output_path):
     with open(results_output_path, "w") as outfile:
         json.dump(ctm_utils.clean_for_json(result), outfile)

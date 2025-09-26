@@ -27,8 +27,12 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
     create_marker_cache_from_reference_markers)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad,
-    collate_hierarchical_mappings)
+    run_type_assignment_on_h5ad
+)
+
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
+    collate_hierarchical_mappings
+)
 
 
 @pytest.fixture
