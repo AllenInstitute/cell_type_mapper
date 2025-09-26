@@ -1,14 +1,16 @@
+import copy
 import json
 import pathlib
 
-import cell_type_mapper.utils.utils as cpm_utils
+import cell_type_mapper.utils.utils as ctm_utils
 import cell_type_mapper.utils.output_utils as output_utils
 import cell_type_mapper.utils.anndata_utils as anndata_utils
 import cell_type_mapper.taxonomy.taxonomy_tree as tree_module
 
 
 def write_hierarchical_output(
-        output,
+        mapping_result,
+        metadata,
         config,
         log,
         mapping_exception,
@@ -32,20 +34,23 @@ def write_hierarchical_output(
     if config['summary_metadata_path'] is not None:
         write_summary_metadata_to_disk(
             summary_metadata_path=config['summary_metadata_path'],
-            output=output,
+            mapping_result=mapping_result,
+            metadata=metadata,
             query_path=config['query_path']
         )
 
     if config['csv_result_path'] is not None:
         write_mapping_to_csv(
-            output=output,
+            mapping_result=mapping_result,
+            metadata=metadata,
             csv_output_path=config['csv_result_path'],
             full_output_path=output_path
         )
 
     if config['obsm_key'] is not None:
         write_mapping_to_obsm(
-            output=output,
+            mapping_result=mapping_result,
+            metadata=metadata,
             query_path=config['query_path'],
             obsm_key=config['obsm_key'],
             obsm_clobber=config['obsm_clobber']
@@ -53,7 +58,8 @@ def write_hierarchical_output(
 
     if write_to_disk:
         write_mapping_to_disk(
-            output=output,
+            metadata=metadata,
+            mapping_result=mapping_result,
             log=log,
             log_path=log_path,
             output_path=output_path,
@@ -63,7 +69,8 @@ def write_hierarchical_output(
         return None
 
     return {
-        'output': output,
+        'metadata': metadata,
+        'mapping_result': mapping_result,
         'log': log,
         'log_path': log_path,
         'output_path': output_path,
@@ -73,12 +80,17 @@ def write_hierarchical_output(
 
 
 def write_mapping_to_disk(
-        output,
+        mapping_result,
+        metadata,
         log,
         log_path,
         output_path,
         hdf5_output_path,
         cloud_safe):
+
+    output = copy.deepcopy(metadata)
+    if mapping_result is not None:
+        output['results'] = mapping_result
 
     if log_path is not None:
         log.write_log(log_path, cloud_safe=cloud_safe)
@@ -87,7 +99,7 @@ def write_mapping_to_disk(
         with open(output_path, "w") as out_file:
             out_file.write(
                 json.dumps(
-                    cpm_utils.clean_for_json(output), indent=2
+                    ctm_utils.clean_for_json(output), indent=2
                 )
             )
 
@@ -98,17 +110,20 @@ def write_mapping_to_disk(
 
 
 def write_mapping_to_csv(
-        output,
+        mapping_result,
+        metadata,
         full_output_path,
         csv_output_path):
 
-    if 'results' not in output:
+    if mapping_result is None:
         return None
 
-    config = output['config']
-    result = output['results']
+    config = metadata['config']
+    result = mapping_result
 
-    tree_for_metadata = tree_module.TaxonomyTree(data=output['taxonomy_tree'])
+    tree_for_metadata = tree_module.TaxonomyTree(
+        data=metadata['taxonomy_tree']
+    )
 
     if config['type_assignment']['bootstrap_iteration'] == 1 \
             or config['verbose_csv']:
@@ -149,18 +164,19 @@ def write_mapping_to_csv(
 
 
 def write_mapping_to_obsm(
-       output,
+       mapping_result,
+       metadata,
        query_path,
        obsm_key,
        obsm_clobber):
 
-    if 'results' not in output:
+    if mapping_result is None:
         return None
 
-    tree_for_metadata = tree_module.TaxonomyTree(output['taxonomy_tree'])
+    tree_for_metadata = tree_module.TaxonomyTree(metadata['taxonomy_tree'])
 
     df = output_utils.blob_to_df(
-        results_blob=output['results'],
+        results_blob=mapping_result,
         taxonomy_tree=tree_for_metadata).set_index('cell_id')
 
     # need to make sure that the rows are written in
@@ -182,11 +198,12 @@ def write_mapping_to_obsm(
 
 def write_summary_metadata_to_disk(
         summary_metadata_path,
-        output,
+        mapping_result,
+        metadata,
         query_path):
-    if 'results' not in output:
+    if mapping_result is None:
         return None
-    n_mapped_cells = len(output['results'])
+    n_mapped_cells = len(mapping_result)
 
     n_total_genes = len(
         anndata_utils.read_df_from_h5ad(
@@ -196,7 +213,7 @@ def write_summary_metadata_to_disk(
     )
 
     n_mapped_genes = (
-        n_total_genes - output.pop('n_unmapped_genes')
+        n_total_genes - metadata.pop('n_unmapped_genes')
     )
 
     with open(summary_metadata_path, 'w') as dst:

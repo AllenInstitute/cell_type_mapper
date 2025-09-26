@@ -1,4 +1,5 @@
 import argschema
+from marshmallow import post_load, ValidationError
 
 from cell_type_mapper.schemas.mixins import (
     TmpDirMixin,
@@ -62,7 +63,7 @@ class SearchSchemaMixinBase(
         allow_nonw=False,
         description="If True, full file paths not recorded in log")
 
-    log_path = argschema.fields.String(
+    log_path = argschema.fields.OutputFile(
         required=False,
         default=None,
         allow_none=True,
@@ -71,6 +72,31 @@ class SearchSchemaMixinBase(
     precomputed_stats = argschema.fields.Nested(
         PrecomputedStatsInputSchema,
         required=True)
+
+    @post_load
+    def align_output_files(self, data, **kwargs):
+        """
+        Check that algorithm selection aligns with output file
+        specification
+        """
+        algorithm = data['type_assignment']['algorithm']
+        if algorithm == 'hann':
+            msg = ""
+            if data['csv_result_path'] is not None:
+                msg += "; you specified csv_result_path"
+            if data['extended_result_path'] is not None:
+                msg += "; you specified extended_result_path"
+            if data['obsm_key'] is not None:
+                msg += "; you specified obsm_key"
+            if data['hdf5_result_path'] is None:
+                msg += "; you did not specify hdf5_result_path"
+            if len(msg) > 0:
+                msg = (
+                    "HANN algorithm can only output to hdf5_result_path"
+                    f"{msg}"
+                )
+                raise ValidationError(msg)
+        return data
 
 
 class SearchSchemaMixin(
