@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name="cell_type_mapper"
-version="1.6.0"
+version="1.7.0rc"
 dependencies = [
     "abc_atlas_access @ git+https://github.com/AllenInstitute/abc_atlas_access",
     "anndata>=0.11.0",
