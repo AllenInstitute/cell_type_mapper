@@ -298,11 +298,11 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         mapping_result = mapping_runner.run_mapping(write_to_disk=False)
         if mapping_result['mapping_exception'] is None:
             log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
-        if 'gene_identifier_mapping' in mapping_result['metadata']:
-            mapping_result['metadata'].pop('gene_identifier_mapping')
+
         mapping_result['metadata']['gene_identifier_mapping'] = (
             gene_mapping_metadata
         )
+
         return mapping_result
 
     def drop_nodes_from_taxonomy(self, tmp_dir):
