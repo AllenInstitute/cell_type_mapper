@@ -1,6 +1,5 @@
 import json
 import numpy as np
-import time
 
 import cell_type_mapper.utils.utils as ctm_utils
 import cell_type_mapper.type_assignment.utils as type_assn_utils
@@ -153,7 +152,6 @@ def run_hierarchical_type_assignment(
                 possible_children = taxonomy_tree.children(None, None)
 
             if len(possible_children) > 1:
-                t = time.time()
 
                 bootstrap_factor = bootstrap_factor_lookup[str(parent_level)]
 
@@ -170,8 +168,6 @@ def run_hierarchical_type_assignment(
                                 rng=rng,
                                 gpu_index=gpu_index,
                                 timers=timers)
-
-                ctm_utils.update_timer("run_type_assignment", t, timers)
 
             elif len(possible_children) == 1:
                 votes = None
@@ -276,17 +272,12 @@ def _run_type_assignment(
         in votes and corr_sum
     """
 
-    t0 = time.time()
-
     query_data = matching.assemble_query_data(
         full_query_data=full_query_gene_data,
         mean_profile_matrix=leaf_node_matrix,
         marker_cache_path=marker_gene_cache_path,
         taxonomy_tree=taxonomy_tree,
         parent_node=parent_node)
-    ctm_utils.update_timer("assemble", t0, timers)
-
-    t0 = time.time()
 
     (votes,
      corr_sum,
@@ -299,8 +290,6 @@ def _run_type_assignment(
         rng=rng,
         gpu_index=gpu_index,
         timers=timers)
-
-    ctm_utils.update_timer("choose_node_p2", t0, timers)
 
     return votes, corr_sum, reference_types
 
@@ -345,8 +334,6 @@ def tally_votes(
         in votes and corr_sum
     """
 
-    t0 = time.time()
-
     (votes,
      corr_sum) = tally_raw_votes(
         query_gene_data=query_gene_data,
@@ -356,8 +343,6 @@ def tally_votes(
         rng=rng,
         gpu_index=gpu_index,
         timers=timers)
-
-    ctm_utils.update_timer("tally_votes", t0, timers)
 
     if len(set(reference_types)) < len(reference_types):
         (votes,
@@ -555,16 +540,12 @@ def tally_raw_votes(
     # in the votes array
     query_idx = np.arange(query_gene_data.shape[0])
 
-    t = time.time()
     for i_iteration in range(bootstrap_iteration):
-        t2 = time.time()
         chosen_idx = rng.choice(marker_idx, n_bootstrap, replace=False)
         chosen_idx = np.sort(chosen_idx)
         bootstrap_query = query_gene_data[:, chosen_idx]
         bootstrap_reference = reference_gene_data[:, chosen_idx]
-        ctm_utils.update_timer("looppreproc", t2, timers)
 
-        t3 = time.time()
         (these_neighbors,
          these_corr) = distance_utils.correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
@@ -572,20 +553,13 @@ def tally_raw_votes(
             gpu_index=gpu_index,
             timers=timers,
             return_correlation=True)
-        ctm_utils.update_timer("correlation_nearest_neighbors", t3, timers)
 
-        t3 = time.time()
         neighbors.append(these_neighbors)
         corr.append(these_corr)
-        ctm_utils.update_timer("neighbor_assign", t3, timers)
 
     for nearest_neighbors, corr_values in zip(neighbors, corr):
-        t4 = time.time()
         votes[query_idx, nearest_neighbors] += 1
         corr_sum[query_idx, nearest_neighbors] += corr_values
-        ctm_utils.update_timer("votes_counter", t4, timers)
-
-    ctm_utils.update_timer("tally_loop", t, timers)
 
     return votes, corr_sum
 

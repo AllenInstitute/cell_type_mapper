@@ -1,13 +1,9 @@
 import numpy as np
-import time
 
 from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     is_cuda_available,
     use_torch)
-
-from cell_type_mapper.utils.utils import (
-    update_timer)
 
 if is_torch_available():
     import torch
@@ -95,26 +91,20 @@ def _correlation_nearest_neighbors_gpu(
     cell in query_array (i.e. the returned value at 11 is the
     nearest neighbor of query_array[11, :])
     """
-    t = time.time()
     correlation_array = _correlation_dot_gpu(
         baseline_array,
         query_array,
         gpu_index=gpu_index,
         timers=timers)
-    update_timer("correlation_dot", t, timers)
 
-    t = time.time()
     max_idx = torch.argmax(correlation_array, dim=0)
-    update_timer("argmax", t, timers)
 
     if not return_correlation:
         return max_idx
 
-    t = time.time()
     max_val = correlation_array[
         max_idx,
         np.arange(correlation_array.shape[1])]
-    update_timer("correlationarraynge", t, timers)
 
     return max_idx, max_val
 
@@ -248,30 +238,22 @@ def _correlation_dot_gpu(
     as zero, instead of NaN.
     """
 
-    t = time.time()
     arr0 = _subtract_mean_and_normalize_gpu(
             arr0,
             do_transpose=False,
             gpu_index=gpu_index,
             timers=timers)
-    update_timer("sn1", t, timers)
 
-    t = time.time()
     arr1 = _subtract_mean_and_normalize_gpu(
             arr1,
             do_transpose=True,
             gpu_index=gpu_index,
             timers=timers)
-    update_timer("sn2", t, timers)
 
-    t = time.time()
     correlation = torch.matmul(arr0, arr1)
-    update_timer("matmul", t, timers)
 
-    t = time.time()
     del arr0
     del arr1
-    update_timer("dele", t, timers)
     return correlation
 
 
@@ -353,20 +335,16 @@ def _subtract_mean_and_normalize_gpu(data,
         else:
             device = 'cpu'
 
-        t = time.time()
         if not torch.is_tensor(data):
             data = torch.from_numpy(data).type(torch.float)
             data = data.to(device=device, non_blocking=True)
         elif data.type is not torch.float:
             data = data.type(torch.float)
-        update_timer("togpu", t, timers)
 
-        t = time.time()
         mu = torch.mean(data, axis=1)
         data = torch.t(data)-mu
         del mu
         norm = torch.sqrt(torch.sum(data**2, axis=0))
-        update_timer("meansqrt", t, timers)
         # if norm=0, it means that whole cell had the same
         # value in all genes. Probably not interesting.
         # Set those norms to 1 to avoid divide by zero
