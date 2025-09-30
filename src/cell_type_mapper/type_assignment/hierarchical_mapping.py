@@ -16,9 +16,7 @@ def run_hierarchical_type_assignment(
         bootstrap_iteration,
         rng,
         output_taxonomy_tree=None,
-        n_assignments=25,
-        gpu_index=0,
-        timers=None):
+        n_assignments=25):
     """
     Assign types at all levels of the taxonomy to a set of
     query cells.
@@ -69,9 +67,6 @@ def run_hierarchical_type_assignment(
         The number of vote getters to track data for.
         Ultimate consequence of this is that n_assignments-1
         "runners up" get reported at each taxonomic level.
-
-    gpu_index:
-        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -165,9 +160,7 @@ def run_hierarchical_type_assignment(
                                 parent_node=parent_node,
                                 bootstrap_factor=bootstrap_factor,
                                 bootstrap_iteration=bootstrap_iteration,
-                                rng=rng,
-                                gpu_index=gpu_index,
-                                timers=timers)
+                                rng=rng)
 
             elif len(possible_children) == 1:
                 votes = None
@@ -210,9 +203,7 @@ def _run_type_assignment(
         parent_node,
         bootstrap_factor,
         bootstrap_iteration,
-        rng,
-        gpu_index=0,
-        timers=None):
+        rng):
     """
     Assign a set of query cells to types that are children
     of a specified parent node in our taxonomy.
@@ -256,9 +247,6 @@ def _run_type_assignment(
     rng:
         A random number generator
 
-    gpu_index:
-        Index of the GPU for this operation. Supports multi-gpu usage
-
     Returns
     -------
     votes:
@@ -287,9 +275,7 @@ def _run_type_assignment(
         reference_types=query_data['reference_types'],
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng,
-        gpu_index=gpu_index,
-        timers=timers)
+        rng=rng)
 
     return votes, corr_sum, reference_types
 
@@ -300,9 +286,7 @@ def tally_votes(
          reference_types,
          bootstrap_factor,
          bootstrap_iteration,
-         rng,
-         gpu_index=0,
-         timers=None):
+         rng):
     """
     Parameters
     ----------
@@ -318,8 +302,6 @@ def tally_votes(
         Number of bootstrapping iterations
     rng
         random number generator
-    gpu_index:
-        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -340,9 +322,7 @@ def tally_votes(
         reference_gene_data=reference_gene_data,
         bootstrap_factor=bootstrap_factor,
         bootstrap_iteration=bootstrap_iteration,
-        rng=rng,
-        gpu_index=gpu_index,
-        timers=timers)
+        rng=rng)
 
     if len(set(reference_types)) < len(reference_types):
         (votes,
@@ -483,9 +463,7 @@ def tally_raw_votes(
          reference_gene_data,
          bootstrap_factor,
          bootstrap_iteration,
-         rng,
-         gpu_index=0,
-         timers=None):
+         rng):
     """
     Parameters
     ----------
@@ -499,8 +477,6 @@ def tally_raw_votes(
         Number of bootstrapping iterations
     rng
         random number generator
-    gpu_index:
-        Index of the GPU for this operation. Supports multi-gpu usage
 
     Returns
     -------
@@ -550,8 +526,6 @@ def tally_raw_votes(
          these_corr) = distance_utils.correlation_nearest_neighbors(
             baseline_array=bootstrap_reference,
             query_array=bootstrap_query,
-            gpu_index=gpu_index,
-            timers=timers,
             return_correlation=True)
 
         neighbors.append(these_neighbors)
