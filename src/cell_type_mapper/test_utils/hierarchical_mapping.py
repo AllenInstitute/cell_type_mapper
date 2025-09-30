@@ -43,6 +43,10 @@ from cell_type_mapper.type_assignment.marker_cache_v2 import (
 from cell_type_mapper.type_assignment.election_runner import (
     run_type_assignment_on_h5ad)
 
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
+    collate_hierarchical_mappings
+)
+
 from cell_type_mapper.utils.cli_utils import (
     create_precomputed_stats_file)
 
@@ -212,6 +216,9 @@ def _run_mapping(config, tmp_dir, log):
         rng=rng,
         normalization=type_assignment_config['normalization'],
         tmp_dir=tmp_dir)
+
+    result = collate_hierarchical_mappings(result)
+
     log.benchmark(msg="assigning cell types",
                   duration=time.time()-t0)
 

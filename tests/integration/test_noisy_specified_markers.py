@@ -23,8 +23,6 @@ import numpy as np
 import numbers
 import os
 import pandas as pd
-import pathlib
-import scipy.sparse as scipy_sparse
 import tempfile
 import warnings
 
@@ -45,9 +43,6 @@ from cell_type_mapper.utils.anndata_utils import (
 from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
-from cell_type_mapper.diff_exp.precompute_from_anndata import (
-    precompute_summary_stats_from_h5ad)
-
 from cell_type_mapper.diff_exp.precompute_utils import (
     drop_nodes_from_precomputed_stats
 )
@@ -62,142 +57,6 @@ from cell_type_mapper.utils.output_utils import (
 from cell_type_mapper.test_utils.hierarchical_mapping import (
     assert_mappings_equal
 )
-
-
-@pytest.fixture(scope='module')
-def noisy_raw_reference_h5ad_fixture(
-        obs_records_fixture,
-        reference_gene_names,
-        tmp_dir_fixture):
-    rng = np.random.default_rng(223123)
-    n_cells = len(obs_records_fixture)
-    n_genes = len(reference_gene_names)
-    data = np.zeros(n_cells*n_genes, dtype=int)
-    chosen = rng.choice(np.arange(len(data)), len(data)//3, replace=False)
-    data[chosen] = rng.integers(100, 1000)
-    data = data.reshape((n_cells, n_genes))
-
-    var_data = [{'gene_name': g, 'garbage': ii}
-                for ii, g in enumerate(reference_gene_names)]
-
-    var = pd.DataFrame(var_data)
-    var = var.set_index('gene_name')
-
-    obs = pd.DataFrame(obs_records_fixture)
-    obs = obs.set_index('cell_id')
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        a_data = anndata.AnnData(
-            X=scipy_sparse.csr_matrix(data),
-            obs=obs,
-            var=var,
-            dtype=int)
-
-    h5ad_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir_fixture,
-            prefix='noisy_reference_',
-            suffix='.h5ad'))
-    a_data.write_h5ad(h5ad_path)
-    return h5ad_path
-
-
-@pytest.fixture(scope='module')
-def noisy_precomputed_stats_fixture(
-        tmp_dir_fixture,
-        taxonomy_tree_dict,
-        noisy_raw_reference_h5ad_fixture):
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        taxonomy_tree = TaxonomyTree(data=taxonomy_tree_dict)
-
-        output_path = pathlib.Path(
-            mkstemp_clean(
-                dir=tmp_dir_fixture,
-                prefix='noisy_precomputed_stats_',
-                suffix='.h5'))
-        precompute_summary_stats_from_h5ad(
-            data_path=noisy_raw_reference_h5ad_fixture,
-            column_hierarchy=None,
-            taxonomy_tree=taxonomy_tree,
-            output_path=output_path,
-            rows_at_a_time=10000,
-            normalization='raw')
-
-    return output_path
-
-
-@pytest.fixture(scope='module')
-def noisy_raw_query_h5ad_fixture(
-        query_gene_names,
-        tmp_dir_fixture):
-
-    rng = np.random.default_rng(77665544)
-
-    n_cells = 500
-    n_genes = len(query_gene_names)
-
-    data = rng.integers(100, 110, (n_cells, n_genes))
-
-    var_data = [
-        {'gene_name': g, 'garbage': ii}
-        for ii, g in enumerate(query_gene_names)
-    ]
-
-    var = pd.DataFrame(var_data)
-    var = var.set_index('gene_name')
-
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-
-        a_data = anndata.AnnData(
-            X=data,
-            var=var,
-            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-            dtype=int)
-
-    h5ad_path = pathlib.Path(
-        mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5ad'))
-    a_data.write_h5ad(h5ad_path)
-    return h5ad_path
-
-
-@pytest.fixture(scope='module')
-def noisy_marker_gene_lookup_fixture(
-        tmp_dir_fixture,
-        reference_gene_names,
-        taxonomy_tree_dict):
-
-    output_path = pathlib.Path(
-        mkstemp_clean(
-           dir=tmp_dir_fixture,
-           prefix='marker_lookup_',
-           suffix='.json'))
-
-    rng = np.random.default_rng(77123)
-    markers = dict()
-    markers['None'] = list(rng.choice(reference_gene_names, 27, replace=False))
-    for level in taxonomy_tree_dict['hierarchy'][:-1]:
-        for node in taxonomy_tree_dict[level]:
-            if len(taxonomy_tree_dict[level][node]) == 1:
-                continue
-            node_key = f"{level}/{node}"
-            markers[node_key] = list(
-                rng.choice(
-                    reference_gene_names,
-                    rng.integers(11, 34),
-                    replace=False))
-
-    with open(output_path, 'w') as dst:
-        dst.write(json.dumps(markers))
-
-    return output_path
 
 
 @pytest.mark.parametrize(
@@ -1922,7 +1781,3 @@ def test_marker_collapse_params_no_overlap(
                 input_data=config)
 
             runner.run()
-
-
-def test_dummy_gene_mapper(legacy_gene_mapper_fixture):
-    pass

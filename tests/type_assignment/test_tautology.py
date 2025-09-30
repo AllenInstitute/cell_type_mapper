@@ -21,7 +21,12 @@ from cell_type_mapper.taxonomy.taxonomy_tree import (
     TaxonomyTree)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+    run_type_assignment_on_h5ad
+)
+
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
+    collate_hierarchical_mappings
+)
 
 
 @pytest.fixture(scope='module')
@@ -221,6 +226,7 @@ def test_tautological_assignment(
         bootstrap_factor_lookup=bootstrap_factor_lookup,
         bootstrap_iteration=100,
         rng=np.random.default_rng(887123))
+    result = collate_hierarchical_mappings(result)
     assert len(result) == len(taxonomy_dict_fixture['cluster'])
     for el in result:
         assert el['cluster']['assignment'] == el['cell_id']

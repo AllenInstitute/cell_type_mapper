@@ -49,8 +49,10 @@ from cell_type_mapper.cli.query_markers import (
     QueryMarkerRunner)
 
 from cell_type_mapper.cli.from_specified_markers import (
-    FromSpecifiedMarkersRunner,
-    write_mapping_to_disk)
+    FromSpecifiedMarkersRunner)
+
+import cell_type_mapper.utils.write_hierarchical_results as write_hier
+import cell_type_mapper.utils.write_hann_results as write_hann
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
@@ -117,19 +119,30 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
 
             mapping_result = self._run(tmp_dir=tmp_dir, log=log)
 
-            mapping_result['output']['config'] = metadata_config
-            mapping_result['output']['metadata'] = get_execution_metadata(
+            mapping_result['metadata']['config'] = metadata_config
+            mapping_result['metadata']['metadata'] = get_execution_metadata(
                     module_file=__file__,
                     t0=t0)
 
-            write_mapping_to_disk(
-                output=mapping_result['output'],
-                log=log,
-                log_path=self.args['log_path'],
-                output_path=mapping_result['output_path'],
-                hdf5_output_path=mapping_result['hdf5_output_path'],
-                cloud_safe=self.args['cloud_safe']
-            )
+            algorithm = self.args['type_assignment']['algorithm']
+            if algorithm == 'hierarchical':
+                write_hier.write_mapping_to_disk(
+                    metadata=mapping_result['metadata'],
+                    mapping_result=mapping_result['mapping_result'],
+                    log=log,
+                    log_path=self.args['log_path'],
+                    output_path=mapping_result['output_path'],
+                    hdf5_output_path=mapping_result['hdf5_output_path'],
+                    cloud_safe=self.args['cloud_safe']
+                )
+            elif algorithm == 'hann':
+                write_hann.write_hann_metadata(
+                    metadata=mapping_result['metadata'],
+                    log=log,
+                    log_path=self.args['log_path'],
+                    hdf5_output_path=self.args['hdf5_result_path'],
+                    cloud_safe=self.args['cloud_safe']
+                )
 
             if mapping_result['mapping_exception'] is not None:
                 raise mapping_result['mapping_exception']
@@ -285,8 +298,9 @@ class OnTheFlyMapper(argschema.ArgSchemaParser):
         mapping_result = mapping_runner.run_mapping(write_to_disk=False)
         if mapping_result['mapping_exception'] is None:
             log.info("MAPPING FROM ON-THE-FLY MARKERS RAN SUCCESSFULLY")
-        mapping_result['output'].pop('gene_identifier_mapping')
-        mapping_result['output']['gene_identifier_mapping'] = (
+        if 'gene_identifier_mapping' in mapping_result['metadata']:
+            mapping_result['metadata'].pop('gene_identifier_mapping')
+        mapping_result['metadata']['gene_identifier_mapping'] = (
             gene_mapping_metadata
         )
         return mapping_result

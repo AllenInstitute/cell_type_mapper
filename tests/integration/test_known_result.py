@@ -29,10 +29,13 @@ from cell_type_mapper.type_assignment.election import (
     run_type_assignment_on_h5ad_cpu)
 
 from cell_type_mapper.type_assignment.election_runner import (
-    run_type_assignment_on_h5ad)
+    run_type_assignment_on_h5ad
+)
 
 from cell_type_mapper.test_utils.hierarchical_mapping import (
-    run_mapping)
+    run_mapping,
+    collate_hierarchical_mappings
+)
 
 if is_torch_available():
     from cell_type_mapper.gpu_utils.type_assignment.election import (
@@ -78,6 +81,8 @@ def test_raw_pipeline(
         rng=np.random.default_rng(123545),
         normalization='raw',
         results_output_path=buffer_dir)
+
+    result = collate_hierarchical_mappings(result)
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
@@ -130,6 +135,8 @@ def test_raw_pipeline_cpu(
         rng=np.random.default_rng(123545),
         normalization='raw',
         results_output_path=buffer_dir)
+
+    result = collate_hierarchical_mappings(result)
 
     assert len(result) == len(expected_cluster_fixture)
     for cell in result:
