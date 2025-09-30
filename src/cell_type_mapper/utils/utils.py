@@ -161,12 +161,6 @@ def get_timestamp():
     return result
 
 
-def update_timer(name, t, timers=None):
-    if timers is not None:
-        if timers.get(name) is not None:
-            timers.get(name).update(time.time() - t)
-
-
 def choose_int_dtype(
         x_minmax):
     """
