@@ -80,6 +80,9 @@ def test_hann_children_of_one_parent(
         desired=expected
     )
 
+    # check for arbitrary diversity of assignment
+    assert len(set(new_cell_assignments)) > 2
+
     # make sure correlation vector was untouched
     np.testing.assert_allclose(
         actual=correlation_vector,
@@ -151,6 +154,9 @@ def test_hann_children_of_one_parent_from_root(
         desired=expected_assn
     )
 
+    # check for diversity of assignment
+    assert len(set(new_cell_assignments)) == 2
+
     # make sure correlation vector was untouched
     np.testing.assert_allclose(
         actual=correlation_vector,
@@ -195,8 +201,8 @@ def test_hann_children_of_one_leaf_parent(
         def choice(self, arr, n, replace=False):
             return gene_subset_idx
 
-    cell_assignments = np.array(['']*query.n_cells)
-    new_cell_assignments = np.array(['']*query.n_cells)
+    cell_assignments = np.array(['']*query.n_cells).astype(object)
+    new_cell_assignments = np.array(['']*query.n_cells).astype(object)
     correlation_vector = np.zeros(query.n_cells)
 
     active_cells = np.arange(0, query.n_cells, 2)
@@ -224,7 +230,7 @@ def test_hann_children_of_one_leaf_parent(
         reference_cell_by_gene=reference
     )
 
-    expected = np.array(['']*query.n_cells)
+    expected = np.array(['']*query.n_cells).astype(object)
     for ii in range(query.n_cells):
         if ii % 2 == 0:
             expected[ii] = expected_assn[ii//2]
@@ -233,6 +239,9 @@ def test_hann_children_of_one_leaf_parent(
         actual=new_cell_assignments,
         desired=expected
     )
+
+    # check for arbitrary diversity of assignment
+    assert len(set(new_cell_assignments)) > 2
 
     final_corr = np.zeros(query.n_cells, dtype=float)
     final_corr[active_cells] = expected_corr[active_cells]
@@ -244,9 +253,6 @@ def test_hann_children_of_one_leaf_parent(
         atol=0.0,
         rtol=1.0e-6
     )
-
-    # make sure we found something interesting
-    assert len(np.unique(new_cell_assignments)) == 2
 
 
 def test_update_hann_votes(
@@ -309,10 +315,14 @@ def test_update_hann_votes(
         corr_out=corr
     )
 
+    expected_votes[0, 0] = 1
+    expected_votes[1, 4] = 1
     expected_votes[0, 2] = 1
     expected_votes[1, 3] = 1
     expected_votes[2, 4] = 2
 
+    expected_corr[0, 0] = 0.2
+    expected_corr[1, 4] = 0.4
     expected_corr[0, 2] = 0.1
     expected_corr[1, 3] = 0.5
     expected_corr[2, 4] = 1.2
@@ -369,6 +379,11 @@ def test_hann_iteration_smoke(
             min_chosen_markers=5
         )
         assert votes.sum() == (ii+1)*query.n_cells
+
+        np.testing.assert_array_equal(
+            votes.sum(axis=1),
+            (ii+1)*np.ones(query.n_cells)
+        )
 
     # make sure there is a diversity of vote counts
     np.testing.assert_array_equal(
@@ -438,6 +453,13 @@ def test_hann_tally_votes_smoke(
 
     votes = result['votes']
     assert votes.sum() == bootstrap_iteration*query.n_cells
+
+    row_sum = votes.sum(axis=1)
+    np.testing.assert_array_equal(
+        row_sum,
+        bootstrap_iteration*np.ones(query.n_cells)
+    )
+
     # make sure there is a diversity of vote counts
     assert len(np.unique(votes)) > 5
 
@@ -526,6 +548,11 @@ def test_hann_mapping_chunk_smoke(
     assert votes.sum() == bootstrap_iteration*query.n_cells
     # make sure there is a diversity of vote counts
     assert len(np.unique(votes)) > 5
+
+    np.testing.assert_array_equal(
+        votes.sum(axis=1),
+        bootstrap_iteration*np.ones(query.n_cells)
+    )
 
     col_sum = votes.sum(axis=0)
     assert col_sum.shape == (reference.n_cells, )
