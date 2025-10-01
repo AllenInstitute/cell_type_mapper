@@ -86,7 +86,12 @@ class FromSpecifiedMarkersRunner(argschema.ArgSchemaParser):
             cloud_safe=self.args['cloud_safe']
         )
 
-        msg = ('=== Running Hierarchical Mapping '
+        if self.args['type_assignment']['algorithm'] == 'hierarchical':
+            stdout_name = 'Hierarchical'
+        elif self.args['type_assignment']['algorithm'] == 'hann':
+            stdout_name = 'HANN'
+
+        msg = (f'=== Running {stdout_name} Mapping '
                f'{cell_type_mapper.__version__} ')
         if self.args['verbose_stdout']:
             msg += ('with config ===\n'
