@@ -3,15 +3,11 @@ import pytest
 import numpy as np
 from scipy.spatial.distance import cdist as scipy_cdist
 
-from cell_type_mapper.utils.torch_utils import (
-    is_torch_available)
-
 from cell_type_mapper.utils.distance_utils import (
     correlation_distance,
     _correlation_nearest_neighbors_cpu,
     correlation_nearest_neighbors,
-    _subtract_mean_and_normalize_cpu,
-    _correlation_dot_cpu)
+    _subtract_mean_and_normalize_cpu)
 
 
 def test_subtract_mean_and_normalize_cpu():
