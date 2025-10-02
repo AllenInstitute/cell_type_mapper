@@ -2,7 +2,8 @@ import multiprocessing
 import time
 
 from cell_type_mapper.utils.multiprocessing_utils import (
-    winnow_process_dict)
+    winnow_process_dict,
+    DummyLock)
 
 from cell_type_mapper.marker_selection.selection import (
     select_marker_genes_v2)
@@ -101,10 +102,15 @@ def select_all_markers(
         else:
             smaller_parents.append(parent)
 
-    mgr = multiprocessing.Manager()
-    output_dict = mgr.dict()
-    summary_log = mgr.dict()
-    stdout_lock = mgr.Lock()
+    if n_processors > 1:
+        mgr = multiprocessing.Manager()
+        output_dict = mgr.dict()
+        summary_log = mgr.dict()
+        stdout_lock = mgr.Lock()
+    else:
+        output_dict = dict()
+        summary_log = dict()
+        stdout_lock = DummyLock()
 
     started_parents = set()
     completed_parents = set()
