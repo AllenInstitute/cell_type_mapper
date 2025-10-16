@@ -1,4 +1,4 @@
-# MapMyCells Cell Type Mapper
+# MapMyCells: Cell Type Mapper
 
 ## Overview
 
