@@ -1,10 +1,13 @@
-# Cell Type Mapper
+# MapMyCells Cell Type Mapper
 
 ## Overview
 
 This code provides a python package for mapping single sell RNA sequencing data
-onto a cell type taxonomy such as that provided by the Allen Institute for Brain
-Science.
+onto a cell type taxonomy such as those provided by the Allen Institute for
+Brain Science. It is the backend implementation of the
+"Correlation Mapping" and "Hierarchical Mapping" algorithms in the Allen
+Institute's online
+[MapMyCells](https://knowledge.brain-map.org/mapmycells/process/) tool.
 
 ## Installation
 
