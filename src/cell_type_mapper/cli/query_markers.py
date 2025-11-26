@@ -64,7 +64,8 @@ class QueryMarkerRunner(argschema.ArgSchemaParser):
                 if pair[0].lower() == 'none':
                     k = None
                 else:
-                    k = pair[0]
+                    words = pair[0].split('/')
+                    k = (words[0], words[1])
                 n_per_utility_override[k] = pair[1]
 
         marker_lookup = create_marker_gene_lookup_from_ref_list(
