@@ -172,6 +172,84 @@ def test_query_marker_cli_tool(
         assert actual['metadata']['config'][k] == config[k]
 
 
+def test_n_per_utility_override(
+        query_gene_names,
+        ref_marker_path_fixture,
+        precomputed_path_fixture,
+        full_marker_name_fixture,
+        taxonomy_tree_dict,
+        tmp_dir_fixture):
+    """
+    Test that overriding n_utility for some nodes
+    in the taxonomy actually changes the number
+    of assigned markers.
+    """
+    n_per_utility = 11
+
+    baseline_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_markers_',
+        suffix='.json')
+
+    config = {
+        'query_path': None,
+        'reference_marker_path_list': [ref_marker_path_fixture],
+        'n_processors': 3,
+        'n_per_utility': n_per_utility,
+        'drop_level': None,
+        'output_path': baseline_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute())}
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    with open(baseline_path, 'rb') as src:
+        baseline = json.load(src)
+
+    n_per_utility_override = [
+        ('None', 3),
+        ('class/a', 3),
+        ('class/b', 3)
+    ]
+
+    test_path = mkstemp_clean(
+        dir=tmp_dir_fixture,
+        prefix='query_markers_',
+        suffix='.json')
+
+    config = {
+        'query_path': None,
+        'reference_marker_path_list': [ref_marker_path_fixture],
+        'n_processors': 3,
+        'n_per_utility': n_per_utility,
+        'drop_level': None,
+        'output_path': test_path,
+        'tmp_dir': str(tmp_dir_fixture.resolve().absolute()),
+        'n_per_utility_override': n_per_utility_override}
+
+    runner = QueryMarkerRunner(
+        args=[],
+        input_data=config)
+    runner.run()
+
+    with open(test_path, 'rb') as src:
+        test = json.load(src)
+
+    assert set(test.keys()) == set(baseline.keys())
+    for key in test.keys():
+        if key in ('metadata', 'log'):
+            continue
+        if key in ('None', 'class/a', 'class/b'):
+            continue
+        assert test[key] == baseline[key]
+
+    for key in ('None', 'class/a', 'class/b'):
+        assert len(test[key]) > 0
+        assert len(test[key]) < len(baseline[key])
+
+
 @pytest.mark.parametrize(
     "n_per_utility,drop_level,downsample_genes,search_for_stats_file",
     itertools.product(
