@@ -233,22 +233,30 @@ def run_type_assignment_on_h5ad_cpu(
         # to limit memory footprint
         data.downsample_genes_in_place(all_query_markers)
 
-        p = multiprocessing.Process(
+        kwargs = {
+            'query_cell_chunk': data,
+            'leaf_node_matrix': leaf_node_matrix,
+            'marker_gene_cache_path': marker_gene_cache_path,
+            'taxonomy_tree': taxonomy_tree,
+            'bootstrap_factor_lookup': bootstrap_factor_lookup,
+            'bootstrap_iteration': bootstrap_iteration,
+            'rng': np.random.default_rng(rng.integers(99, 2**32)),
+            'n_assignments': n_assignments,
+            'results_output_path': tmp_path,
+            'output_taxonomy_tree': output_taxonomy_tree,
+            'algorithm': algorithm
+        }
+
+        if n_processors == 1:
+            _run_type_assignment_on_h5ad_worker(**kwargs)
+        else:
+            p = multiprocessing.Process(
                 target=_run_type_assignment_on_h5ad_worker,
-                kwargs={
-                    'query_cell_chunk': data,
-                    'leaf_node_matrix': leaf_node_matrix,
-                    'marker_gene_cache_path': marker_gene_cache_path,
-                    'taxonomy_tree': taxonomy_tree,
-                    'bootstrap_factor_lookup': bootstrap_factor_lookup,
-                    'bootstrap_iteration': bootstrap_iteration,
-                    'rng': np.random.default_rng(rng.integers(99, 2**32)),
-                    'n_assignments': n_assignments,
-                    'results_output_path': tmp_path,
-                    'output_taxonomy_tree': output_taxonomy_tree,
-                    'algorithm': algorithm})
-        p.start()
-        process_list.append(p)
+                kwargs=kwargs
+            )
+            p.start()
+            process_list.append(p)
+
         while len(process_list) >= n_processors:
             n0 = len(process_list)
             process_list = winnow_process_list(process_list)
