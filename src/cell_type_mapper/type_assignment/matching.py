@@ -2,9 +2,6 @@ import h5py
 import json
 import numpy as np
 
-from cell_type_mapper.diff_exp.score_utils import (
-    read_precomputed_stats)
-
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
     CellByGeneMatrix)
 
@@ -271,31 +268,52 @@ def get_leaf_means(
     If for_marker_selection is True and 'sumsq' or 'ge1' are missing,
     raise an error
     """
-    precomputed_stats = read_precomputed_stats(
-        precomputed_stats_path=precompute_path,
-        taxonomy_tree=taxonomy_tree,
-        for_marker_selection=for_marker_selection)
-    leaf_names = taxonomy_tree.all_leaves
-    leaf_names.sort()
-    result = dict()
 
-    n_cells = len(leaf_names)
-    data = None
+    if for_marker_selection:
+        raise RuntimeError("no")
 
-    for i_leaf, leaf in enumerate(leaf_names):
-        # gt1/0 threshold do not actually matter here
-        leaf_key = f'{taxonomy_tree.leaf_level}/{leaf}'
-        stats = precomputed_stats['cluster_stats'][leaf_key]
-        this_mean = stats['mean']
-        if data is None:
-            n_genes = len(this_mean)
-            data = np.zeros((n_cells, n_genes))
-        data[i_leaf, :] = this_mean
+    with h5py.File(precompute_path, 'r') as src:
+        sum_arr = src['sum'][()]
+        n_cells = src['n_cells'][()]
+        gene_id = json.loads(src['col_names'][()].decode('utf-8'))
+        row_lookup = json.loads(src['cluster_to_row'][()].decode('utf-8'))
+
+    row_to_cluster = {row_lookup[rr]: rr for rr in row_lookup}
+    leaf_names = np.array(
+        [row_to_cluster[ii] for ii in range(len(row_lookup))]
+    )
+    valid_clusters = set(
+        taxonomy_tree.nodes_at_level(
+            taxonomy_tree.leaf_level
+        )
+    )
+
+    valid_idx = np.array(
+        [ii
+         for ii in range(len(leaf_names))
+         if leaf_names[ii] in valid_clusters
+         ]
+     )
+
+    sum_arr = sum_arr[valid_idx, :]
+    leaf_names = leaf_names[valid_idx]
+    n_cells = n_cells[valid_idx]
+
+    if set(leaf_names) != valid_clusters:
+        delta = valid_clusters-leaf_names
+        raise ValueError(
+            "The following clusters had no mean expression "
+            "vectors:\n"
+            f"{json.dumps(sorted(delta), indent=2)}"
+        )
+
+    for i_row in range(sum_arr.shape[0]):
+        sum_arr[i_row, :] = sum_arr[i_row, :]/n_cells[i_row]
 
     result = CellByGeneMatrix(
-        data=data,
-        gene_identifiers=precomputed_stats['gene_names'],
-        cell_identifiers=leaf_names,
+        data=sum_arr,
+        gene_identifiers=gene_id,
+        cell_identifiers=[str(name) for name in leaf_names],
         normalization="log2CPM")
 
     return result
