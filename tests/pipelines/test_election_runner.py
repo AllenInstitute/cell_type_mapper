@@ -165,7 +165,8 @@ def test_running_single_election(
 
     leaf_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
-        precompute_path=precompute_path)
+        precompute_path=precompute_path,
+        for_marker_selection=False)
 
     for parent_node in (None, ("level2", "l2d")):
         data_for_election = assemble_query_data(
@@ -306,7 +307,8 @@ def test_running_full_election(
         # profiles for each leaf in the taxonomy
         leaf_node_matrix = get_leaf_means(
             taxonomy_tree=taxonomy_tree,
-            precompute_path=precompute_path)
+            precompute_path=precompute_path,
+            for_marker_selection=False)
 
         bootstrap_factor = 0.8
         bootstrap_factor_lookup = {
@@ -463,7 +465,8 @@ def test_running_flat_election(
     # profiles for each leaf in the taxonomy
     leaf_node_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
-        precompute_path=precompute_path)
+        precompute_path=precompute_path,
+        for_marker_selection=False)
 
     bootstrap_factor = 0.8
     bootstrap_factor_lookup = {
