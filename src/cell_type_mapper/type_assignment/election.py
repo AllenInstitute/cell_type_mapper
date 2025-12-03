@@ -372,6 +372,10 @@ def preprocess_taxonomy_for_mapping(
         precompute_path=precomputed_stats_path,
         for_marker_selection=False)
 
+    leaf_node_matrix.downsample_genes_in_place(
+        all_query_markers
+    )
+
     return (
         chunk_iterator,
         leaf_node_matrix,
