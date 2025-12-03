@@ -60,14 +60,16 @@ from cell_type_mapper.test_utils.hierarchical_mapping import (
 
 
 @pytest.mark.parametrize(
-        'flatten,use_gpu,just_once,drop_subclass,n_runners_up,scalar_factor',
+        "flatten,use_gpu,just_once,drop_subclass,"
+        "n_runners_up,scalar_factor,n_processors",
         itertools.product(
             (True, False),
             (True, False),
             (True, False),
             (True, False),
             (2, 4),
-            (True, False)
+            (True, False),
+            (1, 3)
         ))
 def test_mapping_from_markers_smoke(
         noisy_precomputed_stats_fixture,
@@ -80,7 +82,8 @@ def test_mapping_from_markers_smoke(
         just_once,
         drop_subclass,
         n_runners_up,
-        scalar_factor):
+        scalar_factor,
+        n_processors):
     """
     just_once sets type_assignment.bootstrap_iteration=1
 
@@ -150,7 +153,7 @@ def test_mapping_from_markers_smoke(
         'bootstrap_factor': bootstrap_factor,
         'bootstrap_factor_lookup': bootstrap_factor_lookup,
         'rng_seed': 1491625,
-        'n_processors': 3,
+        'n_processors': n_processors,
         'chunk_size': 1000,
         'normalization': 'raw',
         'n_runners_up': n_runners_up
