@@ -206,6 +206,12 @@ def run_type_assignment_on_h5ad_cpu(
 
     tmp_path_list = []
 
+    if log is not None:
+        log.info(
+            msg="Chunking through query data",
+            to_stdout=True
+        )
+
     for chunk in chunk_iterator:
         r0 = chunk[1]
         r1 = chunk[2]
