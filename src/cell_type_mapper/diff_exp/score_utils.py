@@ -145,7 +145,9 @@ def read_precomputed_stats(
             leaf_population = as_leaves[level][node]
             this = aggregate_stats(
                 leaf_population=leaf_population,
-                precomputed_stats=raw_results['cluster_stats'])
+                precomputed_stats=raw_results['cluster_stats'],
+                for_marker_selection=for_marker_selection
+            )
 
             key_list = list(this.keys())
             for key in key_list:
@@ -190,7 +192,10 @@ def read_raw_precomputed_stats(
         row_lookup = json.loads(
             in_file['cluster_to_row'][()].decode('utf-8'))
 
-        all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
+        if for_marker_selection:
+            all_keys = set(['n_cells', 'sum', 'sumsq', 'gt0', 'gt1', 'ge1'])
+        else:
+            all_keys = set(['n_cells', 'sum'])
         all_keys = list(all_keys.intersection(set(in_file.keys())))
 
         if 'n_cells' not in all_keys or 'sum' not in all_keys:
@@ -230,7 +235,8 @@ def read_raw_precomputed_stats(
 
 def aggregate_stats(
        leaf_population,
-       precomputed_stats):
+       precomputed_stats,
+       for_marker_selection=True):
     """
     Parameters
     ----------
@@ -246,6 +252,11 @@ def aggregate_stats(
             'gt0'
             'gt1'
             'ge1'
+
+    for_marker_selection:
+        boolean indicating whether or not we need to keep
+        track of sumsq, gt0, gt1, ge1, which are only used
+        for marker gene selection
 
     Returns
     -------
@@ -265,13 +276,16 @@ def aggregate_stats(
     n_genes = len(precomputed_stats[leaf_population[0]]['sum'])
 
     sum_arr = np.zeros(n_genes, dtype=float)
-    sumsq_arr = np.zeros(n_genes, dtype=float)
-
-    gt0 = np.zeros(n_genes, dtype=int)
-    gt1 = np.zeros(n_genes, dtype=int)
-    ge1 = np.zeros(n_genes, dtype=int)
     n_cells = 0
-    has_ge1 = True
+
+    if for_marker_selection:
+        sumsq_arr = np.zeros(n_genes, dtype=float)
+        gt0 = np.zeros(n_genes, dtype=int)
+        gt1 = np.zeros(n_genes, dtype=int)
+        ge1 = np.zeros(n_genes, dtype=int)
+        has_ge1 = True
+    else:
+        has_ge1 = False
 
     for leaf_node in leaf_population:
         these_stats = precomputed_stats[leaf_node]
@@ -282,21 +296,28 @@ def aggregate_stats(
         if 'sum' in these_stats:
             sum_arr += these_stats['sum']
 
-        if 'sumsq' in these_stats:
-            sumsq_arr += these_stats['sumsq']
+        if for_marker_selection:
+            if 'sumsq' in these_stats:
+                sumsq_arr += these_stats['sumsq']
 
-        if 'gt0' in these_stats:
-            gt0 += these_stats['gt0']
+            if 'gt0' in these_stats:
+                gt0 += these_stats['gt0']
 
-        if 'gt1' in these_stats:
-            gt1 += these_stats['gt1']
+            if 'gt1' in these_stats:
+                gt1 += these_stats['gt1']
 
-        if 'ge1' in these_stats:
-            ge1 += these_stats['ge1']
-        else:
-            has_ge1 = False
+            if 'ge1' in these_stats:
+                ge1 += these_stats['ge1']
+            else:
+                has_ge1 = False
 
     mu = sum_arr/max(1, n_cells)
+    if not for_marker_selection:
+        return {
+            'mean': mu,
+            'n_cells': n_cells
+        }
+
     var = (sumsq_arr-sum_arr**2/max(1, n_cells))/max(1, n_cells-1)
 
     if not has_ge1:
