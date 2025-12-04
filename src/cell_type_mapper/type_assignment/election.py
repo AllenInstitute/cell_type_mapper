@@ -22,7 +22,7 @@ from cell_type_mapper.type_assignment.utils import (
 )
 
 from cell_type_mapper.type_assignment.matching import (
-   get_leaf_means,
+   get_leaf_means
 )
 
 from cell_type_mapper.cell_by_gene.cell_by_gene import (
@@ -370,7 +370,7 @@ def preprocess_taxonomy_for_mapping(
     leaf_node_matrix = get_leaf_means(
         taxonomy_tree=taxonomy_tree,
         precompute_path=precomputed_stats_path,
-        for_marker_selection=False)
+    )
 
     leaf_node_matrix.downsample_genes_in_place(
         all_query_markers
