@@ -292,9 +292,13 @@ def get_leaf_means(
             data = np.zeros((n_cells, n_genes))
         data[i_leaf, :] = this_mean
 
+    gene_identifiers = precomputed_stats['gene_names']
+
+    del precomputed_stats
+
     result = CellByGeneMatrix(
         data=data,
-        gene_identifiers=precomputed_stats['gene_names'],
+        gene_identifiers=gene_identifiers,
         cell_identifiers=leaf_names,
         normalization="log2CPM")
 
