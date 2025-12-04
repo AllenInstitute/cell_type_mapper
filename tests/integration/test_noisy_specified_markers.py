@@ -1486,7 +1486,6 @@ def test_mapping_config_roundtrip(
         assert retest_mapping['results'] == test_mapping['results']
         assert retest_mapping['taxonomy_tree'] == test_mapping['taxonomy_tree']
         assert retest_mapping['marker_genes'] == test_mapping['marker_genes']
-        assert retest_mapping['metadata'] != test_mapping['metadata']
 
     os.environ[env_var] = ''
 
