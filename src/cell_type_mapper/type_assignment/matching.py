@@ -261,8 +261,7 @@ def subset_cell_by_gene(
 
 def get_leaf_means(
         taxonomy_tree,
-        precompute_path,
-        for_marker_selection=True):
+        precompute_path):
     """
     Returns a CellByGeneMatrix in which each cell
     is a cluster and the .data array contains
@@ -274,7 +273,7 @@ def get_leaf_means(
     precomputed_stats = read_precomputed_stats(
         precomputed_stats_path=precompute_path,
         taxonomy_tree=taxonomy_tree,
-        for_marker_selection=for_marker_selection)
+        for_marker_selection=False)
     leaf_names = taxonomy_tree.all_leaves
     leaf_names.sort()
     result = dict()
