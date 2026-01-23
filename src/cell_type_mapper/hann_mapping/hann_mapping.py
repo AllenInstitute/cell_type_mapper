@@ -187,6 +187,8 @@ def _assign_children_of_one_parent(
                              query_array=query_subset,
                              return_correlation=True)
 
+        correlation_vector[cell_idx] = chosen_corr
+
         if parent is not None:
             chosen = leaf_idx[chosen]
 
@@ -195,7 +197,6 @@ def _assign_children_of_one_parent(
                 [reference_cell_by_gene.cell_identifiers[idx]
                  for idx in chosen]
             )
-            correlation_vector[cell_idx] = chosen_corr
         else:
             assignments = np.array(
                 [taxonomy_tree.parents(
