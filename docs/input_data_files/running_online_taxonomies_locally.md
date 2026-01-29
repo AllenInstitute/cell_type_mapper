@@ -6,6 +6,11 @@ defining those taxonomies. We have made them available for download from
 AWS's S3 storage service. We describe where to find the files for each supported
 taxonomy below.
 
+**Note:** As of autumn 2025, the files needed to run the on-line MapMyCells
+taxonomies are served by the `abc_atlas_access` Python API.
+[This Jupyter notebook](https://github.com/AllenInstitute/cell_type_mapper/blob/main/examples/downloading_taxonomy_files.ipynb)
+demonstrates how to access these files.
+
 **Note:** some of the files that need to be downloaded (specifically, the
 marker gene lookup tables) are JSON files. When you click on the link to one
 of those files, your browser will likely default to displaying the file
