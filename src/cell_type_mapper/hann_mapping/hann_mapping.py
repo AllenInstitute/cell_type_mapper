@@ -15,7 +15,52 @@ def hann_tally_votes(
         bootstrap_iteration,
         rng):
     """
-    Marker lookup can be in terms of gene identifiers
+    Assign types at all levels of the taxonomy to a set of
+    query cells using the HANN algorithm.
+
+    Parameters
+    ----------
+    full_query_gene_data:
+        A CellByGeneMatrix containing the query data.
+        Must have normalization == 'log2CPM'.
+
+    leaf_node_matrix:
+        A CellByGeneMatrix containing the average expression
+        profiles for the leaf nodes of the taxonomy
+
+    marker_gene_cache_path:
+        Path to the HDF5 file where lists of marker genes for
+        discriminating betwen clustes in our taxonomy are stored.
+
+        Note: This file takes into account the genes available
+        in the query data. So: it is specific to this combination
+        of taxonomy/reference set and query data set.
+
+    taxonomy_tree:
+        instance of
+        cell_type_mapper.taxonomy.taxonomy_tree.TaxonomyTree
+        encoding the taxonomy tree
+
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+
+    bootstrap_iteration:
+        How many booststrap iterations to run when assigning
+        cells to cell types
+
+    rng:
+        A random number generator
+
+    Returns
+    -------
+    A dict
+        'votes': numpy array of votes
+        'correlation_sum': numpy array summing correlation across clusters
+        'cell_identifiers': numpy array of cell identifiers
+        'cluster_identifiers': numpy array of cluster identifiers
+    }
     """
 
     data = matching.assemble_query_data_hann(
@@ -71,6 +116,40 @@ def _hann_iteration(
         votes_out,
         corr_out,
         min_chosen_markers=5):
+    """
+    Run a single iteration of the HANN algorithm
+
+    Parameters
+    ----------
+    query_cell_by_gene:
+        CellByGeneMatrix of query (unlabeled data)
+    reference_cell_by_gene:
+        CellByGeneMatrix of cluster average profiles
+    taxonomy_tree:
+        TaxonomyTree being mapped to
+    marker_lookup:
+        dict mapping taxons to marekr gene lists
+    bootstrap_factor_lookup:
+        A dict mapping the levels in taxonomy_tree.hierarchy to
+        fractions (<=1.0) by which to sampel the marker gene set
+        at each bootstrapping iteration
+    rng:
+        numpy random number generator
+    votes_out:
+        a (n_cells, n_clusters) array of ints where votes
+        are tallied
+    corr_out:
+        a (n_cells, n_clusters) array of floats wher the sum
+        of correlation coefficients is kept
+    min_chosen_markers:
+        minimum number of marker genes to choose at each
+        mapping
+
+    Returns
+    -------
+    None:
+        votes_out and corr_out will be updated
+    """
 
     cell_assignments = np.array(
         ['']*query_cell_by_gene.n_cells
@@ -142,6 +221,47 @@ def _assign_children_of_one_parent(
         min_chosen_markers,
         query_cell_by_gene,
         reference_cell_by_gene):
+    """
+    Assign all of the cells that have been assigned to a single
+    cell type to children of that cell type.
+
+    Parameters
+    ----------
+    cell_assignments:
+        array of strings representing the ALL of the cell type
+        assignments that are currently valid in this HANN iteration
+        (not just the cells being updated)
+    new_cell_assignments:
+        array of strings where updated cell type assignments
+        for ALL cells will be stored (not just the cells currently
+        being updated)
+    correlation_vector:
+        numpy array where sum of correlation coefficients for
+        ALL cells is being kept.
+    taxonomy_tree:
+        TaxonomyTree being mapped to
+    parent_level:
+        identifier of level of cell type whose children are
+        being assigned
+    parent:
+        identifier of actual cell type whose children
+        are being assigned
+    marker_lookup:
+        dict mapping cell types to marker genes
+    bootstrap_factor:
+        factor by which to downsample list of marker genes
+    min_chosen_markers:
+        minimum number of markers to choose for this mapping
+    query_cell_by_gene:
+        CellByGeneMatrix of query (unlabeled data)
+    reference_cell_by_gene:
+        CellByGeneMatrix of cell type average profiles
+
+    Returns
+    -------
+    None
+        new_cell_assignments and correlation_vector are updated
+    """
 
     if parent is not None:
         cell_idx = np.where(cell_assignments == parent)[0]
