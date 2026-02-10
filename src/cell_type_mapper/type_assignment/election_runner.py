@@ -5,24 +5,12 @@ from cell_type_mapper.type_assignment.election import (
 from cell_type_mapper.type_assignment.utils import (
     validate_bootstrap_factor_lookup)
 
-from cell_type_mapper.utils.torch_utils import (
-    is_torch_available,
-    use_torch)
-
 from cell_type_mapper.validation.utils import (
     is_data_ge_zero)
-
-from cell_type_mapper.utils.output_utils import (
-    re_order_blob)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad
 )
-
-
-if is_torch_available():
-    from cell_type_mapper.gpu_utils.type_assignment.election import (
-        run_type_assignment_on_h5ad_gpu)
 
 
 def run_type_assignment_on_h5ad(
@@ -41,7 +29,15 @@ def run_type_assignment_on_h5ad(
         log=None,
         max_gb=10,
         results_output_path=None,
-        output_taxonomy_tree=None):
+        output_taxonomy_tree=None,
+        algorithm="hierarchical"):
+
+    valid_algorithms = ("hierarchical", "hann")
+    if algorithm not in valid_algorithms:
+        raise ValueError(
+            f"'{algorithm}' is not a valid algorithm; "
+            f"only {valid_algorithms} are valid"
+        )
 
     if normalization not in ('raw', 'log2CPM'):
         error_msg = (
@@ -94,45 +90,24 @@ def run_type_assignment_on_h5ad(
         taxonomy_tree=taxonomy_tree,
         log=log)
 
-    if use_torch():
-        result = run_type_assignment_on_h5ad_gpu(
-            query_h5ad_path,
-            precomputed_stats_path,
-            marker_gene_cache_path,
-            taxonomy_tree,
-            n_processors,
-            chunk_size,
-            bootstrap_factor_lookup,
-            bootstrap_iteration,
-            rng,
-            n_assignments=n_assignments,
-            normalization=normalization,
-            tmp_dir=tmp_dir,
-            log=log,
-            max_gb=max_gb,
-            output_taxonomy_tree=output_taxonomy_tree,
-            results_output_path=results_output_path)
-    else:
-        result = run_type_assignment_on_h5ad_cpu(
-            query_h5ad_path,
-            precomputed_stats_path,
-            marker_gene_cache_path,
-            taxonomy_tree,
-            n_processors,
-            chunk_size,
-            bootstrap_factor_lookup,
-            bootstrap_iteration,
-            rng,
-            n_assignments=n_assignments,
-            normalization=normalization,
-            tmp_dir=tmp_dir,
-            log=log,
-            max_gb=max_gb,
-            output_taxonomy_tree=output_taxonomy_tree,
-            results_output_path=results_output_path)
+    tmp_path_list = run_type_assignment_on_h5ad_cpu(
+        query_h5ad_path,
+        precomputed_stats_path,
+        marker_gene_cache_path,
+        taxonomy_tree,
+        n_processors,
+        chunk_size,
+        bootstrap_factor_lookup,
+        bootstrap_iteration,
+        rng,
+        n_assignments=n_assignments,
+        normalization=normalization,
+        tmp_dir=tmp_dir,
+        log=log,
+        max_gb=max_gb,
+        output_taxonomy_tree=output_taxonomy_tree,
+        results_output_path=results_output_path,
+        algorithm=algorithm
+    )
 
-    result = re_order_blob(
-        results_blob=result,
-        query_path=query_h5ad_path)
-
-    return result
+    return tmp_path_list

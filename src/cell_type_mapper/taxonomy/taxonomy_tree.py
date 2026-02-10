@@ -75,6 +75,16 @@ class TaxonomyTree(object):
         }
         self._child_to_parent_level[self.hierarchy[0]] = None
 
+        self._parent_to_child_level = {
+            self._child_to_parent_level[child]: child
+            for child in self._child_to_parent_level
+        }
+
+        self._as_leaves = None
+        self._full_parentage = {
+            level: dict() for level in self.hierarchy
+        }
+
     @property
     def metadata(self):
         if 'metadata' not in self._data:
@@ -582,10 +592,17 @@ class TaxonomyTree(object):
         """
         return self._child_to_parent_level[level]
 
-    def parents(self, level, node):
+    def child_level(self, level):
         """
-        return a dict listing all the ancestors of
-        (level, node)
+        Return the elvel that is directly below the sepcified
+        level in the hierarchy
+        """
+        return self._parent_to_child_level[level]
+
+    def _find_parents(self, level, node):
+        """
+        Construct the parentage dict for a specific
+        (level, node) combination
         """
         this = dict()
         hierarchy_idx = None
@@ -602,6 +619,17 @@ class TaxonomyTree(object):
                 prev_node = this[prev]
                 this[current] = self._child_to_parent[prev][prev_node]
         return this
+
+    def parents(self, level, node):
+        """
+        return a dict listing all the ancestors of
+        (level, node)
+        """
+        if node not in self._full_parentage[level]:
+            self._full_parentage[level][node] = self._find_parents(
+                                                    level=level,
+                                                    node=node)
+        return self._full_parentage[level][node]
 
     def children(self, level, node):
         """
@@ -646,7 +674,9 @@ class TaxonomyTree(object):
                 -> node1 (a node on that level of the tree)
                     -> list of leaf nodes making up that node
         """
-        return convert_tree_to_leaves(self._data)
+        if self._as_leaves is None:
+            self._as_leaves = convert_tree_to_leaves(self._data)
+        return self._as_leaves
 
     @property
     def siblings(self):

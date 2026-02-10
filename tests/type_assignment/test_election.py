@@ -14,11 +14,11 @@ from cell_type_mapper.utils.torch_utils import (
     is_torch_available,
     use_torch)
 
-from cell_type_mapper.type_assignment.election import (
+from cell_type_mapper.type_assignment.hierarchical_mapping import (
     tally_raw_votes,
     tally_votes,
     reshape_type_assignment,
-    run_type_assignment,
+    run_hierarchical_type_assignment,
     aggregate_votes)
 
 from cell_type_mapper.type_assignment.marker_cache_v2 import (
@@ -280,7 +280,9 @@ def test_confidence_result():
     def dummy_tally_raw_votes(*args, **kwargs):
         return (mock_votes, mock_corr_sum)
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    to_replace = (
+        'cell_type_mapper.type_assignment.hierarchical_mapping.tally_raw_votes'
+    )
     with patch(to_replace, new=dummy_tally_raw_votes):
 
         (votes,
@@ -346,7 +348,9 @@ def test_runners_up():
     # sum in the first row of votes
     bootstrap_iteration = 23
 
-    to_replace = 'cell_type_mapper.type_assignment.election.tally_raw_votes'
+    to_replace = (
+        'cell_type_mapper.type_assignment.hierarchical_mapping.tally_raw_votes'
+    )
     with patch(to_replace, new=dummy_tally_raw_votes):
 
         (votes,
@@ -405,10 +409,10 @@ def test_runners_up():
     assert ct_false > 0
 
 
-def test_run_type_assignment(
+def test_run_hierarchical_type_assignment(
         tmp_dir_fixture):
     """
-    Test the outputs of run_type_assignment. Chiefly,
+    Test the outputs of run_hierarchical_type_assignment. Chiefly,
     test that the runners up are, in fact, descendants
     of the parents they are supposed to descend from,
     and that NULL runners up are handled correctly.
@@ -516,7 +520,7 @@ def test_run_type_assignment(
     }
     bootstrap_factor_lookup['None'] = factor
 
-    results = run_type_assignment(
+    results = run_hierarchical_type_assignment(
         full_query_gene_data=query_data,
         leaf_node_matrix=reference_data,
         marker_gene_cache_path=marker_cache_path,
