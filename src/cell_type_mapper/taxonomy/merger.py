@@ -135,6 +135,7 @@ def merge_taxonomy_trees(tree_lookup):
         'version': cell_type_mapper.__version__,
         'component_trees': {
             taxonomy_name: tree_lookup[taxonomy_name].metadata
+            for taxonomy_name in taxonomy_name_list
         }
     }
     output_tree.metadata = metadata

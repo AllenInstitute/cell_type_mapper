@@ -50,6 +50,10 @@ def test_tree_merger():
         tree_lookup=tree_lookup
     )
 
+    metadata = merged_tree._data['metadata']
+    for name in ('taxonomyA', 'taxonomyB', 'taxonomyC'):
+        assert name in metadata['component_trees']
+
     for taxonomy_name in tree_lookup:
         base_tree = tree_lookup[taxonomy_name]
 
