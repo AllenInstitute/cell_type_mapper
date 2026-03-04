@@ -14,14 +14,6 @@ class PrecomputedStatsSchemaMixin(
         NProcessorsMixin,
         LayerMixin):
 
-    clobber = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=(
-            "Set to True to allow the code to overwrite an existing file."
-        ))
-
     hierarchy = argschema.fields.List(
         argschema.fields.String,
         required=True,
