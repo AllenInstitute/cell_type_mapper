@@ -379,9 +379,7 @@ def test_no_cells_precompute_from_h5ad_list(
     )
 
     msg = (
-        "No data was written to disk; "
-        "check to make sure that the values in "
-        "the column 'label' of "
+        f"No values in column 'label' of "
         f"'{csv_path}' correspond with "
         "values in the index of your h5ad "
         "files."
@@ -389,3 +387,164 @@ def test_no_cells_precompute_from_h5ad_list(
 
     with pytest.raises(RuntimeError, match=msg):
         runner.run()
+
+
+@pytest.mark.parametrize(
+    "h5ad_list_fixture, csv_path_fixture, chunk_size",
+    itertools.product(
+        [{"normalization": "raw",
+          "gene_id_col": None,
+          "layer": "X"},
+         ],
+        [{"cell_label_column": "label",
+          "qc_column": "qc"}
+         ],
+        [100]
+     ),
+    indirect=["h5ad_list_fixture",
+              "csv_path_fixture"]
+)
+def test_extra_cells_precompute_from_h5ad_list(
+        local_tmp_dir,
+        h5ad_list_fixture,
+        csv_path_fixture,
+        chunk_size):
+    """
+    Test case where there are cells in the CSV file
+    that do not occur in the h5ad files
+    """
+    h5ad_list = h5ad_list_fixture[0]
+    cbg_normalized_data = h5ad_list_fixture[1]
+    h5ad_params = h5ad_list_fixture[2]
+    raw_csv_path = csv_path_fixture[0]
+    csv_params = csv_path_fixture[1]
+
+    csv_data = pd.read_csv(raw_csv_path).to_dict(orient='records')
+    for ii in range(10):
+        csv_data.append(
+            {'label': f'dummy{ii}',
+             'class': 'class1',
+             'subclass': 'subclass2',
+             'cluster': 'cluster0008',
+             'qc': True}
+        )
+    csv_path = basic_utils.mkstemp_clean(
+        dir=local_tmp_dir,
+        suffix='.csv'
+    )
+    pd.DataFrame(
+        csv_data
+    ).to_csv(csv_path, index=False)
+
+    dst_path = basic_utils.mkstemp_clean(
+        dir=local_tmp_dir,
+        suffix='.h5'
+    )
+
+    config = {
+        "output_path": str(dst_path),
+        "hierarchy": ['class', 'subclass', 'cluster'],
+        "h5ad_path_list": h5ad_list,
+        "annotation_path": csv_path,
+        "qc_column": csv_params['qc_column'],
+        "cell_label_column": csv_params['cell_label_column'],
+        "layer": h5ad_params['layer'],
+        "n_processors": 2,
+        "tmp_dir": local_tmp_dir,
+        "clobber": True,
+        "normalization": h5ad_params['normalization'],
+        "gene_id_col": h5ad_params["gene_id_col"],
+        "chunk_size": chunk_size
+    }
+    runner = cli.PrecomputationH5adListRunner(
+        args=[],
+        input_data=config
+    )
+
+    msg = (
+        f"10 cells from '{csv_path}' were not "
+        "present in your h5ad files"
+    )
+    with pytest.warns(expected_warning=cli.OmittedCellsWarning, match=msg):
+        runner.run()
+
+    taxonomy_df = pd.read_csv(csv_path)
+    taxonomy_df = taxonomy_df[taxonomy_df[csv_params['qc_column']]]
+
+    # drop extra cells, which have no 'idx' column
+    taxonomy_df.dropna(inplace=True)
+
+    expected_tree = taxonomy_module.TaxonomyTree.from_dataframe(
+        taxonomy_df,
+        column_hierarchy=['class', 'subclass', 'cluster'],
+        drop_rows=True
+    )
+
+    actual_tree = taxonomy_module.TaxonomyTree.from_precomputed_stats(
+        dst_path
+    )
+
+    assert actual_tree.is_equal_to(expected_tree)
+
+    cluster_list = [f'cluster{ii:04d}' for ii in range(2, 20)]
+    expected_gene_names = [f'g{ii}' for ii in range(2130)]
+    with h5py.File(dst_path, 'r') as actual:
+
+        gene_names = json.loads(actual['col_names'][()].decode('utf-8'))
+        np.testing.assert_array_equal(
+            desired=expected_gene_names,
+            actual=gene_names
+        )
+        cluster_to_row = {
+            cl: ii
+            for ii, cl in enumerate(cluster_list)
+        }
+        actual_rows = json.loads(actual['cluster_to_row'][()].decode('utf-8'))
+        assert actual_rows == cluster_to_row
+
+        actual_n_cells = actual['n_cells'][()]
+        assert actual_n_cells.min() > 0
+
+        expected_n_cells = [
+            (taxonomy_df.cluster == cluster).sum()
+            for cluster in cluster_list
+        ]
+
+        np.testing.assert_array_equal(
+            desired=expected_n_cells,
+            actual=actual_n_cells
+        )
+
+        for ii, cluster in enumerate(cluster_list):
+            subset = taxonomy_df[taxonomy_df.cluster == cluster]
+            idx_arr = np.sort(subset.idx.values).astype(int)
+            x_subset = cbg_normalized_data[idx_arr, :]
+            expected_sum = x_subset.sum(axis=0)
+            np.testing.assert_allclose(
+                expected_sum,
+                actual['sum'][ii, :],
+                atol=0.0,
+                rtol=1.0e-6
+            )
+            expected_sumsq = (x_subset**2).sum(axis=0)
+            np.testing.assert_allclose(
+                expected_sumsq,
+                actual['sumsq'][ii, :],
+                atol=0.0,
+                rtol=1.0e-6
+            )
+            expected_ge1 = (x_subset >= 1).sum(axis=0)
+            np.testing.assert_array_equal(
+                actual=actual['ge1'][ii, :],
+                desired=expected_ge1
+            )
+            expected_gt0 = (x_subset > 0).sum(axis=0)
+            np.testing.assert_array_equal(
+                actual=actual['gt0'][ii, :],
+                desired=expected_gt0
+            )
+            expected_gt1 = (x_subset > 1).sum(axis=0)
+            np.testing.assert_array_equal(
+                actual=actual['gt1'][ii, :],
+                desired=expected_gt1
+            )
