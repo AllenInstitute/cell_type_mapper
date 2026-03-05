@@ -10,6 +10,7 @@ import h5py
 import pandas as pd
 import json
 import time
+import warnings
 
 from cell_type_mapper.utils.output_utils import (
     get_execution_metadata)
@@ -27,6 +28,8 @@ from cell_type_mapper.diff_exp.precompute_from_anndata import (
 
 from cell_type_mapper.schemas.precomputation_schema import (
     PrecomputedStatsH5adListSchema)
+
+import cell_type_mapper.utils.anndata_utils as anndata_utils
 
 
 class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
@@ -62,6 +65,43 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
         df[self.args['qc_column']] = df[self.args['qc_column']].astype(bool)
         df = df[df[self.args['qc_column']]][chosen_columns]
 
+        expected_cells = set(df[self.args['cell_label_column']].values)
+        actual_cells = set()
+        for h5ad_path in self.args['h5ad_path_list']:
+            obs = anndata_utils.read_df_from_h5ad(
+                h5ad_path,
+                df_name='obs'
+            )
+            actual_cells = actual_cells.union(
+                set(obs.index.values)
+            )
+            del obs
+
+        if len(expected_cells.intersection(actual_cells)) == 0:
+            cell_col = self.args['cell_label_column']
+            annotation_path = self.args['annotation_path']
+            raise RuntimeError(
+                f"No values in column '{cell_col}' of "
+                f"'{annotation_path}' correspond with "
+                "values in the index of your h5ad "
+                "files."
+            )
+
+        omitted_cells = sorted(expected_cells-actual_cells)
+        if len(omitted_cells) > 0:
+            annotation_path = self.args['annotation_path']
+            msg = (
+                f"{len(omitted_cells)} cells from '{annotation_path}' "
+                "were not present in your h5ad files and thus "
+                "will not be used to create the precomputed "
+                "stats file. An example of the offending cells "
+                f"is\n{omitted_cells[:5]}"
+            )
+            warnings.warn(
+                message=msg,
+                category=OmittedCellsWarning
+            )
+
         raw_tree = TaxonomyTree.from_dataframe(
             dataframe=df,
             column_hierarchy=self.args['hierarchy'],
@@ -80,7 +120,7 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
         del raw_tree
         taxonomy_tree = TaxonomyTree(data=raw_data)
 
-        success = precompute_summary_stats_from_h5ad_list_and_tree(
+        precompute_summary_stats_from_h5ad_list_and_tree(
             data_path_list=self.args['h5ad_path_list'],
             taxonomy_tree=taxonomy_tree,
             cell_set=set(df[self.args['cell_label_column']].values),
@@ -93,18 +133,6 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
             gene_id_col=self.args['gene_id_col']
         )
 
-        if not success:
-            cell_col = self.args['cell_label_column']
-            annotation_path = self.args['annotation_path']
-            raise RuntimeError(
-                "No data was written to disk; "
-                "check to make sure that the values in "
-                f"the column '{cell_col}' of "
-                f"'{annotation_path}' correspond with "
-                "values in the index of your h5ad "
-                "files."
-            )
-
         metadata.update(
             get_execution_metadata(
                 module_file=__file__,
@@ -114,6 +142,10 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
             dst.create_dataset(
                 'metadata',
                 data=json.dumps(metadata).encode('utf-8'))
+
+
+class OmittedCellsWarning(UserWarning):
+    pass
 
 
 def main():
