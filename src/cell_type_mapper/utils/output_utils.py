@@ -12,7 +12,8 @@ from cell_type_mapper.utils.utils import (
     mkstemp_clean,
     clean_for_json,
     clean_for_uns_serialization,
-    clean_for_uns_deserialization)
+    clean_for_uns_deserialization,
+    get_git_commit)
 
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
@@ -310,6 +311,11 @@ def get_execution_metadata(
     metadata['module'] = str(module)
     metadata['version'] = cell_type_mapper.__version__
     metadata['codebase'] = cell_type_mapper.__repository__
+
+    git_metadata = get_git_commit()
+    if git_metadata is not None:
+        metadata['git'] = git_metadata
+
     return metadata
 
 
