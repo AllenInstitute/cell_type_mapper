@@ -80,7 +80,7 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
         del raw_tree
         taxonomy_tree = TaxonomyTree(data=raw_data)
 
-        precompute_summary_stats_from_h5ad_list_and_tree(
+        success = precompute_summary_stats_from_h5ad_list_and_tree(
             data_path_list=self.args['h5ad_path_list'],
             taxonomy_tree=taxonomy_tree,
             cell_set=set(df[self.args['cell_label_column']].values),
@@ -92,6 +92,18 @@ class PrecomputationH5adListRunner(argschema.ArgSchemaParser):
             layer=self.args['layer'],
             gene_id_col=self.args['gene_id_col']
         )
+
+        if not success:
+            cell_col = self.args['cell_label_column']
+            annotation_path = self.args['annotation_path']
+            raise RuntimeError(
+                "No data was written to disk; "
+                "check to make sure that the values in "
+                f"the column '{cell_col}' of "
+                f"'{annotation_path}' correspond with "
+                "values in the index of your h5ad "
+                "files."
+            )
 
         metadata.update(
             get_execution_metadata(
