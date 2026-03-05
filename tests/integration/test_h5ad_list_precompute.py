@@ -318,3 +318,74 @@ def test_precompute_from_h5ad_list(
                 actual=actual['gt1'][ii, :],
                 desired=expected_gt1
             )
+
+
+@pytest.mark.parametrize(
+    "h5ad_list_fixture",
+    [{"normalization": "raw",
+      "gene_id_col": None,
+      "layer": "X"},
+     ],
+    indirect=["h5ad_list_fixture"]
+)
+def test_no_cells_precompute_from_h5ad_list(
+        local_tmp_dir,
+        h5ad_list_fixture):
+    """
+    Test that correct failure is raised when no cells
+    in the CSV align with the h5ad file
+    """
+    h5ad_list = h5ad_list_fixture[0]
+    h5ad_params = h5ad_list_fixture[2]
+
+    csv_path = basic_utils.mkstemp_clean(
+        dir=local_tmp_dir,
+        suffix='.csv'
+    )
+    data = [
+        {'label': f'label{ii}',
+         'qc': True,
+         'class': f'class{ii}',
+         'subclass': f'subclass{ii}',
+         'cluster': f'cluster{ii}'}
+        for ii in range(10)
+    ]
+    pd.DataFrame(data).to_csv(csv_path, index=False)
+
+    dst_path = basic_utils.mkstemp_clean(
+        dir=local_tmp_dir,
+        suffix='.h5'
+    )
+
+    config = {
+        "output_path": str(dst_path),
+        "hierarchy": ['class', 'subclass', 'cluster'],
+        "h5ad_path_list": h5ad_list,
+        "annotation_path": csv_path,
+        "qc_column": 'qc',
+        "cell_label_column": 'label',
+        "layer": h5ad_params['layer'],
+        "n_processors": 2,
+        "tmp_dir": local_tmp_dir,
+        "clobber": True,
+        "normalization": h5ad_params['normalization'],
+        "gene_id_col": h5ad_params["gene_id_col"],
+        "chunk_size": 100
+    }
+
+    runner = cli.PrecomputationH5adListRunner(
+        args=[],
+        input_data=config
+    )
+
+    msg = (
+        "No data was written to disk; "
+        "check to make sure that the values in "
+        "the column 'label' of "
+        f"'{csv_path}' correspond with "
+        "values in the index of your h5ad "
+        "files."
+    )
+
+    with pytest.raises(RuntimeError, match=msg):
+        runner.run()
