@@ -1,5 +1,9 @@
 # MapMyCells: Cell Type Mapper
 
+**New (March 2026):** Explanation and benchmarking of the code provided in
+this repository can now be found in the
+[MapMyCells bioRxiv preprint.](https://www.biorxiv.org/content/10.64898/2026.03.06.710160v1)
+
 ## Overview
 
 This code provides a python package for mapping single sell RNA sequencing data
