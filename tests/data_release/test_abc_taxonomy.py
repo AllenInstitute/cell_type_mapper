@@ -17,6 +17,7 @@ but not across levels
 """
 import pytest
 
+import itertools
 import warnings
 
 from cell_type_mapper.taxonomy.data_release_utils import (
@@ -87,22 +88,32 @@ def test_full_label_to_name(
 
 
 @pytest.mark.parametrize(
-    'use_cell_to_cluster',
-    [True, False]
+    'use_cell_to_cluster, pure_int',
+    itertools.product(
+        [True, False],
+        [True, False]
+    )
 )
 def test_get_cell_to_cluster_alias(
         cell_metadata_fixture,
         alias_fixture,
         cell_to_cluster_fixture,
         cell_to_cluster_membership_fixture,
-        use_cell_to_cluster):
+        cell_to_cluster_membership_pure_int_fixture,
+        use_cell_to_cluster,
+        pure_int):
+
+    if pure_int:
+        lookup = cell_to_cluster_membership_pure_int_fixture
+    else:
+        lookup = cell_to_cluster_membership_fixture
 
     if use_cell_to_cluster:
         cell_metadata_path = (
-            cell_to_cluster_membership_fixture['cell_metadata']
+            lookup['cell_metadata']
         )
         cell_to_cluster_path = (
-            cell_to_cluster_membership_fixture['cell_to_cluster']
+            lookup['cell_to_cluster']
         )
     else:
         cell_metadata_path = cell_metadata_fixture
@@ -120,24 +131,34 @@ def test_get_cell_to_cluster_alias(
 
 
 @pytest.mark.parametrize(
-    "use_cell_to_cluster",
-    [True, False]
+    "use_cell_to_cluster, pure_int",
+    itertools.product(
+        [True, False],
+        [True, False]
+    )
 )
 def test_all_this(
         cell_metadata_fixture,
         cluster_membership_fixture,
         cell_to_cluster_membership_fixture,
+        cell_to_cluster_membership_pure_int_fixture,
         cluster_annotation_term_fixture,
         baseline_tree_fixture,
         baseline_tree_without_cells_fixture,
-        use_cell_to_cluster):
+        use_cell_to_cluster,
+        pure_int):
+
+    if pure_int:
+        lookup = cell_to_cluster_membership_pure_int_fixture
+    else:
+        lookup = cell_to_cluster_membership_fixture
 
     if use_cell_to_cluster:
         cell_metadata_path = (
-            cell_to_cluster_membership_fixture['cell_metadata']
+            lookup['cell_metadata']
         )
         cell_to_cluster_path = (
-            cell_to_cluster_membership_fixture['cell_to_cluster']
+            lookup['cell_to_cluster']
         )
     else:
         cell_metadata_path = cell_metadata_fixture

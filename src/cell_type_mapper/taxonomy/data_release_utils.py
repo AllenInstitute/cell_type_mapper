@@ -260,10 +260,11 @@ def _get_cell_to_cluster_alias(
     valid_cells = cell_metadata.cell_label.values
     cell_to_cluster = pd.read_csv(cell_to_cluster_path)
     raw = {
-        cell: alias
+        cell: str(alias)
         for cell, alias in zip(cell_to_cluster.cell_label.values,
                                cell_to_cluster.cluster_alias.values)
     }
+
     final = {
         cell: raw[cell] for cell in valid_cells
     }
