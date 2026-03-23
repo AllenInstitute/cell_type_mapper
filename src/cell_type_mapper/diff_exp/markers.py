@@ -649,7 +649,7 @@ def _find_markers_worker(
         node1 = sibling_pair[1]
         node2 = sibling_pair[2]
 
-        (scores,
+        (_,
          validity_mask,
          up_mask) = score_differential_genes(
                          node_1=f'{level}/{node1}',
