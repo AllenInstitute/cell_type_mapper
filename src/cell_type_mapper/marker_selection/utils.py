@@ -69,10 +69,10 @@ def create_utility_array(
 
         idx0 = down_markers.indptr[pair_batch]
         idx1 = down_markers.indptr[pair_batch+1]
-        marker_census[pair0:pair1, 0] += idx1-idx0
+        marker_census[pair0:pair1, 0] += (idx1-idx0).astype(marker_census.dtype)
 
         idx0 = up_markers.indptr[pair_batch]
         idx1 = up_markers.indptr[pair_batch+1]
-        marker_census[pair0:pair1, 1] += idx1-idx0
+        marker_census[pair0:pair1, 1] += (idx1-idx0).astype(marker_census.dtype)
 
     return utility_sum, marker_census
