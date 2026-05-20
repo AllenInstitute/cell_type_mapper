@@ -669,15 +669,18 @@ def infer_attrs(
             encoding_version = attrs['encoding-version']
 
         if 'encoding-type' in attrs:
-            encoding_type = attrs['encoding-type']
-        elif isinstance(src[dataset], h5py.Dataset):
-            encoding_type = 'array'
-            if array_shape is None:
-                array_shape = np.array(src[dataset].shape)
-            if encoding_version is None:
-                encoding_version = '0.2.0'
-        else:
-            indptr = src[f'{dataset}/indptr'][()]
+            if attrs['encoding-type'] != 'null':
+                encoding_type = attrs['encoding-type']
+
+        if encoding_type is None:
+            if isinstance(src[dataset], h5py.Dataset):
+                encoding_type = 'array'
+                if array_shape is None:
+                    array_shape = np.array(src[dataset].shape)
+                if encoding_version is None:
+                    encoding_version = '0.2.0'
+            else:
+                indptr = src[f'{dataset}/indptr'][()]
 
     if encoding_type is None or array_shape is None:
         var = read_df_from_h5ad(src_path, df_name='var')
