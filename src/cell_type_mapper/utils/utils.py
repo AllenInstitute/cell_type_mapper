@@ -8,6 +8,8 @@ import tempfile
 import time
 import warnings
 
+import cell_type_mapper
+
 
 def _clean_up(target_path):
     if target_path is None:
@@ -340,3 +342,50 @@ def warn_on_parallelization(log):
         log.warn(msg)
     else:
         warnings.warn(msg)
+
+
+def get_git_commit():
+    """
+    Return the current git commit, if any
+    """
+    try:
+        result = _get_git_commit()
+    except Exception:
+        result = None
+
+    return result
+
+
+def _get_git_commit():
+    """
+    Return the current git commit, if any
+
+    Shamelessly taken from
+    https://gist.github.com/NaelsonDouglas/9bc3bfa26deec7827cb87816cad88d59
+    """
+    cell_type_mapper_path = pathlib.Path(cell_type_mapper.__file__)
+    git_dir = cell_type_mapper_path.parent.parent.parent / '.git'
+    if not git_dir.is_dir():
+        return None
+
+    head_path = git_dir / 'HEAD'
+    if not head_path.is_file():
+        return None
+
+    with open(head_path, 'r') as src:
+        branch_line = src.readline()
+    branch_file = git_dir / branch_line.strip().split()[-1]
+    if not branch_file.is_file():
+        return None
+
+    with open(branch_file, 'r') as src:
+        commit = src.readline().strip()
+    branch = branch_line.strip().split()[-1]
+    branch = branch.replace(
+        'refs/heads/',
+        ''
+    )
+    return {
+        'branch': branch,
+        'commit': commit
+    }

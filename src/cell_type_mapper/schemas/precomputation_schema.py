@@ -14,14 +14,6 @@ class PrecomputedStatsSchemaMixin(
         NProcessorsMixin,
         LayerMixin):
 
-    clobber = argschema.fields.Boolean(
-        required=False,
-        default=False,
-        allow_none=False,
-        description=(
-            "Set to True to allow the code to overwrite an existing file."
-        ))
-
     hierarchy = argschema.fields.List(
         argschema.fields.String,
         required=True,
@@ -78,6 +70,60 @@ class PrecomputedStatsScrattchSchema(
             "data along with the taxonomy (stored in the obs "
             "dataframe)."
         ))
+
+
+class PrecomputedStatsH5adListSchema(
+        PrecomputedStatsSchemaMixin,
+        argschema.ArgSchema):
+
+    h5ad_path_list = argschema.fields.List(
+        argschema.fields.InputFile,
+        required=True,
+        default=None,
+        allow_none=False,
+        cli_as_single_argument=True,
+        description="List of paths to h5ad files that contain the "
+        "cell-by-gene data for which we are precomputing statistics")
+
+    annotation_path = argschema.fields.InputFile(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Path to CSV file annotating each cell to the "
+            "taxonomy."
+        )
+    )
+
+    qc_column = argschema.fields.String(
+        required=True,
+        default=None,
+        allow_none=False,
+        description=(
+            "Column in CSV file that designates a cell "
+            "as passing QC (True) or failing QC (False)."
+        )
+    )
+
+    cell_label_column = argschema.fields.String(
+        required=True,
+        default="cell_label",
+        alllow_none=False,
+        description=(
+            "Column in CSV file that uniquely labels "
+            "each cell (must correspond to index values "
+            "in h5ad files)."
+        )
+    )
+
+    chunk_size = argschema.fields.Int(
+        required=True,
+        default=10000,
+        allow_none=False,
+        description=(
+            "Number of cells to load into memory at a time."
+        )
+    )
 
 
 class PrecomputedStatsABCSchema(

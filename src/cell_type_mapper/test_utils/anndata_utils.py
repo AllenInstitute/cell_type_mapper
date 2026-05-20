@@ -12,7 +12,8 @@ from cell_type_mapper.utils.anndata_utils import (
 
 def create_h5ad_without_encoding_type(
         src_path,
-        dst_path):
+        dst_path,
+        encoding_type_is_null=False):
     """
     Take the h5ad file at src_path and copy it to
     dst_path intentionally leaving out all of the useful
@@ -30,6 +31,9 @@ def create_h5ad_without_encoding_type(
         layers/
         raw/
         uns
+
+    Note: if encoding_type_is_null, set encoding_type == 'null'
+    in the dataset
     """
     obs = read_df_from_h5ad(src_path, df_name='obs')
     var = read_df_from_h5ad(src_path, df_name='var')
@@ -50,11 +54,18 @@ def create_h5ad_without_encoding_type(
                 dst_grp=dst,
                 dst_handle='X'
             )
+            if encoding_type_is_null:
+                dst['X'].attrs.create(
+                    name='encoding-type',
+                    data='null'
+                )
 
             if 'raw' in src:
                 if 'raw' in dst:
                     del dst['raw']
                 dst_raw = dst.create_group('raw')
+                if encoding_type_is_null:
+                    dst_raw.attrs.create(name='encoding-type', data='null')
                 for specific_layer in src['raw'].keys():
                     _copy_array_no_encoding_type(
                         src_handle=src['raw'][specific_layer],
@@ -68,6 +79,11 @@ def create_h5ad_without_encoding_type(
                     dst_grp=dst_layers,
                     dst_handle=specific_layer
                 )
+                if encoding_type_is_null:
+                    dst['layers'][specific_layer].attrs.create(
+                        name='encoding-type',
+                        data='null'
+                    )
 
 
 def _copy_array_no_encoding_type(

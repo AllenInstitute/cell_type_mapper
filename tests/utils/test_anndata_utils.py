@@ -1019,18 +1019,23 @@ def test_subset_csc_h5ad_columns(
 
 
 @pytest.mark.parametrize(
-        'density,layer',
+        'density,layer,encoding_type_is_null',
         itertools.product(
             ['csc_matrix', 'csr_matrix', 'array'],
-            ['X', 'layers/dummy', 'raw/X'])
+            ['X', 'layers/dummy', 'raw/X'],
+            [True, False])
         )
 def test_infer_attrs(
         tmp_dir_fixture,
         density,
-        layer):
+        layer,
+        encoding_type_is_null):
     """
     Test utility to detect density of an array in an h5ad,
     even when the encoding-type metadata is missing
+
+    encoding_type_is_null indicates whether or not
+    'encoding-type' is explicitly 'null' in the dataset or not.
     """
 
     n_cells = 47
@@ -1103,7 +1108,8 @@ def test_infer_attrs(
 
     create_h5ad_without_encoding_type(
         src_path=good_path,
-        dst_path=bad_path
+        dst_path=bad_path,
+        encoding_type_is_null=encoding_type_is_null
     )
 
     # add a nonsense attrs field to make sure that
