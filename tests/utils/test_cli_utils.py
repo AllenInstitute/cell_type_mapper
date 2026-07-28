@@ -145,8 +145,7 @@ def test_align_query_gene_names(
         a_data = anndata.AnnData(
             X=np.zeros((len(obs), len(var)), dtype=np.float32),
             obs=obs,
-            var=var,
-            dtype=np.float32)
+            var=var)
 
     src_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -236,8 +235,7 @@ def test_flag_in_align_query_gene_names(
             a_data = anndata.AnnData(
                 X=np.zeros((len(obs), len(var)), dtype=np.float32),
                 obs=obs,
-                var=var,
-                dtype=np.float32)
+                var=var)
 
             src_path = mkstemp_clean(
                 dir=tmp_dir_fixture,

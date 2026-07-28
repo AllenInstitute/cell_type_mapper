@@ -1272,7 +1272,7 @@ def test_integer_indexed_input(
         # https://github.com/scverse/anndata/issues/35
         # but it has been encountered "in the wild")
         with h5py.File(new_query_path, 'a') as src:
-            old_index = src['obs']['cell_label'][()]
+            old_index = new_obs.index.values
             del src['obs']['cell_label']
             src['obs'].create_dataset(
                 'cell_label',

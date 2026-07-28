@@ -681,8 +681,7 @@ def test_validation_of_h5ad_diverse_dtypes(
         a_data = anndata.AnnData(
             X=x,
             var=var_fixture,
-            obs=obs_fixture,
-            dtype=np.float64)
+            obs=obs_fixture)
         a_data.write_h5ad(orig_path)
 
         md50 = hashlib.md5()

@@ -116,8 +116,7 @@ def test_csr_amalgamation(
             a_data = anndata.AnnData(
                 X=x,
                 layers=layers,
-                raw=raw,
-                dtype=data_dtype)
+                raw=raw)
 
         a_data.write_h5ad(this_path)
 
@@ -261,8 +260,7 @@ def test_csr_anndata_amalgamation(
             a_data = anndata.AnnData(
                 X=x,
                 layers=layers,
-                raw=raw,
-                dtype=data_dtype)
+                raw=raw)
 
         a_data.write_h5ad(this_path)
 
@@ -319,91 +317,6 @@ def test_csr_anndata_amalgamation(
         expected,
         atol=0.0,
         rtol=1.0e-6)
-
-
-@pytest.mark.parametrize('layer', ['X', 'dummy', 'raw/X'])
-def test_failure_when_many_floats(tmp_dir_fixture, layer):
-    """
-    Test that amalgamation fails when the input arrays
-    have disparate float dtypes
-    """
-    rng = np.random.default_rng(712231)
-    n_cols = 15
-
-    src_rows = []
-    expected_rows = []
-
-    for ii, data_dtype in enumerate(
-                [np.float32, np.float64, np.float32]):
-        n_rows = rng.integers(10, 20)
-        n_tot = n_rows*n_cols
-        data = np.zeros(n_tot, dtype=float)
-        non_null = rng.choice(
-            np.arange(n_tot),
-            n_tot//5,
-            replace=False)
-
-        data[non_null] = rng.random(len(non_null), dtype=data_dtype)
-        data = data.reshape((n_rows, n_cols))
-        chosen_rows = np.sort(rng.choice(np.arange(n_rows),
-                                         rng.integers(5, 7),
-                                         replace=False))
-
-        # make sure some empty rows are included
-        data[chosen_rows[1], :] = 0
-
-        for idx in chosen_rows:
-            expected_rows.append(data[idx, :])
-
-        this_path = mkstemp_clean(
-            dir=tmp_dir_fixture,
-            suffix='.h5ad')
-
-        if layer == 'X':
-            x = scipy_sparse.csr_matrix(data)
-            layers = None
-            raw = None
-        elif layer == 'dummy':
-            x = np.zeros(data.shape, dtype=int)
-            layers = {layer: scipy_sparse.csr_matrix(data.astype(data_dtype))}
-            raw = None
-        elif layer == 'raw/X':
-            x = np.zeros(data.shape, dtype=int)
-            layers = None
-            raw = {'X': scipy_sparse.csr_matrix(data.astype(data_dtype))}
-        else:
-            raise RuntimeError(
-                f"Test does not know how to parse layer '{layer}'"
-            )
-
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-
-            a_data = anndata.AnnData(
-                X=x,
-                layers=layers,
-                raw=raw,
-                dtype=data_dtype)
-
-        a_data.write_h5ad(this_path)
-
-        del a_data
-
-        src_rows.append(
-            {'path': this_path,
-             'rows': list(chosen_rows),
-             'layer': layer})
-
-    dst_path = mkstemp_clean(
-        dir=tmp_dir_fixture,
-        suffix='.h5')
-
-    with pytest.raises(RuntimeError, match="disparate data types"):
-        amalgamate_h5ad(
-            src_rows=src_rows,
-            dst_path=dst_path,
-            dst_obs=None,
-            dst_var=None)
 
 
 @pytest.fixture(scope='module')

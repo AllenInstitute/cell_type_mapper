@@ -152,8 +152,7 @@ def h5ad_fixture(
 
         a_data = anndata.AnnData(
             X=csr,
-            var=var_fixture,
-            dtype=csr.dtype)
+            var=var_fixture)
 
     a_data.write_h5ad(h5ad_path)
 
@@ -183,8 +182,7 @@ def h5ad_fixture_raw(
 
         a_data = anndata.AnnData(
             X=csr,
-            var=var_fixture,
-            dtype=csr.dtype)
+            var=var_fixture)
 
     a_data.write_h5ad(h5ad_path)
 

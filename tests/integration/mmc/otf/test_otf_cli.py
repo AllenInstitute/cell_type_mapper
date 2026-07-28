@@ -261,8 +261,7 @@ def noisy_query_h5ad_fixture(
             X=noisy_query_cell_x_gene_fixture,
             var=var,
             obs=obs,
-            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}},
-            dtype=noisy_query_cell_x_gene_fixture.dtype)
+            uns={'AIBS_CDM_gene_mapping': {'a': 'b', 'c': 'd'}})
 
     h5ad_path = pathlib.Path(
         mkstemp_clean(

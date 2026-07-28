@@ -146,8 +146,7 @@ def query_fixture(
         a = anndata.AnnData(
             X=x_matrix,
             obs=obs_df,
-            var=var_df,
-            dtype=x_matrix.dtype)
+            var=var_df)
 
     a.write_h5ad(anndata_path)
 

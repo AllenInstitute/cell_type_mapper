@@ -39,7 +39,7 @@ def test_load_csr(tmp_dir_fixture):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        ann = anndata.AnnData(csr, dtype=int)
+        ann = anndata.AnnData(csr)
 
     ann.write_h5ad(tmp_path)
 
@@ -92,7 +92,7 @@ def test_load_csc(tmp_dir_fixture):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        ann = anndata.AnnData(csc, dtype=int)
+        ann = anndata.AnnData(csc)
 
     ann.write_h5ad(tmp_path)
 
@@ -145,7 +145,7 @@ def test_load_csr_chunk(tmp_dir_fixture):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        ann = anndata.AnnData(csr, dtype=int)
+        ann = anndata.AnnData(csr)
 
     ann.write_h5ad(tmp_path)
 
@@ -200,7 +200,7 @@ def test_load_csr_chunk_very_sparse(tmp_dir_fixture):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        ann = anndata.AnnData(csr, dtype=int)
+        ann = anndata.AnnData(csr)
 
     ann.write_h5ad(tmp_path)
 
@@ -330,7 +330,7 @@ def test_load_disjoint_csr(tmp_dir_fixture):
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
 
-        ann = anndata.AnnData(csr, dtype=int)
+        ann = anndata.AnnData(csr)
 
     ann.write_h5ad(tmp_path)
 
