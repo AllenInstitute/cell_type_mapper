@@ -106,7 +106,7 @@ def create_h5ad_file(
         warnings.simplefilter('ignore')
 
         a_data = anndata.AnnData(
-            X=data, obs=obs, var=var, dtype=data.dtype)
+            X=data, obs=obs, var=var)
 
     a_data.write_h5ad(output_path)
 
@@ -375,8 +375,7 @@ def test_is_x_integers_layers(tmp_dir_fixture, is_sparse, is_int):
 
         a_data = anndata.AnnData(
             X=x,
-            layers={'garbage': layer},
-            dtype=x.dtype)
+            layers={'garbage': layer})
 
     h5ad_path = mkstemp_clean(
         dir=tmp_dir_fixture,
@@ -427,8 +426,7 @@ def test_get_minmax_integers_layers(tmp_dir_fixture, is_sparse):
 
         a_data = anndata.AnnData(
             X=x,
-            layers={'garbage': layer},
-            dtype=x.dtype
+            layers={'garbage': layer}
         )
 
     h5ad_path = mkstemp_clean(

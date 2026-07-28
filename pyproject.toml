@@ -11,12 +11,12 @@ dependencies = [
     "argschema",
     "matplotlib",
     "marshmallow==3.12.2",
-    "mmc_gene_mapper @ git+https://github.com/AllenInstitute/mmc_gene_mapper@v0.2.1",
+    "mmc_gene_mapper @ git+https://github.com/AllenInstitute/mmc_gene_mapper@relax/scipy/260727",
     "numpy",
     "pytest",
     "pytest-xdist",
-    "pyzmq<27.0.0",
-    "scipy<1.15.0"
+    "pyzmq",
+    "scipy"
 ]
 requires-python = ">=3.10"
 authors = [

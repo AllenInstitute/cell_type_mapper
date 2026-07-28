@@ -635,8 +635,7 @@ def query_h5ad_fixture(
         warnings.simplefilter('ignore')
 
         a_data = anndata.AnnData(X=query_data,
-                                 obs=obs,
-                                 dtype=float)
+                                 obs=obs)
 
     a_data.write_h5ad(query_h5ad_path)
 
@@ -1012,8 +1011,7 @@ def query_h5ad_fixture_negative(
         warnings.simplefilter('ignore')
 
         a_data = anndata.AnnData(X=query_data,
-                                 obs=obs,
-                                 dtype=float)
+                                 obs=obs)
 
     a_data.write_h5ad(query_h5ad_path)
 

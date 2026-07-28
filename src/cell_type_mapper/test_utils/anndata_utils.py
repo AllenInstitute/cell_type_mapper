@@ -111,7 +111,7 @@ def _copy_array_no_encoding_type(
         for dataset in src_handle.keys():
             data_grp.create_dataset(
                 dataset,
-                data=src_handle[dataset][()]
+                data=src_handle[dataset]
             )
 
 

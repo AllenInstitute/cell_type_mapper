@@ -517,8 +517,7 @@ def h5ad_path_list_fixture(
             this_a = anndata.AnnData(
                 X=this_x,
                 obs=obs,
-                var=var,
-                dtype=x_fixture.dtype)
+                var=var)
 
         this_path = mkstemp_clean(
             dir=tmp_dir_fixture,

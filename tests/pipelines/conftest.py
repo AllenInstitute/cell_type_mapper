@@ -281,8 +281,7 @@ def h5ad_path_fixture(
         a_data = anndata.AnnData(
             X=csr,
             obs=obs,
-            var=var,
-            dtype=csr.dtype)
+            var=var)
 
     a_data.write_h5ad(a_data_path)
 
@@ -354,8 +353,7 @@ def query_h5ad_path_fixture(
 
         a_data = anndata.AnnData(
                         X=x_data,
-                        var=var,
-                        dtype=x_data.dtype)
+                        var=var)
 
     a_data.write_h5ad(h5ad_path)
     del a_data
