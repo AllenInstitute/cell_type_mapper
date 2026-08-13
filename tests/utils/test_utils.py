@@ -2,13 +2,15 @@ import pytest
 
 import json
 import numpy as np
+import pathlib
 
 from cell_type_mapper.utils.utils import (
     merge_index_list,
     choose_int_dtype,
     clean_for_uns_serialization,
     clean_for_uns_deserialization,
-    clean_for_json)
+    clean_for_json,
+    remove_nulls_from_dict)
 
 
 @pytest.mark.parametrize(
@@ -87,3 +89,24 @@ def test_clean_for_json():
     assert cleaned == expected
 
     json.dumps(cleaned)
+
+
+@pytest.mark.parametrize(
+    "input_dict, expected_dict",
+    [({"a": 1, "b": None, "c": np.nan, "d": "x"},
+      {"a": 1, "d": "x"}),
+     ({"a": pathlib.Path("/a/file.txt"), "b": None},
+      {"a": pathlib.Path("/a/file.txt")}),
+     ({"a": {"a0": pathlib.Path("/a/file.txt"), "a1": None, "a2": 4},
+       "b": None, "c": [1, 2, 3]},
+      {"a": {"a0": pathlib.Path("/a/file.txt"), "a2": 4},
+       "c": [1, 2, 3]}),
+     ]
+)
+def test_remove_nulls_from_dict(
+        input_dict,
+        expected_dict):
+    actual_dict = remove_nulls_from_dict(
+        input_dict
+    )
+    assert actual_dict == expected_dict
