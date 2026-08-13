@@ -11,6 +11,9 @@ import warnings
 
 from cell_type_mapper.cli.cli_log import CommandLog
 
+from cell_type_mapper.utils.utils import (
+    remove_nulls_from_dict)
+
 from cell_type_mapper.utils.anndata_utils import (
     read_df_from_h5ad,
     update_uns)
@@ -283,8 +286,11 @@ class ValidateH5adRunner(argschema.ArgSchemaParser):
                 update_uns(
                     result_path,
                     new_uns={
-                        'validation_config': config,
-                        'validation_metadata': execution_metadata},
+                        'validation_config': remove_nulls_from_dict(config),
+                        'validation_metadata': remove_nulls_from_dict(
+                            execution_metadata
+                        )
+                    },
                     clobber=False
                 )
 

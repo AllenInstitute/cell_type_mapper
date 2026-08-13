@@ -110,3 +110,4 @@ def test_remove_nulls_from_dict(
         input_dict
     )
     assert actual_dict == expected_dict
+    assert input_dict != expected_dict
