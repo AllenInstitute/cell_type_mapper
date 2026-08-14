@@ -14,7 +14,10 @@ def assert_blobs_equal(blob0, blob1):
 
     assert blob0['taxonomy_tree'] == blob1['taxonomy_tree']
     assert blob0['marker_genes'] == blob1['marker_genes']
-    assert blob0['n_unmapped_genes'] == blob1['n_unmapped_genes']
+    assert (
+        blob0.get('n_unmapped_genes', None)
+        == blob1.get('n_unmapped_genes', None)
+    )
     assert blob0['marker_genes'] == blob1['marker_genes']
     assert blob0['gene_identifier_mapping'] == \
         blob1['gene_identifier_mapping']
