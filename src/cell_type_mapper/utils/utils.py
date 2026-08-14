@@ -1,7 +1,9 @@
 from typing import Union, List, Tuple, Optional, Any
+import copy
 import datetime
 import json
 import numpy as np
+import pandas as pd
 import os
 import pathlib
 import tempfile
@@ -389,3 +391,35 @@ def _get_git_commit():
         'branch': branch,
         'commit': commit
     }
+
+
+def remove_nulls_from_dict(src_dict, is_a_copy=False):
+    """
+    Loop over the keys in a dict. Remove any key, value pair
+    where the value is NULL. Return the cleaned dict.
+
+    Acts recursively on all dicts under src_dict.
+
+    This is so the input validation code can write an uns
+    with config params that are readable by older version of
+    anndata that lack NULL encoding.
+
+    if is_a_copy, acts in place; otherwise, create a copy
+    """
+    if not is_a_copy:
+        src_dict = copy.deepcopy(src_dict)
+    key_list = list(src_dict.keys())
+    for key in key_list:
+        if isinstance(src_dict[key], dict):
+            src_dict[key] = remove_nulls_from_dict(
+                src_dict[key],
+                is_a_copy=True
+            )
+        else:
+            try:
+                if pd.isna(src_dict[key]):
+                    src_dict.pop(key)
+            except ValueError:
+                # means src_dict[key] was a list or array
+                pass
+    return src_dict
