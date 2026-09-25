@@ -60,7 +60,15 @@ def _copy_h5_element(
     if isinstance(src_handle[current_location], h5py.Dataset):
         if current_location not in excluded_datasets:
             src_dataset = src_handle[current_location]
+            if src_dataset.shape is None:
+                # this element was written by anndata
+                # in such a way that h5py cannot just
+                # transcribe it over (h5py does not
+                # want shape==None)
+                return
+
             chunks = src_dataset.chunks
+
             if chunks is None:
                 dst_dataset = dst_handle.create_dataset(
                     current_location,
